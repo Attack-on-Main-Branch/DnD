@@ -1,1 +1,1 @@
-@AGENTS.md
+@Maria/AGENTS.md

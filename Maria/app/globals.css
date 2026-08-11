@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Browsers give <button> `cursor: default`, and Tailwind's preflight does not
+ * override it — so every button in the app looked unclickable. Fixing it here
+ * rather than by sprinkling `cursor-pointer` means a new button is correct the
+ * moment it is written, instead of the next time somebody notices.
+ *
+ * Anything disabled, or marked aria-disabled, is left alone: promising a click
+ * that does nothing is worse than no affordance at all. Utility classes such
+ * as `disabled:cursor-not-allowed` sit in a later layer and still win.
+ */
+@layer base {
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="option"],
+  summary,
+  label:has(input[type="radio"]:not(:disabled)),
+  label:has(input[type="checkbox"]:not(:disabled)) {
+    cursor: pointer;
+  }
+}
+
+/* Indeterminate sweep for the top navigation bar. */
+@keyframes nav-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes nav-progress {
+    0%,
+    100% {
+      transform: translateX(150%);
+    }
+  }
+}

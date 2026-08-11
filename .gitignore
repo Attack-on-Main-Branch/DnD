@@ -1,8 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Patterns are intentionally unanchored: this is a workspace monorepo, so
+# build output and dependencies appear under Maria/ and Shina/ as well as here.
+
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -11,14 +14,14 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build/
 
 # misc
 .DS_Store
@@ -28,10 +31,6 @@
 Thumbs.db
 ehthumbs.db
 desktop.ini
-
-# supabase cli local state — migrations under supabase/migrations stay tracked
-supabase/.temp/
-supabase/.branches/
 
 # debug
 npm-debug.log*
