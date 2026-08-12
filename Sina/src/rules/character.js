@@ -44,62 +44,63 @@ export const ALIGNMENTS = [
     value: "lawful_good",
     label: "Lawful Good",
     description:
-      "Honour and compassion together, held to even when keeping their word costs them dearly.",
+      "Acts as a good crusader. Follows a strict moral and social code to help people.",
     examples: ["Superman", "Captain America", "Wonder Woman"],
   },
   {
     value: "neutral_good",
     label: "Neutral Good",
     description:
-      "Does what is right, treating rules as a useful tool rather than a master.",
+      "Acts as a benefactor. Does the right thing without strict adherence to rules.",
     examples: ["Luke Skywalker", "Spider-Man", "Gandalf"],
   },
   {
     value: "chaotic_good",
     label: "Chaotic Good",
     description:
-      "A good heart with no patience for authority, paperwork or being told to wait.",
-    examples: ["Han Solo", "Robin Hood", "Katniss Everdeen"],
+      "Acts as a rebel. Follows a good heart and personal freedom, fighting unfair authority.",
+    examples: ["Han Solo", "Robin Hood", "Sonic"],
   },
   {
     value: "lawful_neutral",
     label: "Lawful Neutral",
     description:
-      "Order is the point in itself. The code outranks mercy, and outranks cruelty too.",
-    examples: ["Judge Dredd", "Inspector Javert", "Agent K"],
+      "Acts as a judge. Values order, law, and traditions above specific moral debates.",
+    examples: ["Judge Dredd", "RoboCop", "Agent K"],
   },
   {
     value: "true_neutral",
     label: "True Neutral",
     description:
-      "Takes no side, and distrusts anyone insisting there are only two.",
+      "Acts as an unaligned or balanced observer. Avoids taking strong moral sides.",
     examples: ["Treebeard", "The Oracle", "Bilbo Baggins"],
   },
   {
     value: "chaotic_neutral",
     label: "Chaotic Neutral",
     description:
-      "Freedom above everything, including the freedom to be thoroughly unreliable.",
+      "Acts as a free spirit. Follows whims and personal liberty with no grand moral plan.",
     examples: ["Jack Sparrow", "The Dude", "Deadpool"],
   },
   {
     value: "lawful_evil",
     label: "Lawful Evil",
     description:
-      "Rank, rules and contracts, turned into instruments for getting exactly what they want.",
+      "Acts as a tyrant or dominator. Uses rules, hierarchy, and codes of conduct to exploit others.",
     examples: ["Darth Vader", "Hans Landa", "Dolores Umbridge"],
   },
   {
     value: "neutral_evil",
     label: "Neutral Evil",
     description:
-      "Undiluted self-interest, unbothered by law or chaos alike. Whatever works.",
+      "Acts as a pure malfactor. Does whatever works best for personal survival and gain.",
     examples: ["Lord Voldemort", "Gordon Gekko", "Scar"],
   },
   {
     value: "chaotic_evil",
     label: "Chaotic Evil",
-    description: "Destruction for its own sake, with nothing holding the leash.",
+    description:
+      "Acts as a destroyer. Driven by unbridled greed, hatred, and random violence.",
     examples: ["The Joker", "Bellatrix Lestrange", "Freddy Krueger"],
   },
 ];

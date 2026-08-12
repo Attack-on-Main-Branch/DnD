@@ -35,6 +35,32 @@ export function avatarColorClass(value) {
 }
 
 /**
+ * Artwork behind a character card, keyed by race.
+ *
+ * Not every race has one yet, and the card is designed to work without it —
+ * add a file to Maria/public/races and an entry here, and it appears.
+ *
+ * The sources are 2744×1568 PNGs of roughly 4.5 MB each; these are 1280px
+ * WebP re-encodes at about 45 KB, which is still far more detail than a card
+ * a few hundred pixels wide can show. Next then resizes again per request, so
+ * a card downloads around 6 KB.
+ *
+ * The originals sit in assets/races, which is git-ignored — 22 MB of binaries
+ * would be in the history permanently, and nothing needs them at runtime.
+ */
+const IMAGE_BY_RACE = {
+  Human: "/races/human.webp",
+  Dragonborn: "/races/dragonborn.webp",
+  Dwarf: "/races/dwarf.webp",
+  Elf: "/races/elf.webp",
+  "Half-Elf": "/races/half-elf.webp",
+};
+
+export function raceImage(race) {
+  return IMAGE_BY_RACE[race] ?? null;
+}
+
+/**
  * "Darth Vader" → "DV". First and last word, so a middle name does not push
  * the surname out. A single word falls back to its first two letters.
  *

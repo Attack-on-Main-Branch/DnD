@@ -11,6 +11,13 @@ const SPIN_DURATION = 26000;
 const HOVER_SPEED = 5;
 
 /**
+ * Direction the highlight travels, in degrees clockwise from the +x axis.
+ * 135° points down and to the left, so the sweep runs from the top-right
+ * corner to the bottom-left one.
+ */
+const SHEEN_ANGLE = 135;
+
+/**
  * A nine-pointed star as an SVG path.
  *
  * Points alternate between the outer and inner radius, starting at twelve
@@ -40,39 +47,92 @@ const FRONT_STAR = starPath(9, 50, 21);
 // which is what gives the layered look of alternating long and short spikes.
 const BACK_STAR = starPath(9, 44, 18, 20);
 
+/**
+ * Rotation about the star's centre.
+ *
+ * `transform-origin: center` looks like the obvious value and is wrong here.
+ * The lengths it resolves to are measured from the user-space origin, not from
+ * the top-left of the viewBox — so with a viewBox of "-60 -60 120 120" it
+ * lands on user-space (60, 60), a corner, and the star orbits it instead of
+ * spinning in place. The star is drawn around (0, 0), so that is the origin.
+ *
+ * `transform-box` still has to be stated: its default is not the viewport, and
+ * a fill-box reference would move with the content's bounding box.
+ */
+const SPIN_ORIGIN = { transformBox: "view-box", transformOrigin: "0 0" };
+
 export default function PlayButton() {
-  const spinnerRef = useRef(null);
-  const animationRef = useRef(null);
+  const spinRef = useRef(null);
+  const counterSpinRef = useRef(null);
 
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    const node = spinnerRef.current;
+    const spinNode = spinRef.current;
 
-    if (!node || reduceMotion) {
+    if (!spinNode || reduceMotion) {
       return undefined;
     }
+
+    const options = {
+      duration: SPIN_DURATION,
+      iterations: Infinity,
+      easing: "linear",
+    };
 
     // Driven by the Web Animations API rather than a CSS animation on purpose:
     // swapping `animation-duration` on hover restarts the timeline and the star
     // visibly jumps, whereas changing `playbackRate` keeps the current angle and
     // only alters how fast it advances from there.
-    const animation = node.animate(
+    const spin = spinNode.animate(
       [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
-      { duration: SPIN_DURATION, iterations: Infinity, easing: "linear" },
+      options,
     );
 
-    animationRef.current = animation;
+    const animations = [spin];
+
+    // The highlight lives inside the star's clip path, so that it is masked to
+    // the star's silhouette as that silhouette turns. Left alone it would turn
+    // with it and arrive from a different corner every second. Cancelling the
+    // rotation exactly keeps the sweep fixed on screen while the mask still
+    // tracks the star.
+    const counterSpinNode = counterSpinRef.current;
+
+    if (counterSpinNode) {
+      const counterSpin = counterSpinNode.animate(
+        [{ transform: "rotate(0deg)" }, { transform: "rotate(-360deg)" }],
+        options,
+      );
+
+      animations.push(counterSpin);
+
+      // Lock the two together. Created in the same tick they would almost
+      // certainly share a start time anyway, but "almost certainly" drifts into
+      // a visibly wandering highlight over a few minutes.
+      Promise.all([spin.ready, counterSpin.ready])
+        .then(() => {
+          counterSpin.startTime = spin.startTime;
+        })
+        .catch(() => {});
+    }
 
     return () => {
-      animation.cancel();
-      animationRef.current = null;
+      for (const animation of animations) {
+        animation.cancel();
+      }
     };
   }, [reduceMotion]);
 
+  /**
+   * Asks the elements for their running animations rather than keeping a list
+   * around. One source of truth, and nothing to fall out of step if an effect
+   * re-runs.
+   */
   function setSpeed(rate) {
-    if (animationRef.current) {
-      animationRef.current.playbackRate = rate;
+    for (const node of [spinRef.current, counterSpinRef.current]) {
+      for (const animation of node?.getAnimations() ?? []) {
+        animation.playbackRate = rate;
+      }
     }
   }
 
@@ -94,7 +154,6 @@ export default function PlayButton() {
         className="group relative grid size-20 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-500"
       >
         <span
-          ref={spinnerRef}
           aria-hidden="true"
           className="absolute inset-0 drop-shadow-[0_0_14px_rgba(245,158,11,0.45)] transition-[filter] duration-500 group-hover:drop-shadow-[0_0_22px_rgba(245,158,11,0.75)]"
         >
@@ -125,42 +184,56 @@ export default function PlayButton() {
               </clipPath>
             </defs>
 
-            <path
-              d={BACK_STAR}
-              fill="url(#play-star-back)"
-              stroke="#141414"
-              strokeWidth="1.1"
-              strokeLinejoin="round"
-            />
+            <g ref={spinRef} style={SPIN_ORIGIN}>
+              <path
+                d={BACK_STAR}
+                fill="url(#play-star-back)"
+                stroke="#141414"
+                strokeWidth="1.1"
+                strokeLinejoin="round"
+              />
 
-            <path
-              d={FRONT_STAR}
-              fill="url(#play-star-gold)"
-              stroke="#141414"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
+              <path
+                d={FRONT_STAR}
+                fill="url(#play-star-gold)"
+                stroke="#141414"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
 
-            <g clipPath="url(#play-star-clip)">
-              {/*
-                Tilted so the highlight runs corner to corner. Animated with
-                SMIL rather than CSS: a CSS transform on an SVG child resolves
-                against a coordinate system that varies by `transform-box`,
-                while `x` is unambiguous user units.
-              */}
-              <g transform="rotate(20)">
-                <rect x="-110" y="-90" width="26" height="180" fill="url(#play-star-sheen)">
-                  {!reduceMotion && (
-                    <animate
-                      attributeName="x"
-                      values="-110;90;-110"
-                      keyTimes="0;0.55;1"
-                      dur="4.5s"
-                      repeatCount="indefinite"
-                    />
-                  )}
-                </rect>
-              </g>
+              {!reduceMotion && (
+                <g clipPath="url(#play-star-clip)">
+                  <g ref={counterSpinRef} style={SPIN_ORIGIN}>
+                    <g transform={`rotate(${SHEEN_ANGLE})`}>
+                      {/*
+                        Animated with SMIL rather than CSS: a CSS transform on
+                        an SVG child resolves against a coordinate system that
+                        varies by `transform-box`, while `x` is unambiguous user
+                        units.
+
+                        One direction only. Sweeping back would send the light
+                        the wrong way across the star for half of every cycle,
+                        so it crosses, then waits off-stage for the rest.
+                      */}
+                      <rect
+                        x="-110"
+                        y="-90"
+                        width="26"
+                        height="180"
+                        fill="url(#play-star-sheen)"
+                      >
+                        <animate
+                          attributeName="x"
+                          values="-110;90;90"
+                          keyTimes="0;0.3;1"
+                          dur="4s"
+                          repeatCount="indefinite"
+                        />
+                      </rect>
+                    </g>
+                  </g>
+                </g>
+              )}
             </g>
           </svg>
         </span>

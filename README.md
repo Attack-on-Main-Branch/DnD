@@ -153,6 +153,8 @@ Sina/                        backend
   src/data/                  every query and mutation
   src/supabase/              client construction, access policy
   supabase/migrations/       database schema, in order
+
+assets/                      source artwork, git-ignored (see below)
 ```
 
 A few decisions worth knowing before changing things:
@@ -176,6 +178,15 @@ A few decisions worth knowing before changing things:
 - **Limits are enforced in the database too.** The three-character cap is a
   trigger and the `name#tag` uniqueness is an index — an API sits in front of
   the Server Actions, so application code cannot be the only guard.
+- **Race artwork ships with the app.** The images under `Maria/public/races`
+  are the same for every visitor, so they belong in the repository and on the
+  CDN rather than in a database or a storage bucket — the `characters` row
+  only stores the race, and the mapping to a file lives in
+  `character-presentation.js`. A clone has everything it needs; `assets/`
+  holds the multi-megabyte originals those were derived from and is
+  git-ignored, so it will not be there. Per-user uploads, if they ever exist,
+  are a different problem and belong in Supabase Storage with the path in the
+  database.
 
 ---
 
