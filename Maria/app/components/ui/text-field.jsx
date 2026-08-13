@@ -53,7 +53,7 @@ export default function TextField({
             // password field to the submit button, and a screen reader still
             // reaches the toggle in browse mode.
             tabIndex={-1}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-neutral-500 transition hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:hover:text-neutral-100"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-neutral-400 transition hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:hover:text-neutral-100"
           >
             <EyeIcon crossedOut={revealed} />
           </button>

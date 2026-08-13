@@ -1,5 +1,12 @@
 import { AVATAR_COLOR_VALUES, DEFAULT_AVATAR_COLOR } from "sina/rules/character";
 
+import dragonbornArt from "./race-art/dragonborn.webp";
+import dwarfArt from "./race-art/dwarf.webp";
+import elfArt from "./race-art/elf.webp";
+import halfElfArt from "./race-art/half-elf.webp";
+import humanArt from "./race-art/human.webp";
+import tieflingArt from "./race-art/tiefling.webp";
+
 /**
  * How a character looks — the frontend half of what Sina defines.
  *
@@ -38,22 +45,35 @@ export function avatarColorClass(value) {
  * Artwork behind a character card, keyed by race.
  *
  * Not every race has one yet, and the card is designed to work without it —
- * add a file to Maria/public/races and an entry here, and it appears.
+ * drop a file in ./race-art, add an import and an entry here, and it appears.
  *
- * The sources are 2744×1568 PNGs of roughly 4.5 MB each; these are 1280px
- * WebP re-encodes at about 45 KB, which is still far more detail than a card
- * a few hundred pixels wide can show. Next then resizes again per request, so
- * a card downloads around 6 KB.
+ * Imported as modules rather than referenced by a path under public/, and that
+ * is load-bearing. A string like "/races/elf.webp" produces the same optimiser
+ * URL forever, so replacing the file behind it leaves every browser that has
+ * already fetched it showing the old picture until its cache expires — which
+ * is exactly what happened the first time these were swapped. A static import
+ * gives Next the file's contents, so the emitted URL carries a hash of them
+ * and changing the art changes the URL. It also means the file is emitted once
+ * rather than living in public/ and being copied again as a build asset.
  *
- * The originals sit in assets/races, which is git-ignored — 22 MB of binaries
- * would be in the history permanently, and nothing needs them at runtime.
+ * These are 1280px masters at WebP q85, 42-63 KB each. 1280 covers the widest
+ * bucket any realistic device asks for: the card is 277px at desktop, and the
+ * largest request in practice is a 430pt phone at 3x, around 1200px.
+ *
+ * Quality 85 rather than something smaller because this file is never served —
+ * `next/image` re-encodes every bucket from it at q75, so a lossy master just
+ * lowers the ceiling for a saving nobody downloads. What actually ships is
+ * about 11 KB on a retina desktop and 25 KB on the largest phone.
+ *
+ * The full-resolution sources sit in assets/races, which is git-ignored.
  */
 const IMAGE_BY_RACE = {
-  Human: "/races/human.webp",
-  Dragonborn: "/races/dragonborn.webp",
-  Dwarf: "/races/dwarf.webp",
-  Elf: "/races/elf.webp",
-  "Half-Elf": "/races/half-elf.webp",
+  Human: humanArt,
+  Dragonborn: dragonbornArt,
+  Dwarf: dwarfArt,
+  Elf: elfArt,
+  "Half-Elf": halfElfArt,
+  Tiefling: tieflingArt,
 };
 
 export function raceImage(race) {

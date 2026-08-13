@@ -33,10 +33,14 @@ ehthumbs.db
 desktop.ini
 
 # Source artwork, kept locally only. What the app actually serves is the
-# optimised WebP under Maria/public/races, which IS committed — these are the
-# multi-megabyte originals those were derived from. Roughly 4.5 MB each, and
-# git keeps every version of a binary forever.
-assets/
+# optimised WebP under Maria/app/dashboard/race-art, which IS committed —
+# these are the full-resolution originals those were derived from, several
+# megabytes each, and git keeps every version of a binary forever.
+#
+# Anchored to the repository root on purpose: an unanchored `assets/` matches
+# a directory of that name at any depth, so it would silently swallow an
+# in-app folder such as Maria/app/assets.
+/assets/
 
 # debug
 npm-debug.log*

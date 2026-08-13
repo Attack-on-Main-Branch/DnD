@@ -61,7 +61,15 @@ export default function CharacterCard({ character }) {
             // one on a phone. Without this Next assumes full width and ships
             // a needlessly large file.
             sizes="(min-width: 1024px) 300px, (min-width: 640px) 45vw, 90vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            // A static import gives Next an 8×5 base64 preview for free, and
+            // it is already in the bundle whether or not it is used.
+            placeholder="blur"
+            // objectFit has to come from the style object, not the Tailwind
+            // class: Next reads it from `style` to size the blur backdrop, and
+            // with the class alone the backdrop resolves to `auto` and the
+            // preview sits unscaled in the corner instead of covering.
+            style={{ objectFit: "cover" }}
+            className="transition-transform duration-500 group-hover:scale-105"
           />
         )}
 
@@ -86,7 +94,7 @@ export default function CharacterCard({ character }) {
               </h3>
               <p
                 className={`truncate font-mono text-xs ${
-                  artwork ? "text-white/70" : "text-neutral-500"
+                  artwork ? "text-white/70" : "text-neutral-400"
                 }`}
               >
                 {handle}
@@ -123,7 +131,7 @@ export default function CharacterCard({ character }) {
           className={`absolute right-3 bottom-3 z-10 rounded-lg p-2 transition hover:bg-red-500/20 hover:text-red-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 ${
             artwork
               ? "text-white/80 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
-              : "text-neutral-500 hover:text-red-600 dark:hover:text-red-400"
+              : "text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
           }`}
         >
           <TrashIcon />
@@ -152,7 +160,7 @@ export default function CharacterCard({ character }) {
 function Fact({ label, value, muted }) {
   return (
     <div className="flex min-w-0 gap-1.5">
-      <dt className={muted ? "text-white/60" : "text-neutral-500"}>{label}</dt>
+      <dt className={muted ? "text-white/60" : "text-neutral-400"}>{label}</dt>
       <dd className="truncate font-medium drop-shadow-sm">{value}</dd>
     </div>
   );

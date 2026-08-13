@@ -246,7 +246,7 @@ function ChevronIcon({ open }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={`shrink-0 text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`}
+      className={`shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`}
     >
       <path d="m6 9 6 6 6-6" />
     </svg>

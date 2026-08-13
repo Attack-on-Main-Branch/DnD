@@ -1,8 +1,34 @@
 @import "tailwindcss";
 
+/*
+ * The app is dark, always.
+ *
+ * The animated background paints an opaque near-black over the entire
+ * viewport and isolates itself, so it cannot be washed out by a light page
+ * behind it. A visitor whose OS is set to light mode would therefore get
+ * near-black text on black, and every `bg-white` surface would float on the
+ * plume as an opaque slab. Following the theme is no longer an option.
+ *
+ * Redefining Tailwind's built-in `dark` variant with the bare parent selector
+ * makes every `dark:` utility apply unconditionally — the media query is
+ * dropped from the output entirely, and compound variants such as
+ * `dark:hover:` keep working. v4 has no `darkMode` config key, and this needs
+ * no `.dark` class on <html>.
+ */
+@custom-variant dark (&);
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /*
+   * Kept a near-black rather than transparent so the overscroll area does not
+   * flash white past the fixed background.
+   */
+  --background: #0a0a0a;
+  --foreground: #ededed;
+
+  /* Scrollbars, native dialog chrome and form-control internals. Without this
+   * the browser draws them light, leaving a white scrollbar track down a black
+   * page. */
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -10,13 +36,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

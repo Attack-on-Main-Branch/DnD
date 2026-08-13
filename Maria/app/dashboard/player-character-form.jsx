@@ -65,7 +65,7 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
           <p className="truncate text-lg font-semibold tracking-tight">
             {name || "New character"}
           </p>
-          <p className="font-mono text-xs text-neutral-500">
+          <p className="font-mono text-xs text-neutral-400">
             {name || "Name"}#{discriminator || "0000"}
           </p>
         </div>
@@ -109,7 +109,7 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
         />
       </div>
 
-      <p className="-mt-3 text-xs text-neutral-500">
+      <p className="-mt-3 text-xs text-neutral-400">
         This handle is how a Dungeon Master will invite your character to a
         party, so it has to be unique.
       </p>
@@ -252,7 +252,7 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
             {selected.description}
           </p>
 
-          <p className="mt-3 text-xs text-neutral-500">
+          <p className="mt-3 text-xs text-neutral-400">
             Plays like:{" "}
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
               {selected.examples.join(" · ")}

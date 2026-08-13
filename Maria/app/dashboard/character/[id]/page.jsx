@@ -53,7 +53,7 @@ export default async function CharacterPage({ params }) {
             <h1 className="truncate text-2xl font-semibold tracking-tight">
               {character.name}
             </h1>
-            <p className="font-mono text-sm text-neutral-500">
+            <p className="font-mono text-sm text-neutral-400">
               {characterHandle(character)}
             </p>
           </div>

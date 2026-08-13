@@ -21,7 +21,7 @@ export default function TextAreaField({
         <label htmlFor={id} className={LABEL_CLASSES}>
           {label}
         </label>
-        {hint && <span className="text-xs text-neutral-500">{hint}</span>}
+        {hint && <span className="text-xs text-neutral-400">{hint}</span>}
       </div>
 
       <textarea

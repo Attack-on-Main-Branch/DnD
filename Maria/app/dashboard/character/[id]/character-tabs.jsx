@@ -125,7 +125,7 @@ function OverviewPanel({ character }) {
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             {alignment.description}
           </p>
-          <p className="mt-2 text-xs text-neutral-500">
+          <p className="mt-2 text-xs text-neutral-400">
             Plays like:{" "}
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
               {alignment.examples.join(" · ")}
@@ -155,7 +155,7 @@ function Prose({ title, body }) {
           {body}
         </p>
       ) : (
-        <p className="mt-2 text-sm text-neutral-500 italic">Nothing written yet.</p>
+        <p className="mt-2 text-sm text-neutral-400 italic">Nothing written yet.</p>
       )}
     </section>
   );
@@ -166,7 +166,7 @@ function InventoryPanel() {
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-black/15 py-14 text-center dark:border-white/15">
       <p className="text-sm font-medium">The pack is empty</p>
-      <p className="max-w-sm text-xs text-neutral-500">
+      <p className="max-w-sm text-xs text-neutral-400">
         Items, coin and equipment will live here once loot exists.
       </p>
     </div>
@@ -176,7 +176,7 @@ function InventoryPanel() {
 function Fact({ label, value }) {
   return (
     <div>
-      <dt className="text-xs text-neutral-500">{label}</dt>
+      <dt className="text-xs text-neutral-400">{label}</dt>
       <dd className="mt-1 text-sm font-medium">{value}</dd>
     </div>
   );

@@ -25,7 +25,7 @@ export default function CharacterInventory({ characters }) {
     <section>
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-lg font-semibold tracking-tight">Characters</h2>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-400">
           {characters.length} of {MAX_CHARACTERS} slots used
         </p>
       </div>
@@ -52,7 +52,7 @@ function EmptySlot({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-black/15 text-neutral-500 transition hover:border-indigo-500 hover:bg-indigo-500/5 hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-white/15 dark:hover:text-indigo-400"
+      className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-black/15 text-neutral-400 transition hover:border-indigo-500 hover:bg-indigo-500/5 hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-white/15 dark:hover:text-indigo-400"
     >
       <span aria-hidden="true" className="text-3xl leading-none font-light">
         +

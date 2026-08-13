@@ -144,7 +144,9 @@ Maria/                       frontend
     login/                   sign-in and sign-up views, auth Server Actions
     dashboard/               character roster, creation flow, settings
       character/[id]/        character sheet with tabs
+      race-art/              card artwork, imported as modules
     components/ui/           shared primitives — Button, TextField, SelectMenu, …
+    components/paths-background/   the animated background and its renderer
   lib/supabase.js            the Next-specific cookie adapter for Sina
   proxy.js                   session refresh and route protection
 
@@ -178,15 +180,22 @@ A few decisions worth knowing before changing things:
 - **Limits are enforced in the database too.** The three-character cap is a
   trigger and the `name#tag` uniqueness is an index — an API sits in front of
   the Server Actions, so application code cannot be the only guard.
-- **Race artwork ships with the app.** The images under `Maria/public/races`
-  are the same for every visitor, so they belong in the repository and on the
-  CDN rather than in a database or a storage bucket — the `characters` row
-  only stores the race, and the mapping to a file lives in
-  `character-presentation.js`. A clone has everything it needs; `assets/`
-  holds the multi-megabyte originals those were derived from and is
+- **Race artwork ships with the app.** The images under
+  `Maria/app/dashboard/race-art` are the same for every visitor, so they belong
+  in the repository rather than in a database or a storage bucket — the
+  `characters` row only stores the race, and the mapping to a file lives in
+  `character-presentation.js`. A clone has everything it needs; `/assets/`
+  holds the full-resolution originals those were derived from and is
   git-ignored, so it will not be there. Per-user uploads, if they ever exist,
   are a different problem and belong in Supabase Storage with the path in the
   database.
+- **The artwork is imported, not linked.** `character-presentation.js` imports
+  each `.webp` as a module rather than naming a path under `public/`. That puts
+  a hash of the file's contents in its URL, so replacing a picture changes the
+  URL and no browser can keep showing the old one — with a fixed string like
+  `/races/elf.webp` the optimiser URL never changes and stale art survives in
+  caches. It also means each file is emitted once instead of being served from
+  `public/` and copied again as a build asset.
 
 ---
 
