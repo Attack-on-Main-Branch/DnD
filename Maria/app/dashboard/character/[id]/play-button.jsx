@@ -144,6 +144,12 @@ export default function PlayButton() {
         // keeps it readable and reachable, and stops the pointer cursor from
         // promising a click that does nothing.
         aria-disabled="true"
+        // The name has to come from `aria-label`. Everything inside the button
+        // is `aria-hidden`, and `aria-describedby` supplies a description, not
+        // a name — so without this the computation fell all the way through to
+        // `title` and the control announced as "Sessions are not available
+        // yet", which is its state rather than what it is.
+        aria-label="Play"
         aria-describedby="play-button-note"
         title="Sessions are not available yet"
         onPointerEnter={() => setSpeed(HOVER_SPEED)}
@@ -159,7 +165,13 @@ export default function PlayButton() {
         >
           <svg viewBox="-60 -60 120 120" className="size-full">
             <defs>
-              <linearGradient id="play-star-gold" x1="0" y1="0" x2="0.35" y2="1">
+              <linearGradient
+                id="play-star-gold"
+                x1="0"
+                y1="0"
+                x2="0.35"
+                y2="1"
+              >
                 <stop offset="0%" stopColor="#fff8c9" />
                 <stop offset="35%" stopColor="#ffd23f" />
                 <stop offset="70%" stopColor="#f0a500" />
@@ -245,13 +257,14 @@ export default function PlayButton() {
       </button>
 
       {/*
-        The button carries no visible label, so this is what names it. Kept in
-        the accessibility tree but out of the layout: a line of explanatory
-        text under a 5rem button would be wider than the button itself. Sighted
+        The description, not the name — the name is the `aria-label` above, and
+        repeating "Play" here would only make it announce twice. Kept in the
+        accessibility tree but out of the layout: a line of explanatory text
+        under a 5rem button would be wider than the button itself. Sighted
         users get the same sentence from the title attribute.
       */}
       <span id="play-button-note" className="sr-only">
-        Play. Sessions are not available yet.
+        Sessions are not available yet.
       </span>
     </>
   );

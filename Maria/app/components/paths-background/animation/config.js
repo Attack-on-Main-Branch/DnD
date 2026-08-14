@@ -24,8 +24,8 @@
  * Branches taper down from here as they grow, and each fork hands its children
  * roughly half to three quarters of the parent's current width.
  */
-export const TRUNK_WIDTH_MIN = 10
-export const TRUNK_WIDTH_MAX = 20
+export const TRUNK_WIDTH_MIN = 10;
+export const TRUNK_WIDTH_MAX = 20;
 
 /**
  * Width at which a branch gives up and burns out into a bead, in design pixels.
@@ -35,7 +35,7 @@ export const TRUNK_WIDTH_MAX = 20
  * so it also lengthens a path's life); raise it for a blunter, stubbier tree
  * that finishes sooner.
  */
-export const BRANCH_MIN_WIDTH = 1.0
+export const BRANCH_MIN_WIDTH = 1.0;
 
 /**
  * Most branches a single path may have growing at once, trunk included.
@@ -45,7 +45,7 @@ export const BRANCH_MIN_WIDTH = 1.0
  * branch paints four strokes per frame. This is a flat count, not scaled to
  * viewport area: a small window gets just as many branches.
  */
-export const MAX_BRANCHES_PER_PATH = 150
+export const MAX_BRANCHES_PER_PATH = 150;
 
 /**
  * Overall time multiplier for the whole animation — growth, sway, the hold, the
@@ -56,13 +56,13 @@ export const MAX_BRANCHES_PER_PATH = 150
  * whatever this is set to. Pushing it much above ~3 starts to show, because a
  * branch then advances far enough per frame for its curve to go faceted.
  */
-export const SPEED = 1
+export const SPEED = 1;
 
 /**
  * Seconds the finished tree sits at full brightness before it starts to
  * dissolve, measured from the moment its last branch burns out.
  */
-export const FADE_DELAY = 0.0
+export const FADE_DELAY = 0.0;
 
 /**
  * Seconds the tree takes to dissolve from full brightness to *completely* gone.
@@ -70,7 +70,7 @@ export const FADE_DELAY = 0.0
  * This is a genuine ramp to zero, not a half-life: at the end the layer is
  * cleared outright, so no faint residue is left behind on the black.
  */
-export const FADE_DURATION = 6
+export const FADE_DURATION = 6;
 
 /**
  * When the next path launches, in seconds measured from the moment the previous
@@ -85,7 +85,7 @@ export const FADE_DURATION = 6
  * The two generations get a trail layer each, so an overlapping launch dissolves
  * only the old path — the new one comes up at full brightness over it.
  */
-export const NEXT_PATH_DELAY = 2.5
+export const NEXT_PATH_DELAY = 2.5;
 
 /**
  * Peak brightness along the middle of a path, 0..1.
@@ -95,7 +95,7 @@ export const NEXT_PATH_DELAY = 2.5
  * width, speed or frame rate. Crossing branches still add on top, so a dense
  * crown clips to white well before this reaches 1.
  */
-export const PATH_BRIGHTNESS = 0.8
+export const PATH_BRIGHTNESS = 0.8;
 
 /**
  * How far the glow reaches, as a multiple of a branch's own width.
@@ -104,4 +104,4 @@ export const PATH_BRIGHTNESS = 0.8
  * without putting an edge anywhere. Larger is hazier and costs a little more
  * fill; smaller is a harder, more wire-like line.
  */
-export const GLOW_SPREAD = 5.5
+export const GLOW_SPREAD = 5.5;

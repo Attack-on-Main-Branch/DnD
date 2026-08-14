@@ -1,4 +1,7 @@
-import { AVATAR_COLOR_VALUES, DEFAULT_AVATAR_COLOR } from "sina/rules/character";
+import {
+  AVATAR_COLOR_VALUES,
+  DEFAULT_AVATAR_COLOR,
+} from "sina/rules/character";
 
 import dragonbornArt from "./race-art/dragonborn.webp";
 import dwarfArt from "./race-art/dwarf.webp";
@@ -39,6 +42,67 @@ export const AVATAR_COLORS = AVATAR_COLOR_VALUES.map((value) => ({
 
 export function avatarColorClass(value) {
   return CLASS_BY_VALUE[value] ?? CLASS_BY_VALUE[DEFAULT_AVATAR_COLOR];
+}
+
+/**
+ * The emblem for each archetype: one colour and one shape.
+ *
+ * The same split as the avatar palette above — Sina says which archetypes
+ * exist, this says that a Warrior is a red lozenge and a Mage a blue disc.
+ *
+ * Hexes rather than palette slugs because these are not part of the app's
+ * theme: they tint one 28px glyph and the faint wash behind a selected card,
+ * and nothing else. Everything structural about selection — the rim, the glow,
+ * the type — stays gold, so the accent reads as identity rather than as a
+ * second, competing accent colour.
+ *
+ * Shapes are clip paths rather than SVG so the glyph is a single element that
+ * can take the accent and its drop-shadow directly.
+ */
+const ARCHETYPE_EMBLEMS = {
+  warrior: {
+    accent: "#d8434f",
+    clip: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+  },
+  mage: {
+    accent: "#4a7fe0",
+    clip: "circle(50% at 50% 50%)",
+  },
+  archer: {
+    accent: "#5aa544",
+    clip: "polygon(50% 0%, 100% 92%, 0% 92%)",
+  },
+  assassin: {
+    accent: "#9b5cd6",
+    clip: "polygon(50% 0%, 100% 100%, 50% 74%, 0% 100%)",
+  },
+  priest: {
+    accent: "#e0b25a",
+    clip: "polygon(38% 0%, 62% 0%, 62% 38%, 100% 38%, 100% 62%, 62% 62%, 62% 100%, 38% 100%, 38% 62%, 0% 62%, 0% 38%, 38% 38%)",
+  },
+};
+
+/** Gold and a plain disc, for an archetype added to Sina but not yet drawn. */
+const FALLBACK_EMBLEM = { accent: "#ffdf9c", clip: "circle(50% at 50% 50%)" };
+
+export function archetypeEmblem(id) {
+  return ARCHETYPE_EMBLEMS[id] ?? FALLBACK_EMBLEM;
+}
+
+/** `#d8434f` at 0.13 → `rgba(216,67,79,0.13)`, for the tints above. */
+export function withAlpha(hex, alpha) {
+  const digits = hex.replace("#", "");
+  const full =
+    digits.length === 3
+      ? digits
+          .split("")
+          .map((character) => character + character)
+          .join("")
+      : digits;
+
+  const value = Number.parseInt(full, 16);
+
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
 }
 
 /**

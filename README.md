@@ -5,10 +5,10 @@ their sheets in one place.
 
 An npm workspace monorepo with two packages:
 
-| Package | Role |
-| --- | --- |
-| **Maria** | Frontend — the Next.js 16 application, React 19, Tailwind CSS v4 |
-| **Sina** | Backend — database schema, data access, and the rules that guard it |
+| Package   | Role                                                                |
+| --------- | ------------------------------------------------------------------- |
+| **Maria** | Frontend — the Next.js 16 application, React 19, Tailwind CSS v4    |
+| **Sina**  | Backend — database schema, data access, and the rules that guard it |
 
 Sina has no dependency on Next.js. It owns the Supabase clients, every query,
 and every validation rule; where something genuinely needs the framework — the
@@ -49,10 +49,10 @@ Environment files belong to **Maria**, because that is where Next looks for
 them. Fill in both values from the Supabase dashboard, under **Project
 Settings → API**:
 
-| Variable | Where to find it |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | *Project URL* — the bare origin, e.g. `https://abcd1234.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *Project API keys → anon / public* |
+| Variable                        | Where to find it                                                     |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | _Project URL_ — the bare origin, e.g. `https://abcd1234.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | _Project API keys → anon / public_                                   |
 
 > **Use the bare project URL**, with no `/rest/v1/` on the end. The client
 > appends its own paths, so a trailing path sends every auth call to a URL that
@@ -75,6 +75,11 @@ The schema lives in `Sina/supabase/migrations/`. Pick either route.
    `EXECUTE` grant on the trigger function
 3. `20260811144707_character_color_and_level.sql` — adds `color_theme` and
    `level`
+4. `20260814195921_character_class.sql` — adds `archetype` and `class_id`, with
+   the paired `characters_class_check` constraint
+5. `20260814215246_race_check_and_limit_lock.sql` — constrains `race` to the
+   nine playable races, and takes a per-user advisory lock in the character
+   limit trigger so concurrent inserts cannot race past it
 
 Every script is idempotent, so re-running one is harmless.
 
@@ -101,7 +106,7 @@ In **Authentication → Providers → Email**:
 
 - **Confirm email** — the app works either way. Switched **off**, sign-up logs
   the user straight in. Switched **on**, Supabase emails a confirmation link,
-  and you will need a route to handle it (see *Email confirmation* below).
+  and you will need a route to handle it (see _Email confirmation_ below).
 - **Leaked password protection** — worth enabling; it checks new passwords
   against HaveIBeenPwned.
 
@@ -120,15 +125,15 @@ Open <http://localhost:3000>. There is no landing page — `/` sends you to
 
 Run these from the repository root; each delegates to the right workspace.
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Development server with hot reload |
-| `npm run build` | Production build |
-| `npm start` | Serve a production build |
-| `npm run lint` | ESLint |
+| Command           | What it does                                   |
+| ----------------- | ---------------------------------------------- |
+| `npm run dev`     | Development server with hot reload             |
+| `npm run build`   | Production build                               |
+| `npm start`       | Serve a production build                       |
+| `npm run lint`    | ESLint                                         |
 | `npm run db:push` | Apply pending migrations to the linked project |
-| `npm run db:new` | Scaffold a new migration file |
-| `npm run db:list` | Compare local migrations against the remote |
+| `npm run db:new`  | Scaffold a new migration file                  |
+| `npm run db:list` | Compare local migrations against the remote    |
 
 > Running `npm start` on `http://localhost` will not keep you signed in: auth
 > cookies are marked `secure` in production builds, and a browser drops those

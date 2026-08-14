@@ -6,8 +6,8 @@
  * The animated background paints an opaque near-black over the entire
  * viewport and isolates itself, so it cannot be washed out by a light page
  * behind it. A visitor whose OS is set to light mode would therefore get
- * near-black text on black, and every `bg-white` surface would float on the
- * plume as an opaque slab. Following the theme is no longer an option.
+ * near-black text on black, and every light surface would float on the plume
+ * as an opaque slab. Following the theme is no longer an option.
  *
  * Redefining Tailwind's built-in `dark` variant with the bare parent selector
  * makes every `dark:` utility apply unconditionally — the media query is
@@ -19,11 +19,11 @@
 
 :root {
   /*
-   * Kept a near-black rather than transparent so the overscroll area does not
-   * flash white past the fixed background.
+   * Warm near-black rather than a neutral one, so the overscroll area past the
+   * fixed background matches the plume's own ground instead of going grey.
    */
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #0f0c08;
+  --foreground: #fdf6e8;
 
   /* Scrollbars, native dialog chrome and form-control internals. Without this
    * the browser draws them light, leaving a white scrollbar track down a black
@@ -34,27 +34,83 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /*
+   * The palette, as tokens rather than arbitrary values scattered through the
+   * components. `text-ink`, `text-gold`, `border-gold/25`, `bg-surface/55`.
+   */
+  --color-ink: #fdf6e8;
+  --color-gold: #ffdf9c;
+  --color-surface: #0f0c08;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-cinzel);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /*
+   * No font-family here. Tailwind already points the document at --font-sans
+   * (theme.css sets --default-font-family, preflight applies it to html), and
+   * an explicit declaration on body beat that inherited value — which is why
+   * the font variables appeared to do nothing.
+   */
 }
 
-/*
- * Browsers give <button> `cursor: default`, and Tailwind's preflight does not
- * override it — so every button in the app looked unclickable. Fixing it here
- * rather than by sprinkling `cursor-pointer` means a new button is correct the
- * moment it is written, instead of the next time somebody notices.
- *
- * Anything disabled, or marked aria-disabled, is left alone: promising a click
- * that does nothing is worse than no affordance at all. Utility classes such
- * as `disabled:cursor-not-allowed` sit in a later layer and still win.
- */
 @layer base {
+  /*
+   * Headings carry the serif. Cinzel over Cormorant Garamond because Cinzel
+   * holds its shape at the small sizes this UI uses; Cormorant is a display
+   * face that thins out badly below about 20px.
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-cinzel);
+    letter-spacing: 0.01em;
+  }
+
+  /*
+   * One focus ring for the whole app, in the base layer at zero specificity so
+   * a component can still override it.
+   *
+   * Two-tone on purpose. A plain gold ring measures 1.29:1 against the
+   * brightest part of the animation — it disappears entirely whenever a lit
+   * branch passes beneath it, failing 1.4.11. The dark casing around it is
+   * achromatic, so one half of the ring always has contrast no matter what the
+   * background is doing.
+   */
+  :where(
+    a,
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="option"],
+    input,
+    select,
+    textarea,
+    summary
+  ):focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(10, 8, 6, 0.9);
+  }
+
+  /*
+   * Browsers give <button> `cursor: default`, and Tailwind's preflight does not
+   * override it — so every button in the app looked unclickable. Fixing it here
+   * rather than by sprinkling `cursor-pointer` means a new button is correct the
+   * moment it is written, instead of the next time somebody notices.
+   *
+   * Anything disabled, or marked aria-disabled, is left alone: promising a click
+   * that does nothing is worse than no affordance at all. Utility classes such
+   * as `disabled:cursor-not-allowed` sit in a later layer and still win.
+   */
   button:not(:disabled):not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]),
   [role="tab"],
@@ -63,6 +119,138 @@ body {
   label:has(input[type="radio"]:not(:disabled)),
   label:has(input[type="checkbox"]:not(:disabled)) {
     cursor: pointer;
+  }
+}
+
+@layer components {
+  /*
+   * Liquid glass.
+   *
+   * A class rather than a utility stack, for two reasons: the media queries at
+   * the bottom need somewhere to hook onto, and `backdrop-filter` here is doing
+   * more than decoration.
+   *
+   * `brightness(0.35)` is the load-bearing part. The animation is additive and
+   * clips to near-white at a dense crown, so a plain rgba(0,0,0,0.4) scrim
+   * drops body text to 2.65:1 — a hard AA failure — every time a bright branch
+   * passes under a panel. A brightness filter multiplies the backdrop, so its
+   * output is bounded however bright the input gets. Measured, this holds text
+   * between 12.45:1 at the brightest and 18.75:1 at the darkest: AAA at both
+   * ends, while still letting the plume move visibly through the glass.
+   *
+   * Cost note: `backdrop-filter` is charged per ELEMENT, not per pixel —
+   * Chromium reads back the destination surface once per filtered element.
+   * Measured on this background: one surface costs +60ms of compositor time
+   * per 2.5s, twenty-four cost +365ms, while growing a single surface from a
+   * quarter of the viewport to all of it costs nothing at all. So keep this to
+   * the few large surfaces — header and cards — and let small controls use a
+   * flat fill. Budget: 4-6 on screen, 8 is a warning.
+   */
+  .glass {
+    background: rgba(15, 12, 8, 0.55);
+    -webkit-backdrop-filter: blur(14px) brightness(0.35) saturate(1.05);
+    backdrop-filter: blur(14px) brightness(0.35) saturate(1.05);
+    border: 1px solid rgba(255, 223, 156, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 223, 156, 0.12),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
+   * Near-opaque relatives, for surfaces that sit directly over other content:
+   * a dropdown covering the field it belongs to, or a modal over the page. The
+   * classic glass mistake is making these translucent and finding the text
+   * underneath reads straight through them.
+   */
+  .glass-solid {
+    background: rgba(15, 12, 8, 0.96);
+    -webkit-backdrop-filter: blur(20px) brightness(0.4);
+    backdrop-filter: blur(20px) brightness(0.4);
+    border: 1px solid rgba(255, 223, 156, 0.25);
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.95);
+  }
+
+  /*
+   * The resting rim, for surfaces that are not `.glass` — an artwork card, for
+   * instance, where a backdrop filter would sample a picture nobody can see.
+   *
+   * A component class rather than a `border-gold/20` utility, and that is the
+   * point: utilities sit in a later layer than components, so a border utility
+   * would outrank `.glow-gold:hover` and the rim would never light up. That is
+   * exactly why the artwork cards had no glow.
+   */
+  .rim-gold {
+    border: 1px solid rgba(255, 223, 156, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 223, 156, 0.1),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
+   * Gold rim that lights up on hover or keyboard focus. Two shadows: a tight
+   * one that reads as a lit edge, and a wide soft one for the bloom.
+   */
+  .glow-gold {
+    transition:
+      border-color 300ms ease,
+      box-shadow 300ms ease,
+      transform 300ms ease;
+  }
+
+  .glow-gold:hover,
+  .glow-gold:focus-within {
+    border-color: rgba(255, 223, 156, 0.6);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 223, 156, 0.2),
+      0 0 0 1px rgba(255, 223, 156, 0.25),
+      0 0 28px -4px rgba(255, 223, 156, 0.35),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+}
+
+/*
+ * Scrollbars inside our own panels. The dropdown list is the visible one: a
+ * default light-grey system bar down the side of a dark gold-rimmed menu is
+ * the one part of the chrome the redesign could not reach with utilities.
+ *
+ * `scrollbar-color` is the standard property and covers Firefox and Chromium;
+ * the WebKit pseudo-elements are there for Safari, which still ignores it.
+ */
+@layer components {
+  .scroll-gold {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 223, 156, 0.35) transparent;
+  }
+
+  .scroll-gold::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scroll-gold::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-gold::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+    background-color: rgba(255, 223, 156, 0.35);
+  }
+
+  .scroll-gold::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 223, 156, 0.6);
+  }
+}
+
+/* The caret in the typing greeting. 1Hz, well under the 3Hz flash threshold. */
+@keyframes typing-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
   }
 }
 
@@ -76,11 +264,68 @@ body {
   }
 }
 
+/* Path cards arriving as the class tray opens, staggered by index. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   @keyframes nav-progress {
     0%,
     100% {
       transform: translateX(150%);
     }
+  }
+
+  @keyframes typing-caret {
+    0%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .glow-gold {
+    transition: none;
+  }
+}
+
+/*
+ * Asked for more contrast, the honest answer is to stop being glass: the
+ * effect's whole character is a background showing through, and no amount of
+ * tuning makes a moving backdrop as legible as a still one.
+ */
+@media (prefers-contrast: more) {
+  .glass,
+  .glass-solid {
+    background: #0a0806;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--color-gold);
+  }
+}
+
+/*
+ * Forced colours replace the page's palette but not canvas pixels, so the
+ * plume would keep painting underneath a system-coloured UI. Hide it and drop
+ * the glass to the system's own surface.
+ */
+@media (forced-colors: active) {
+  .glass,
+  .glass-solid {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: CanvasText;
+  }
+
+  .paths {
+    display: none;
   }
 }

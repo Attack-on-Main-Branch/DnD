@@ -6,40 +6,40 @@
  * and wrap around the viewport, so the field never runs dry.
  */
 
-const TAU = Math.PI * 2
-const clamp = (v, min, max) => (v < min ? min : v > max ? max : v)
-const rand = (min, max) => min + Math.random() * (max - min)
+const TAU = Math.PI * 2;
+const clamp = (v, min, max) => (v < min ? min : v > max ? max : v);
+const rand = (min, max) => min + Math.random() * (max - min);
 
 export class DustField {
   constructor(width, height) {
     /** @type {object[]} */
-    this.motes = []
-    this.time = 0
-    this.setSize(width, height)
+    this.motes = [];
+    this.time = 0;
+    this.setSize(width, height);
   }
 
   setSize(width, height) {
-    const prevW = this.width || width
-    const prevH = this.height || height
-    this.width = width
-    this.height = height
-    this.scale = clamp(Math.min(width, height) / 820, 0.6, 1.8)
+    const prevW = this.width || width;
+    const prevH = this.height || height;
+    this.width = width;
+    this.height = height;
+    this.scale = clamp(Math.min(width, height) / 820, 0.6, 1.8);
 
-    const target = clamp(Math.round((width * height) / 5200), 80, 460)
+    const target = clamp(Math.round((width * height) / 5200), 80, 460);
 
     // Keep existing motes (rescaled into the new box) so a resize doesn't
     // blink the whole field out of existence.
     for (const m of this.motes) {
-      m.x = (m.x / prevW) * width
-      m.y = (m.y / prevH) * height
+      m.x = (m.x / prevW) * width;
+      m.y = (m.y / prevH) * height;
     }
-    while (this.motes.length > target) this.motes.pop()
-    while (this.motes.length < target) this.motes.push(this.makeMote(true))
+    while (this.motes.length > target) this.motes.pop();
+    while (this.motes.length < target) this.motes.push(this.makeMote(true));
   }
 
   makeMote(anywhere) {
-    const bokeh = Math.random() < 0.34
-    const s = this.scale
+    const bokeh = Math.random() < 0.34;
+    const s = this.scale;
     return {
       x: Math.random() * this.width,
       y: anywhere ? Math.random() * this.height : this.height + rand(10, 90),
@@ -54,33 +54,38 @@ export class DustField {
       phaseSpeed: rand(0.15, 0.7),
       twinkle: rand(0.25, 0.75),
       twinkleSpeed: rand(0.6, 2.4),
-    }
+    };
   }
 
   step(dt) {
-    this.time += dt
-    const { width, height } = this
+    this.time += dt;
+    const { width, height } = this;
 
     for (const m of this.motes) {
-      m.phase += m.phaseSpeed * dt
-      m.x += Math.sin(m.phase) * m.drift * dt
-      m.y += m.vy * dt
+      m.phase += m.phaseSpeed * dt;
+      m.x += Math.sin(m.phase) * m.drift * dt;
+      m.y += m.vy * dt;
 
-      const pad = m.r + 24
+      const pad = m.r + 24;
       if (m.y < -pad) {
-        m.y = height + pad
-        m.x = Math.random() * width
+        m.y = height + pad;
+        m.x = Math.random() * width;
       } else if (m.y > height + pad) {
-        m.y = -pad
-        m.x = Math.random() * width
+        m.y = -pad;
+        m.x = Math.random() * width;
       }
-      if (m.x < -pad) m.x = width + pad
-      else if (m.x > width + pad) m.x = -pad
+      if (m.x < -pad) m.x = width + pad;
+      else if (m.x > width + pad) m.x = -pad;
     }
   }
 
   /** Current opacity of a mote, including its twinkle. */
   opacity(m) {
-    return m.alpha * (1 - m.twinkle * 0.5 + Math.sin(this.time * m.twinkleSpeed + m.phase) * m.twinkle * 0.5)
+    return (
+      m.alpha *
+      (1 -
+        m.twinkle * 0.5 +
+        Math.sin(this.time * m.twinkleSpeed + m.phase) * m.twinkle * 0.5)
+    );
   }
 }

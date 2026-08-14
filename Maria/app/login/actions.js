@@ -2,11 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  signIn,
-  signOut,
-  signUp as createAccount,
-} from "sina/data/auth";
+import { signIn, signOut, signUp as createAccount } from "sina/data/auth";
 import {
   readSignInValues,
   readSignUpValues,

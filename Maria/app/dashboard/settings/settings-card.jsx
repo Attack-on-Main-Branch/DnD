@@ -1,11 +1,18 @@
+import { surfaceClasses } from "@/app/components/ui/surface";
+
 /** Shared frame for each settings section, so the three read as one page. */
 export default function SettingsCard({ title, description, children }) {
   return (
-    <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm sm:p-8 dark:border-white/10 dark:bg-white/5">
-      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-      <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-        {description}
-      </p>
+    <section
+      className={surfaceClasses({
+        glow: true,
+        className: "rounded-2xl p-6 sm:p-8",
+      })}
+    >
+      <h2 className="font-display text-lg font-semibold tracking-wide">
+        {title}
+      </h2>
+      <p className="mt-1 font-sans text-sm text-ink/60">{description}</p>
 
       <div className="mt-6">{children}</div>
     </section>

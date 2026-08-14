@@ -3,7 +3,7 @@ import Link from "next/link";
 import { buttonClasses } from "./components/ui/button";
 
 export const metadata = {
-  title: "Not found · Dungeons and Demons",
+  title: "Not found · Grimoire Tales",
 };
 
 /**
@@ -19,11 +19,11 @@ export default function NotFound() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-24 text-center font-sans">
       <div>
-        <p className="font-mono text-sm text-neutral-400">404</p>
+        <p className="font-mono text-sm text-ink/50">404</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           Nothing down this path
         </h1>
-        <p className="mx-auto mt-3 max-w-sm text-sm text-neutral-400">
+        <p className="mx-auto mt-3 max-w-sm text-sm text-ink/50">
           That page does not exist — or it belongs to somebody else&apos;s
           campaign.
         </p>

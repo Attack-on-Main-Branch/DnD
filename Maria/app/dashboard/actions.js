@@ -1,10 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  insertCharacter,
-  removeCharacter,
-} from "sina/data/characters";
+import { insertCharacter, removeCharacter } from "sina/data/characters";
 import {
   MAX_CHARACTERS,
   readCharacterValues,
@@ -20,11 +17,17 @@ function rejected(message, field = null) {
 /** Sina reports why; the wording lives here, where the user can see it. */
 const SAVE_COPY = {
   handle_taken: {
-    message: "That name and tag are already taken. Try a different 4-digit tag.",
+    message:
+      "That name and tag are already taken. Try a different 4-digit tag.",
     field: "discriminator",
   },
   limit_reached: {
     message: `You already have ${MAX_CHARACTERS} characters.`,
+    field: null,
+  },
+  invalid_value: {
+    message:
+      "The database refused one of those values. Try shortening the name or the written sections.",
     field: null,
   },
   missing_table: {
@@ -58,7 +61,10 @@ export async function createPlayerCharacter(_prevState, formData) {
     return rejected("Your session has expired. Sign in again.");
   }
 
-  const { error } = await insertCharacter(supabase, { userId: user.id, values });
+  const { error } = await insertCharacter(supabase, {
+    userId: user.id,
+    values,
+  });
 
   if (error) {
     const copy = SAVE_COPY[error.reason];

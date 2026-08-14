@@ -96,7 +96,9 @@ export default function SelectMenu({
         if (!open) {
           openMenu();
         } else {
-          setActiveIndex((current) => Math.min(current + 1, options.length - 1));
+          setActiveIndex((current) =>
+            Math.min(current + 1, options.length - 1),
+          );
         }
         break;
 
@@ -179,7 +181,7 @@ export default function SelectMenu({
           onKeyDown={handleKeyDown}
           className={`${controlClasses({ invalid })} flex items-center justify-between gap-2 text-left`}
         >
-          <span className={selected ? "" : "text-neutral-400"}>
+          <span className={selected ? "" : "text-ink/50"}>
             {selected ? selected.label : placeholder}
           </span>
           <ChevronIcon open={open} />
@@ -192,7 +194,7 @@ export default function SelectMenu({
             role="listbox"
             aria-labelledby={labelId}
             tabIndex={-1}
-            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-black/10 bg-white p-1 shadow-lg dark:border-white/15 dark:bg-neutral-900"
+            className="glass-solid scroll-gold absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg p-1"
           >
             {options.map((option, index) => {
               const isSelected = option.value === value;
@@ -201,8 +203,8 @@ export default function SelectMenu({
               return (
                 <li key={option.value}>
                   {/*
-                    A native option is not focusable, and neither is this: focus
-                    stays on the trigger while aria-activedescendant-style
+                    A native option is not focusable, and neither is this:
+                    focus stays on the trigger while aria-activedescendant
                     highlighting tracks the keyboard. Pointer users get hover.
                   */}
                   <div
@@ -216,9 +218,7 @@ export default function SelectMenu({
                     }}
                     onPointerEnter={() => setActiveIndex(index)}
                     className={`flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition ${
-                      isActive
-                        ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-                        : "text-neutral-900 dark:text-neutral-100"
+                      isActive ? "bg-gold/10 text-gold" : "text-ink"
                     }`}
                   >
                     {option.label}
@@ -246,7 +246,7 @@ function ChevronIcon({ open }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={`shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`}
+      className={`shrink-0 text-ink/50 transition-transform ${open ? "rotate-180" : ""}`}
     >
       <path d="m6 9 6 6 6-6" />
     </svg>

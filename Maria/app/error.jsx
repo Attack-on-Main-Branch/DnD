@@ -21,7 +21,7 @@ export default function Error({ error, reset }) {
         <h1 className="text-2xl font-semibold tracking-tight">
           Something went wrong
         </h1>
-        <p className="mx-auto mt-3 max-w-sm text-sm text-neutral-400">
+        <p className="mx-auto mt-3 max-w-sm text-sm text-ink/50">
           {/*
             `error.message` is scrubbed to a generic string in production
             builds, so this is safe to show: it is either a development
@@ -31,9 +31,7 @@ export default function Error({ error, reset }) {
         </p>
 
         {error?.digest && (
-          <p className="mt-2 font-mono text-xs text-neutral-500">
-            {error.digest}
-          </p>
+          <p className="mt-2 font-mono text-xs text-ink/45">{error.digest}</p>
         )}
       </div>
 

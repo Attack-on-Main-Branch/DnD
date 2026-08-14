@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import Button from "./button";
 
@@ -23,6 +23,8 @@ export default function ConfirmDialog({
   onCancel,
 }) {
   const dialogRef = useRef(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -41,6 +43,12 @@ export default function ConfirmDialog({
   return (
     <dialog
       ref={dialogRef}
+      // Named from the heading below. A heading inside a dialog does not
+      // contribute to its accessible name on its own, so without these the
+      // modal announces as an unnamed "dialog" — and the one thing a
+      // destructive confirmation has to say is what it is confirming.
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       // Escape and backdrop dismissal both route through the same handler as
       // the Cancel button, so React state never drifts from the DOM state.
       onCancel={(event) => {
@@ -57,12 +65,14 @@ export default function ConfirmDialog({
       // No padding here on purpose: padding on the <dialog> itself counts as
       // part of the element, so clicking it would read as a backdrop click and
       // dismiss the dialog. The inner wrapper owns the spacing instead.
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-black/10 bg-white p-0 text-neutral-900 shadow-xl backdrop:bg-black/50 dark:border-white/15 dark:bg-neutral-900 dark:text-neutral-100"
+      className="glass-solid m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 text-ink backdrop:bg-black/70"
     >
       <div className="p-6" onClick={(event) => event.stopPropagation()}>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+          {title}
+        </h2>
 
-        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+        <p id={descriptionId} className="mt-2 text-sm text-ink/60">
           {description}
         </p>
 

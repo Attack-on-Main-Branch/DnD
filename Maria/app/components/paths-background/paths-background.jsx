@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useEffect, useRef } from 'react'
-import { createRenderer } from './animation/renderer.js'
-import './paths-background.css'
+import { useEffect, useRef } from "react";
+import { createRenderer } from "./animation/renderer.js";
+import "./paths-background.css";
 
 /**
  * Full-viewport animated background: one golden path at a time climbing out of
@@ -14,39 +14,39 @@ import './paths-background.css'
  * component itself can stay static.
  */
 export default function PathsBackground() {
-  const hostRef = useRef(null)
-  const bloomRef = useRef(null)
+  const hostRef = useRef(null);
+  const bloomRef = useRef(null);
   // Two trail buffers: an overlapping launch has the incoming path growing while
   // the outgoing one is still dissolving, and a dissolve is a whole-layer
   // operation that cannot pick out one generation.
-  const trailARef = useRef(null)
-  const trailBRef = useRef(null)
-  const dustRef = useRef(null)
+  const trailARef = useRef(null);
+  const trailBRef = useRef(null);
+  const dustRef = useRef(null);
 
   useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let renderer = null
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let renderer = null;
 
     const boot = () => {
-      renderer?.destroy()
+      renderer?.destroy();
       renderer = createRenderer({
         host: hostRef.current,
         bloom: bloomRef.current,
         trails: [trailARef.current, trailBRef.current],
         dust: dustRef.current,
         reducedMotion: query.matches,
-      })
-      renderer.start()
-    }
+      });
+      renderer.start();
+    };
 
-    boot()
-    query.addEventListener('change', boot)
+    boot();
+    query.addEventListener("change", boot);
 
     return () => {
-      query.removeEventListener('change', boot)
-      renderer?.destroy()
-    }
-  }, [])
+      query.removeEventListener("change", boot);
+      renderer?.destroy();
+    };
+  }, []);
 
   return (
     <div className="paths" ref={hostRef} aria-hidden="true">
@@ -57,5 +57,5 @@ export default function PathsBackground() {
       <div className="paths__vignette" />
       <div className="paths__grain" />
     </div>
-  )
+  );
 }

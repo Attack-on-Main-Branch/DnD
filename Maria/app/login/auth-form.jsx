@@ -1,5 +1,6 @@
 "use client";
 
+import { surfaceClasses } from "@/app/components/ui/surface";
 import { useState } from "react";
 
 import Button from "@/app/components/ui/button";
@@ -35,11 +36,14 @@ export default function AuthForm() {
 
   return (
     <>
-      <p className="mt-2 text-center text-sm text-neutral-600 dark:text-neutral-400">
-        {view.subtitle}
-      </p>
+      <p className="mt-2 text-center text-sm text-ink/60">{view.subtitle}</p>
 
-      <div className="mt-8 rounded-2xl border border-black/10 bg-white p-6 shadow-sm sm:p-8 dark:border-white/10 dark:bg-white/5">
+      <div
+        className={surfaceClasses({
+          glow: true,
+          className: "mt-8 rounded-2xl p-6 sm:p-8",
+        })}
+      >
         {mode === "signin" ? (
           <SignInForm email={email} onEmailChange={setEmail} />
         ) : (
@@ -47,7 +51,7 @@ export default function AuthForm() {
         )}
       </div>
 
-      <p className="mt-6 text-center text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="mt-6 text-center text-sm text-ink/60">
         {view.switchPrompt}{" "}
         <Button variant="link" onClick={() => setMode(view.next)}>
           {view.switchLabel}

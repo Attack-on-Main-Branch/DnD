@@ -27,7 +27,10 @@ function classify(error) {
 }
 
 function failure(error) {
-  return { data: null, error: { reason: classify(error), detail: error.message } };
+  return {
+    data: null,
+    error: { reason: classify(error), detail: error.message },
+  };
 }
 
 export async function signIn(supabase, { email, password }) {

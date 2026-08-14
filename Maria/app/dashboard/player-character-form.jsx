@@ -4,8 +4,14 @@ import { useRef, useState } from "react";
 
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
+import { LABEL_CLASSES } from "@/app/components/ui/field-styles";
 import FormAlert from "@/app/components/ui/form-alert";
 import SelectMenu from "@/app/components/ui/select-menu";
+import SelectionDot from "@/app/components/ui/selection-dot";
+import {
+  NESTED_CARD_CLASSES,
+  NESTED_CARD_SELECTED_CLASSES,
+} from "@/app/components/ui/surface";
 import TextAreaField from "@/app/components/ui/textarea-field";
 import TextField from "@/app/components/ui/text-field";
 import { useFormAction } from "@/app/components/use-form-action";
@@ -15,12 +21,14 @@ import {
   MAX_NAME_LENGTH,
   MAX_PROSE_LENGTH,
   RACES,
+  classDetails,
   readCharacterValues,
   validateCharacter,
 } from "sina/rules/character";
 
 import { createPlayerCharacter } from "./actions";
 import { AVATAR_COLORS, suggestedAvatarColor } from "./character-presentation";
+import ClassPicker from "./class-picker";
 
 const FEEDBACK_ID = "character-feedback";
 
@@ -32,6 +40,8 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
   const [name, setName] = useState("");
   const [discriminator, setDiscriminator] = useState("");
   const [race, setRace] = useState(RACES[0]);
+  const [archetype, setArchetype] = useState("");
+  const [classId, setClassId] = useState("");
   const [alignment, setAlignment] = useState("");
   const [colorTheme, setColorTheme] = useState(null);
   const [backstory, setBackstory] = useState("");
@@ -42,6 +52,8 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
   // Until the user picks one, the colour follows the name — so the preview is
   // never a placeholder grey, and two characters rarely start out alike.
   const effectiveColor = colorTheme ?? suggestedAvatarColor(name);
+
+  const chosenClass = classDetails(classId);
 
   const { state, formAction, isPending } = useFormAction({
     action: createPlayerCharacter,
@@ -62,12 +74,23 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
       <div className="flex items-center gap-4">
         <Avatar name={name || "?"} colorTheme={effectiveColor} size="lg" />
         <div className="min-w-0">
-          <p className="truncate text-lg font-semibold tracking-tight">
+          <p className="truncate font-display text-lg font-semibold tracking-wide">
             {name || "New character"}
           </p>
-          <p className="font-mono text-xs text-neutral-400">
+          <p className="font-mono text-xs text-ink/50">
             {name || "Name"}#{discriminator || "0000"}
           </p>
+
+          {/*
+            Appears only once there is a class to show. Race and path together
+            are the one-line version of the sheet, so the preview says what the
+            card will say before the character exists.
+          */}
+          {chosenClass && (
+            <p className="mt-1 truncate font-display text-xs tracking-[0.1em] text-gold uppercase">
+              {race} · {chosenClass.path.name}
+            </p>
+          )}
         </div>
       </div>
 
@@ -109,7 +132,7 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
         />
       </div>
 
-      <p className="-mt-3 text-xs text-neutral-400">
+      <p className="-mt-3 text-xs text-ink/50">
         This handle is how a Dungeon Master will invite your character to a
         party, so it has to be unique.
       </p>
@@ -123,6 +146,17 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
         disabled={isPending}
         invalid={state?.field === "race"}
         describedBy={describedBy}
+      />
+
+      <ClassPicker
+        archetype={archetype}
+        classId={classId}
+        onChange={(next) => {
+          setArchetype(next.archetype);
+          setClassId(next.classId);
+        }}
+        disabled={isPending}
+        invalidField={state?.field}
       />
 
       <AlignmentPicker
@@ -169,7 +203,7 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
 
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
-      <div className="flex flex-wrap justify-end gap-3">
+      <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
         <Button variant="secondary" onClick={onBack} disabled={isPending}>
           Back
         </Button>
@@ -182,22 +216,20 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
 }
 
 /**
- * The nine alignments as a 3×3 grid of radios, each carrying a one-line gloss,
- * with the film examples for the current pick in a panel underneath.
+ * The nine alignments as a 3×3 grid of radios, each carrying a one-line gloss.
  *
- * Putting three examples inside all nine tiles was the other option; it turns
- * the grid into a wall of twenty-seven names that nobody reads, and on a phone
- * it is several screens tall.
+ * The film examples for the current pick used to appear in a panel underneath.
+ * They are still on the character's own sheet, where there is room for them;
+ * here they were a block that grew out of the grid the moment anything was
+ * chosen, pushing the rest of the form down mid-decision.
  *
  * A fieldset rather than a row of buttons, so keyboard and screen-reader users
  * get the grouping and arrow-key behaviour they expect from a single choice.
  */
 function AlignmentPicker({ value, onChange, disabled, invalid }) {
-  const selected = ALIGNMENTS.find((entry) => entry.value === value) ?? null;
-
   return (
     <fieldset disabled={disabled}>
-      <legend className="text-sm font-medium">Alignment</legend>
+      <legend className={LABEL_CLASSES}>Alignment</legend>
 
       <div
         className={`mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3 ${
@@ -210,10 +242,8 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
           return (
             <label
               key={option.value}
-              className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-indigo-500 ${
-                isSelected
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-black/15 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+              className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition duration-300 select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
+                isSelected ? NESTED_CARD_SELECTED_CLASSES : NESTED_CARD_CLASSES
               }`}
             >
               <input
@@ -225,41 +255,29 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
                 className="sr-only"
               />
 
-              <span
-                className={`text-xs font-semibold ${
-                  isSelected ? "text-indigo-700 dark:text-indigo-300" : ""
-                }`}
-              >
-                {option.label}
+              {/*
+                The same corner dot the path cards carry, for the same reason:
+                without it "chosen" is a slightly different border colour, and
+                that is the one signal a monochrome display cannot show.
+              */}
+              <span className="flex items-start justify-between gap-2">
+                <span
+                  className={`text-xs font-semibold ${
+                    isSelected ? "text-gold" : ""
+                  }`}
+                >
+                  {option.label}
+                </span>
+                <SelectionDot selected={isSelected} />
               </span>
-              <span className="text-[0.7rem] leading-snug text-neutral-600 dark:text-neutral-400">
+
+              <span className="text-[0.7rem] leading-snug text-ink/60">
                 {option.description}
               </span>
             </label>
           );
         })}
       </div>
-
-      {selected && (
-        <div
-          // Politely announced, so a screen reader hears the examples after
-          // choosing without being yanked out of the grid.
-          aria-live="polite"
-          className="mt-3 rounded-lg border border-black/10 bg-black/[0.02] px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]"
-        >
-          <p className="text-sm font-semibold">{selected.label}</p>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-            {selected.description}
-          </p>
-
-          <p className="mt-3 text-xs text-neutral-400">
-            Plays like:{" "}
-            <span className="font-medium text-neutral-700 dark:text-neutral-300">
-              {selected.examples.join(" · ")}
-            </span>
-          </p>
-        </div>
-      )}
     </fieldset>
   );
 }
@@ -267,7 +285,7 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
 function ColorPicker({ value, onChange, disabled, invalid }) {
   return (
     <fieldset disabled={disabled}>
-      <legend className="text-sm font-medium">Avatar colour</legend>
+      <legend className={LABEL_CLASSES}>Avatar colour</legend>
 
       <div
         className={`mt-1.5 flex flex-wrap gap-2 ${
@@ -281,9 +299,9 @@ function ColorPicker({ value, onChange, disabled, invalid }) {
             <label
               key={option.value}
               title={option.label}
-              className={`cursor-pointer rounded-full p-0.5 transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-indigo-500 ${
+              className={`cursor-pointer rounded-full p-0.5 transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
                 isSelected
-                  ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900"
+                  ? "ring-2 ring-gold ring-offset-2 dark:ring-offset-surface"
                   : ""
               }`}
             >

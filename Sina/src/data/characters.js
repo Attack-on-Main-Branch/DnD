@@ -8,15 +8,25 @@
  */
 
 const COLUMNS =
-  "id, kind, name, discriminator, race, alignment, color_theme, level, backstory, personality, created_at";
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, backstory, personality, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
+const CHECK_VIOLATION = "23514";
 const UNDEFINED_TABLE = "42P01";
 
 function classify(error) {
   if (error.code === UNIQUE_VIOLATION) {
     return "handle_taken";
+  }
+
+  // A row that got past validateCharacter and was still refused by a CHECK
+  // constraint. That is a bug in the rules rather than something the user did,
+  // but it must not reach them as Postgres prose — without this case it falls
+  // through to "unknown" and the caller shows `error.detail`, which reads
+  // "new row for relation \"characters\" violates check constraint ...".
+  if (error.code === CHECK_VIOLATION) {
+    return "invalid_value";
   }
 
   // Raised by the characters_enforce_limit trigger.
@@ -32,7 +42,10 @@ function classify(error) {
 }
 
 function failure(error) {
-  return { data: null, error: { reason: classify(error), detail: error.message } };
+  return {
+    data: null,
+    error: { reason: classify(error), detail: error.message },
+  };
 }
 
 /**
@@ -69,6 +82,8 @@ export async function insertCharacter(supabase, { userId, values }) {
     name: values.name,
     discriminator: values.discriminator,
     race: values.race,
+    archetype: values.archetype,
+    class_id: values.classId,
     alignment: values.alignment,
     color_theme: values.colorTheme,
     backstory: values.backstory,

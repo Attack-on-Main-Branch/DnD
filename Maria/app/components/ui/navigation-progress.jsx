@@ -238,7 +238,7 @@ export default function NavigationProgress() {
       <div
         ref={barRef}
         style={{ transform: "scaleX(0)", opacity: 0 }}
-        className="h-full w-full origin-left bg-indigo-500 shadow-[0_0_8px] shadow-indigo-500/60"
+        className="h-full w-full origin-left bg-gold shadow-[0_0_8px] shadow-gold/60"
       />
     </div>
   );

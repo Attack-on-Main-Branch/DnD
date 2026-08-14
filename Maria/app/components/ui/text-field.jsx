@@ -49,11 +49,12 @@ export default function TextField({
             onClick={() => setRevealed((current) => !current)}
             aria-label={revealed ? "Hide password" : "Show password"}
             aria-pressed={revealed}
-            // Not focusable by tab: keyboard users move straight from the
-            // password field to the submit button, and a screen reader still
-            // reaches the toggle in browse mode.
-            tabIndex={-1}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-neutral-400 transition hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:hover:text-neutral-100"
+            // Focusable, deliberately. It used to carry tabIndex={-1} on the
+            // grounds that a screen reader still reaches it in browse mode —
+            // true, and beside the point. Someone using a keyboard without a
+            // screen reader has no browse mode and no other way to reveal what
+            // they typed, so the control simply did not exist for them.
+            className="absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-r-lg text-ink/50 transition hover:text-ink"
           >
             <EyeIcon crossedOut={revealed} />
           </button>
