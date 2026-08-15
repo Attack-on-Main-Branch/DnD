@@ -12,6 +12,17 @@
  */
 export const CHANGELOG = [
   {
+    id: "9971bf1",
+    date: "2026-08-15",
+    title: "The grimoire mark",
+    changes: [
+      "The grimoire itself is now the app's mark — beside the wordmark in the header, and on the browser tab.",
+      "A rebuilt sign-in page: the book and the tale it opens sit on glass beside the card, and fold underneath it on a narrow screen.",
+      "Signing in and out carries the book across the screen instead of cutting to the next page. It flies to the dashboard's corner, turning as it goes, and flies back when you leave.",
+      "This panel, opened from the book in that corner.",
+    ],
+  },
+  {
     id: "fca6c26",
     date: "2026-08-15",
     title: "Grimoire Tales",
