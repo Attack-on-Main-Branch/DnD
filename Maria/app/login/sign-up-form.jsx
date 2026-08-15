@@ -7,6 +7,7 @@ import FormAlert from "@/app/components/ui/form-alert";
 import TextField from "@/app/components/ui/text-field";
 
 import { useFormAction } from "@/app/components/use-form-action";
+import { clearNavDirection, markNavDirection } from "@/app/components/view-nav";
 
 import { signUp } from "./actions";
 import {
@@ -28,6 +29,10 @@ export default function SignUpForm({ email, onEmailChange }) {
     action: signUp,
     read: readSignUpValues,
     validate: validateSignUp,
+    // `onSettled`, not `onResult` — see the note in sign-in-form.jsx. The
+    // client-side-invalid path returns without ever calling the action, and
+    // that path has to release the book too.
+    onSettled: clearNavDirection,
     onResult: (result) => {
       if (result?.kind === "rejected") {
         setPassword("");
@@ -40,7 +45,12 @@ export default function SignUpForm({ email, onEmailChange }) {
   const describedBy = state?.message ? FEEDBACK_ID : undefined;
 
   return (
-    <form action={formAction} noValidate className="flex flex-col gap-5">
+    <form
+      action={formAction}
+      noValidate
+      onSubmit={() => markNavDirection("in")}
+      className="flex flex-col gap-5"
+    >
       <TextField
         label="Display name"
         name="displayName"

@@ -17,6 +17,20 @@
  */
 @custom-variant dark (&);
 
+/*
+ * The sign-in page's two-column switch, and the one place its threshold lives.
+ *
+ * A container query rather than a viewport breakpoint, because what decides
+ * whether the lore panel and the sign-in card fit beside each other is the
+ * space left after that page's edge insets — not how wide the window is. The
+ * `page` container is the <main> element there.
+ *
+ * 68rem is the floor: 28rem for the card, 6rem of gap, leaving the lore panel
+ * no less than 34rem. Under it, the grid collapses to one column and the two
+ * stack, lore first.
+ */
+@custom-variant side-by-side (@container page (min-width: 68rem));
+
 :root {
   /*
    * Warm near-black rather than a neutral one, so the overscroll area past the
@@ -276,6 +290,92 @@ body {
   }
 }
 
+/*
+ * The sign-in mark: the book drifts, its halo breathes, and two rune rings
+ * turn against each other. Slow on purpose — 9s, 8s, 80s and 55s — so it reads
+ * as something alive rather than as an animation playing.
+ *
+ * The two rings rotate at different speeds in opposite directions, which is
+ * what stops the pair from ever looking like one rigid object.
+ */
+/*
+ * The book's drift. This is the knob — the two translateY values below are the
+ * travel, and the two rotations are the tilt.
+ *
+ * The book rises 16px out of its layout spot and sinks back, so the resting
+ * pose is the bottom of the swing rather than its middle.
+ *
+ * A centred version was tried — 8px down at 0%, 8px up at 50% — on the
+ * grounds that it spends the same travel evenly either side of the layout
+ * spot. It was backed out because the rest of this subsystem depends on rest
+ * being 0: the book that lands after a flight is a freshly mounted element
+ * starting this animation at 0%, so 0% has to be the pose the flight arrives
+ * in. See the note below and view-nav.js.
+ */
+/*
+ * `--mark-tilt` is the book's resting lean, added on top of the drift. The
+ * artwork is drawn tilted about 15° to the right, so the sign-in page leaves
+ * this at 0 and the dashboard's corner copy sets -30deg, which lands it 15° to
+ * the left instead. It is one custom property rather than a second set of
+ * keyframes because both halves write `transform`, and two animations on one
+ * property do not add — the later one simply wins.
+ */
+/*
+ * The cycle starts and ends at rest — no offset, no extra tilt. That matters
+ * at the end of the sign-in flight: the book that lands is a freshly mounted
+ * element beginning this animation at 0%, so 0% has to be the pose the flight
+ * arrives in, which is the one `[data-view-nav]` freezes both ends to.
+ *
+ * TWO keyframes, and that is not a simplification — `ease-in-out` is applied
+ * to each interval separately, so every keyframe is a point where the speed
+ * drops to zero. A three-keyframe version with rest in the middle of the
+ * travel therefore stopped dead halfway through the descent and then carried
+ * on, which is exactly what it looked like. With rest at one end of the swing,
+ * the only places it pauses are the top and the bottom, where a floating
+ * object is supposed to.
+ */
+@keyframes mark-float {
+  0%,
+  100% {
+    transform: translateY(12px) rotate(var(--mark-tilt, 0deg));
+  }
+  50% {
+    transform: translateY(-15px) rotate(calc(var(--mark-tilt, 0deg) + 4.5deg));
+  }
+}
+
+@keyframes mark-breathe {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.07);
+  }
+}
+
+@keyframes ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ring-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/*
+ * These four are applied through `motion-safe:`, so asking for reduced motion
+ * drops the animation entirely rather than flattening its keyframes the way
+ * nav-progress below does. Anything a keyframe sets must therefore also have
+ * a resting value on the element — the halo's opacity in particular, which
+ * would otherwise sit at a full-strength 1 with the animation gone.
+ */
+
 @media (prefers-reduced-motion: reduce) {
   @keyframes nav-progress {
     0%,
@@ -327,5 +427,203 @@ body {
 
   .paths {
     display: none;
+  }
+}
+
+/*
+ * ── Route transitions ────────────────────────────────────────────────────────
+ *
+ * Pages cross-fade instead of cutting, and the grimoire mark is carried from
+ * the sign-in page's lore panel down to the dashboard's corner rather than
+ * being destroyed in one place and created in the other.
+ *
+ * All of this is inert without a `<ViewTransition>` in the tree — the browser
+ * only runs these pseudo-elements while a transition is active — and inert
+ * again in browsers that do not support the API, where navigation simply cuts
+ * the way it always did.
+ */
+
+/*
+ * The overlay swallows clicks for as long as it is up, which on a slow
+ * navigation is long enough to lose a tap. Let them through to the live page.
+ */
+::view-transition {
+  pointer-events: none;
+}
+
+/*
+ * Asymmetric on purpose: the old page leaves quickly so it stops competing for
+ * attention, and the new one arrives more slowly and only once the old one has
+ * gone, so there is no moment where two pages are both half-visible.
+ */
+::view-transition-old(root) {
+  animation: 200ms cubic-bezier(0.4, 0, 1, 1) both view-fade reverse;
+}
+
+::view-transition-new(root) {
+  animation: 340ms cubic-bezier(0, 0, 0.2, 1) 160ms both view-fade;
+}
+
+/*
+ * Opacity only. This used to animate a 5px blur across the whole viewport as
+ * well, which is a full-screen filter re-rendered every frame for 340ms —
+ * over an animated canvas and three backdrop-filter surfaces. That window
+ * lands squarely on the fastest stretch of the book's flight, where dropped
+ * frames read as the book stopping and starting again.
+ */
+@keyframes view-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * The mark's flight — one book, all the way.
+ *
+ * By default a view transition holds two snapshots and cross-fades them, which
+ * is what put a second, already-turned book on screen halfway through while
+ * the first blurred out. So the new snapshot is not drawn at all: the old one
+ * is the only thing in flight, and it turns the full -30° itself.
+ *
+ * The handoff at the end is invisible because the two agree by then. The
+ * artwork leans about 15° right, so the login copy rotated -30° reads as 15°
+ * left — exactly what the corner copy already is, at the same size. Nothing
+ * cross-fades, nothing blurs, nothing scales.
+ *
+ * The group is left alone apart from timing: it is where the browser's own
+ * computed move lives, and setting `animation` on it would throw that away.
+ */
+::view-transition-group(.book-morph) {
+  animation-duration: 900ms;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  z-index: 21;
+}
+
+::view-transition-new(.book-morph) {
+  display: none;
+}
+
+::view-transition-old(.book-morph) {
+  /* The spec blends the pair with `plus-lighter` so a cross-fade holds its
+     brightness. With only one layer left that would just wash it out. */
+  mix-blend-mode: normal;
+
+  /*
+   * Turn about the book, not about the box it sits in.
+   *
+   * The photograph is of the wrapper, and the book inside it is up to 16px
+   * above that wrapper's centre — wherever the drift was frozen. Turning 30°
+   * about the default centre carried that 16px around the arc with it, while
+   * the real book on the far side holds a straight, unrotated 16px, because a
+   * transform list translates before it rotates. The two ends therefore missed
+   * each other by 2·16·sin(15°) ≈ 8px in the final frame, and by nothing at
+   * all in the first — an arrival jump that appeared or not depending on where
+   * in the swing the button was pressed.
+   *
+   * `--mark-drift` is that frozen offset, published on the root by view-nav.js
+   * and inherited down this pseudo-element tree. Pivoting on it holds the
+   * book's own centre still for the whole flight, so the first frame is
+   * unchanged and the last one lands dead on.
+   */
+  transform-origin: 50% calc(50% + var(--mark-drift, 0px));
+  animation: 900ms cubic-bezier(0.65, 0, 0.35, 1) both mark-turn;
+}
+
+/*
+ * The halo and the rune rings travel with the book but do NOT turn with it.
+ *
+ * Rotating them was the arrival jump: the turn exists to flip the artwork's
+ * lean, and the rings have no lean to flip — their two ends are the same
+ * picture — so the 30° went on during the flight and came straight back off
+ * when the snapshot was handed over. Their own drift across 900ms is 4° and
+ * 6°, which is why simply moving them is enough.
+ *
+ * Left on the default cross-fade for the same reason: at that difference the
+ * two snapshots are indistinguishable, so there is nothing to see.
+ */
+::view-transition-group(.aura-morph) {
+  animation-duration: 900ms;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  z-index: 20;
+}
+
+::view-transition-old(.aura-morph),
+::view-transition-new(.aura-morph) {
+  animation-duration: 900ms;
+}
+
+/*
+ * Signing out is the same flight backwards, so the turn has to be too. The
+ * direction is stamped on the root by whichever form is submitting — the
+ * pseudo-elements below are children of the root, which is the only thing they
+ * can be told anything by.
+ */
+:root[data-view-nav="out"]::view-transition-old(.book-morph) {
+  animation-name: mark-turn-back;
+}
+
+@keyframes mark-turn {
+  to {
+    rotate: -30deg;
+  }
+}
+
+@keyframes mark-turn-back {
+  to {
+    rotate: 30deg;
+  }
+}
+
+/*
+ * The hover lift belongs to the book alone. On the button it scaled the rune
+ * rings with it, which is not something a ring does.
+ *
+ * `scale` rather than a transform utility, because the drift owns `transform`
+ * and the two would overwrite each other.
+ *
+ * Nothing here freezes the drift for a page transition any more. That used to
+ * be a CSS rule pinning the book to its resting pose, and since that pose is
+ * the bottom of the swing, the book dropped before every flight. It is held
+ * where it already stands now, from view-nav.js, which moves it nowhere.
+ */
+.mark-book {
+  /*
+   * The resting lean, declared rather than left to the drift.
+   *
+   * `--mark-tilt` is read nowhere but inside `@keyframes mark-float`, and that
+   * animation is applied through `motion-safe:` — so anyone asking for reduced
+   * motion got no rotation at all and the corner book sat bolt upright. The
+   * lean is a pose, not motion, and it belongs here.
+   *
+   * `transform` rather than the `rotate` property, and that is not a
+   * preference: individual transform properties apply before `transform`, so a
+   * `rotate` here would put the keyframes' translateY into a rotated frame and
+   * send the drift diagonally. On the same property, the animation simply wins
+   * whenever it is running, which leaves the flight untouched.
+   */
+  transform: rotate(var(--mark-tilt, 0deg));
+  transition: scale 300ms ease;
+}
+
+.mark-launcher:hover .mark-book,
+.mark-launcher:focus-visible .mark-book {
+  scale: 1.04;
+}
+
+/*
+ * Motion sensitivity: a page-sized element sliding across the viewport is the
+ * most common trigger there is. Everything still swaps, it just swaps at once
+ * — which is the browser's own behaviour without any of this.
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 }

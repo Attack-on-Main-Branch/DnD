@@ -20,7 +20,14 @@ import { stopNavigationProgress } from "./navigation-progress-control";
  * @param action     the Server Action to call once the values look well-formed
  * @param read       pulls this form's fields out of the FormData
  * @param validate   the shared rule set for those fields
- * @param onResult   called with the server's result, for the form to react to
+ * @param onResult   called with the server's result, for the form to react to.
+ *                   NOT called for an `invalid` — see the note above; the
+ *                   password forms wipe every box from here, and a typo caught
+ *                   client-side must not cost the user what they typed.
+ * @param onSettled  called whenever a submit ends without navigating away,
+ *                   both branches. This is the one that pairs with anything
+ *                   armed on submit, because it is the only callback the
+ *                   client-side-invalid path also reaches.
  * @param refocusRef field to focus after a rejection
  */
 export function useFormAction({
@@ -28,6 +35,7 @@ export function useFormAction({
   read,
   validate,
   onResult,
+  onSettled,
   refocusRef,
 }) {
   const [state, formAction, isPending] = useActionState(submit, null);
@@ -43,6 +51,7 @@ export function useFormAction({
       // Submitting started the navigation bar. Nothing is going anywhere, so
       // release it — reaching the end quickly is the correct outcome here.
       stopNavigationProgress();
+      onSettled?.();
       return { kind: "invalid", ...invalid };
     }
 
@@ -52,6 +61,7 @@ export function useFormAction({
     // Only reached when the action returned instead of redirecting. A redirect
     // navigates away, and the change of pathname stops the bar instead.
     stopNavigationProgress();
+    onSettled?.();
 
     return result;
   }

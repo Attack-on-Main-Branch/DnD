@@ -56,11 +56,18 @@ export function surfaceClasses({
 }
 
 /**
- * The hairline under the header: one pixel of gold fading out at both ends, so
- * it reads as a rule drawn across the page rather than a box edge.
+ * The hairline under the header and the changelog panel's title: one pixel of
+ * gold fading out at both ends, so it reads as a rule drawn across the page
+ * rather than a box edge.
+ *
+ * A plain three-colour fade. It briefly had hard stops holding the outer 12%
+ * transparent, on the theory that the header's rule ran wall to wall — but the
+ * line that did that was the glass bar's own bottom border sitting directly
+ * above this one, not this. Removing that border was the fix; shortening this
+ * only made the changelog panel's rule too short.
  */
 export const FADED_RULE_CLASSES =
-  "h-px w-full bg-linear-to-r from-transparent via-gold/40 to-transparent";
+  "h-px w-full bg-linear-to-r from-transparent via-gold/60 to-transparent";
 
 /**
  * A choosable card sitting inside a glass panel — the archetype, path,

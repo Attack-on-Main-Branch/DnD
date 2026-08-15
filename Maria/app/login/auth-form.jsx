@@ -10,12 +10,14 @@ import SignUpForm from "./sign-up-form";
 
 const VIEWS = {
   signin: {
+    title: "Continue your journey",
     subtitle: "Sign in to your campaign.",
     switchPrompt: "New here?",
     switchLabel: "Create an account",
     next: "signup",
   },
   signup: {
+    title: "Begin your chronicle",
     subtitle: "Create an account to start a campaign.",
     switchPrompt: "Already have an account?",
     switchLabel: "Sign in",
@@ -36,27 +38,44 @@ export default function AuthForm() {
 
   return (
     <>
-      <p className="mt-2 text-center text-sm text-ink/60">{view.subtitle}</p>
-
       <div
         className={surfaceClasses({
           glow: true,
-          className: "mt-8 rounded-2xl p-6 sm:p-8",
+          className: "rounded-2xl p-6 sm:p-8",
         })}
       >
+        {/*
+          The card names itself now. It used to lean on the page's <h1>, which
+          has moved into the lore column beside it — and on a phone, where the
+          columns stack, that heading is a screen away by the time the form is
+          on screen.
+        */}
+        <div className="mb-7 flex flex-col gap-1.5">
+          <h2 className="font-display text-2xl font-semibold tracking-wide text-gold">
+            {view.title}
+          </h2>
+          <p className="text-sm text-ink/60">{view.subtitle}</p>
+        </div>
+
         {mode === "signin" ? (
           <SignInForm email={email} onEmailChange={setEmail} />
         ) : (
           <SignUpForm email={email} onEmailChange={setEmail} />
         )}
-      </div>
 
-      <p className="mt-6 text-center text-sm text-ink/60">
-        {view.switchPrompt}{" "}
-        <Button variant="link" onClick={() => setMode(view.next)}>
-          {view.switchLabel}
-        </Button>
-      </p>
+        {/*
+          Inside the card now, set off by the gap above it rather than by a
+          divider. It is the card's own second option rather than a note about
+          the page, and out on the background it was the one piece of the
+          sign-in flow with nothing behind it.
+        */}
+        <p className="mt-7 text-center text-sm text-ink/60">
+          {view.switchPrompt}{" "}
+          <Button variant="link" onClick={() => setMode(view.next)}>
+            {view.switchLabel}
+          </Button>
+        </p>
+      </div>
     </>
   );
 }

@@ -26,9 +26,14 @@ const BASE_CLASSES =
 /** Padding lives in the variant: `link` and `ghost` are text, not slabs. */
 const VARIANT_CLASSES = {
   /* The gold is a lit rim and a wash, not a fill — a solid gold slab would
-     shout louder than anything else on a page this dark. */
+     shout louder than anything else on a page this dark.
+
+     The display face is on this variant rather than in BASE_CLASSES: primary
+     is the one action a screen is asking for, and the serif is what separates
+     it from the row of secondary and ghost controls beside it. That also keeps
+     the two auth submits — Sign In and Sign Up — matching each other. */
   primary:
-    "rounded-full px-5 py-2.5 border border-gold/45 bg-gold/15 text-gold " +
+    "rounded-full px-5 py-2.5 border border-gold/45 bg-gold/15 text-gold font-display tracking-wide " +
     "shadow-[inset_0_1px_0_rgba(255,223,156,0.18)] " +
     "hover:border-gold/80 hover:bg-gold/25 " +
     "hover:shadow-[inset_0_1px_0_rgba(255,223,156,0.28),0_0_24px_-4px_rgba(255,223,156,0.5)]",

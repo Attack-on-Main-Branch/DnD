@@ -1,0 +1,191 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+
+import { CHANGELOG } from "./changelog";
+import GrimoireMark from "./grimoire-mark";
+import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
+
+/**
+ * The grimoire in the dashboard's bottom-left corner, and the changelog it
+ * opens.
+ *
+ * A disclosure rather than a modal: the page behind stays where it is and
+ * nothing is trapped. Escape closes it, so does the button, so does clicking
+ * away — and focus goes back to the book afterwards, because a keyboard user
+ * who opens something from the corner should not be returned to the top of the
+ * document.
+ *
+ * The panel stays mounted while closed so it can slide rather than appear, and
+ * carries `inert` in that state. Off-screen is not the same as unreachable:
+ * without it, everything inside is still in the tab order.
+ *
+ * Only the dashboard renders this. On the login page the same mark is drawn
+ * directly, with nothing to click.
+ */
+export default function ChangelogPanel() {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const launcherRef = useRef(null);
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        // Focus goes back with it. Closing without this leaves the caret on
+        // <body>, so the next Tab starts again from the top of the document —
+        // measured, that is exactly where it landed.
+        launcherRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    closeRef.current?.focus();
+
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
+  function close() {
+    setOpen(false);
+    launcherRef.current?.focus();
+  }
+
+  return (
+    <>
+      {/*
+        `z-0` on purpose. The dashboard's own content renders after this and
+        paints over it, so the book sits behind the cards rather than on top of
+        them — and because hit-testing follows the same order, a card in front
+        of it takes the click. Only the part you can actually see is clickable.
+      */}
+      <button
+        ref={launcherRef}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        // `mark-launcher` rather than a hover utility here: scaling the button
+        // scaled the rune rings along with the book, and the rings should hold
+        // still. globals.css lifts the book alone.
+        className="mark-launcher fixed bottom-20 left-20 z-0 cursor-pointer rounded-full"
+      >
+        {/* Width and the image-size hint both come from the component, so this
+            copy and the login page's are always the same — see MARK_SIZE in
+            grimoire-mark.jsx. */}
+        <GrimoireMark tilt="-30deg" />
+        <span className="sr-only">What&rsquo;s new</span>
+      </button>
+
+      {open && (
+        <div
+          aria-hidden="true"
+          onClick={close}
+          className="fixed inset-0 z-40 bg-black/40"
+        />
+      )}
+
+      <aside
+        id={panelId}
+        aria-label="Changelog"
+        inert={!open}
+        className={surfaceClasses({
+          variant: "solid",
+          className: `fixed inset-y-0 left-0 z-50 flex w-[min(26rem,88vw)] flex-col rounded-none border-y-0 border-l-0 transition-transform duration-500 ease-[cubic-bezier(0.22,0.8,0.2,1)] motion-reduce:transition-none ${
+            open ? "translate-x-0" : "-translate-x-full"
+          }`,
+        })}
+      >
+        <div className="flex items-baseline justify-between gap-4 px-6 pt-7 pb-4">
+          <h2 className="font-display text-xl font-semibold tracking-wide text-gold">
+            What&rsquo;s new
+          </h2>
+
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={close}
+            className="cursor-pointer rounded-md px-2 py-1 font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-gold"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* The same hairline the site header carries under its own title. */}
+        <div aria-hidden="true" className={FADED_RULE_CLASSES} />
+
+        {/*
+          Focusable, because nothing inside it is. Every entry is a heading, a
+          `<time>` and static text, and the panel's only tab stop — Close — sits
+          in the header above, outside this box: with focus there, arrow keys
+          and PageDown scroll the document instead of the list, so a keyboard
+          user could open the changelog and never reach past the first screen
+          of it. Some browsers now make overflow containers focusable on their
+          own, but that is recent and not universal.
+
+          Named, because a focusable region without a name is announced as
+          nothing. `aria-label` rather than pointing at the "What's new"
+          heading: this is the list, not a second copy of the panel, which
+          already carries that name on the `<aside>`.
+
+          No guard needed for the closed state — `inert` on the `<aside>` takes
+          this tab stop out with everything else.
+        */}
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Changelog entries"
+          className="scroll-gold flex-1 overflow-y-auto px-6 pt-5 pb-8"
+        >
+          <ol className="flex flex-col gap-8">
+            {CHANGELOG.map((entry) => (
+              <li key={entry.id}>
+                <h3 className="font-display text-base font-semibold tracking-wide text-ink">
+                  {entry.title}
+                </h3>
+
+                <p className="mt-0.5 font-mono text-[0.7rem] tracking-wide text-ink/45">
+                  <time dateTime={entry.date}>{entry.date}</time> · {entry.id}
+                </p>
+
+                {entry.changes && (
+                  <Section label="New" items={entry.changes} accent />
+                )}
+                {entry.fixes && <Section label="Fixed" items={entry.fixes} />}
+              </li>
+            ))}
+          </ol>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function Section({ label, items, accent = false }) {
+  return (
+    <>
+      <p
+        className={`mt-4 font-display text-[0.7rem] tracking-[0.18em] uppercase ${
+          accent ? "text-gold/75" : "text-ink/45"
+        }`}
+      >
+        {label}
+      </p>
+
+      <ul className="mt-2 flex flex-col gap-2">
+        {items.map((item) => (
+          <li
+            key={item}
+            className="relative pl-4 text-sm leading-relaxed text-pretty text-ink/70 before:absolute before:top-[0.6em] before:left-0 before:size-1 before:rounded-full before:bg-gold/50"
+          >
+            {item}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
