@@ -12,6 +12,15 @@
  */
 export const CHANGELOG = [
   {
+    id: "1c18149",
+    date: "2026-08-16",
+    title: "Steadier ground",
+    fixes: [
+      "When the sign-in service could not be reached, the app said your session had expired — so you signed in, got sent back, and signed in again. It now tells you the service is unreachable, and says so instead of asking you to prove who you are.",
+      "The loading bar across the top no longer slides for anyone who has asked their system to reduce motion. It still appears while a page is on its way.",
+    ],
+  },
+  {
     id: "9971bf1",
     date: "2026-08-15",
     title: "The grimoire mark",
