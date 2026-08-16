@@ -2,7 +2,11 @@
 
 import { ARCHETYPES, archetypeDetails } from "sina/rules/character";
 
-import { LABEL_CLASSES } from "@/app/components/ui/field-styles";
+import {
+  CHOICE_CARD_FOCUS_CLASSES,
+  INVALID_GROUP_CLASSES,
+  LABEL_CLASSES,
+} from "@/app/components/ui/field-styles";
 import SelectionDot from "@/app/components/ui/selection-dot";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 
@@ -46,7 +50,7 @@ export default function ClassPicker({
       <div
         className={`mt-1.5 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3 ${
           invalidField === "archetype"
-            ? "rounded-xl ring-2 ring-red-500/40"
+            ? `rounded-xl ${INVALID_GROUP_CLASSES}`
             : ""
         }`}
       >
@@ -63,7 +67,7 @@ export default function ClassPicker({
           return (
             <label
               key={entry.id}
-              className={`group relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border p-4 text-center transition duration-300 select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold motion-safe:hover:-translate-y-0.5 ${
+              className={`group relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border p-4 text-center transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} motion-safe:hover:-translate-y-0.5 ${
                 isSelected ? "border-gold/55" : NESTED_CARD_CLASSES
               }`}
               // Only the chosen card paints inline, and only because its wash
@@ -144,6 +148,26 @@ export default function ClassPicker({
               </span>
 
               {isSelected && (
+                /*
+                  A hand-picked warm near-black, one step LIGHTER than
+                  `--color-surface` — #0f0c08 to #17110b, up in all three
+                  channels.
+
+                  It is not derivable by compositing, and it is worth saying so
+                  because the arithmetic looks inviting and does not work: every
+                  layer the card puts down is a darkening one — its bottom stop
+                  is `rgba(0,0,0,0.3)`, and 30% black over surface lands on
+                  #0b0806. Nothing made of surface and black can come out
+                  lighter than surface. This was matched by eye against the
+                  glass panel as it actually renders, backdrop-filter and all,
+                  which is not something the tokens can reproduce.
+
+                  It cannot track the accent either: the card's gradient runs
+                  from `withAlpha(accent, 0.13)` at the top to that flat black
+                  at the bottom, and the arrow hangs off the bottom, where the
+                  accent has already faded out. So one fixed value is right
+                  here in a way it would not be an inch higher up.
+                */
                 <span
                   aria-hidden="true"
                   className="absolute -bottom-1.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-r border-b border-gold/55 bg-[#17110b]"
@@ -169,7 +193,7 @@ export default function ClassPicker({
         squashed and the tray never closes.
       */}
       <div
-        className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(0.22,0.8,0.2,1)] motion-reduce:transition-none ${
+        className={`grid transition-[grid-template-rows,opacity] duration-500 ease-tray motion-reduce:transition-none ${
           selected ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         }`}
       >
@@ -180,7 +204,7 @@ export default function ClassPicker({
             <div
               className={`grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3 ${
                 invalidField === "classId"
-                  ? "rounded-xl ring-2 ring-red-500/40"
+                  ? `rounded-xl ${INVALID_GROUP_CLASSES}`
                   : ""
               }`}
             >
@@ -194,7 +218,7 @@ export default function ClassPicker({
                     // switching archetype changes every key and the cards
                     // remount — which is what replays the stagger below.
                     key={path.id}
-                    className={`flex cursor-pointer flex-col gap-2 rounded-lg border p-4 transition duration-300 select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold motion-safe:animate-[rise_0.42s_cubic-bezier(0.22,0.8,0.2,1)_both] ${
+                    className={`flex cursor-pointer flex-col gap-2 rounded-lg border p-4 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} motion-safe:animate-[rise_0.42s_var(--ease-tray)_both] ${
                       isSelected ? "border-gold/55" : NESTED_CARD_CLASSES
                     }`}
                     style={{

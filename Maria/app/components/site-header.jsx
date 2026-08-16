@@ -60,22 +60,31 @@ export default function SiteHeader({ displayName, email }) {
               announce "Grimoire Tales" twice for one control. The link's own
               `aria-label` is what names it when the wordmark is hidden.
 
-              `loading="eager"` rather than `preload`: the docs for this version
-              reserve preload for the LCP element, and a 44px mark in the bar is
-              not it — but it is above the fold on every page, so lazy loading
-              would only buy a flash of empty space.
+              No `loading="eager"`, and that is a correction rather than a
+              preference. This carried it, under a comment saying eager was
+              chosen INSTEAD of preloading because a 44px mark is not the LCP
+              element. Eager preloads too: with both this and the corner
+              grimoire on screen, the build emitted two `<link rel="preload"
+              as="image">` for the one asset, differing only in `imageSizes` —
+              44px here against 144-286px there — and the browser reported one
+              of them fetched and never used on every dashboard load.
 
-              `shrink-0` because it now sits after a shrinkable wordmark: as a
-              flex item it would otherwise give up width before the text does,
-              and squash. Sized by CSS with both axes given (`h-*` and
-              `w-auto`), which is what keeps Next from warning about a single
-              modified dimension.
+              Dropping it leaves a single preload, for the large mark that
+              actually warrants one. The cost is the flash of empty space the
+              old comment worried about, and it is not much of one: browsers
+              fetch in-viewport lazy images during the first layout, and this is
+              a 44px logo.
+
+              `shrink-0` because it sits after a shrinkable wordmark: as a flex
+              item it would otherwise give up width before the text does, and
+              squash. Sized by CSS with both axes given (`h-*` and `w-auto`),
+              which is what keeps Next from warning about a single modified
+              dimension.
             */}
             <Image
               src={grimoireLogo}
               alt=""
               sizes="(min-width: 640px) 44px, 36px"
-              loading="eager"
               className="h-9 w-auto shrink-0 drop-shadow-[0_0_14px_rgba(255,223,156,0.3)] transition-transform duration-500 group-hover:scale-105 sm:h-11"
             />
           </Link>
@@ -131,27 +140,28 @@ export default function SiteHeader({ displayName, email }) {
       </div>
 
       {/*
-        Hairline, fading out at both ends — and held to the same width as the
-        bar's own content rather than run wall to wall.
+        Hairline, fading out at both ends, and deliberately WIDER than the bar's
+        own content column.
 
         The gradient fades over a fraction of its length, so across a 2000px
         window the lit middle is a long gold streak; over the changelog panel's
-        416px the same class reads as a short accent, which is the version that
-        looks right. Capping the width is what closes that gap.
+        416px the same class reads as a short accent. Letting this one run the
+        full width is what gives the header its long streak.
 
-        THIS LINE IS THE KNOB. It deliberately repeats the bar's own wrapper
-        above — `max-w-7xl` with the same `px-4 sm:px-6` — so the rule starts
-        where the logo starts and ends where "Sign out" ends. Narrow it by
-        dropping to a smaller `max-w-*`; widen it by raising it.
+        THIS LINE IS THE KNOB, and the knob is set to "no cap". Matching the bar
+        above at `max-w-7xl` pulls the rule in to end where "Sign out" ends,
+        which reads as a boxed underline rather than a rule drawn across the
+        page. It was tried; this is better.
 
-        Only values on Tailwind's container scale exist, and that scale stops
-        at `7xl`. This read `max-w-8xl` for a while, which is not a utility and
-        emits no CSS at all — so the wrapper silently collapsed to plain
-        `w-full` and the rule went wall to wall regardless of what the comment
-        claimed. Anything above `7xl` needs a `--container-*` token in the
-        `@theme` block first.
+        For a long time this said `max-w-8xl`, which looked right for the wrong
+        reason: Tailwind's container scale stops at `7xl`, so that class matched
+        no utility, emitted no CSS, and the wrapper fell back to exactly what it
+        now says outright. Spelling it out means the next person to read it sees
+        the intent instead of a class that does nothing. To bound it after all,
+        add a `--container-8xl` token to the `@theme` block in globals.css
+        first — `max-w-*` above `7xl` does not otherwise exist.
       */}
-      <div className="mx-auto w-full max-w-8xl px-4 sm:px-6">
+      <div className="mx-auto w-full px-4 sm:px-6">
         <div aria-hidden="true" className={FADED_RULE_CLASSES} />
       </div>
     </header>

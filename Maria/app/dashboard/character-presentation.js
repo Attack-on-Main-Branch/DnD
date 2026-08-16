@@ -15,7 +15,12 @@ import tieflingArt from "./race-art/tiefling.webp";
  *
  * Sina decides which colour slugs exist and the database enforces them; this
  * decides what each one looks like. Adding a colour is a change in both, and
- * the lookup below fails loudly rather than silently rendering nothing.
+ * the check below fails loudly at module load rather than silently rendering
+ * the default.
+ *
+ * This comment used to promise that while a `??` fallback did the opposite: a
+ * colour added to Sina but not here appeared in the picker, rendered as violet
+ * and saved as itself, with nothing logged and nothing thrown.
  *
  * The class strings must stay literal for Tailwind's scanner to find them.
  */
@@ -34,12 +39,31 @@ const CLASS_BY_VALUE = {
   pink: "bg-pink-600",
 };
 
+const UNSTYLED_COLORS = AVATAR_COLOR_VALUES.filter(
+  (value) => !CLASS_BY_VALUE[value],
+);
+
+if (UNSTYLED_COLORS.length > 0) {
+  throw new Error(
+    `character-presentation: no class for avatar colour ` +
+      `${UNSTYLED_COLORS.join(", ")}. Sina lists it in rules/character.js — ` +
+      `add it to CLASS_BY_VALUE here, or the picker offers a swatch that ` +
+      `renders as something else.`,
+  );
+}
+
+/** No fallback: the check above has already proved every slug has a class. */
 export const AVATAR_COLORS = AVATAR_COLOR_VALUES.map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
-  className: CLASS_BY_VALUE[value] ?? CLASS_BY_VALUE[DEFAULT_AVATAR_COLOR],
+  className: CLASS_BY_VALUE[value],
 }));
 
+/**
+ * The `??` stays here, and only here. This takes a value off a database row,
+ * which can hold a slug written by an older deploy — a different question from
+ * the two lists agreeing, which is what the check above settles.
+ */
 export function avatarColorClass(value) {
   return CLASS_BY_VALUE[value] ?? CLASS_BY_VALUE[DEFAULT_AVATAR_COLOR];
 }

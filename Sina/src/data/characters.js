@@ -14,6 +14,7 @@ const COLUMNS =
 const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
 const UNDEFINED_TABLE = "42P01";
+const INVALID_TEXT_REPRESENTATION = "22P02";
 
 function classify(error) {
   if (error.code === UNIQUE_VIOLATION) {
@@ -21,10 +22,11 @@ function classify(error) {
   }
 
   // A row that got past validateCharacter and was still refused by a CHECK
-  // constraint. That is a bug in the rules rather than something the user did,
-  // but it must not reach them as Postgres prose — without this case it falls
-  // through to "unknown" and the caller shows `error.detail`, which reads
-  // "new row for relation \"characters\" violates check constraint ...".
+  // constraint — a bug in the rules rather than something the user did, and it
+  // needs its own reason so the caller can say something specific. Without it
+  // the user gets the generic "could not save the character" where a precise
+  // sentence was available. (The old stakes were higher: the action used to
+  // fall back to `error.detail` and show the Postgres string verbatim.)
   if (error.code === CHECK_VIOLATION) {
     return "invalid_value";
   }
@@ -36,6 +38,15 @@ function classify(error) {
 
   if (error.code === UNDEFINED_TABLE) {
     return "missing_table";
+  }
+
+  // A malformed id — /dashboard/character/foo against a uuid column. Postgres
+  // refuses the cast before considering a row, so it arrives as an error rather
+  // than an empty result. A MISS, not a failure: without this case a hand-typed
+  // URL classifies as `unknown` and the character route answers 500 where it
+  // used to answer 404. A test fails if this branch is removed.
+  if (error.code === INVALID_TEXT_REPRESENTATION) {
+    return "bad_id";
   }
 
   return "unknown";
@@ -64,7 +75,9 @@ export async function listCharacters(supabase, userId) {
 }
 
 export async function getCharacter(supabase, { id, userId }) {
-  // `maybeSingle` keeps a junk id a miss rather than a crash.
+  // `maybeSingle` keeps a missing row a miss rather than a crash. It does NOT
+  // cover a junk id — that comes back as `bad_id`, which callers should treat
+  // the same way they treat null.
   const { data, error } = await supabase
     .from("characters")
     .select(COLUMNS)
@@ -93,12 +106,34 @@ export async function insertCharacter(supabase, { userId, values }) {
   return error ? failure(error) : { data: true, error: null };
 }
 
+/**
+ * `.select("id")` makes the DELETE hand back the rows it actually removed, and
+ * that is the whole point of it being here.
+ *
+ * A DELETE matching nothing is not an error in Postgres or PostgREST, and RLS
+ * filters silently — so a stale id, or one belonging to somebody else, came
+ * back indistinguishable from a successful delete and the action reported
+ * success for work it had not done. The SELECT policy this needs already
+ * exists, so it costs nothing.
+ */
 export async function removeCharacter(supabase, { id, userId }) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("characters")
     .delete()
     .eq("id", id)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
-  return error ? failure(error) : { data: true, error: null };
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data || data.length === 0) {
+    return {
+      data: null,
+      error: { reason: "not_found", detail: "No character matched that id." },
+    };
+  }
+
+  return { data: true, error: null };
 }

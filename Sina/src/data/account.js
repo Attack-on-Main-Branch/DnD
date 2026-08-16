@@ -16,6 +16,15 @@ function classify(error) {
       return "weak_password";
     case "same_password":
       return "same_password";
+    // Both reachable only through verifyPassword — nothing else here signs in.
+    // `email_not_confirmed` is mirrored from the auth classifier on purpose:
+    // re-authentication hits the same endpoint the login form does, so it can
+    // come back the same way, and without a case for it a user with a correct
+    // password was told it was wrong every time.
+    case "invalid_credentials":
+      return "invalid_credentials";
+    case "email_not_confirmed":
+      return "email_not_confirmed";
     case "over_email_send_rate_limit":
     case "over_request_rate_limit":
       return "rate_limited";
@@ -39,11 +48,19 @@ function failure(error) {
  * enough to take an account over permanently. Signing in again is the check:
  * it rotates the session for the same user, which is harmless, and it fails
  * without touching anything if the password is wrong.
+ *
+ * Returns the same tuple as everything else here rather than a boolean, because
+ * "the password was wrong" and "the check could not run" are not the same fact
+ * and must not reach the user as the same sentence. This calls the same
+ * password grant the login form does, so it is subject to the same rate limits
+ * and can come back with the same unconfirmed-email answer — and telling
+ * someone their password is wrong is the one reply guaranteed to make them
+ * retry, which against a limiter is what keeps them locked out.
  */
 export async function verifyPassword(supabase, { email, password }) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-  return !error;
+  return error ? failure(error) : { data: true, error: null };
 }
 
 export async function setDisplayName(supabase, displayName) {

@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { CHANGELOG } from "./changelog";
 import GrimoireMark from "./grimoire-mark";
 import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
 
@@ -22,8 +21,15 @@ import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
  *
  * Only the dashboard renders this. On the login page the same mark is drawn
  * directly, with nothing to click.
+ *
+ * The entries arrive as `children`, already rendered, from a Server Component.
+ * This file needs the browser and everything it imports goes to the browser
+ * with it — so holding the list here shipped a few thousand words of static
+ * English as JavaScript to every signed-in visitor on every dashboard route.
+ * What has to be client-side is the `open` boolean and the focus work; the
+ * prose does not, and now travels as HTML.
  */
-export default function ChangelogPanel() {
+export default function ChangelogPanel({ children }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const launcherRef = useRef(null);
@@ -95,7 +101,7 @@ export default function ChangelogPanel() {
         inert={!open}
         className={surfaceClasses({
           variant: "solid",
-          className: `fixed inset-y-0 left-0 z-50 flex w-[min(26rem,88vw)] flex-col rounded-none border-y-0 border-l-0 transition-transform duration-500 ease-[cubic-bezier(0.22,0.8,0.2,1)] motion-reduce:transition-none ${
+          className: `fixed inset-y-0 left-0 z-50 flex w-[min(26rem,88vw)] flex-col rounded-none border-y-0 border-l-0 transition-transform duration-500 ease-tray motion-reduce:transition-none ${
             open ? "translate-x-0" : "-translate-x-full"
           }`,
         })}
@@ -141,51 +147,9 @@ export default function ChangelogPanel() {
           aria-label="Changelog entries"
           className="scroll-gold flex-1 overflow-y-auto px-6 pt-5 pb-8"
         >
-          <ol className="flex flex-col gap-8">
-            {CHANGELOG.map((entry) => (
-              <li key={entry.id}>
-                <h3 className="font-display text-base font-semibold tracking-wide text-ink">
-                  {entry.title}
-                </h3>
-
-                <p className="mt-0.5 font-mono text-[0.7rem] tracking-wide text-ink/45">
-                  <time dateTime={entry.date}>{entry.date}</time> · {entry.id}
-                </p>
-
-                {entry.changes && (
-                  <Section label="New" items={entry.changes} accent />
-                )}
-                {entry.fixes && <Section label="Fixed" items={entry.fixes} />}
-              </li>
-            ))}
-          </ol>
+          {children}
         </div>
       </aside>
-    </>
-  );
-}
-
-function Section({ label, items, accent = false }) {
-  return (
-    <>
-      <p
-        className={`mt-4 font-display text-[0.7rem] tracking-[0.18em] uppercase ${
-          accent ? "text-gold/75" : "text-ink/45"
-        }`}
-      >
-        {label}
-      </p>
-
-      <ul className="mt-2 flex flex-col gap-2">
-        {items.map((item) => (
-          <li
-            key={item}
-            className="relative pl-4 text-sm leading-relaxed text-pretty text-ink/70 before:absolute before:top-[0.6em] before:left-0 before:size-1 before:rounded-full before:bg-gold/50"
-          >
-            {item}
-          </li>
-        ))}
-      </ul>
     </>
   );
 }

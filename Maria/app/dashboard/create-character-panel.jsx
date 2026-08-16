@@ -2,41 +2,59 @@
 
 import {
   NESTED_CARD_CLASSES,
+  PANEL_CLASSES,
   surfaceClasses,
 } from "@/app/components/ui/surface";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import Button from "@/app/components/ui/button";
+import Button, { buttonClasses } from "@/app/components/ui/button";
 
 import PlayerCharacterForm from "./player-character-form";
 
 /**
- * The creation flow: pick a role first, then fill in the sheet for it.
- * Rendered in place of the inventory grid, and hands control back through
- * `onClose` when the user is finished or backs all the way out.
+ * The creation flow: pick a role first, then fill in the sheet for it. Rendered
+ * by dashboard/page.jsx in place of the roster whenever `?new` is on the URL.
+ *
+ * It owns its own way out now. The two exits are not the same event and they
+ * get different treatment:
+ *
+ * Cancel is a plain <Link>. Backing out leaves `?new` in history on purpose —
+ * returning to a sheet you abandoned is what Back is for — and an anchor gets
+ * that, plus middle-click and open-in-new-tab, for free.
+ *
+ * Finishing calls `router.replace`. That sheet is spent, and on the third
+ * character it is a form with no slot left to fill: Back would reopen an empty
+ * creation panel whose only possible outcome is "you already have 3".
+ * Replacing drops it from history so Back skips straight past it.
  */
-export default function CreateCharacterPanel({ onClose }) {
+export default function CreateCharacterPanel() {
   const [role, setRole] = useState(null);
+  const router = useRouter();
 
   return (
     <div
       className={surfaceClasses({
         glow: true,
-        className: "rounded-2xl p-6 sm:p-8",
+        className: PANEL_CLASSES,
       })}
     >
-      {role === null && <RolePicker onPick={setRole} onCancel={onClose} />}
+      {role === null && <RolePicker onPick={setRole} />}
 
       {role === "dm" && <DungeonMasterPanel onBack={() => setRole(null)} />}
 
       {role === "player" && (
-        <PlayerCharacterForm onBack={() => setRole(null)} onCreated={onClose} />
+        <PlayerCharacterForm
+          onBack={() => setRole(null)}
+          onCreated={() => router.replace("/dashboard")}
+        />
       )}
     </div>
   );
 }
 
-function RolePicker({ onPick, onCancel }) {
+function RolePicker({ onPick }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -62,9 +80,20 @@ function RolePicker({ onPick, onCancel }) {
       </div>
 
       <div className="flex justify-end">
-        <Button variant="secondary" onClick={onCancel}>
+        {/*
+          A link for the middle-click and new-tab behaviour a <button> cannot
+          give, but `prefetch={false}`: Next prefetches links on viewport entry,
+          so merely opening this sheet started fetching the page you just left.
+          `/dashboard` is dynamic and `staleTimes.dynamic` is 0, so that payload
+          could never be reused. Clicking still costs its one fetch.
+        */}
+        <Link
+          href="/dashboard"
+          prefetch={false}
+          className={buttonClasses({ variant: "secondary" })}
+        >
           Cancel
-        </Button>
+        </Link>
       </div>
     </div>
   );

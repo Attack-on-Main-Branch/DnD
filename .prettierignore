@@ -1,0 +1,7 @@
+# Build output and dependencies.
+.next/
+node_modules/
+package-lock.json
+
+# Supabase CLI scratch state, not source.
+Sina/supabase/.temp/

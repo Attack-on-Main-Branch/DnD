@@ -3,7 +3,7 @@ import Link from "next/link";
 import { buttonClasses } from "./components/ui/button";
 
 export const metadata = {
-  title: "Not found · Grimoire Tales",
+  title: "Not found",
 };
 
 /**

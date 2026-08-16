@@ -11,6 +11,7 @@ import { clearNavDirection, markNavDirection } from "@/app/components/view-nav";
 
 import { signUp } from "./actions";
 import {
+  MAX_DISPLAY_NAME_LENGTH,
   MIN_DISPLAY_NAME_LENGTH,
   MIN_PASSWORD_LENGTH,
   readSignUpValues,
@@ -59,6 +60,7 @@ export default function SignUpForm({ email, onEmailChange }) {
         placeholder="Elminster"
         required
         minLength={MIN_DISPLAY_NAME_LENGTH}
+        maxLength={MAX_DISPLAY_NAME_LENGTH}
         value={displayName}
         onChange={(event) => setDisplayName(event.target.value)}
         disabled={isPending}

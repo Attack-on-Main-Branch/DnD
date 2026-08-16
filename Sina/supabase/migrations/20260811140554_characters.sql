@@ -55,8 +55,19 @@ create policy "Users delete their own characters"
   using ((select auth.uid()) = user_id);
 
 -- Three characters per account, enforced in the database. The Server Action
--- checks as well, for a friendly message — but that check sits behind an API
--- anyone can call directly, so it cannot be the only one.
+-- does not pre-count, and should not: it sits behind an API anyone can call
+-- directly, so a check up there could never be the thing that holds.
+--
+-- Note what THIS version does not do. The count below takes no lock, so under
+-- READ COMMITTED two requests arriving together both read the same pre-state
+-- and both insert. That race is real; it is closed in
+-- 20260814215246_race_check_and_limit_lock.sql, which replaces this function
+-- with one that takes a per-user advisory lock first.
+--
+-- The exception is translated on the way out, in two steps rather than one:
+-- Sina/src/data/characters.js matches 'character_limit_reached' and returns the
+-- reason code 'limit_reached', and the Server Action maps that code onto the
+-- MAX_CHARACTERS sentence the user reads. Backend says why, frontend says it.
 create or replace function public.enforce_character_limit()
 returns trigger
 language plpgsql

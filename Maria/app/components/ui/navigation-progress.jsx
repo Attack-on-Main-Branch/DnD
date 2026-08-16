@@ -7,6 +7,7 @@ import {
   registerNavigationProgress,
   stopNavigationProgress,
 } from "../navigation-progress-control";
+import { prefersReducedMotion } from "../use-reduced-motion";
 
 /** How far the bar may creep while the page is still on its way. */
 const CRAWL_TARGET = 0.9;
@@ -73,8 +74,30 @@ export default function NavigationProgress() {
       state.finish?.cancel();
       state.finish = null;
       state.crawl?.cancel();
+      state.crawl = null;
 
       bar.style.opacity = "1";
+
+      // Reduced motion: the bar still reports that something is loading, it
+      // just does not travel across the screen to say so. Placed straight at
+      // the crawl target and held, which keeps the same promise the animated
+      // version makes — never look finished before the page is.
+      //
+      // Handled here rather than in CSS. A `@media (prefers-reduced-motion)`
+      // block once tried to override `@keyframes nav-progress` and did nothing
+      // at all, because there are no keyframes to override: every frame of this
+      // bar comes from the Web Animations API, which no stylesheet can see.
+      if (prefersReducedMotion()) {
+        bar.style.transform = `scaleX(${CRAWL_TARGET})`;
+
+        clearSafety();
+        state.safety = setTimeout(stop, SAFETY_TIMEOUT);
+        return;
+      }
+
+      // Back to the start, in case the last navigation ended on the static
+      // branch above and left the inline transform where it put it.
+      bar.style.transform = "scaleX(0)";
 
       // Eases towards 90% and stalls there. The bar must never reach the end
       // before the page does — that would claim the work was finished.
@@ -99,17 +122,33 @@ export default function NavigationProgress() {
       state.running = false;
       clearSafety();
 
+      // The counterpart of the static start: appearing and disappearing is the
+      // entire signal, so there is no sweep to run and nothing to read a
+      // position from.
+      if (prefersReducedMotion()) {
+        state.crawl?.cancel();
+        state.crawl = null;
+
+        bar.style.opacity = "0";
+        bar.style.transform = "scaleX(0)";
+        return;
+      }
+
       // Read where the crawl got to before cancelling it: cancelling snaps the
       // element straight back to the start, and the closing sweep has to pick
       // up from the current position rather than jumping backwards.
-      let from = "scaleX(0)";
+      //
+      // Read whether or not a crawl is running, because now there is a way to
+      // be mid-navigation without one: a start under reduced motion places the
+      // bar with an inline transform and animates nothing. If the preference
+      // flips before the page lands, the sweep still has to begin where the bar
+      // actually is.
+      const current = getComputedStyle(bar).transform;
+      // "none" would mean an identity matrix — full width — and the sweep
+      // would start already finished.
+      const from = current === "none" ? "scaleX(0)" : current;
 
       if (state.crawl) {
-        const current = getComputedStyle(bar).transform;
-        // "none" would mean an identity matrix — full width — and the sweep
-        // would start already finished.
-        from = current === "none" ? "scaleX(0)" : current;
-
         state.crawl.cancel();
         state.crawl = null;
       }
@@ -207,7 +246,11 @@ export default function NavigationProgress() {
       }
     }
 
-    const unregister = registerNavigationProgress({ start, stop });
+    // Only `stop` is published. The bar starts itself from the two capture
+    // listeners below, so nothing outside ever needs to ask it to; what a
+    // caller does need is a way to say the navigation it just armed is not
+    // going to happen — a form that failed validation in the browser.
+    const unregister = registerNavigationProgress({ stop });
 
     // Capture phase: React calls preventDefault on form actions, and this needs
     // to see the event before that happens.

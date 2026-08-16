@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 
 import Button from "./button";
+import { surfaceClasses } from "./surface";
 
 /**
  * Confirmation modal for destructive actions.
@@ -65,7 +66,11 @@ export default function ConfirmDialog({
       // No padding here on purpose: padding on the <dialog> itself counts as
       // part of the element, so clicking it would read as a backdrop click and
       // dismiss the dialog. The inner wrapper owns the spacing instead.
-      className="glass-solid m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 text-ink backdrop:bg-black/70"
+      className={surfaceClasses({
+        variant: "solid",
+        className:
+          "m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 text-ink backdrop:bg-black/70",
+      })}
     >
       <div className="p-6" onClick={(event) => event.stopPropagation()}>
         <h2 id={titleId} className="text-lg font-semibold tracking-tight">

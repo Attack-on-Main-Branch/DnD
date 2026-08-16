@@ -43,6 +43,32 @@
    * the browser draws them light, leaving a white scrollbar track down a black
    * page. */
   color-scheme: dark;
+
+  /*
+   * Alpha steps of the two theme colours, so changing `--color-gold` repaints
+   * every rim, hairline, glow and scrollbar thumb rather than only the
+   * utilities. These were sixteen hand-written `rgba(255, 223, 156, ·)`
+   * literals.
+   *
+   * `in srgb` mixed with `transparent` is exactly the rgba it replaces —
+   * color-mix premultiplies, so channels are untouched. NOT `--alpha()`, which
+   * resolves alone but is silently dropped, taking the whole declaration with
+   * it, inside a multi-value `border` or `box-shadow`.
+   *
+   * The achromatic focus casing `rgba(10, 8, 6, 0.9)` is deliberately absent:
+   * it is not a tint of the palette but the one colour that must stay put when
+   * the palette changes.
+   */
+  --gold-10: color-mix(in srgb, var(--color-gold) 10%, transparent);
+  --gold-12: color-mix(in srgb, var(--color-gold) 12%, transparent);
+  --gold-20: color-mix(in srgb, var(--color-gold) 20%, transparent);
+  --gold-22: color-mix(in srgb, var(--color-gold) 22%, transparent);
+  --gold-25: color-mix(in srgb, var(--color-gold) 25%, transparent);
+  --gold-35: color-mix(in srgb, var(--color-gold) 35%, transparent);
+  --gold-60: color-mix(in srgb, var(--color-gold) 60%, transparent);
+
+  --surface-55: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  --surface-96: color-mix(in srgb, var(--color-surface) 96%, transparent);
 }
 
 @theme inline {
@@ -60,6 +86,19 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-cinzel);
+
+  /*
+   * The app's two easing curves. Any `--ease-*` key becomes an `ease-*`
+   * utility. Both were written out as arbitrary values six times between them,
+   * one buried inside an `animate-[...]` shorthand where a search for `ease-[`
+   * would not have found it.
+   *
+   * `tray` opens the class picker's path list and the changelog drawer;
+   * `flight` is the grimoire's arc, referenced from the view-transition rules
+   * below where a utility cannot reach.
+   */
+  --ease-tray: cubic-bezier(0.22, 0.8, 0.2, 1);
+  --ease-flight: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 body {
@@ -98,6 +137,11 @@ body {
    * branch passes beneath it, failing 1.4.11. The dark casing around it is
    * achromatic, so one half of the ring always has contrast no matter what the
    * background is doing.
+   *
+   * The `[tabindex]` arm covers the two deliberate keyboard stops that are
+   * divs — the changelog's scroll region and the character sheet's tab panel.
+   * Both carry a role, but what makes them focusable is the tabindex, not the
+   * role. `-1` is excluded: a programmatic focus target is not a tab stop.
    */
   :where(
     a,
@@ -108,7 +152,8 @@ body {
     input,
     select,
     textarea,
-    summary
+    summary,
+    [tabindex]:not([tabindex="-1"])
   ):focus-visible {
     outline: 2px solid var(--color-gold);
     outline-offset: 2px;
@@ -161,12 +206,12 @@ body {
    * flat fill. Budget: 4-6 on screen, 8 is a warning.
    */
   .glass {
-    background: rgba(15, 12, 8, 0.55);
+    background: var(--surface-55);
     -webkit-backdrop-filter: blur(14px) brightness(0.35) saturate(1.05);
     backdrop-filter: blur(14px) brightness(0.35) saturate(1.05);
-    border: 1px solid rgba(255, 223, 156, 0.22);
+    border: 1px solid var(--gold-22);
     box-shadow:
-      inset 0 1px 0 rgba(255, 223, 156, 0.12),
+      inset 0 1px 0 var(--gold-12),
       0 16px 40px -20px rgba(0, 0, 0, 0.9);
   }
 
@@ -177,10 +222,10 @@ body {
    * underneath reads straight through them.
    */
   .glass-solid {
-    background: rgba(15, 12, 8, 0.96);
+    background: var(--surface-96);
     -webkit-backdrop-filter: blur(20px) brightness(0.4);
     backdrop-filter: blur(20px) brightness(0.4);
-    border: 1px solid rgba(255, 223, 156, 0.25);
+    border: 1px solid var(--gold-25);
     box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.95);
   }
 
@@ -194,9 +239,9 @@ body {
    * exactly why the artwork cards had no glow.
    */
   .rim-gold {
-    border: 1px solid rgba(255, 223, 156, 0.22);
+    border: 1px solid var(--gold-22);
     box-shadow:
-      inset 0 1px 0 rgba(255, 223, 156, 0.1),
+      inset 0 1px 0 var(--gold-10),
       0 16px 40px -20px rgba(0, 0, 0, 0.9);
   }
 
@@ -213,12 +258,30 @@ body {
 
   .glow-gold:hover,
   .glow-gold:focus-within {
-    border-color: rgba(255, 223, 156, 0.6);
+    border-color: var(--gold-60);
     box-shadow:
-      inset 0 1px 0 rgba(255, 223, 156, 0.2),
-      0 0 0 1px rgba(255, 223, 156, 0.25),
-      0 0 28px -4px rgba(255, 223, 156, 0.35),
+      inset 0 1px 0 var(--gold-20),
+      0 0 0 1px var(--gold-25),
+      0 0 28px -4px var(--gold-35),
       0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
+   * When the glowing element is itself the focus target, the bloom above sits
+   * in a later layer than the base ring and replaces the achromatic casing with
+   * more of the colour that casing exists to be legible against. The dashboard's
+   * empty slot is the live case. So: the same bloom with the casing appended,
+   * on `:focus-visible` rather than `:focus-within`, so a mouse click still
+   * gets the plain glow.
+   */
+  .glow-gold:focus-visible {
+    border-color: var(--gold-60);
+    box-shadow:
+      inset 0 1px 0 var(--gold-20),
+      0 0 0 1px var(--gold-25),
+      0 0 28px -4px var(--gold-35),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9),
+      0 0 0 6px rgba(10, 8, 6, 0.9);
   }
 }
 
@@ -233,7 +296,7 @@ body {
 @layer components {
   .scroll-gold {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 223, 156, 0.35) transparent;
+    scrollbar-color: var(--gold-35) transparent;
   }
 
   .scroll-gold::-webkit-scrollbar {
@@ -249,11 +312,11 @@ body {
     border: 2px solid transparent;
     border-radius: 9999px;
     background-clip: content-box;
-    background-color: rgba(255, 223, 156, 0.35);
+    background-color: var(--gold-35);
   }
 
   .scroll-gold::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 223, 156, 0.6);
+    background-color: var(--gold-60);
   }
 }
 
@@ -265,16 +328,6 @@ body {
   }
   50% {
     opacity: 0;
-  }
-}
-
-/* Indeterminate sweep for the top navigation bar. */
-@keyframes nav-progress {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(400%);
   }
 }
 
@@ -302,15 +355,18 @@ body {
  * The book's drift. This is the knob — the two translateY values below are the
  * travel, and the two rotations are the tilt.
  *
- * The book rises 16px out of its layout spot and sinks back, so the resting
- * pose is the bottom of the swing rather than its middle.
+ * The swing is centred on the layout spot rather than hanging off one end of
+ * it: 12px below at rest, 15px above at the top, for 27px of travel.
  *
- * A centred version was tried — 8px down at 0%, 8px up at 50% — on the
- * grounds that it spends the same travel evenly either side of the layout
- * spot. It was backed out because the rest of this subsystem depends on rest
- * being 0: the book that lands after a flight is a freshly mounted element
- * starting this animation at 0%, so 0% has to be the pose the flight arrives
- * in. See the note below and view-nav.js.
+ * Nothing about the flight depends on which end of the swing 0% sits at. An
+ * earlier version of this note claimed it did — that the book landing after a
+ * flight is a freshly mounted element starting at 0%, so 0% had to be the
+ * arrival pose. That stopped being true when the phase started being carried
+ * across: `adoptCarriedPhase` in view-nav.js puts the arriving drift at the
+ * exact point the departing one was frozen at, so both ends match wherever in
+ * the cycle the button happened to be pressed. What the flight does still care
+ * about is how far from centre the book is when frozen, and it reads that off
+ * the live transform rather than off these numbers — see `--mark-drift`.
  */
 /*
  * `--mark-tilt` is the book's resting lean, added on top of the drift. The
@@ -321,17 +377,12 @@ body {
  * property do not add — the later one simply wins.
  */
 /*
- * The cycle starts and ends at rest — no offset, no extra tilt. That matters
- * at the end of the sign-in flight: the book that lands is a freshly mounted
- * element beginning this animation at 0%, so 0% has to be the pose the flight
- * arrives in, which is the one `[data-view-nav]` freezes both ends to.
- *
  * TWO keyframes, and that is not a simplification — `ease-in-out` is applied
  * to each interval separately, so every keyframe is a point where the speed
- * drops to zero. A three-keyframe version with rest in the middle of the
+ * drops to zero. A three-keyframe version with a keyframe partway down the
  * travel therefore stopped dead halfway through the descent and then carried
- * on, which is exactly what it looked like. With rest at one end of the swing,
- * the only places it pauses are the top and the bottom, where a floating
+ * on, which is exactly what it looked like. With only these two, the sole
+ * places it pauses are the top and the bottom of the swing, where a floating
  * object is supposed to.
  */
 @keyframes mark-float {
@@ -371,19 +422,17 @@ body {
 /*
  * These four are applied through `motion-safe:`, so asking for reduced motion
  * drops the animation entirely rather than flattening its keyframes the way
- * nav-progress below does. Anything a keyframe sets must therefore also have
+ * typing-caret below does. Anything a keyframe sets must therefore also have
  * a resting value on the element — the halo's opacity in particular, which
  * would otherwise sit at a full-strength 1 with the animation gone.
  */
 
 @media (prefers-reduced-motion: reduce) {
-  @keyframes nav-progress {
-    0%,
-    100% {
-      transform: translateX(150%);
-    }
-  }
-
+  /*
+   * A `nav-progress` override lived here and never ran: the bar is driven by
+   * WAAPI in navigation-progress.jsx, and a Web Animation does not read CSS
+   * keyframes. Reduced motion for it has to be handled in the component.
+   */
   @keyframes typing-caret {
     0%,
     100% {
@@ -498,7 +547,7 @@ body {
  */
 ::view-transition-group(.book-morph) {
   animation-duration: 900ms;
-  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  animation-timing-function: var(--ease-flight);
   z-index: 21;
 }
 
@@ -529,7 +578,7 @@ body {
    * unchanged and the last one lands dead on.
    */
   transform-origin: 50% calc(50% + var(--mark-drift, 0px));
-  animation: 900ms cubic-bezier(0.65, 0, 0.35, 1) both mark-turn;
+  animation: 900ms var(--ease-flight) both mark-turn;
 }
 
 /*
@@ -546,7 +595,7 @@ body {
  */
 ::view-transition-group(.aura-morph) {
   animation-duration: 900ms;
-  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  animation-timing-function: var(--ease-flight);
   z-index: 20;
 }
 

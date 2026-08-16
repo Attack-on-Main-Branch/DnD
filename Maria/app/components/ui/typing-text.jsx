@@ -80,7 +80,7 @@ export default function TypingText({ segments, className = "" }) {
           rendered, and only its opacity changes once the text is complete.
         */}
         <span
-          className={`ml-0.5 inline-block w-px self-stretch bg-[#FFDF9C] align-[-0.1em] transition-opacity duration-500 ${
+          className={`ml-0.5 inline-block w-px self-stretch bg-gold align-[-0.1em] transition-opacity duration-500 ${
             done
               ? "opacity-0"
               : "animate-[typing-caret_1s_steps(2,end)_infinite]"

@@ -16,8 +16,15 @@ export const MIN_NAME_LENGTH = 2;
 export const MAX_NAME_LENGTH = 40;
 export const MAX_PROSE_LENGTH = 2000;
 
-export const MIN_LEVEL = 1;
-export const MAX_LEVEL = 20;
+/*
+ * No MIN_LEVEL / MAX_LEVEL here. There were two such constants, exported and
+ * imported by nobody: `level` is never read off the form, never written by
+ * insertCharacter and never checked by validateCharacter — it is set by the
+ * column default and bounded by `characters_level_check` in the migrations, and
+ * the app only ever displays it. A rule this file does not apply does not
+ * belong in this file, whose header promises the opposite. When level becomes
+ * editable, the bound comes back beside the validation that enforces it.
+ */
 
 /** Human first by request; the rest of the Player's Handbook set follows. */
 export const RACES = [
@@ -279,7 +286,7 @@ function readProse(value) {
  * one-character name would pass a "at least 2" check here and be rejected by
  * the database, where it counts as one.
  */
-function countCharacters(value) {
+export function countCharacters(value) {
   return Array.from(value).length;
 }
 
@@ -408,14 +415,18 @@ export function validateCharacter({
     return { field: "colorTheme", message: "Choose an avatar colour." };
   }
 
-  if (backstory.length > MAX_PROSE_LENGTH) {
+  // Code points, not UTF-16 units — the same count the CHECK constraint uses.
+  // `.length` was here, which put the real ceiling below 2000 for anyone
+  // writing emoji or astral script, in the one field most likely to contain
+  // them.
+  if (countCharacters(backstory) > MAX_PROSE_LENGTH) {
     return {
       field: "backstory",
       message: `Backstory must be at most ${MAX_PROSE_LENGTH} characters.`,
     };
   }
 
-  if (personality.length > MAX_PROSE_LENGTH) {
+  if (countCharacters(personality) > MAX_PROSE_LENGTH) {
     return {
       field: "personality",
       message: `Personality must be at most ${MAX_PROSE_LENGTH} characters.`,

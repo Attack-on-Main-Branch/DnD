@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { controlClasses, LABEL_CLASSES } from "./field-styles";
+import { surfaceClasses } from "./surface";
 
 /**
  * Styled single-choice dropdown, replacing the native <select>.
@@ -194,7 +195,11 @@ export default function SelectMenu({
             role="listbox"
             aria-labelledby={labelId}
             tabIndex={-1}
-            className="glass-solid scroll-gold absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg p-1"
+            className={surfaceClasses({
+              variant: "solid",
+              className:
+                "scroll-gold absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg p-1",
+            })}
           >
             {options.map((option, index) => {
               const isSelected = option.value === value;

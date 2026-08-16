@@ -3,18 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import {
-  alignmentLabel,
-  characterHandle,
-  classLabel,
-} from "sina/rules/character";
-
 import Avatar from "@/app/components/ui/avatar";
 import ConfirmDialog from "@/app/components/ui/confirm-dialog";
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import { deleteCharacter } from "./actions";
-import { raceImage } from "./character-presentation";
+import {
+  avatarColorClass,
+  characterInitials,
+  raceImage,
+} from "./character-presentation";
 
 /** How long "Copied" stays up before the label goes back to the invitation. */
 const COPIED_MS = 1600;
@@ -57,19 +55,13 @@ const COPIED_MS = 1600;
  * something nobody can see — and each one costs a full compositor readback per
  * frame against the animated background. Same rim, same glow, no filter.
  */
-export default function CharacterCard({ character }) {
+export default function CharacterCard({ character, handle, facts }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const handle = characterHandle(character);
   const artwork = raceImage(character.race);
-
-  // Null for anyone made before classes existed. The row is left out rather
-  // than filled with a dash: an empty label is worse than one fewer fact, and
-  // those cards then keep their 16:9 in places where four facts would not fit.
-  const characterClass = classLabel(character.class_id);
 
   useEffect(() => {
     if (!copied) {
@@ -91,6 +83,16 @@ export default function CharacterCard({ character }) {
   }
 
   function handleConfirm() {
+    // Clear whatever the last attempt said. Without this a message outlives the
+    // failure that produced it and sits under the dialog on every reopen — an
+    // expired session or a delete the database refused, both of which leave the
+    // card exactly where it was.
+    //
+    // Not `not_found`, though its copy is the one that reads like it belongs
+    // here: that branch revalidates the roster, so this card unmounts in the
+    // same transition and never paints the message. See deleteCharacter.
+    setError(null);
+
     startTransition(async () => {
       const result = await deleteCharacter(character.id);
 
@@ -154,13 +156,16 @@ export default function CharacterCard({ character }) {
         {artwork && (
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-linear-to-tr from-[#0f0c08]/95 via-[#0f0c08]/55 to-transparent"
+            className="absolute inset-0 bg-linear-to-tr from-surface/95 via-surface/55 to-transparent"
           />
         )}
 
         <div className="relative flex h-full flex-col gap-2 p-4 sm:p-5">
           <div className="flex items-center gap-3">
-            <Avatar name={character.name} colorTheme={character.color_theme} />
+            <Avatar
+              initials={characterInitials(character.name)}
+              colorClass={avatarColorClass(character.color_theme)}
+            />
 
             {/*
               Above the stretched link rather than under it, so the copy click
@@ -180,7 +185,7 @@ export default function CharacterCard({ character }) {
 
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute top-full left-0 mt-1 rounded-md border border-gold/25 bg-[#0f0c08]/95 px-2 py-1 font-sans text-[0.7rem] whitespace-nowrap text-gold opacity-0 transition-opacity duration-200 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100"
+                className="pointer-events-none absolute top-full left-0 mt-1 rounded-md border border-gold/25 bg-surface/95 px-2 py-1 font-sans text-[0.7rem] whitespace-nowrap text-gold opacity-0 transition-opacity duration-200 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100"
               >
                 {copied ? "Copied" : "Copy name"}
               </span>
@@ -191,15 +196,7 @@ export default function CharacterCard({ character }) {
             Stacked under the avatar rather than pinned to the bottom edge, so
             the identity and the facts about it read as one block.
           */}
-          <dl className="flex flex-col gap-1.5 font-sans text-sm">
-            <Fact label="Race" value={character.race} />
-            {characterClass && <Fact label="Class" value={characterClass} />}
-            <Fact
-              label="Alignment"
-              value={alignmentLabel(character.alignment)}
-            />
-            <Fact label="Level" value={character.level} />
-          </dl>
+          {facts}
         </div>
 
         {/*
@@ -275,24 +272,5 @@ export default function CharacterCard({ character }) {
         onCancel={() => setConfirming(false)}
       />
     </>
-  );
-}
-
-function Fact({ label, value }) {
-  return (
-    <div className="flex min-w-0 gap-2">
-      {/*
-        /60 rather than /45, and with the same halo the value carries. At 45%
-        the label composited to 3.8–4.3:1 depending on what the animation was
-        doing behind the glass — under AA at both ends of that range, on 14px
-        text. /60 holds 5.5:1 at the brightest and 6.9:1 at the darkest.
-      */}
-      <dt className="text-ink/60 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        {label}
-      </dt>
-      <dd className="truncate font-medium text-ink drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        {value}
-      </dd>
-    </div>
   );
 }

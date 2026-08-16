@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "sina/supabase/server";
-import { resolveRedirect } from "sina/supabase/session";
+import { authCouldNotAnswer, resolveRedirect } from "sina/supabase/session";
 
 /**
  * Refreshes the Supabase auth token and enforces route protection.
@@ -44,13 +44,17 @@ export async function proxy(request) {
   // revalidates the token against Supabase, which is what triggers the cookie
   // refresh above. Never use `getSession()` for authorisation on the server —
   // it reads the cookie without verifying the JWT signature.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
 
+  // The error matters as much as the user. `getUser()` returns rather than
+  // throws when auth cannot be reached, so discarding it here turned every
+  // outage into "signed out" — and since this runs before every page and every
+  // Server Action, it decided the question before any of the handling further
+  // in could be reached. That is the layer the loop lived in.
   const destination = resolveRedirect({
     pathname: request.nextUrl.pathname,
-    isSignedIn: Boolean(user),
+    isSignedIn: Boolean(data?.user),
+    authUnavailable: authCouldNotAnswer(error),
   });
 
   if (destination) {
@@ -84,6 +88,6 @@ export const config = {
      * Run on every request except static assets, so the Supabase auth token
      * is refreshed before any page, action or route handler executes.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

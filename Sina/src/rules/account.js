@@ -3,13 +3,24 @@
  * Server Actions — same arrangement as the sign-in and character schemas.
  */
 
-import { MIN_DISPLAY_NAME_LENGTH, MIN_PASSWORD_LENGTH } from "./auth.js";
+import {
+  checkEmail,
+  MAX_DISPLAY_NAME_LENGTH,
+  MIN_DISPLAY_NAME_LENGTH,
+  MIN_PASSWORD_LENGTH,
+} from "./auth.js";
 
-export { MIN_DISPLAY_NAME_LENGTH, MIN_PASSWORD_LENGTH };
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export const MAX_DISPLAY_NAME_LENGTH = 40;
+/*
+ * Re-exported, not redeclared. The settings forms import their bounds from this
+ * module, so moving MAX_DISPLAY_NAME_LENGTH up to auth.js — where the floor and
+ * the sign-up check now use it too — has to keep this door open or
+ * username-form.jsx stops resolving.
+ */
+export {
+  MAX_DISPLAY_NAME_LENGTH,
+  MIN_DISPLAY_NAME_LENGTH,
+  MIN_PASSWORD_LENGTH,
+};
 
 export function readUsernameValues(formData) {
   return { displayName: String(formData.get("displayName") ?? "").trim() };
@@ -49,8 +60,13 @@ export function validateUsername({ displayName }) {
 }
 
 export function validateEmailChange({ email, currentPassword }) {
-  if (!EMAIL_PATTERN.test(email)) {
-    return { field: "email", message: "Enter a valid email address." };
+  // Borrowed from auth.js rather than restated. The pattern was declared twice,
+  // character for character, in the one layer whose whole promise is a single
+  // definition — so tightening it in one place would have let a user hold an
+  // address they could never have signed up with.
+  const malformed = checkEmail(email);
+  if (malformed) {
+    return malformed;
   }
 
   if (currentPassword.length === 0) {

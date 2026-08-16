@@ -8,14 +8,22 @@ import { stopNavigationProgress } from "./navigation-progress-control";
  * Shared wiring for every form in the app that posts to a Server Action, so
  * they all behave the same way and the logic exists once.
  *
- * Server Actions used with this hook return one of:
- *   { kind: "invalid",  field, message }  malformed input, caught client-side
+ * Results come in three shapes:
+ *   { kind: "invalid",  field, message }  malformed input, caught HERE
  *   { kind: "rejected", field, message }  the server turned the request down
  *   { kind: "success" }                   done
  *
  * The distinction between `invalid` and `rejected` is what lets a form decide
  * whether to keep what the user typed: nothing has gone over the wire for an
  * `invalid`, so there is no reason to throw any of it away.
+ *
+ * `invalid` is produced by THIS FILE and nowhere else — that is the rule, and it
+ * was not being followed. Two Server Actions returned `invalid` for the same
+ * server-side re-validation that the others reported as `rejected`, so the
+ * contract said two different things depending on which form you read. Making
+ * it strictly client-side is what keeps the sentence above true: a Server Action
+ * has no form state to preserve, because the only way to reach its validator
+ * without passing this one is a hand-crafted request.
  *
  * @param action     the Server Action to call once the values look well-formed
  * @param read       pulls this form's fields out of the FormData

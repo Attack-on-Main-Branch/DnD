@@ -4,7 +4,11 @@ import { useRef, useState } from "react";
 
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
-import { LABEL_CLASSES } from "@/app/components/ui/field-styles";
+import {
+  CHOICE_CARD_FOCUS_CLASSES,
+  INVALID_GROUP_CLASSES,
+  LABEL_CLASSES,
+} from "@/app/components/ui/field-styles";
 import FormAlert from "@/app/components/ui/form-alert";
 import SelectMenu from "@/app/components/ui/select-menu";
 import SelectionDot from "@/app/components/ui/selection-dot";
@@ -18,7 +22,7 @@ import { useFormAction } from "@/app/components/use-form-action";
 
 import {
   ALIGNMENTS,
-  MAX_NAME_LENGTH,
+  countCharacters,
   MAX_PROSE_LENGTH,
   RACES,
   classDetails,
@@ -27,7 +31,12 @@ import {
 } from "sina/rules/character";
 
 import { createPlayerCharacter } from "./actions";
-import { AVATAR_COLORS, suggestedAvatarColor } from "./character-presentation";
+import {
+  avatarColorClass,
+  AVATAR_COLORS,
+  characterInitials,
+  suggestedAvatarColor,
+} from "./character-presentation";
 import ClassPicker from "./class-picker";
 
 const FEEDBACK_ID = "character-feedback";
@@ -72,7 +81,11 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
   return (
     <form action={formAction} noValidate className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
-        <Avatar name={name || "?"} colorTheme={effectiveColor} size="lg" />
+        <Avatar
+          initials={characterInitials(name || "?")}
+          colorClass={avatarColorClass(effectiveColor)}
+          size="lg"
+        />
         <div className="min-w-0">
           <p className="truncate font-display text-lg font-semibold tracking-wide">
             {name || "New character"}
@@ -102,7 +115,6 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
           autoComplete="off"
           placeholder="Elminster"
           required
-          maxLength={MAX_NAME_LENGTH}
           value={name}
           onChange={(event) => setName(event.target.value)}
           disabled={isPending}
@@ -173,13 +185,21 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
         invalid={state?.field === "colorTheme"}
       />
 
+      {/*
+        No `maxLength` here, and the counters use `countCharacters`. The rule
+        counts code points, matching Postgres `char_length`; the HTML attribute
+        counts UTF-16 units, and no single value reconciles the two — the real
+        ceiling silently halves the limit for emoji, twice it is too loose for
+        everyone else. So `validateCharacter` governs alone, in the browser and
+        again on the server. The discriminator keeps `maxLength={4}`: four ASCII
+        digits count the same either way.
+      */}
       <TextAreaField
         label="Backstory"
         name="backstory"
-        hint={`${backstory.length}/${MAX_PROSE_LENGTH}`}
+        hint={`${countCharacters(backstory)}/${MAX_PROSE_LENGTH}`}
         placeholder="Where do they come from, and what set them on the road?"
         rows={5}
-        maxLength={MAX_PROSE_LENGTH}
         value={backstory}
         onChange={(event) => setBackstory(event.target.value)}
         disabled={isPending}
@@ -190,10 +210,9 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
       <TextAreaField
         label="Personality"
         name="personality"
-        hint={`${personality.length}/${MAX_PROSE_LENGTH}`}
+        hint={`${countCharacters(personality)}/${MAX_PROSE_LENGTH}`}
         placeholder="Traits, ideals, bonds, flaws."
         rows={4}
-        maxLength={MAX_PROSE_LENGTH}
         value={personality}
         onChange={(event) => setPersonality(event.target.value)}
         disabled={isPending}
@@ -233,7 +252,7 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
 
       <div
         className={`mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3 ${
-          invalid ? "rounded-lg ring-2 ring-red-500/40" : ""
+          invalid ? `rounded-lg ${INVALID_GROUP_CLASSES}` : ""
         }`}
       >
         {ALIGNMENTS.map((option) => {
@@ -242,7 +261,7 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
           return (
             <label
               key={option.value}
-              className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition duration-300 select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
+              className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} ${
                 isSelected ? NESTED_CARD_SELECTED_CLASSES : NESTED_CARD_CLASSES
               }`}
             >
@@ -289,7 +308,7 @@ function ColorPicker({ value, onChange, disabled, invalid }) {
 
       <div
         className={`mt-1.5 flex flex-wrap gap-2 ${
-          invalid ? "rounded-lg p-1 ring-2 ring-red-500/40" : ""
+          invalid ? `rounded-lg p-1 ${INVALID_GROUP_CLASSES}` : ""
         }`}
       >
         {AVATAR_COLORS.map((option) => {
@@ -299,7 +318,7 @@ function ColorPicker({ value, onChange, disabled, invalid }) {
             <label
               key={option.value}
               title={option.label}
-              className={`cursor-pointer rounded-full p-0.5 transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
+              className={`cursor-pointer rounded-full p-0.5 transition ${CHOICE_CARD_FOCUS_CLASSES} ${
                 isSelected
                   ? "ring-2 ring-gold ring-offset-2 dark:ring-offset-surface"
                   : ""

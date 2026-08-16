@@ -4,7 +4,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import AuthForm from "./auth-form";
 
 export const metadata = {
-  title: "Sign in · Grimoire Tales",
+  title: "Sign in",
 };
 
 /*

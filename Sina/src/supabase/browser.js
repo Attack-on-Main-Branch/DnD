@@ -18,6 +18,12 @@ import { AUTH_COOKIE_OPTIONS, supabaseEnv } from "../env.js";
  * Wiring the browser client up therefore means re-deciding that trade-off:
  * either give this its own options without `httpOnly` and accept that a script
  * on the page can read the refresh token, or keep the work on the server.
+ *
+ * Which is why `./supabase/browser` is no longer in this package's `exports`.
+ * The map is the menu: a subpath listed there reads as a supported way in, and
+ * the one thing worse than an unavailable client is one that resolves, imports
+ * cleanly and hands back an unauthenticated session. Put the entry back in the
+ * same commit that resolves the `httpOnly` question — not before.
  */
 export function createBrowserSupabase() {
   const { url, anonKey } = supabaseEnv();

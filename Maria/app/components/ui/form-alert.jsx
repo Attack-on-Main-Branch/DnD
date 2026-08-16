@@ -6,10 +6,20 @@
  * undefined value straight through.
  */
 
+/*
+ * One tone each, not a light/dark pair. globals.css redefines the `dark`
+ * variant as the bare parent selector, so every `dark:` utility applies
+ * unconditionally — a 700/300 pair is not a choice between two themes, it is
+ * the 300 winning every time at equal specificity. The darker halves were dead
+ * weight that read as light-mode support the app does not have.
+ *
+ * Deliberately written without the class names: Tailwind v4 scans raw file
+ * text, comments included, so naming a utility here is enough to keep emitting
+ * it. Describing the removal in prose is what actually removes it.
+ */
 const TONE_CLASSES = {
-  error: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
-  success:
-    "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  error: "border-red-500/30 bg-red-500/10 text-red-300",
+  success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
 };
 
 export default function FormAlert({ id, tone = "error", children }) {

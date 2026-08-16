@@ -56,6 +56,13 @@ export function surfaceClasses({
 }
 
 /**
+ * The geometry of a top-level glass panel: the sign-in card, each settings
+ * section, the creation sheet. Not a default on `surfaceClasses` — the card,
+ * drawer, header bar and empty slot all want their own, and would override it.
+ */
+export const PANEL_CLASSES = "rounded-2xl p-6 sm:p-8";
+
+/**
  * The hairline under the header and the changelog panel's title: one pixel of
  * gold fading out at both ends, so it reads as a rule drawn across the page
  * rather than a box edge.
@@ -95,7 +102,12 @@ export const FADED_RULE_CLASSES =
 export const NESTED_CARD_CLASSES =
   "border-gold/15 bg-surface/60 shadow-[inset_0_1px_0_rgba(255,223,156,0.07)] " +
   "hover:border-gold/45 hover:bg-surface/50 " +
-  "hover:shadow-[inset_0_1px_0_rgba(255,223,156,0.14)]";
+  "hover:shadow-[inset_0_1px_0_rgba(255,223,156,0.14)] " +
+  // The same restatement button.jsx carries: some of these cards are real
+  // <button>s, so the shadow above overwrites the ring's achromatic casing. The
+  // compound variant settles the hover/focus overlap, which ties on specificity.
+  "focus-visible:shadow-[inset_0_1px_0_rgba(255,223,156,0.07),0_0_0_6px_rgba(10,8,6,0.9)] " +
+  "hover:focus-visible:shadow-[inset_0_1px_0_rgba(255,223,156,0.14),0_0_0_6px_rgba(10,8,6,0.9)]";
 
 /**
  * The chosen one, for the cards that have no accent colour of their own.

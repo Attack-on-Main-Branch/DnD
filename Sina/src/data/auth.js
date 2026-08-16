@@ -62,6 +62,21 @@ export async function signUp(supabase, { email, password, displayName }) {
   return { data: { hasSession: Boolean(data.session) }, error: null };
 }
 
+/**
+ * Ends the session.
+ *
+ * Returns the tuple rather than swallowing the error, because the two failure
+ * modes are not cosmetic. In the common one the local session is cleared but
+ * the default global revocation does not happen, so the user's other sessions
+ * survive a sign-out they watched succeed. In the rarer one the client returns
+ * early and the auth cookies are left intact — a still-usable refresh token on
+ * what may be a shared machine.
+ *
+ * The caller should still redirect either way; what it must not do is stay
+ * silent about it.
+ */
 export async function signOut(supabase) {
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+
+  return error ? failure(error) : { data: true, error: null };
 }

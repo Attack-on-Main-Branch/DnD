@@ -1,13 +1,10 @@
-"use client";
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { MAX_CHARACTERS } from "sina/rules/character";
+import { characterHandle, MAX_CHARACTERS } from "sina/rules/character";
 
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import CharacterCard from "./character-card";
-import CreateCharacterPanel from "./create-character-panel";
+import CharacterFacts from "./character-facts";
 
 /**
  * The character roster, laid out as a fixed set of inventory slots: filled
@@ -15,21 +12,20 @@ import CreateCharacterPanel from "./create-character-panel";
  * count *is* the account limit, so the ceiling is visible rather than being a
  * surprise error at the end.
  *
- * Whether the creation sheet is open lives in the URL — `/dashboard?new`—
- * rather than in component state. It was state, and that made the header's
- * "Grimoire Tales" link a dead end while creating: it pointed at /dashboard,
- * which was already the current URL, so nothing happened and the sheet stayed
- * open. With the URL as the source of truth that link genuinely leaves, and
- * the browser's back button works too.
+ * A Server Component. It used to carry `"use client"` for one `router.push`,
+ * and the cost of that directive was not the push — it was the static import of
+ * the creation panel below it, which pulled `PlayerCharacterForm` and
+ * `ClassPicker` into the same client chunk. Everything in a Client Component's
+ * module graph goes to the browser, so the entire creation flow was downloaded
+ * by every visitor who did nothing but look at their roster.
+ *
+ * The branch that chose between roster and creation sheet lived here too, which
+ * was the odd part: `dashboard/page.jsx` reads `?new` off the URL on the server
+ * and already knows the answer. It decides now, and this file only ever renders
+ * the grid.
  */
-export default function CharacterInventory({ characters, creating }) {
-  const router = useRouter();
-
+export default function CharacterInventory({ characters }) {
   const emptySlots = Math.max(0, MAX_CHARACTERS - characters.length);
-
-  if (creating) {
-    return <CreateCharacterPanel onClose={() => router.push("/dashboard")} />;
-  }
 
   // Two columns from `md` rather than `sm`. At the narrow end of the old range
   // a card was only ~284px wide, and 16:9 made it 160px tall — shorter than
@@ -38,7 +34,11 @@ export default function CharacterInventory({ characters, creating }) {
     <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {characters.map((character) => (
         <li key={character.id}>
-          <CharacterCard character={character} />
+          <CharacterCard
+            character={character}
+            handle={characterHandle(character)}
+            facts={<CharacterFacts character={character} />}
+          />
         </li>
       ))}
 

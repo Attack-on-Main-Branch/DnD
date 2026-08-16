@@ -14,9 +14,20 @@
  * and filtered-inside-filtered has an empty backdrop to sample. Both point the
  * same way: solid fills here, real glass on the few large surfaces.
  *
- * The focus ring is not declared per variant either — globals.css carries one
- * two-tone ring for the whole app, at zero specificity so a variant can still
- * override it if it ever needs to.
+ * The focus ring comes from globals.css: a gold outline over an achromatic
+ * casing, where the casing carries the contrast (gold alone measures 1.29:1
+ * against the brightest part of the plume). `box-shadow` is ONE property, and
+ * utilities sit in a later layer than that base rule — so any `shadow-*` here
+ * replaces the casing wholesale. `primary` did that unconditionally and
+ * `secondary` while hovered, neither of them deliberately.
+ *
+ * Hence each shadow-carrying state restates the casing, plus a compound
+ * `hover:focus-visible:` for the overlap: single `hover:` and `focus-visible:`
+ * utilities tie on specificity, so a button that is both would be decided by
+ * emit order. The compound is (0,3,0) and wins outright.
+ *
+ * `ghost`, `danger` and `link` never touch `box-shadow`, so the base rule
+ * reaches them intact.
  */
 
 const BASE_CLASSES =
@@ -36,12 +47,19 @@ const VARIANT_CLASSES = {
     "rounded-full px-5 py-2.5 border border-gold/45 bg-gold/15 text-gold font-display tracking-wide " +
     "shadow-[inset_0_1px_0_rgba(255,223,156,0.18)] " +
     "hover:border-gold/80 hover:bg-gold/25 " +
-    "hover:shadow-[inset_0_1px_0_rgba(255,223,156,0.28),0_0_24px_-4px_rgba(255,223,156,0.5)]",
+    "hover:shadow-[inset_0_1px_0_rgba(255,223,156,0.28),0_0_24px_-4px_rgba(255,223,156,0.5)] " +
+    // Same shadows again, plus the ring casing this variant would otherwise
+    // overwrite. Resting and hovered are separate because they differ.
+    "focus-visible:shadow-[inset_0_1px_0_rgba(255,223,156,0.18),0_0_0_6px_rgba(10,8,6,0.9)] " +
+    "hover:focus-visible:shadow-[inset_0_1px_0_rgba(255,223,156,0.28),0_0_24px_-4px_rgba(255,223,156,0.5),0_0_0_6px_rgba(10,8,6,0.9)]",
 
   secondary:
     "rounded-full px-4 py-2 border border-gold/20 bg-surface/70 text-ink/90 " +
     "hover:border-gold/60 hover:text-gold " +
-    "hover:shadow-[0_0_20px_-6px_rgba(255,223,156,0.45)]",
+    "hover:shadow-[0_0_20px_-6px_rgba(255,223,156,0.45)] " +
+    // Only the hovered state needs restating here: at rest this variant sets no
+    // shadow at all, so the base rule's casing reaches it untouched.
+    "hover:focus-visible:shadow-[0_0_20px_-6px_rgba(255,223,156,0.45),0_0_0_6px_rgba(10,8,6,0.9)]",
 
   ghost: "rounded-full px-3 py-2 text-ink/60 hover:text-gold hover:bg-gold/10",
 

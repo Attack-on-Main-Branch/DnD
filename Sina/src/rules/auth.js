@@ -14,6 +14,15 @@ export const MIN_PASSWORD_LENGTH = 6;
 
 export const MIN_DISPLAY_NAME_LENGTH = 3;
 
+/**
+ * The ceiling lives here rather than in account.js, beside the floor it belongs
+ * with. It was only in account.js, which meant the settings form enforced it
+ * and sign-up — an unauthenticated public endpoint — did not: a name created
+ * there above this length could never afterwards be saved, leaving the account
+ * permanently in a state its own settings form rejects.
+ */
+export const MAX_DISPLAY_NAME_LENGTH = 40;
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function readSignInValues(formData) {
@@ -54,6 +63,13 @@ export function validateSignUp({
     };
   }
 
+  if (displayName.length > MAX_DISPLAY_NAME_LENGTH) {
+    return {
+      field: "displayName",
+      message: `Display name must be at most ${MAX_DISPLAY_NAME_LENGTH} characters.`,
+    };
+  }
+
   const malformed = checkEmail(email) ?? checkPassword(password);
   if (malformed) {
     return malformed;
@@ -69,7 +85,13 @@ export function validateSignUp({
   return null;
 }
 
-function checkEmail(email) {
+/**
+ * Exported so account.js can call it rather than restating it. The pattern and
+ * the sentence that goes with it travel together — they were declared twice,
+ * character for character, in a file whose header promises "one definition, so
+ * the two can never drift apart".
+ */
+export function checkEmail(email) {
   if (!email) {
     return { field: "email", message: "Enter your email address." };
   }

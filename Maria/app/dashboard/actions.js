@@ -8,10 +8,27 @@ import {
   validateCharacter,
 } from "sina/rules/character";
 
+import { logFailure, logUncovered } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 function rejected(message, field = null) {
   return { kind: "rejected", field, message };
+}
+
+/**
+ * The two reasons `getCurrentUser` hands back no user, told apart. No error
+ * means auth said no and signing in again fixes it; an error means auth could
+ * not answer, and sending that user to a login form only repeats the failure.
+ */
+function sessionRejection(action, error) {
+  if (!error) {
+    return rejected("Your session has expired. Sign in again.");
+  }
+
+  logFailure(`${action}/auth`, error);
+  return rejected(
+    "Could not reach the sign-in service. Try again in a moment.",
+  );
 }
 
 /** Sina reports why; the wording lives here, where the user can see it. */
@@ -38,6 +55,17 @@ const SAVE_COPY = {
 };
 
 /**
+ * `not_found` covers two things and the copy has to work for both: the row was
+ * removed elsewhere, or it was never this caller's to remove. RLS makes those
+ * indistinguishable here on purpose — saying "not yours" would confirm the
+ * character exists to someone with no business knowing, which is the same
+ * reason the character route answers 404 rather than 403.
+ */
+const DELETE_COPY = {
+  not_found: "That character is no longer in your roster.",
+};
+
+/**
  * Creates a player character for the signed-in user.
  *
  * Shaped for `useActionState`: returns `{ kind: "rejected" }` rather than
@@ -55,10 +83,10 @@ export async function createPlayerCharacter(_prevState, formData) {
   }
 
   const supabase = await createClient();
-  const user = await getCurrentUser(supabase);
+  const { user, error: authError } = await getCurrentUser(supabase);
 
-  if (!user) {
-    return rejected("Your session has expired. Sign in again.");
+  if (authError || !user) {
+    return sessionRejection("createPlayerCharacter", authError);
   }
 
   const { error } = await insertCharacter(supabase, {
@@ -68,11 +96,10 @@ export async function createPlayerCharacter(_prevState, formData) {
 
   if (error) {
     const copy = SAVE_COPY[error.reason];
+    logUncovered("createPlayerCharacter", error, copy);
 
     return rejected(
-      copy?.message ??
-        error.detail ??
-        "Could not save the character. Please try again.",
+      copy?.message ?? "Could not save the character. Please try again.",
       copy?.field ?? null,
     );
   }
@@ -88,10 +115,10 @@ export async function deleteCharacter(characterId) {
   }
 
   const supabase = await createClient();
-  const user = await getCurrentUser(supabase);
+  const { user, error: authError } = await getCurrentUser(supabase);
 
-  if (!user) {
-    return rejected("Your session has expired. Sign in again.");
+  if (authError || !user) {
+    return sessionRejection("deleteCharacter", authError);
   }
 
   const { error } = await removeCharacter(supabase, {
@@ -100,7 +127,24 @@ export async function deleteCharacter(characterId) {
   });
 
   if (error) {
-    return rejected(error.detail ?? "Could not delete the character.");
+    const copy = DELETE_COPY[error.reason];
+    logUncovered("deleteCharacter", error, copy);
+
+    // A `not_found` delete still revalidates: the row is gone, so the card on
+    // screen is stale, and re-rendering the roster is what clears it. Returning
+    // without it leaves a card whose Retire button only repeats this message.
+    //
+    // The trade is that the roster comes back in the same response as the
+    // rejection, so the card unmounts before it can paint DELETE_COPY.not_found
+    // — the character silently vanishing IS the answer here, which is the right
+    // one. The message is still returned rather than dropped: it keeps this
+    // action's contract honest for any other caller, and keeps the reason
+    // covered so logUncovered stays quiet.
+    if (error.reason === "not_found") {
+      revalidatePath("/dashboard");
+    }
+
+    return rejected(copy ?? "Could not delete the character.");
   }
 
   revalidatePath("/dashboard");

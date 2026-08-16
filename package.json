@@ -10,7 +10,10 @@
     "dev": "npm run dev --workspace maria",
     "build": "npm run build --workspace maria",
     "start": "npm run start --workspace maria",
-    "lint": "npm run lint --workspace maria",
+    "lint": "npm run lint --workspace maria && npm run lint --workspace sina",
+    "test": "npm run test --workspace sina",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "db:push": "npm run db:push --workspace sina",
     "db:new": "npm run db:new --workspace sina",
     "db:list": "npm run db:list --workspace sina"

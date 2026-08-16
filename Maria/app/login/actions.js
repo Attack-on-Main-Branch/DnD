@@ -10,15 +10,8 @@ import {
   validateSignUp,
 } from "sina/rules/auth";
 
+import { logFailure, logUncovered } from "@/lib/errors";
 import { createClient } from "@/lib/supabase";
-
-/**
- * The form is badly filled in — nothing was sent to Supabase. The form keeps
- * everything the user typed, including the password.
- */
-function invalid({ field, message }) {
-  return { kind: "invalid", field, message };
-}
 
 /**
  * Supabase turned the credentials down. The form keeps the email so it does
@@ -51,18 +44,16 @@ export async function logIn(_prevState, formData) {
   // counts — anything client-side can be bypassed.
   const malformed = validateSignIn(credentials);
   if (malformed) {
-    return invalid(malformed);
+    return rejected(malformed.message, malformed.field);
   }
 
   const supabase = await createClient();
   const { error } = await signIn(supabase, credentials);
 
   if (error) {
-    return rejected(
-      SIGN_IN_COPY[error.reason] ??
-        error.detail ??
-        "Could not sign you in. Please try again.",
-    );
+    const copy = SIGN_IN_COPY[error.reason];
+    logUncovered("logIn", error, copy);
+    return rejected(copy ?? "Could not sign you in. Please try again.");
   }
 
   // Drop any layout rendered for a signed-out visitor.
@@ -79,17 +70,17 @@ export async function signUp(_prevState, formData) {
 
   const malformed = validateSignUp(values);
   if (malformed) {
-    return invalid(malformed);
+    return rejected(malformed.message, malformed.field);
   }
 
   const supabase = await createClient();
   const { data, error } = await createAccount(supabase, values);
 
   if (error) {
+    const copy = SIGN_UP_COPY[error.reason];
+    logUncovered("signUp", error, copy);
     return rejected(
-      SIGN_UP_COPY[error.reason] ??
-        error.detail ??
-        "Could not create your account. Please try again.",
+      copy ?? "Could not create your account. Please try again.",
       "email",
     );
   }
@@ -112,7 +103,17 @@ export async function signUp(_prevState, formData) {
 /** Ends the session and returns the visitor to the login page. */
 export async function logOut() {
   const supabase = await createClient();
-  await signOut(supabase);
+  const { error } = await signOut(supabase);
+
+  // Still redirect: whatever went wrong, staying parked on a signed-in page is
+  // worse than being sent on. But a sign-out can half happen — other sessions
+  // not revoked, or the client returning early with the auth cookies intact on
+  // what may be a shared machine — and that is not something to find out about
+  // never, so it goes to the log on the way past.
+  //
+  // `logFailure`, not `logUncovered`: there is no copy here to have covered it.
+  // The user is told nothing either way, so every reason is worth a line.
+  logFailure("logOut", error);
 
   revalidatePath("/", "layout");
   redirect("/login");

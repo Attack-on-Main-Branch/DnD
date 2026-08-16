@@ -157,7 +157,18 @@ export default function PlayButton() {
         onFocus={() => setSpeed(HOVER_SPEED)}
         onBlur={() => setSpeed(1)}
         // size-20 matches the Avatar `lg` size it sits beside in the header.
-        className="group relative grid size-20 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-500"
+        //
+        // Amber rather than the app's gold, because this control's own bloom is
+        // amber-500 and a gold ring around it read as a second, competing
+        // colour. globals.css puts the app ring at zero specificity precisely
+        // so a component can do this.
+        //
+        // The existing `outline-offset-4` clears the round star, which puts
+        // the outline 4-6px out — flush with the outer edge of the global 6px
+        // casing, leaving nothing dark beyond the ring. 8px restores it.
+        // Restated rather than widened because `box-shadow` does not
+        // accumulate: this utility replaces the global value outright.
+        className="group relative grid size-20 place-items-center rounded-full focus-visible:shadow-[0_0_0_8px_rgba(10,8,6,0.9)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-500"
       >
         <span
           aria-hidden="true"

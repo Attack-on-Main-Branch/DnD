@@ -1,4 +1,4 @@
-import { surfaceClasses } from "@/app/components/ui/surface";
+import { PANEL_CLASSES, surfaceClasses } from "@/app/components/ui/surface";
 
 /** Shared frame for each settings section, so the three read as one page. */
 export default function SettingsCard({ title, description, children }) {
@@ -6,7 +6,7 @@ export default function SettingsCard({ title, description, children }) {
     <section
       className={surfaceClasses({
         glow: true,
-        className: "rounded-2xl p-6 sm:p-8",
+        className: PANEL_CLASSES,
       })}
     >
       <h2 className="font-display text-lg font-semibold tracking-wide">

@@ -16,10 +16,29 @@ import {
   validateUsername,
 } from "sina/rules/account";
 
+import { logFailure, logUncovered } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 function rejected(message, field = null) {
   return { kind: "rejected", field, message };
+}
+
+/**
+ * The two reasons `getCurrentUser` hands back no user, told apart. No error
+ * means auth answered and said no, and signing in again is the fix; an error
+ * means it could not answer, and sending that user to a login form only repeats
+ * the failure. Same helper as dashboard/actions.js, deliberately local to each
+ * file because `rejected` is.
+ */
+function sessionRejection(action, error) {
+  if (!error) {
+    return rejected("Your session has expired. Sign in again.");
+  }
+
+  logFailure(`${action}/auth`, error);
+  return rejected(
+    "Could not reach the sign-in service. Try again in a moment.",
+  );
 }
 
 function success(message) {
@@ -36,7 +55,41 @@ const EMAIL_COPY = {
 const PASSWORD_COPY = {
   weak_password: "That password is too weak. Try a longer, less common one.",
   same_password: "The new password must differ from the current one.",
+  rate_limited: "Too many attempts. Wait a few minutes and try again.",
 };
+
+/**
+ * Thin, but `updateUser` reaches the same rate limiter the other two do — and
+ * without an entry the failure existed nowhere: generic message, no log.
+ */
+const USERNAME_COPY = {
+  rate_limited: "Too many attempts. Wait a few minutes and try again.",
+};
+
+/**
+ * Re-authentication fails for reasons unrelated to the password, and "that
+ * password is not correct" is the one reply guaranteed to make somebody retry —
+ * which against a rate limit is what keeps them locked out. Only
+ * `invalid_credentials` belongs on the password field.
+ */
+const REAUTH_COPY = {
+  invalid_credentials: "That password is not correct.",
+  rate_limited: "Too many attempts. Wait a few minutes and try again.",
+  // Same endpoint as the login form, so the same answer is possible here. Left
+  // out, this told someone typing the right password that it was wrong, forever.
+  email_not_confirmed:
+    "Confirm your email address first — check your inbox for the link.",
+};
+
+function reauthRejection(action, error) {
+  const copy = REAUTH_COPY[error.reason];
+  logUncovered(action, error, copy);
+
+  return rejected(
+    copy ?? "Could not confirm your password. Try again.",
+    error.reason === "invalid_credentials" ? "currentPassword" : null,
+  );
+}
 
 /** Updates the display name held in the user's metadata. */
 export async function updateUsername(_prevState, formData) {
@@ -48,10 +101,23 @@ export async function updateUsername(_prevState, formData) {
   }
 
   const supabase = await createClient();
+
+  // The same guard the other two mutations have. `updateUser` does fail without
+  // a session, but as "Auth session missing!" — an SDK internal with no error
+  // code, so it classifies as `unknown` and the user gets a generic message
+  // that never mentions signing in again.
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (authError || !user) {
+    return sessionRejection("updateUsername", authError);
+  }
+
   const { error } = await setDisplayName(supabase, values.displayName);
 
   if (error) {
-    return rejected(error.detail ?? "Could not update your display name.");
+    const copy = USERNAME_COPY[error.reason];
+    logUncovered("updateUsername", error, copy);
+    return rejected(copy ?? "Could not update your display name.");
   }
 
   // The dashboard greeting reads from this, so the whole shell is stale now.
@@ -68,10 +134,10 @@ export async function updateEmail(_prevState, formData) {
   }
 
   const supabase = await createClient();
-  const user = await getCurrentUser(supabase);
+  const { user, error: authError } = await getCurrentUser(supabase);
 
-  if (!user) {
-    return rejected("Your session has expired. Sign in again.");
+  if (authError || !user) {
+    return sessionRejection("updateEmail", authError);
   }
 
   if (values.email.toLowerCase() === user.email?.toLowerCase()) {
@@ -80,24 +146,21 @@ export async function updateEmail(_prevState, formData) {
 
   // Changing the address that signs you in is an account-takeover lever, so it
   // takes more than a session cookie.
-  const confirmed = await verifyPassword(supabase, {
+  const { error: reauthError } = await verifyPassword(supabase, {
     email: user.email,
     password: values.currentPassword,
   });
 
-  if (!confirmed) {
-    return rejected("That password is not correct.", "currentPassword");
+  if (reauthError) {
+    return reauthRejection("updateEmail/reauth", reauthError);
   }
 
   const { data, error } = await setEmail(supabase, values.email);
 
   if (error) {
-    return rejected(
-      EMAIL_COPY[error.reason] ??
-        error.detail ??
-        "Could not update your email address.",
-      "email",
-    );
+    const copy = EMAIL_COPY[error.reason];
+    logUncovered("updateEmail", error, copy);
+    return rejected(copy ?? "Could not update your email address.", "email");
   }
 
   revalidatePath("/", "layout");
@@ -118,30 +181,27 @@ export async function updatePassword(_prevState, formData) {
   }
 
   const supabase = await createClient();
-  const user = await getCurrentUser(supabase);
+  const { user, error: authError } = await getCurrentUser(supabase);
 
-  if (!user) {
-    return rejected("Your session has expired. Sign in again.");
+  if (authError || !user) {
+    return sessionRejection("updatePassword", authError);
   }
 
-  const confirmed = await verifyPassword(supabase, {
+  const { error: reauthError } = await verifyPassword(supabase, {
     email: user.email,
     password: values.currentPassword,
   });
 
-  if (!confirmed) {
-    return rejected("That password is not correct.", "currentPassword");
+  if (reauthError) {
+    return reauthRejection("updatePassword/reauth", reauthError);
   }
 
   const { error } = await setPassword(supabase, values.newPassword);
 
   if (error) {
-    return rejected(
-      PASSWORD_COPY[error.reason] ??
-        error.detail ??
-        "Could not update your password.",
-      "newPassword",
-    );
+    const copy = PASSWORD_COPY[error.reason];
+    logUncovered("updatePassword", error, copy);
+    return rejected(copy ?? "Could not update your password.", "newPassword");
   }
 
   return success("Password updated.");
