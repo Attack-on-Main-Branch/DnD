@@ -94,7 +94,7 @@ describe("the character limit is recognised by its exception message", () => {
     // this test is what notices.
     const result = await insertCharacter(
       stubQuery(postgrestError("P0001", "character_limit_reached")),
-      { userId: "user-1", values: {} },
+      { userId: "user-1", values: { abilities: {} } },
     );
     assert.equal(result.error.reason, "limit_reached");
   });
@@ -270,6 +270,7 @@ describe("the query shape itself", () => {
       classId: "fighter",
       alignment: "lawful_good",
       colorTheme: "violet",
+      abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
       backstory: "a tale",
       personality: "grumpy",
     };
@@ -288,9 +289,30 @@ describe("the query shape itself", () => {
         class_id: "fighter",
         alignment: "lawful_good",
         color_theme: "violet",
+        ability_str: 15,
+        ability_dex: 14,
+        ability_con: 13,
+        ability_int: 12,
+        ability_wis: 11,
+        ability_cha: 7,
         backstory: "a tale",
         personality: "grumpy",
       });
+    });
+
+    it("never writes a generated total column", async () => {
+      // The six `_total` columns are GENERATED ALWAYS in the migration, and
+      // Postgres refuses an INSERT that names one — with a 428C9, which
+      // classify() has nothing to say about. So this is a mistake that would
+      // reach the user as the generic failure, from code that looks right.
+      const q = stubQuery({ data: null, error: null });
+      await insertCharacter(q, { userId: "user-1", values: VALUES });
+
+      const generated = Object.keys(q.lastInsert).filter((column) =>
+        column.endsWith("_total"),
+      );
+
+      assert.deepEqual(generated, []);
     });
 
     it("writes the caller's user_id, not the values'", async () => {

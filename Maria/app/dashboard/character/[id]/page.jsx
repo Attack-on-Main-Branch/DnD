@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
+import { listCampaignsForCharacter } from "sina/data/campaigns";
 import { getCharacter } from "sina/data/characters";
 import { characterHandle } from "sina/rules/character";
 
@@ -20,7 +21,7 @@ import {
   OverviewPanel,
   StoryPanel,
 } from "./character-panels";
-import CharacterTabs from "./character-tabs";
+import TabStrip from "@/app/components/ui/tab-strip";
 import PlayButton from "./play-button";
 
 /**
@@ -34,6 +35,14 @@ import PlayButton from "./play-button";
  * unpinned locale would also drift between deploy environments even if only
  * the server ever formatted it.
  */
+/** The sheet's sections, named here beside the panels they select. */
+const SHEET_TABS = [
+  { value: "overview", label: "Overview" },
+  { value: "story", label: "Story" },
+  { value: "inventory", label: "Inventory" },
+  { value: "notes", label: "Notes" },
+];
+
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
   day: "numeric",
@@ -60,7 +69,7 @@ export default async function CharacterPage({ params }) {
   const { id } = await params;
   // `user` is loaded too, for the guard inside the loader — the header that
   // used to need it here now comes from dashboard/layout.jsx.
-  const { character, error } = await loadCharacter(id);
+  const { character, campaigns, error } = await loadCharacter(id);
 
   // A failed read is not a missing character: `getCharacter` returns null for
   // both, and /dashboard already distinguishes them, offering "run the
@@ -86,11 +95,18 @@ export default async function CharacterPage({ params }) {
         href="/dashboard"
         className="cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold"
       >
-        ← Back to characters
+        ← Back to dashboard
       </Link>
 
       <header className="flex flex-wrap items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
+        {/*
+          `min-w-0` here as well as on the column inside it. Truncation only
+          happens if every flex item along the chain is allowed to shrink, and
+          this one is an item of a `flex-wrap` header — without it the row keeps
+          its content width and the name runs off the right edge instead of
+          ending in an ellipsis.
+        */}
+        <div className="flex min-w-0 items-center gap-4">
           <Avatar
             initials={characterInitials(character.name)}
             colorClass={avatarColorClass(character.color_theme)}
@@ -98,9 +114,56 @@ export default async function CharacterPage({ params }) {
           />
 
           <div className="min-w-0">
-            <h1 className="truncate font-display text-3xl font-semibold tracking-wide text-ink">
-              {character.name}
-            </h1>
+            {/*
+              The campaign beside the name, at the same size, separated by the
+              creation sheet's `·` — the one its preview puts between race,
+              class and alignment.
+
+              Beside it rather than inside the `<h1>`: the heading stays the
+              character's name alone, because a page title that grows when
+              somebody else adds this character to something is not the title
+              changing.
+
+              `items-baseline` so the two sit on one line rather than one
+              floating in the middle of the other's cap height. And no wrapping:
+              allowed to wrap, the campaign took its own row led by the
+              separator, which reads as a bullet in a list rather than as a
+              continuation. Both halves shrink and truncate instead — `min-w-0`
+              on each is what permits that, since a flex item's automatic
+              minimum size is its content and neither would otherwise give way.
+            */}
+            <div className="flex items-baseline gap-x-3">
+              {/*
+                The name does not give way; the campaign does. `shrink-0` keeps
+                the heading at its content width so a narrow window truncates
+                the context rather than the subject, and `max-w-full` is the
+                escape hatch for a name long enough to fill the row on its own —
+                at which point it truncates and the campaign shrinks to nothing,
+                which is the right order to lose them in.
+              */}
+              <h1 className="max-w-full shrink-0 truncate font-display text-3xl font-semibold tracking-wide text-ink">
+                {character.name}
+              </h1>
+
+              {/*
+                Plain text, not a link. The campaign page belongs to the Dungeon
+                Master who made it, and a player following a link there would
+                land on a 404 — that route resolves for its owner and nobody
+                else. The title is the useful part; the destination is not
+                theirs.
+
+                Shown only where there is one. A "not in a campaign" line under
+                every sheet would be furniture, and the absence reads perfectly
+                well on its own.
+              */}
+              {campaigns.length > 0 && (
+                <p className="min-w-0 truncate font-display text-3xl font-semibold tracking-wide text-ink/55">
+                  <span aria-hidden="true">· </span>
+                  {campaigns.map((campaign) => campaign.title).join(" · ")}
+                </p>
+              )}
+            </div>
+
             <p className="font-mono text-sm text-gold/70">
               {characterHandle(character)}
             </p>
@@ -120,7 +183,9 @@ export default async function CharacterPage({ params }) {
             Built here, on the server, and handed over as rendered output. The
             tabstrip needs the browser; the panels do not.
           */}
-        <CharacterTabs
+        <TabStrip
+          tabs={SHEET_TABS}
+          label="Character sheet sections"
           panels={{
             overview: (
               <OverviewPanel
@@ -168,5 +233,24 @@ const loadCharacter = cache(async function loadCharacter(id) {
     logFailure("loadCharacter", error);
   }
 
-  return { character: data, error, user };
+  if (!data) {
+    return { character: null, campaigns: [], error, user };
+  }
+
+  // Where this character plays. Logged rather than shown if it fails: the sheet
+  // is the page, and a campaign line that cannot load is not a reason to
+  // replace it with an error.
+  const { data: campaigns, error: campaignError } =
+    await listCampaignsForCharacter(supabase, id);
+
+  if (campaignError) {
+    logFailure("listCampaignsForCharacter", campaignError);
+  }
+
+  return {
+    character: data,
+    campaigns: campaignError ? [] : campaigns,
+    error,
+    user,
+  };
 });

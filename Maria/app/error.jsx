@@ -64,7 +64,7 @@ export default function Error({ error, retry }) {
           href="/dashboard"
           className={buttonClasses({ variant: "secondary" })}
         >
-          Back to characters
+          Back to dashboard
         </Link>
       </div>
     </main>

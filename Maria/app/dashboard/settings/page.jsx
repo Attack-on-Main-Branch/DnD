@@ -34,7 +34,7 @@ export default async function SettingsPage() {
           href="/dashboard"
           className="cursor-pointer font-sans text-sm text-ink/60 transition hover:text-gold"
         >
-          ← Back to characters
+          ← Back to dashboard
         </Link>
 
         <h1 className="mt-4 font-display text-3xl font-semibold">

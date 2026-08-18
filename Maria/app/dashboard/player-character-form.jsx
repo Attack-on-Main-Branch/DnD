@@ -3,7 +3,9 @@
 import { useRef, useState } from "react";
 
 import Avatar from "@/app/components/ui/avatar";
-import Button from "@/app/components/ui/button";
+import Link from "next/link";
+
+import Button, { buttonClasses } from "@/app/components/ui/button";
 import {
   CHOICE_CARD_FOCUS_CLASSES,
   INVALID_GROUP_CLASSES,
@@ -25,11 +27,14 @@ import {
   countCharacters,
   MAX_PROSE_LENGTH,
   RACES,
+  alignmentDetails,
   classDetails,
+  defaultAbilityScores,
   readCharacterValues,
   validateCharacter,
 } from "sina/rules/character";
 
+import AbilityPicker from "./ability-picker";
 import { createPlayerCharacter } from "./actions";
 import {
   avatarColorClass,
@@ -43,7 +48,7 @@ const FEEDBACK_ID = "character-feedback";
 
 const RACE_OPTIONS = RACES.map((race) => ({ value: race, label: race }));
 
-export default function PlayerCharacterForm({ onBack, onCreated }) {
+export default function PlayerCharacterForm({ onCreated }) {
   // Controlled throughout: a rejected handle must not cost the user the
   // backstory they just wrote.
   const [name, setName] = useState("");
@@ -52,6 +57,7 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
   const [archetype, setArchetype] = useState("");
   const [classId, setClassId] = useState("");
   const [alignment, setAlignment] = useState("");
+  const [abilities, setAbilities] = useState(defaultAbilityScores);
   const [colorTheme, setColorTheme] = useState(null);
   const [backstory, setBackstory] = useState("");
   const [personality, setPersonality] = useState("");
@@ -63,6 +69,7 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
   const effectiveColor = colorTheme ?? suggestedAvatarColor(name);
 
   const chosenClass = classDetails(classId);
+  const chosenAlignment = alignmentDetails(alignment);
 
   const { state, formAction, isPending } = useFormAction({
     action: createPlayerCharacter,
@@ -95,13 +102,32 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
           </p>
 
           {/*
-            Appears only once there is a class to show. Race and path together
-            are the one-line version of the sheet, so the preview says what the
-            card will say before the character exists.
+            The one-line version of the sheet, so the preview says what the
+            card will say before the character exists. It waits for a class or
+            an alignment rather than showing on mount: race alone is a default
+            nobody chose, and a line that is already there cannot register as
+            an answer to the choice just made.
+
+            Each part joins as it is picked, which is why this is a filtered
+            list rather than three conditionals with separators between them.
           */}
-          {chosenClass && (
+          {(chosenClass || chosenAlignment) && (
             <p className="mt-1 truncate font-display text-xs tracking-[0.1em] text-gold uppercase">
-              {race} · {chosenClass.path.name}
+              {[race, chosenClass?.path.name, chosenAlignment?.label]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+
+          {/*
+            The alignment's film characters, in the handle's voice rather than
+            the wordmark's — monospace and dim, so it reads as a footnote to the
+            line above instead of competing with it. Not truncated: three names
+            are the whole point, and wrapping costs one line at most.
+          */}
+          {chosenAlignment && (
+            <p className="mt-1 font-mono text-xs text-ink/50">
+              Plays like: {chosenAlignment.examples.join(" · ")}
             </p>
           )}
         </div>
@@ -171,6 +197,23 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
         invalidField={state?.field}
       />
 
+      {/*
+        After the class, because the archetype is what most people picture
+        first and it is the choice the numbers are being spent to support.
+        Before alignment, so the sheet finishes its mechanics before it asks
+        about temperament.
+
+        `race` goes in for the bonus badges only — the scores themselves are
+        bought free of it.
+      */}
+      <AbilityPicker
+        race={race}
+        scores={abilities}
+        onChange={setAbilities}
+        disabled={isPending}
+        invalidField={state?.field}
+      />
+
       <AlignmentPicker
         value={alignment}
         onChange={setAlignment}
@@ -223,9 +266,23 @@ export default function PlayerCharacterForm({ onBack, onCreated }) {
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
       <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
-        <Button variant="secondary" onClick={onBack} disabled={isPending}>
-          Back
-        </Button>
+        {/*
+          Cancel, not Back, and a link rather than a button — there is nothing
+          behind this sheet to go back to any more. The empty slot that opened
+          it named the role in the URL, so the only way out is the dashboard,
+          and an anchor gets middle-click and open-in-new-tab for free.
+
+          `prefetch={false}`: Next prefetches links on viewport entry, so merely
+          opening this sheet would start fetching the page you just left.
+          `/dashboard` is dynamic, so that payload could never be reused.
+        */}
+        <Link
+          href="/dashboard"
+          prefetch={false}
+          className={buttonClasses({ variant: "secondary" })}
+        >
+          Cancel
+        </Link>
         <Button type="submit" disabled={isPending}>
           {isPending ? "Creating…" : "Create character"}
         </Button>
@@ -251,7 +308,7 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
       <legend className={LABEL_CLASSES}>Alignment</legend>
 
       <div
-        className={`mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3 ${
+        className={`mt-1.5 grid grid-cols-1 gap-3 sm:grid-cols-3 ${
           invalid ? `rounded-lg ${INVALID_GROUP_CLASSES}` : ""
         }`}
       >
@@ -261,7 +318,12 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
           return (
             <label
               key={option.value}
-              className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} ${
+              // The path card's box, to the pixel: same padding, same gap,
+              // same radius. These two sections sit one above the other, and
+              // an alignment card that was a little tighter than a path card
+              // read as a different kind of thing rather than as the same
+              // control asking a different question.
+              className={`flex cursor-pointer flex-col gap-2 rounded-lg border p-4 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} ${
                 isSelected ? NESTED_CARD_SELECTED_CLASSES : NESTED_CARD_CLASSES
               }`}
             >
@@ -281,8 +343,8 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
               */}
               <span className="flex items-start justify-between gap-2">
                 <span
-                  className={`text-xs font-semibold ${
-                    isSelected ? "text-gold" : ""
+                  className={`font-display text-base font-semibold tracking-wide transition-colors duration-300 ${
+                    isSelected ? "text-gold" : "text-ink"
                   }`}
                 >
                   {option.label}
@@ -290,7 +352,7 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
                 <SelectionDot selected={isSelected} />
               </span>
 
-              <span className="text-[0.7rem] leading-snug text-ink/60">
+              <span className="text-xs leading-relaxed text-pretty text-ink/50">
                 {option.description}
               </span>
             </label>

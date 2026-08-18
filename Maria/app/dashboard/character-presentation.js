@@ -113,6 +113,56 @@ export function archetypeEmblem(id) {
   return ARCHETYPE_EMBLEMS[id] ?? FALLBACK_EMBLEM;
 }
 
+/**
+ * The same treatment for the six ability scores, drawn from the same kit: one
+ * accent and one clip path each, so a stat card and a class card are visibly
+ * the same object.
+ *
+ * The shapes are deliberately not reused from the archetypes. A stat card and a
+ * class card can sit a few centimetres apart on the creation sheet, and two
+ * different meanings wearing the same diamond is the kind of thing that reads
+ * as a bug rather than as a style.
+ *
+ * Sword, arrow, shield, book, star, crown — chosen because each survives being
+ * a flat 28px silhouette. Anything with an interior hole does not: a clip path
+ * is one polygon, so a crescent or an outlined eye would come out as a blob.
+ */
+const ABILITY_EMBLEMS = {
+  str: {
+    accent: "#e0573f",
+    // A sword: point at the top, crossguard two thirds of the way down. A fist
+    // was tried here and read as a blob at this size — the creases that make a
+    // fist legible are interior lines, and a clip path is a single outline.
+    clip: "polygon(50% 0%, 58% 12%, 58% 50%, 80% 50%, 80% 62%, 58% 62%, 58% 100%, 42% 100%, 42% 62%, 20% 62%, 20% 50%, 42% 50%, 42% 12%)",
+  },
+  dex: {
+    accent: "#3fbf8f",
+    clip: "polygon(50% 0%, 100% 48%, 72% 48%, 72% 100%, 28% 100%, 28% 48%, 0% 48%)",
+  },
+  con: {
+    accent: "#e08a3a",
+    // A heart. Two lobes and a point, approximated in twelve vertices — enough
+    // that the curve does not read as faceted at this size.
+    clip: "polygon(50% 95%, 14% 61%, 3% 41%, 7% 22%, 23% 11%, 39% 16%, 50% 31%, 61% 16%, 77% 11%, 93% 22%, 97% 41%, 86% 61%)",
+  },
+  int: {
+    accent: "#4f8fe8",
+    clip: "polygon(2% 18%, 46% 8%, 54% 8%, 98% 18%, 98% 88%, 54% 78%, 46% 78%, 2% 88%)",
+  },
+  wis: {
+    accent: "#8b6fe0",
+    clip: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 92%, 50% 70%, 21% 92%, 32% 57%, 2% 35%, 39% 35%)",
+  },
+  cha: {
+    accent: "#ecc25f",
+    clip: "polygon(0% 100%, 0% 28%, 22% 54%, 50% 6%, 78% 54%, 100% 28%, 100% 100%)",
+  },
+};
+
+export function abilityEmblem(id) {
+  return ABILITY_EMBLEMS[id] ?? FALLBACK_EMBLEM;
+}
+
 /** `#d8434f` at 0.13 → `rgba(216,67,79,0.13)`, for the tints above. */
 export function withAlpha(hex, alpha) {
   const digits = hex.replace("#", "");

@@ -9,9 +9,11 @@
     "./supabase/session": "./src/supabase/session.js",
     "./rules/auth": "./src/rules/auth.js",
     "./rules/character": "./src/rules/character.js",
+    "./rules/campaign": "./src/rules/campaign.js",
     "./rules/account": "./src/rules/account.js",
     "./data/auth": "./src/data/auth.js",
     "./data/characters": "./src/data/characters.js",
+    "./data/campaigns": "./src/data/campaigns.js",
     "./data/account": "./src/data/account.js"
   },
   "scripts": {

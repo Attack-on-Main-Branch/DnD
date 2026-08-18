@@ -31,23 +31,44 @@ export default function CharacterInventory({ characters }) {
   // a card was only ~284px wide, and 16:9 made it 160px tall — shorter than
   // the name, four facts and the corner row need.
   return (
-    <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {characters.map((character) => (
-        <li key={character.id}>
-          <CharacterCard
-            character={character}
-            handle={characterHandle(character)}
-            facts={<CharacterFacts character={character} />}
-          />
-        </li>
-      ))}
+    <section>
+      {/*
+        Its own heading and its own count, matching the campaigns section
+        below. The count used to sit up beside "Welcome back", where it read as
+        a fact about the account rather than about this grid — and once there
+        were two grids with two separate caps, one of them floating at the top
+        of the page could only be confusing.
+      */}
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+        <h2 className="font-display text-xl font-semibold tracking-wide text-ink">
+          Characters
+        </h2>
 
-      {Array.from({ length: emptySlots }, (_, index) => (
-        <li key={`empty-${index}`}>
-          <EmptySlot href="/dashboard?new" />
-        </li>
-      ))}
-    </ul>
+        <p className="font-sans text-xs tracking-wide text-ink/50 uppercase">
+          {characters.length} of {MAX_CHARACTERS} slots used
+        </p>
+      </div>
+
+      <ul className="mt-5 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {characters.map((character) => (
+          <li key={character.id}>
+            <CharacterCard
+              character={character}
+              handle={characterHandle(character)}
+              facts={<CharacterFacts character={character} />}
+            />
+          </li>
+        ))}
+
+        {Array.from({ length: emptySlots }, (_, index) => (
+          <li key={`empty-${index}`}>
+            {/* `?new=player`, so the sheet knows which of the two it is before
+                it mounts — the role question in front of it is gone. */}
+            <EmptySlot href="/dashboard?new=player" />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

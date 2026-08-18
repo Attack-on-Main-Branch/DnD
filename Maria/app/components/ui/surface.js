@@ -63,6 +63,43 @@ export function surfaceClasses({
 export const PANEL_CLASSES = "rounded-2xl p-6 sm:p-8";
 
 /**
+ * The darkening around a map, so it fades into the page instead of ending at a
+ * hard rectangle.
+ *
+ * One definition rather than two matching ones, because the same map appears on
+ * the dashboard card and on the campaign's own page, and "the same everywhere"
+ * is a promise that copy-pasted gradients quietly stop keeping. The two boxes
+ * are not quite the same shape — the card has a minimum height that makes it a
+ * little squarer than 16:9 at some widths — and a `circle` is what keeps them
+ * looking alike anyway: the falloff stays round instead of being stretched to
+ * whatever rectangle it lands in.
+ *
+ * Strong enough to be the only thing darkening these tiles. Each of them used
+ * to carry a second, directional wash as well — a corner-to-corner fade that
+ * gave the title a ground to sit on — and stacking the two is what made the
+ * edges uneven: one corner much darker than the rest, and a band along the
+ * bottom. The text keeps its own drop shadow, which is what it actually needs.
+ *
+ * Not applied to the full-resolution view. There the picture is the subject
+ * rather than a tile on a page, and darkening its edges hides the part you
+ * opened it to read.
+ *
+ * The sizing keywords are doing real work, not decoration. The default is
+ * `farthest-corner`, which puts the 100% stop in the corners — and the middle
+ * of an edge is only 1/√2, about 71%, of the way there. So the last and darkest
+ * third of the ramp landed in four corners and nowhere else, while the middle
+ * of every edge stopped around half: exactly the part that wanted to be darker.
+ * `closest-side` sets the radius to half the short side instead, which for a
+ * landscape tile is the top and bottom edges. The stops then run well past 100%
+ * so the ramp carries on out to the long edges and into the corners rather than
+ * flattening at the first edge it reaches.
+ */
+export const MAP_VIGNETTE_STYLE = {
+  background:
+    "radial-gradient(circle closest-side at center, transparent 30%, rgba(0,0,0,0.75) 130%, rgba(0,0,0,1) 190%)",
+};
+
+/**
  * The hairline under the header and the changelog panel's title: one pixel of
  * gold fading out at both ends, so it reads as a rule drawn across the page
  * rather than a box edge.

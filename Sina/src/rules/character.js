@@ -10,6 +10,10 @@
  * like.
  */
 
+import { countCharacters, readProse } from "./text.js";
+
+export { countCharacters };
+
 export const MAX_CHARACTERS = 3;
 
 export const MIN_NAME_LENGTH = 2;
@@ -56,7 +60,8 @@ export const ARCHETYPES = [
   {
     id: "warrior",
     name: "Warrior",
-    blurb: "Defender of the front line. Heavy armour, heavier weapons.",
+    blurb:
+      "Defender of the front line. Heavy armour, heavier weapons, no retreat.",
     paths: [
       {
         id: "barbarian",
@@ -78,7 +83,8 @@ export const ARCHETYPES = [
   {
     id: "mage",
     name: "Mage",
-    blurb: "Master of the arcane. Elemental ruin, delivered from range.",
+    blurb:
+      "Master of the arcane. Elemental ruin, delivered from across the field.",
     paths: [
       {
         id: "wizard",
@@ -101,7 +107,8 @@ export const ARCHETYPES = [
   {
     id: "archer",
     name: "Archer",
-    blurb: "Hunter of the wild. Lethal precision from a safe distance.",
+    blurb:
+      "Hunter of the wild. Lethal precision from a safe distance, every shot.",
     paths: [
       {
         id: "ranger",
@@ -118,7 +125,8 @@ export const ARCHETYPES = [
   {
     id: "assassin",
     name: "Assassin",
-    blurb: "A killer out of the shadows. Stealth, tricks and sudden ends.",
+    blurb:
+      "A killer out of the shadows. Stealth, misdirection, and sudden ends.",
     paths: [
       {
         id: "rogue",
@@ -272,23 +280,12 @@ const DISCRIMINATOR_PATTERN = /^[0-9]{4}$/;
  * request nobody has to have built with a browser, and a lone CR should not
  * survive into the database either.
  */
-function readProse(value) {
-  return String(value ?? "")
-    .replace(/\r\n?/g, "\n")
-    .trim();
-}
-
-/**
- * Length in code points rather than UTF-16 units, matching Postgres's
- * `char_length` — which is what the table's CHECK constraints use.
- *
- * `.length` would count a single astral character such as 🐉 as two, so a
- * one-character name would pass a "at least 2" check here and be rejected by
- * the database, where it counts as one.
+/*
+ * Both moved to ./text.js when campaigns arrived and needed the same two rules.
+ * `countCharacters` is re-exported above rather than re-homed, so the form that
+ * imports it from `sina/rules/character` keeps working — it counts a character
+ * sheet's fields, and that is still where it belongs in the reader's head.
  */
-export function countCharacters(value) {
-  return Array.from(value).length;
-}
 
 export function archetypeDetails(id) {
   return ARCHETYPES.find((entry) => entry.id === id) ?? null;
@@ -333,6 +330,217 @@ export function characterHandle({ name, discriminator }) {
   return `${name}#${discriminator}`;
 }
 
+/**
+ * The six ability scores, in the order every character sheet prints them.
+ *
+ * `id` is what the column and the form field are called; `abbr` is what the
+ * card shows. No colours and no glyphs here, per this file's contract — which
+ * ability exists is a rule, what Strength's emblem looks like is not.
+ */
+export const ABILITIES = [
+  { id: "str", name: "Strength", abbr: "STR" },
+  { id: "dex", name: "Dexterity", abbr: "DEX" },
+  { id: "con", name: "Constitution", abbr: "CON" },
+  { id: "int", name: "Intelligence", abbr: "INT" },
+  { id: "wis", name: "Wisdom", abbr: "WIS" },
+  { id: "cha", name: "Charisma", abbr: "CHA" },
+];
+
+export const ABILITY_BASELINE = 10;
+export const MIN_ABILITY = 7;
+export const MAX_ABILITY = 15;
+export const ABILITY_BUDGET = 15;
+
+/**
+ * What each score costs, counted from the baseline rather than per step.
+ *
+ * Cumulative on purpose. A per-step table has to be summed to answer "how much
+ * has this character spent", and summing a stepwise cost is where an
+ * off-by-one lives; here the spend is a lookup and the step price is the
+ * difference between two neighbours. The curve steepens above 13 — the last
+ * two points cost 2 each — which is what stops every character being a 15 in
+ * their favourite score and a 7 in everything else.
+ *
+ * Negative entries are refunds: dropping to 7 hands back 3 points to spend
+ * elsewhere.
+ */
+const ABILITY_COST = {
+  7: -3,
+  8: -2,
+  9: -1,
+  10: 0,
+  11: 1,
+  12: 2,
+  13: 3,
+  14: 5,
+  15: 7,
+};
+
+/** Every score at the baseline, which is what an untouched sheet starts as. */
+export function defaultAbilityScores() {
+  return Object.fromEntries(
+    ABILITIES.map((ability) => [ability.id, ABILITY_BASELINE]),
+  );
+}
+
+/** Points spent across all six. Unknown scores count as nothing. */
+export function abilitySpend(scores) {
+  return ABILITIES.reduce(
+    (total, ability) => total + (ABILITY_COST[scores?.[ability.id]] ?? 0),
+    0,
+  );
+}
+
+export function abilityPointsRemaining(scores) {
+  return ABILITY_BUDGET - abilitySpend(scores);
+}
+
+/** What the next point up costs, or null at the ceiling. */
+export function abilityRaiseCost(score) {
+  if (!Number.isInteger(score) || score >= MAX_ABILITY) {
+    return null;
+  }
+
+  return ABILITY_COST[score + 1] - ABILITY_COST[score];
+}
+
+/** What giving a point back hands over, or null at the floor. */
+export function abilityLowerRefund(score) {
+  if (!Number.isInteger(score) || score <= MIN_ABILITY) {
+    return null;
+  }
+
+  return ABILITY_COST[score] - ABILITY_COST[score - 1];
+}
+
+/**
+ * Whether the stepper's buttons are live.
+ *
+ * Raising asks two questions — is there room, and is there budget — and the
+ * second is why this takes the whole set rather than one score: the price of a
+ * point depends on where that score already is, and whether it is affordable
+ * depends on what the other five have spent.
+ */
+export function canRaiseAbility(scores, id) {
+  const cost = abilityRaiseCost(scores?.[id]);
+
+  return cost !== null && cost <= abilityPointsRemaining(scores);
+}
+
+export function canLowerAbility(scores, id) {
+  return abilityLowerRefund(scores?.[id]) !== null;
+}
+
+/**
+ * What each race adds, applied on top of the bought score.
+ *
+ * Mirrored by the generated total columns in
+ * 20260817090000_ability_scores.sql, the same pairing `race` itself already
+ * has with `characters_race_check` — changing a line here means a migration.
+ *
+ * Wisdom deliberately appears nowhere: none of the nine grants it. It still
+ * gets a total column and a card, because a sheet with five abilities on it
+ * is not a sheet.
+ */
+export const RACE_ABILITY_BONUSES = {
+  Human: { str: 1, dex: 1, con: 1 },
+  Dragonborn: { str: 2, cha: 1 },
+  Dwarf: { con: 2, str: 1 },
+  Elf: { dex: 2, int: 1 },
+  Gnome: { int: 2, dex: 1 },
+  "Half-Elf": { cha: 2, dex: 1 },
+  "Half-Orc": { str: 2, con: 1 },
+  Halfling: { dex: 2, cha: 1 },
+  Tiefling: { cha: 2, int: 1 },
+};
+
+export function raceAbilityBonus(race, abilityId) {
+  return RACE_ABILITY_BONUSES[race]?.[abilityId] ?? 0;
+}
+
+/** Base plus race — the number the character actually plays with. */
+export function abilityTotal(race, abilityId, score) {
+  return (score ?? ABILITY_BASELINE) + raceAbilityBonus(race, abilityId);
+}
+
+/** The D&D modifier: every two points above 10 is worth one. */
+export function abilityModifier(total) {
+  return Math.floor((total - 10) / 2);
+}
+
+/** Modifiers are always written signed, `+0` included. */
+export function formatModifier(modifier) {
+  return `${modifier >= 0 ? "+" : ""}${modifier}`;
+}
+
+/**
+ * The six as the sheet wants them: base, what the race added, the total and
+ * its modifier, in printing order.
+ */
+export function abilityBreakdown(race, scores) {
+  return ABILITIES.map((ability) => {
+    const base = scores?.[ability.id] ?? ABILITY_BASELINE;
+    const bonus = raceAbilityBonus(race, ability.id);
+    const total = base + bonus;
+
+    return {
+      ...ability,
+      base,
+      bonus,
+      total,
+      modifier: abilityModifier(total),
+    };
+  });
+}
+
+export function readAbilityScores(formData) {
+  return Object.fromEntries(
+    ABILITIES.map((ability) => [
+      ability.id,
+      // Deliberately not defaulted. A missing or mangled field has to reach
+      // validation as NaN and be refused, rather than quietly becoming a 10
+      // that the user never chose and the budget never charged for.
+      Number.parseInt(String(formData.get(`ability_${ability.id}`) ?? ""), 10),
+    ]),
+  );
+}
+
+/**
+ * @returns {{field: string, message: string} | null}
+ *
+ * Two separate refusals, because they are two different mistakes: a score out
+ * of range is a broken payload, while an overspend is a sheet somebody could
+ * plausibly have built by hand. Leftover points are allowed — the stepper lets
+ * you stop early, and nothing downstream cares.
+ */
+export function validateAbilityScores(scores) {
+  for (const ability of ABILITIES) {
+    const score = scores?.[ability.id];
+
+    if (
+      !Number.isInteger(score) ||
+      score < MIN_ABILITY ||
+      score > MAX_ABILITY
+    ) {
+      return {
+        field: `ability_${ability.id}`,
+        message: `${ability.name} must be between ${MIN_ABILITY} and ${MAX_ABILITY}.`,
+      };
+    }
+  }
+
+  const overspent = -abilityPointsRemaining(scores);
+
+  if (overspent > 0) {
+    return {
+      field: "abilities",
+      message: `That is ${overspent} point${overspent === 1 ? "" : "s"} over the ${ABILITY_BUDGET} available.`,
+    };
+  }
+
+  return null;
+}
+
 export function readCharacterValues(formData) {
   return {
     name: String(formData.get("name") ?? "").trim(),
@@ -342,6 +550,7 @@ export function readCharacterValues(formData) {
     classId: String(formData.get("classId") ?? ""),
     alignment: String(formData.get("alignment") ?? ""),
     colorTheme: String(formData.get("colorTheme") ?? ""),
+    abilities: readAbilityScores(formData),
     backstory: readProse(formData.get("backstory")),
     personality: readProse(formData.get("personality")),
   };
@@ -360,6 +569,7 @@ export function validateCharacter({
   classId,
   alignment,
   colorTheme,
+  abilities,
   backstory,
   personality,
 }) {
@@ -405,6 +615,14 @@ export function validateCharacter({
       field: "classId",
       message: `Choose a path for the ${chosenArchetype.name}.`,
     };
+  }
+
+  // Before alignment, because that is the order the sheet asks in — the first
+  // complaint should point at the first thing that is wrong on the way down.
+  const abilityProblem = validateAbilityScores(abilities);
+
+  if (abilityProblem) {
+    return abilityProblem;
   }
 
   if (!ALIGNMENTS.some((entry) => entry.value === alignment)) {

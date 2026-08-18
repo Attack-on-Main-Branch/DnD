@@ -4,37 +4,33 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { useReducedMotion } from "@/app/components/use-reduced-motion";
 
-const TABS = [
-  { value: "overview", label: "Overview" },
-  { value: "story", label: "Story" },
-  { value: "inventory", label: "Inventory" },
-  { value: "notes", label: "Notes" },
-];
-
 const SLIDE_MS = 320;
 
 /**
- * Tabs following the ARIA authoring pattern: one tab stop for the whole strip,
- * arrow keys to move between tabs, Home/End to jump to the ends. Only the
- * active tab is reachable by Tab, which is what a screen-reader user expects
- * and what a row of four tab stops would ruin.
+ * A tab strip, shared by the character sheet and the campaign page.
+ *
+ * Follows the ARIA authoring pattern: one tab stop for the whole strip, arrow
+ * keys to move between tabs, Home/End to jump to the ends. Only the active tab
+ * is reachable by Tab, which is what a screen-reader user expects and what a
+ * row of separate tab stops would ruin.
  *
  * The underline is one element that slides, rather than a border on each tab.
  * It is positioned imperatively from an effect: its geometry is read from the
  * DOM and written straight back, so nothing about it needs to pass through
  * React state or cause a render.
  *
- * `panels` arrives as an object of ALREADY-RENDERED elements keyed by the TABS
- * values. This decides which is visible; it does not build them. Holding them
- * here shipped all four so one could show, and dragged a 400-line catalogue
- * along for two label lookups.
+ * `panels` arrives as an object of ALREADY-RENDERED elements keyed by the tab
+ * values, and `tabs` is [{ value, label }]. This decides which panel is
+ * visible; it does not build them. Building them here would drag every panel's
+ * imports into the browser so that one of them could show — which is how the
+ * character sheet once shipped a 400-line catalogue for two label lookups.
  *
- * The trade: every panel renders on the server each request, shown or not. Worth
- * it while rendering is a few string lookups. If a panel ever needs its own
- * query it wants Suspense, not a move back across the boundary.
+ * The trade: every panel renders on the server each request, shown or not.
+ * Worth it while rendering is a few string lookups. If a panel ever needs its
+ * own query it wants Suspense, not a move back across the boundary.
  */
-export default function CharacterTabs({ panels }) {
-  const [active, setActive] = useState("overview");
+export default function TabStrip({ tabs, label, panels }) {
+  const [active, setActive] = useState(tabs[0].value);
   const baseId = useId();
   const tabRefs = useRef({});
   const stripRef = useRef(null);
@@ -89,24 +85,24 @@ export default function CharacterTabs({ panels }) {
   }
 
   function handleKeyDown(event) {
-    const index = TABS.findIndex((tab) => tab.value === active);
+    const index = tabs.findIndex((tab) => tab.value === active);
 
     switch (event.key) {
       case "ArrowRight":
         event.preventDefault();
-        focusTab(TABS[(index + 1) % TABS.length].value);
+        focusTab(tabs[(index + 1) % tabs.length].value);
         break;
       case "ArrowLeft":
         event.preventDefault();
-        focusTab(TABS[(index - 1 + TABS.length) % TABS.length].value);
+        focusTab(tabs[(index - 1 + tabs.length) % tabs.length].value);
         break;
       case "Home":
         event.preventDefault();
-        focusTab(TABS[0].value);
+        focusTab(tabs[0].value);
         break;
       case "End":
         event.preventDefault();
-        focusTab(TABS[TABS.length - 1].value);
+        focusTab(tabs[tabs.length - 1].value);
         break;
       default:
         break;
@@ -128,11 +124,11 @@ export default function CharacterTabs({ panels }) {
           <div
             ref={stripRef}
             role="tablist"
-            aria-label="Character sheet sections"
+            aria-label={label}
             onKeyDown={handleKeyDown}
             className="flex gap-1"
           >
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
               const isActive = tab.value === active;
 
               return (
@@ -166,15 +162,36 @@ export default function CharacterTabs({ panels }) {
         </div>
       </div>
 
-      <div
-        role="tabpanel"
-        id={`${baseId}-panel-${active}`}
-        aria-labelledby={`${baseId}-tab-${active}`}
-        tabIndex={0}
-        className="py-6"
-      >
-        {panels[active]}
-      </div>
+      {/*
+        Every panel is mounted; the inactive ones are `hidden`. It used to be
+        one element whose children were swapped, which meant switching tabs
+        unmounted the panel you left and destroyed everything in it.
+
+        That is invisible while panels are static text, and it is not: the
+        campaign map remembers whether its full-resolution image has been
+        loaded, and losing that on a tab switch made the next open download it
+        again. Anything a panel ever holds — a scroll position, a half-typed
+        field, an open disclosure — had the same fate.
+
+        The `hidden` attribute rather than a class, because it takes the panel
+        out of the accessibility tree as well as off the screen. It also fixes
+        the ids: each tab's `aria-controls` now names a panel that exists at all
+        times, where before it pointed at an id that only appeared while that
+        tab was the active one.
+      */}
+      {tabs.map((tab) => (
+        <div
+          key={tab.value}
+          role="tabpanel"
+          id={`${baseId}-panel-${tab.value}`}
+          aria-labelledby={`${baseId}-tab-${tab.value}`}
+          hidden={tab.value !== active}
+          tabIndex={0}
+          className="py-6"
+        >
+          {panels[tab.value]}
+        </div>
+      ))}
     </div>
   );
 }

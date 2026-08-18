@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
+import { listCampaigns } from "sina/data/campaigns";
 import { listCharacters } from "sina/data/characters";
-import { MAX_CHARACTERS } from "sina/rules/character";
 
 import FormAlert from "@/app/components/ui/form-alert";
 import TypingText from "@/app/components/ui/typing-text";
 import { logFailure } from "@/lib/errors";
 import { createClient, currentUser } from "@/lib/supabase";
 
+import CampaignInventory from "./campaign-inventory";
 import CharacterInventory from "./character-inventory";
 import CreateCharacterPanel from "./create-character-panel";
 
@@ -52,10 +53,27 @@ export default async function DashboardPage({ searchParams }) {
   }
 
   const displayName = user.user_metadata?.display_name ?? null;
-  const { data: characters, error } = await listCharacters(supabase, user.id);
+
+  // Both at once. They are independent reads against the same connection, and
+  // awaiting them in sequence would put the second one's latency behind the
+  // first's for no reason.
+  const [
+    { data: characters, error },
+    { data: campaigns, error: campaignError },
+  ] = await Promise.all([
+    listCharacters(supabase, user.id),
+    listCampaigns(supabase, user.id),
+  ]);
 
   if (error) {
     logFailure("listCharacters", error);
+  }
+
+  // Logged, not shown. The roster is the page; a campaign section that cannot
+  // load should not replace it with an error, and the banner below is about
+  // the characters.
+  if (campaignError) {
+    logFailure("listCampaigns", campaignError);
   }
 
   // The header and the flex column come from dashboard/layout.jsx now.
@@ -77,12 +95,6 @@ export default async function DashboardPage({ searchParams }) {
             ]}
           />
         </h1>
-
-        {!error && (
-          <p className="font-sans text-xs tracking-wide text-ink/50 uppercase">
-            {characters.length} of {MAX_CHARACTERS} slots used
-          </p>
-        )}
       </div>
 
       <div className="mt-10">
@@ -112,9 +124,20 @@ export default async function DashboardPage({ searchParams }) {
               browser with it for every visitor who only wanted the roster.
             */
         creating !== undefined ? (
-          <CreateCharacterPanel />
+          // The role comes off the URL: `?new=dm` from an empty campaign slot,
+          // `?new=player` from an empty character slot. Anything else — a
+          // hand-typed `?new` — falls to the character sheet, which is the one
+          // the roster above it is about.
+          <CreateCharacterPanel role={creating === "dm" ? "dm" : "player"} />
         ) : (
-          <CharacterInventory characters={characters} />
+          <>
+            <CharacterInventory characters={characters} />
+
+            {/* Hidden rather than shown empty when the read failed: three
+                empty slots would claim there are no campaigns, which is a
+                different statement from not knowing. */}
+            {!campaignError && <CampaignInventory campaigns={campaigns} />}
+          </>
         )}
       </div>
     </main>

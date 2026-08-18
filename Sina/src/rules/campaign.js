@@ -1,0 +1,284 @@
+/**
+ * What a campaign is, and what makes one valid.
+ *
+ * The Dungeon Master's half of the creation flow, and the counterpart to
+ * character.js: imported by both the form and the Server Action, so the browser
+ * and the server cannot disagree about what is allowed. The browser's copy is
+ * for speed; this one is the check that counts.
+ *
+ * Nothing here knows how any of it looks, and nothing here touches storage —
+ * the file rules below describe what a map may be, not how it gets uploaded.
+ */
+
+import { countCharacters, readProse } from "./text.js";
+
+/**
+ * Campaigns per account. Mirrored by the trigger in
+ * 20260817160000_campaign_limit.sql, which is what actually holds — an API sits
+ * in front of the Server Actions, so a check up here could never be the only
+ * one. The number here is for the counter and the copy.
+ */
+export const MAX_CAMPAIGNS = 3;
+
+export const MIN_TITLE_LENGTH = 2;
+export const MAX_TITLE_LENGTH = 80;
+export const MAX_LORE_LENGTH = 2000;
+
+/**
+ * What the map may arrive as.
+ *
+ * The browser converts everything to WebP before it is sent, so in practice
+ * that is all this ever sees. The other three stay accepted because this runs
+ * on the server too, against a request nobody has to have built with our form —
+ * and rejecting a perfectly good PNG posted by hand would be a rule about our
+ * client rather than about the data.
+ */
+export const ACCEPTED_MAP_TYPES = [
+  "image/webp",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+];
+
+/**
+ * 4MB, after compression.
+ *
+ * Not an arbitrary round number: it has to stay under
+ * `serverActions.bodySizeLimit` in next.config.mjs, because a body over that
+ * limit is refused by the framework before any of this code runs — the user
+ * gets a stack trace rather than a sentence. The config is set one step higher
+ * so this message is always the one they see.
+ */
+export const MAX_MAP_BYTES = 4 * 1024 * 1024;
+
+/** For the file picker's `accept`, which takes a comma-separated list. */
+export const MAP_ACCEPT_ATTRIBUTE = ACCEPTED_MAP_TYPES.join(",");
+
+export function readCampaignValues(formData) {
+  const map = formData.get("map");
+
+  return {
+    title: String(formData.get("title") ?? "").trim(),
+    worldDescription: readProse(formData.get("worldDescription")),
+
+    // An empty file input still submits an entry: a File with an empty name and
+    // zero bytes. Treating that as "a map was uploaded" would put a 0-byte
+    // object in the bucket and a URL to nothing in the row.
+    map: isUploadedFile(map) ? map : null,
+  };
+}
+
+/**
+ * Deliberately duck-typed rather than `value instanceof File`.
+ *
+ * This runs in two places with two different `File` constructors: the browser's
+ * and Node's. `instanceof` compares against whichever one this module closed
+ * over, so a file that crossed a realm boundary — which is exactly what a
+ * multipart body parsed by the framework has done — can fail the check while
+ * being a perfectly good file. The failure is silent and looks like "the user
+ * did not choose a map": the row saves, `map_url` stays null, and nothing is
+ * ever logged.
+ *
+ * What actually matters is that it carries bytes and can hand them over, so
+ * that is what is asked.
+ */
+function isUploadedFile(value) {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof value.arrayBuffer === "function" &&
+    typeof value.size === "number" &&
+    value.size > 0 &&
+    typeof value.name === "string" &&
+    value.name !== ""
+  );
+}
+
+/**
+ * @returns {{field: string, message: string} | null}
+ *   `null` when the values are well-formed. Says nothing about whether the
+ *   upload will succeed — only storage can answer that.
+ */
+export function validateCampaign({ title, worldDescription, map }) {
+  const titleLength = countCharacters(title);
+
+  if (titleLength < MIN_TITLE_LENGTH) {
+    return {
+      field: "title",
+      message: `Give the campaign a title of at least ${MIN_TITLE_LENGTH} characters.`,
+    };
+  }
+
+  if (titleLength > MAX_TITLE_LENGTH) {
+    return {
+      field: "title",
+      message: `The title must be at most ${MAX_TITLE_LENGTH} characters.`,
+    };
+  }
+
+  // Code points, not UTF-16 units — the same count the CHECK constraint uses.
+  if (countCharacters(worldDescription) > MAX_LORE_LENGTH) {
+    return {
+      field: "worldDescription",
+      message: `The world description must be at most ${MAX_LORE_LENGTH} characters.`,
+    };
+  }
+
+  if (map) {
+    if (!ACCEPTED_MAP_TYPES.includes(map.type)) {
+      return {
+        field: "map",
+        message: "The map must be a WebP, PNG, JPEG or GIF image.",
+      };
+    }
+
+    if (map.size > MAX_MAP_BYTES) {
+      return {
+        field: "map",
+        message: `The map must be under ${formatBytes(MAX_MAP_BYTES)} once compressed.`,
+      };
+    }
+  }
+
+  return null;
+}
+
+/** `4 MB`, `820 KB` — for a sentence a person reads, not a log line. */
+export function formatBytes(bytes) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const kb = bytes / 1024;
+
+  return kb < 1024 ? `${Math.round(kb)} KB` : `${round(kb / 1024, 1)} MB`;
+}
+
+function round(value, places) {
+  const factor = 10 ** places;
+
+  return Math.round(value * factor) / factor;
+}
+
+/**
+ * Where a map lives in the bucket: `{uid}/{campaign id}.{ext}`.
+ *
+ * The first segment is the owner's uid and the storage policy checks exactly
+ * that, so the shape of this string is load-bearing rather than tidy — change
+ * it and the RLS policy in 20260817120000_campaigns.sql has to change with it.
+ */
+export function mapObjectPath({ userId, campaignId, type }) {
+  return `${userId}/${campaignId}.${extensionFor(type)}`;
+}
+
+/**
+ * The storage path back out of a public URL, or null if it is not one of ours.
+ *
+ * A public object URL ends `/campaign-maps/{uid}/{id}.webp`, so the path is
+ * whatever follows the bucket name. Recovering it is what lets a deleted
+ * campaign take its map with it — the row is the only thing that ever knew
+ * where the object was, and by the time it is deleted the URL is all that is
+ * left of it.
+ */
+export function mapPathFromUrl(url) {
+  if (typeof url !== "string") {
+    return null;
+  }
+
+  const marker = "/campaign-maps/";
+  const at = url.indexOf(marker);
+
+  if (at === -1) {
+    return null;
+  }
+
+  const path = url.slice(at + marker.length);
+
+  // Nothing that could climb out of the bucket, and nothing empty. This value
+  // came out of a database column rather than off the wire, but it is about to
+  // name an object for deletion, which is not a place to take a string on
+  // trust.
+  return path && !path.includes("..") ? decodeURIComponent(path) : null;
+}
+
+function extensionFor(type) {
+  switch (type) {
+    case "image/png":
+      return "png";
+    case "image/jpeg":
+      return "jpg";
+    case "image/gif":
+      return "gif";
+    default:
+      return "webp";
+  }
+}
+
+/**
+ * Characters per party. Mirrored by the trigger in
+ * 20260818090000_campaign_party.sql, which is what actually holds.
+ */
+export const MAX_PARTY = 6;
+
+/** The shortest name fragment worth searching on. */
+export const MIN_SEARCH_LENGTH = 2;
+
+/** `Name#1234`, with either half allowed to be a fragment. */
+const SPLIT_PATTERN = /^(.*?)\s*#\s*([0-9]*)\s*$/;
+
+/**
+ * Turns what somebody typed into the pair the search takes, or null.
+ *
+ * Three shapes, because those are the three ways a person has the information
+ * to hand:
+ *
+ *   `fri`             the beginning of a name
+ *   `1000` or `#1000` the tag alone, which is what gets read off a screen
+ *   `fri#10`          both, either of them partial
+ *
+ * A bare run of digits is read as a tag rather than a name. Nothing in the
+ * catalogue is called `1000`, and somebody typing four digits into a character
+ * search means the number under the name.
+ *
+ * Returns null for anything too short to be worth a query. That floor is not
+ * cosmetic: the search runs against every character in the database, and a
+ * single letter would hand back an arbitrary ten of them.
+ */
+export function parseCharacterQuery(value) {
+  const text = String(value ?? "").trim();
+
+  if (!text) {
+    return null;
+  }
+
+  const split = SPLIT_PATTERN.exec(text);
+
+  if (split) {
+    const name = split[1].trim();
+    const discriminator = split[2];
+
+    // A `#` with nothing on either side is somebody mid-type, not a query.
+    if (!name && !discriminator) {
+      return null;
+    }
+
+    if (name && countCharacters(name) < MIN_SEARCH_LENGTH) {
+      return null;
+    }
+
+    return {
+      namePrefix: name || null,
+      discriminatorPrefix: discriminator || null,
+    };
+  }
+
+  if (/^[0-9]+$/.test(text)) {
+    return { namePrefix: null, discriminatorPrefix: text };
+  }
+
+  if (countCharacters(text) < MIN_SEARCH_LENGTH) {
+    return null;
+  }
+
+  return { namePrefix: text, discriminatorPrefix: null };
+}

@@ -112,6 +112,11 @@ export default function ClassPicker({
                 }}
               >
                 <span
+                  // Out to the disc's inner edge rather than a small mark
+                  // floating in the middle of it. The ring is 64px and this is
+                  // 40, which leaves the border visibly clear on every shape —
+                  // including the diamond and the triangle, whose corners reach
+                  // further than a circle of the same box would.
                   className="size-7 transition duration-300"
                   style={{
                     background: accent,
@@ -133,12 +138,24 @@ export default function ClassPicker({
                 {entry.name}
               </span>
 
-              <span className="text-xs leading-relaxed text-pretty text-ink/50">
+              {/*
+                Three lines' worth of room whether the blurb needs it or not.
+                The cards already stretch to a common height — grid does that —
+                but the line below them did not line up: the Priest's blurb runs
+                to three lines and everyone else's to two, so its path count sat
+                a line lower than the other four. Reserving the taller of the
+                two heights is what levels them.
+
+                `4.875em` is 3 × `leading-relaxed`, in the blurb's own font
+                size, so it follows the type rather than pinning a pixel value
+                that would be wrong the moment the size changed.
+              */}
+              <span className="min-h-[4.875em] text-xs leading-relaxed text-pretty text-ink/50">
                 {entry.blurb}
               </span>
 
               <span
-                className={`font-mono text-[0.6rem] tracking-[0.2em] uppercase transition-colors duration-300 ${
+                className={`font-mono text-xs tracking-[0.2em] uppercase transition-colors duration-300 ${
                   isSelected ? "text-gold/75" : "text-ink/60"
                 }`}
               >
@@ -179,7 +196,7 @@ export default function ClassPicker({
       </div>
 
       {!selected && (
-        <p className="mt-3.5 rounded-lg border border-dashed border-gold/15 p-4 text-center font-mono text-[0.65rem] tracking-[0.16em] text-ink/60 uppercase">
+        <p className="mt-3.5 rounded-lg border border-dashed border-gold/15 p-4 text-center font-mono text-xs tracking-[0.16em] text-ink/60 uppercase">
           Select an archetype to reveal its paths
         </p>
       )}
@@ -201,10 +218,18 @@ export default function ClassPicker({
           <div className="pt-5">
             <div className={`${LABEL_CLASSES} mb-2.5`}>Path</div>
 
+            {/*
+              Three fixed columns rather than `auto-fit`, which sized the cards
+              by how many paths an archetype happened to have — a Warrior's
+              three came out narrower than an Assassin's two, and neither
+              matched the ability or alignment cards below. Fixed, an archetype
+              with two paths leaves the third cell empty and every card on the
+              sheet is one size.
+            */}
             <div
-              className={`grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3 ${
+              className={`grid grid-cols-1 gap-3 sm:grid-cols-3 ${
                 invalidField === "classId"
-                  ? `rounded-xl ${INVALID_GROUP_CLASSES}`
+                  ? `rounded-lg ${INVALID_GROUP_CLASSES}`
                   : ""
               }`}
             >

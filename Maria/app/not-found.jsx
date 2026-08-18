@@ -30,7 +30,7 @@ export default function NotFound() {
       </div>
 
       <Link href="/dashboard" className={buttonClasses()}>
-        Back to characters
+        Back to dashboard
       </Link>
     </main>
   );
