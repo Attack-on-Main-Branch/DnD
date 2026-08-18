@@ -5,20 +5,15 @@ import { createRenderer } from "./animation/renderer.js";
 import "./paths-background.css";
 
 /**
- * Full-viewport animated background: one golden path at a time climbing out of
- * the bottom of the frame through drifting light motes, trailing a tail that
- * fades out behind it.
- *
- * React owns the DOM, nothing else. The animation lives entirely in an
- * imperative renderer driven by refs, so it never triggers a re-render and the
- * component itself can stay static.
+ * Full-viewport animated background. React owns the DOM and nothing else: the
+ * animation lives in an imperative renderer driven by refs, so it never
+ * triggers a re-render.
  */
 export default function PathsBackground() {
   const hostRef = useRef(null);
   const bloomRef = useRef(null);
-  // Two trail buffers: an overlapping launch has the incoming path growing while
-  // the outgoing one is still dissolving, and a dissolve is a whole-layer
-  // operation that cannot pick out one generation.
+  // Two trail buffers: a dissolve is a whole-layer operation, and an
+  // overlapping launch has both generations on screen at once.
   const trailARef = useRef(null);
   const trailBRef = useRef(null);
   const dustRef = useRef(null);

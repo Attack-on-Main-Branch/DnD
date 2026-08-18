@@ -34,9 +34,8 @@ function rejected(message, field = null) {
 }
 
 /**
- * The two reasons `getCurrentUser` hands back no user, told apart. No error
- * means auth said no and signing in again fixes it; an error means auth could
- * not answer, and sending that user to a login form only repeats the failure.
+ * No error means auth said no and signing in again fixes it; an error means it
+ * could not answer, and a login form only repeats the failure.
  */
 function sessionRejection(action, error) {
   if (!error) {
@@ -73,28 +72,22 @@ const SAVE_COPY = {
 };
 
 /**
- * `not_found` covers two things and the copy has to work for both: the row was
- * removed elsewhere, or it was never this caller's to remove. RLS makes those
- * indistinguishable here on purpose — saying "not yours" would confirm the
- * character exists to someone with no business knowing, which is the same
- * reason the character route answers 404 rather than 403.
+ * `not_found` means removed elsewhere or never this caller's, and RLS makes
+ * them indistinguishable on purpose: "not yours" confirms the character exists
+ * to someone with no business knowing. Same reason the route 404s, not 403s.
  */
 const DELETE_COPY = {
   not_found: "That character is no longer in your roster.",
 };
 
 /**
- * Creates a player character for the signed-in user.
- *
  * Shaped for `useActionState`: returns `{ kind: "rejected" }` rather than
- * throwing, so the panel can re-render with the message and keep what was
- * typed.
+ * throwing, so the panel re-renders with the message and keeps what was typed.
  */
 export async function createPlayerCharacter(_prevState, formData) {
   const values = readCharacterValues(formData);
 
-  // The browser checks this too, purely for speed. This is the copy that
-  // counts — anything client-side can be bypassed.
+  // The browser checks this too, for speed. This is the run that counts.
   const malformed = validateCharacter(values);
   if (malformed) {
     return rejected(malformed.message, malformed.field);
@@ -166,20 +159,14 @@ const CAMPAIGN_COPY = {
 };
 
 /**
- * Creates a campaign for the signed-in user, with its map if one was chosen.
+ * The map uploads from here, not the browser: session cookies are `httpOnly`,
+ * so a browser Supabase client would reach storage unauthenticated and arrive
+ * as a silent RLS refusal. The file therefore travels in the form body, which
+ * is why `serverActions.bodySizeLimit` is raised in next.config.mjs.
  *
- * The map is uploaded from here rather than from the browser, and that is a
- * consequence of an earlier decision rather than a preference: session cookies
- * are `httpOnly`, so a browser Supabase client cannot read them and would reach
- * storage unauthenticated — silently, arriving as an RLS refusal. The file
- * therefore travels in the form body, which is why `serverActions.bodySizeLimit`
- * is raised in next.config.mjs. It is small by then; the browser has already
- * re-encoded it.
- *
- * The id is generated here rather than by the database, because the object is
- * named after the campaign and so the name has to exist first. Upload, insert,
- * then remove the object if the insert failed — the other order would need an
- * UPDATE policy on a table nothing edits yet.
+ * The id is generated here because the object is named after the campaign, so
+ * the name must exist first: upload, insert, then remove the object if the
+ * insert failed. The other order would need an UPDATE policy.
  */
 export async function createCampaign(_prevState, formData) {
   const values = readCampaignValues(formData);
@@ -233,8 +220,7 @@ export async function createCampaign(_prevState, formData) {
   });
 
   if (error) {
-    // The row is what makes the object findable. Without it the upload is
-    // litter, so it goes before the failure is reported.
+    // The row is what makes the object findable; without it, it is litter.
     if (mapPath) {
       await removeCampaignMap(supabase, mapPath);
     }
@@ -253,13 +239,8 @@ export async function createCampaign(_prevState, formData) {
 }
 
 /**
- * Deletes one of the caller's campaigns, and its map with it.
- *
- * The object goes after the row, not before: if the delete is refused there is
- * nothing to undo, whereas removing the file first would leave a campaign
- * pointing at a URL that answers 404. The cleanup itself is best-effort — an
- * orphaned object is untidy, a failed deletion the user was told succeeded is
- * worse.
+ * The object goes after the row: removing the file first would leave a campaign
+ * pointing at a URL that answers 404 if the delete were then refused.
  */
 export async function deleteCampaign(campaignId) {
   if (typeof campaignId !== "string" || campaignId.length === 0) {
@@ -282,9 +263,7 @@ export async function deleteCampaign(campaignId) {
     const copy = CAMPAIGN_DELETE_COPY[error.reason];
     logUncovered("deleteCampaign", error, copy);
 
-    // Same trade as deleteCharacter: the roster is revalidated even on
-    // `not_found`, because the card on screen is stale either way, and the
-    // campaign quietly disappearing is the right answer.
+    // Revalidated even on `not_found`: the card on screen is stale either way.
     if (error.reason === "not_found") {
       revalidatePath("/dashboard");
     }
@@ -332,16 +311,10 @@ export async function deleteCharacter(characterId) {
     const copy = DELETE_COPY[error.reason];
     logUncovered("deleteCharacter", error, copy);
 
-    // A `not_found` delete still revalidates: the row is gone, so the card on
-    // screen is stale, and re-rendering the roster is what clears it. Returning
-    // without it leaves a card whose Retire button only repeats this message.
-    //
-    // The trade is that the roster comes back in the same response as the
-    // rejection, so the card unmounts before it can paint DELETE_COPY.not_found
-    // — the character silently vanishing IS the answer here, which is the right
-    // one. The message is still returned rather than dropped: it keeps this
-    // action's contract honest for any other caller, and keeps the reason
-    // covered so logUncovered stays quiet.
+    // Revalidated on `not_found` too: the row is gone, so the card is stale and
+    // re-rendering is what clears it. The card unmounts before it can paint the
+    // message, which is the right answer; the message is still returned to keep
+    // the reason covered and logUncovered quiet.
     if (error.reason === "not_found") {
       revalidatePath("/dashboard");
     }
@@ -365,21 +338,13 @@ const PARTY_COPY = {
 };
 
 /**
- * Looks up a character by the handle a player hands out, for the DM to confirm
- * before adding.
- *
- * A search rather than an add, deliberately: two characters can differ only in
- * their four digits and belong to different people, so the DM gets to see who
- * they found before anybody joins anything.
- *
- * Requires a session but not a campaign — the lookup is by exact handle and
- * returns display fields only, so there is nothing here to scope to one
- * campaign that the function itself does not already bound.
+ * A search rather than a direct add: two characters can differ only in their
+ * four digits and belong to different people, so the DM confirms who they found
+ * first. Requires a session but not a campaign — the RPC returns display fields
+ * only and bounds itself.
  */
 export async function findPartyCandidate(_prevState, formData) {
-  // Echoed back on every outcome, so the box still holds what was typed after
-  // the round trip. A search field that empties itself makes correcting a typo
-  // mean retyping the whole thing.
+  // Echoed back on every outcome, so a typo does not mean retyping.
   const query = String(formData.get("query") ?? "");
   const parsed = parseCharacterQuery(query);
 
@@ -425,9 +390,8 @@ export async function addCharacterToParty(campaignId, characterId) {
     return sessionRejection("addCharacterToParty", authError);
   }
 
-  // The insert policy checks the campaign against the caller, so a campaign
-  // that is not theirs is refused by the database rather than by a check here
-  // that a direct API call could walk past.
+  // The insert policy checks the campaign against the caller, so the database
+  // refuses one that is not theirs — a check here could be walked past.
   const { error } = await addPartyMember(supabase, { campaignId, characterId });
 
   if (error) {
@@ -462,8 +426,7 @@ export async function removeCharacterFromParty(campaignId, characterId) {
     const copy = PARTY_COPY[error.reason];
     logUncovered("removeCharacterFromParty", error, copy);
 
-    // Already gone is the outcome the click wanted; refreshing the page is what
-    // makes that true on screen.
+    // Already gone is the outcome the click wanted.
     if (error.reason === "not_found") {
       revalidatePath(`/dashboard/campaign/${campaignId}`);
     }

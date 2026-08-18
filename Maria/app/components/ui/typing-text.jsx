@@ -9,16 +9,11 @@ const CHARACTER_MS = 70;
 const START_DELAY_MS = 300;
 
 /**
- * Types a line out one character at a time, across segments that can each
- * carry their own styling — so a greeting can stay ivory while the name it
- * ends on comes up in gold.
- *
- * The whole line is present for assistive technology from the first render and
- * the animated copy is hidden from it. A screen reader announcing a greeting
- * one letter at a time, or re-announcing it on every tick, would be unusable;
- * this way it is read once, complete, the moment the page loads.
- *
- * Under `prefers-reduced-motion` the text is simply there. No timer runs.
+ * Types a line out one character at a time, across segments that can each carry
+ * their own styling. The whole line is present for assistive technology from
+ * the first render and the animated copy is hidden from it — a screen reader
+ * re-announcing on every tick would be unusable. Under
+ * `prefers-reduced-motion` the text is simply there and no timer runs.
  */
 export default function TypingText({ segments, className = "" }) {
   const reduceMotion = useReducedMotion();
@@ -46,10 +41,8 @@ export default function TypingText({ segments, className = "" }) {
     return () => clearTimeout(timer);
   }, [reduceMotion, typed, full.length]);
 
-  // Where each segment begins in the combined string, derived rather than
-  // accumulated: mutating a counter while rendering is exactly the pattern the
-  // React compiler cannot reason about across re-renders, and this runs on
-  // every keystroke.
+  // Derived rather than accumulated: mutating a counter while rendering is the
+  // pattern the React compiler cannot reason about across re-renders.
   const offsets = segments.reduce(
     (acc, segment) => [...acc, acc[acc.length - 1] + segment.text.length],
     [0],

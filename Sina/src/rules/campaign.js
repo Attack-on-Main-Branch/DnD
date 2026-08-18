@@ -1,22 +1,15 @@
 /**
- * What a campaign is, and what makes one valid.
- *
- * The Dungeon Master's half of the creation flow, and the counterpart to
- * character.js: imported by both the form and the Server Action, so the browser
- * and the server cannot disagree about what is allowed. The browser's copy is
- * for speed; this one is the check that counts.
- *
- * Nothing here knows how any of it looks, and nothing here touches storage —
- * the file rules below describe what a map may be, not how it gets uploaded.
+ * What a campaign is, and what makes one valid. The counterpart to
+ * character.js: imported by both the form and the Server Action, so the two
+ * cannot disagree. Nothing here touches storage.
  */
 
 import { countCharacters, readProse } from "./text.js";
 
 /**
- * Campaigns per account. Mirrored by the trigger in
- * 20260817160000_campaign_limit.sql, which is what actually holds — an API sits
- * in front of the Server Actions, so a check up here could never be the only
- * one. The number here is for the counter and the copy.
+ * Mirrored by the trigger in 20260817160000_campaign_limit.sql, which is what
+ * actually holds — an API sits in front of the Server Actions, so a check up
+ * here could never be the only one.
  */
 export const MAX_CAMPAIGNS = 3;
 
@@ -25,13 +18,8 @@ export const MAX_TITLE_LENGTH = 80;
 export const MAX_LORE_LENGTH = 2000;
 
 /**
- * What the map may arrive as.
- *
- * The browser converts everything to WebP before it is sent, so in practice
- * that is all this ever sees. The other three stay accepted because this runs
- * on the server too, against a request nobody has to have built with our form —
- * and rejecting a perfectly good PNG posted by hand would be a rule about our
- * client rather than about the data.
+ * The browser sends WebP, but this also runs against requests not built with
+ * our form, so the other three stay accepted.
  */
 export const ACCEPTED_MAP_TYPES = [
   "image/webp",
@@ -41,13 +29,9 @@ export const ACCEPTED_MAP_TYPES = [
 ];
 
 /**
- * 4MB, after compression.
- *
- * Not an arbitrary round number: it has to stay under
- * `serverActions.bodySizeLimit` in next.config.mjs, because a body over that
- * limit is refused by the framework before any of this code runs — the user
- * gets a stack trace rather than a sentence. The config is set one step higher
- * so this message is always the one they see.
+ * Must stay under `serverActions.bodySizeLimit` in next.config.mjs: a body over
+ * that limit is refused by the framework before this code runs, and the user
+ * gets a stack trace instead of a sentence.
  */
 export const MAX_MAP_BYTES = 4 * 1024 * 1024;
 
@@ -61,26 +45,16 @@ export function readCampaignValues(formData) {
     title: String(formData.get("title") ?? "").trim(),
     worldDescription: readProse(formData.get("worldDescription")),
 
-    // An empty file input still submits an entry: a File with an empty name and
-    // zero bytes. Treating that as "a map was uploaded" would put a 0-byte
-    // object in the bucket and a URL to nothing in the row.
+    // An empty file input still submits a zero-byte File with no name.
     map: isUploadedFile(map) ? map : null,
   };
 }
 
 /**
- * Deliberately duck-typed rather than `value instanceof File`.
- *
- * This runs in two places with two different `File` constructors: the browser's
- * and Node's. `instanceof` compares against whichever one this module closed
- * over, so a file that crossed a realm boundary — which is exactly what a
- * multipart body parsed by the framework has done — can fail the check while
- * being a perfectly good file. The failure is silent and looks like "the user
- * did not choose a map": the row saves, `map_url` stays null, and nothing is
- * ever logged.
- *
- * What actually matters is that it carries bytes and can hand them over, so
- * that is what is asked.
+ * Duck-typed rather than `instanceof File`: this runs against two different
+ * `File` constructors, and a file that crossed a realm boundary — as a parsed
+ * multipart body has — fails `instanceof` silently, looking like "no map
+ * chosen".
  */
 function isUploadedFile(value) {
   return (
@@ -94,11 +68,7 @@ function isUploadedFile(value) {
   );
 }
 
-/**
- * @returns {{field: string, message: string} | null}
- *   `null` when the values are well-formed. Says nothing about whether the
- *   upload will succeed — only storage can answer that.
- */
+/** `null` when well-formed. Says nothing about whether the upload will succeed. */
 export function validateCampaign({ title, worldDescription, map }) {
   const titleLength = countCharacters(title);
 
@@ -116,7 +86,7 @@ export function validateCampaign({ title, worldDescription, map }) {
     };
   }
 
-  // Code points, not UTF-16 units — the same count the CHECK constraint uses.
+  // Code points, not UTF-16 units — the count the CHECK constraint uses.
   if (countCharacters(worldDescription) > MAX_LORE_LENGTH) {
     return {
       field: "worldDescription",
@@ -143,7 +113,7 @@ export function validateCampaign({ title, worldDescription, map }) {
   return null;
 }
 
-/** `4 MB`, `820 KB` — for a sentence a person reads, not a log line. */
+/** `4 MB`, `820 KB`. */
 export function formatBytes(bytes) {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -161,11 +131,9 @@ function round(value, places) {
 }
 
 /**
- * Where a map lives in the bucket: `{uid}/{campaign id}.{ext}`.
- *
- * The first segment is the owner's uid and the storage policy checks exactly
- * that, so the shape of this string is load-bearing rather than tidy — change
- * it and the RLS policy in 20260817120000_campaigns.sql has to change with it.
+ * `{uid}/{campaign id}.{ext}`. The first segment is the owner's uid and the
+ * storage policy checks exactly that, so this shape is load-bearing — change it
+ * and the RLS policy in 20260817120000_campaigns.sql changes with it.
  */
 export function mapObjectPath({ userId, campaignId, type }) {
   return `${userId}/${campaignId}.${extensionFor(type)}`;
@@ -173,12 +141,7 @@ export function mapObjectPath({ userId, campaignId, type }) {
 
 /**
  * The storage path back out of a public URL, or null if it is not one of ours.
- *
- * A public object URL ends `/campaign-maps/{uid}/{id}.webp`, so the path is
- * whatever follows the bucket name. Recovering it is what lets a deleted
- * campaign take its map with it — the row is the only thing that ever knew
- * where the object was, and by the time it is deleted the URL is all that is
- * left of it.
+ * Recovering it is what lets a deleted campaign take its map with it.
  */
 export function mapPathFromUrl(url) {
   if (typeof url !== "string") {
@@ -194,10 +157,8 @@ export function mapPathFromUrl(url) {
 
   const path = url.slice(at + marker.length);
 
-  // Nothing that could climb out of the bucket, and nothing empty. This value
-  // came out of a database column rather than off the wire, but it is about to
-  // name an object for deletion, which is not a place to take a string on
-  // trust.
+  // Nothing that could climb out of the bucket: this is about to name an object
+  // for deletion, which is not a place to take a string on trust.
   return path && !path.includes("..") ? decodeURIComponent(path) : null;
 }
 
@@ -233,16 +194,12 @@ const SPLIT_PATTERN = /^(.*?)\s*#\s*([0-9]*)\s*$/;
  * to hand:
  *
  *   `fri`             the beginning of a name
- *   `1000` or `#1000` the tag alone, which is what gets read off a screen
+ *   `1000` or `#1000` the tag alone
  *   `fri#10`          both, either of them partial
  *
- * A bare run of digits is read as a tag rather than a name. Nothing in the
- * catalogue is called `1000`, and somebody typing four digits into a character
- * search means the number under the name.
- *
- * Returns null for anything too short to be worth a query. That floor is not
- * cosmetic: the search runs against every character in the database, and a
- * single letter would hand back an arbitrary ten of them.
+ * A bare run of digits is read as a tag. Null below MIN_SEARCH_LENGTH: the
+ * search runs against every character in the database, and a single letter
+ * would hand back an arbitrary ten of them.
  */
 export function parseCharacterQuery(value) {
   const text = String(value ?? "").trim();

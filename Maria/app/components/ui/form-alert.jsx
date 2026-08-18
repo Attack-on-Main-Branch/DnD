@@ -7,15 +7,11 @@
  */
 
 /*
- * One tone each, not a light/dark pair. globals.css redefines the `dark`
- * variant as the bare parent selector, so every `dark:` utility applies
- * unconditionally — a 700/300 pair is not a choice between two themes, it is
- * the 300 winning every time at equal specificity. The darker halves were dead
- * weight that read as light-mode support the app does not have.
+ * One tone each, not a light/dark pair: globals.css redefines `dark` as the
+ * bare parent selector, so a 700/300 pair is the 300 winning every time.
  *
- * Deliberately written without the class names: Tailwind v4 scans raw file
- * text, comments included, so naming a utility here is enough to keep emitting
- * it. Describing the removal in prose is what actually removes it.
+ * Deliberately written without naming the removed utilities — Tailwind v4 scans
+ * raw file text, comments included, so naming one here re-emits it.
  */
 const TONE_CLASSES = {
   error: "border-red-500/30 bg-red-500/10 text-red-300",

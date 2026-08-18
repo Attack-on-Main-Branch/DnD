@@ -6,16 +6,12 @@ import { controlClasses, LABEL_CLASSES } from "./field-styles";
 import { surfaceClasses } from "./surface";
 
 /**
- * Styled single-choice dropdown, replacing the native <select>.
+ * Styled single-choice dropdown, replacing the native <select>, which cannot be
+ * themed: browsers render <option> rows in the OS popup, so the dark-mode text
+ * colour landed on a white system background and the list came out invisible.
  *
- * The native control could not be themed: a browser renders <option> rows with
- * the operating system's own popup, so the dark-mode text colour carried over
- * onto a white system background and the list came out invisible. Everything
- * here is app-owned markup, so it is styled and readable in both themes.
- *
- * Implements the ARIA listbox pattern: the trigger is a button, the list is a
- * listbox, and the chosen value rides along in a hidden input so it submits
- * with the surrounding form exactly like a <select> would.
+ * The ARIA listbox pattern, with the chosen value in a hidden input so it
+ * submits with the surrounding form exactly like a <select> would.
  */
 export default function SelectMenu({
   label,
@@ -41,8 +37,7 @@ export default function SelectMenu({
   const selectedIndex = options.findIndex((option) => option.value === value);
   const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
 
-  // Pointer presses outside the component close it. Listening for pointerdown
-  // rather than click means a press that starts outside dismisses immediately,
+  // pointerdown rather than click: a press starting outside dismisses at once,
   // instead of waiting for a release that may never land on the same element.
   useEffect(() => {
     if (!open) {

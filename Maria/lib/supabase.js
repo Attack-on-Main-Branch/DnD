@@ -4,14 +4,11 @@ import { createServerSupabase } from "sina/supabase/server";
 import { authCouldNotAnswer } from "sina/supabase/session";
 
 /**
- * The Next-specific half of the server-side Supabase client.
+ * The Next-specific half of the server-side Supabase client: the adapter that
+ * hands Sina its request-scoped cookie store.
  *
- * Sina owns the client itself but takes its cookie access from outside, which
- * is what keeps the backend package free of any framework dependency. This is
- * the adapter that hands it Next's request-scoped cookie store.
- *
- * A fresh client per request, always — never hoist it into a module-level
- * singleton, or one user's session leaks into another's request.
+ * A fresh client per request, always — a module-level singleton leaks one
+ * user's session into another's request.
  */
 export async function createClient() {
   const cookieStore = await cookies();
@@ -35,21 +32,14 @@ export async function createClient() {
 }
 
 /**
- * The signed-in user — and, separately, whether asking succeeded. Verifies the
- * JWT rather than trusting a cookie.
+ * The signed-in user, and separately whether asking succeeded. Verifies the JWT
+ * rather than trusting a cookie.
  *
- * A tuple rather than a bare user, because `getUser()` errors for two
- * situations wanting opposite answers: a visitor with no session, which is the
- * ordinary case, and an auth service that cannot answer. Collapsing both into
- * `null` made an outage look like an expired session — every caller redirects
- * to /login, the user signs in, the next request bounces them again, and
- * nothing is logged.
- *
- * A 4xx is auth genuinely saying no — no session, expired, revoked — all of
- * which mean sign in again. Everything else is it being unable to answer.
- * `authCouldNotAnswer` owns that line, because the proxy has to draw it in
- * exactly the same place; see the note there for why status 0 is the case that
- * matters.
+ * A tuple because `getUser()` errors for two situations wanting opposite
+ * answers: no session, and auth unable to answer. Collapsing both into `null`
+ * made an outage look like an expired session, so every caller redirected to
+ * /login and bounced the user straight back. `authCouldNotAnswer` owns that
+ * line, since the proxy must draw it in exactly the same place.
  */
 export async function getCurrentUser(supabase) {
   const { data, error } = await supabase.auth.getUser();
@@ -65,17 +55,13 @@ export async function getCurrentUser(supabase) {
 }
 
 /**
- * `getCurrentUser`, deduplicated across one request. The dashboard layout needs
- * the user for the header and every page inside it needs one for its guard;
- * without this, rendering one page verifies the same JWT twice over the network.
+ * `getCurrentUser`, deduplicated across one request — the layout and the page
+ * inside it would otherwise verify the same JWT twice over the network.
  *
- * `cache` is React's request-scoped memo — one render, never shared between
- * visitors. No arguments on purpose: memoising on the Supabase client would
- * never hit, since each caller builds its own.
- *
- * Server Components only. Actions keep calling `getCurrentUser(supabase)`
- * directly — they run outside the render pass, and an authorisation check is
- * the last place to add a memo whose scope needs thinking about.
+ * `cache` is React's request-scoped memo, never shared between visitors. No
+ * arguments on purpose: memoising on the client would never hit, since each
+ * caller builds its own. Server Components only — Actions run outside the
+ * render pass and keep calling `getCurrentUser(supabase)` directly.
  */
 export const currentUser = cache(async function currentUser() {
   const supabase = await createClient();

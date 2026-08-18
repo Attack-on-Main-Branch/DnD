@@ -1,28 +1,19 @@
 /**
- * Minimal stand-ins for the two Supabase surfaces the data layer touches.
- *
- * Not a mock of Supabase — a mock of the shape our own code depends on, which
- * is a much smaller thing and the only part a test has any business asserting
- * about. Deliberately not named `test-*.js`: Node's test runner treats that
- * prefix as a test file and would try to execute this.
+ * Stand-ins for the two Supabase surfaces the data layer touches — a mock of
+ * the shape our code depends on, not of Supabase. Deliberately not named
+ * `test-*.js`: Node's runner would try to execute it.
  */
 
 /**
- * A PostgREST query builder that answers `result` however it is chained.
- *
- * Every builder method returns the same object and the object is thenable, so
- * `.from().delete().eq().eq().select("id")` and `.from().select().eq().order()`
- * both await to `result` without the stub needing to know which call came last.
+ * A PostgREST query builder that answers `result` however it is chained. Every
+ * method returns the same thenable object, so the stub never needs to know
+ * which call came last.
  */
 export function stubQuery(result) {
   const chain = {
-    // What the call site actually asked for, so a test can assert on the query
-    // and not only on the answer. Without these the builder swallowed its
-    // arguments, and three things went untested: the camelCase-to-snake_case
-    // column map in `insertCharacter`, the redundant `.eq("user_id", …)` that
-    // the data layer calls "a second lock on the same door", and the fact that
-    // `COLUMNS` never selects `user_id`. Deleting any of the three left the
-    // whole suite green.
+    // What the call site asked for, so tests can assert on the query and not
+    // only the answer — the column map, the redundant `user_id` filter and the
+    // absence of `user_id` from COLUMNS are all checked through these.
     filters: [],
     lastInsert: null,
     lastSelect: null,

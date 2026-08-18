@@ -7,27 +7,16 @@ import { useReducedMotion } from "@/app/components/use-reduced-motion";
 const SLIDE_MS = 320;
 
 /**
- * A tab strip, shared by the character sheet and the campaign page.
+ * A tab strip, shared by the character sheet and the campaign page. Follows the
+ * ARIA authoring pattern: one tab stop for the strip, arrow keys between tabs,
+ * Home/End to the ends. The underline is one sliding element, positioned
+ * imperatively so it never passes through React state.
  *
- * Follows the ARIA authoring pattern: one tab stop for the whole strip, arrow
- * keys to move between tabs, Home/End to jump to the ends. Only the active tab
- * is reachable by Tab, which is what a screen-reader user expects and what a
- * row of separate tab stops would ruin.
- *
- * The underline is one element that slides, rather than a border on each tab.
- * It is positioned imperatively from an effect: its geometry is read from the
- * DOM and written straight back, so nothing about it needs to pass through
- * React state or cause a render.
- *
- * `panels` arrives as an object of ALREADY-RENDERED elements keyed by the tab
- * values, and `tabs` is [{ value, label }]. This decides which panel is
- * visible; it does not build them. Building them here would drag every panel's
- * imports into the browser so that one of them could show — which is how the
- * character sheet once shipped a 400-line catalogue for two label lookups.
- *
- * The trade: every panel renders on the server each request, shown or not.
- * Worth it while rendering is a few string lookups. If a panel ever needs its
- * own query it wants Suspense, not a move back across the boundary.
+ * `panels` arrives as ALREADY-RENDERED elements keyed by tab value. This
+ * decides which is visible; it does not build them — building them here would
+ * drag every panel's imports into the browser so one could show. The trade is
+ * that every panel renders on the server each request; a panel that ever needs
+ * its own query wants Suspense, not a move back across the boundary.
  */
 export default function TabStrip({ tabs, label, panels }) {
   const [active, setActive] = useState(tabs[0].value);
@@ -59,9 +48,8 @@ export default function TabStrip({ tabs, label, panels }) {
 
     place();
 
-    // The transition is armed one frame late, and only after the first
-    // placement. Set up front, the bar would visibly slide in from the left
-    // edge on load, and it would animate again every time a resize nudges it.
+    // Armed one frame late, and only after the first placement: set up front,
+    // the bar visibly slides in from the left edge on load.
     const frame = requestAnimationFrame(() => {
       indicator.style.transition = reduceMotion
         ? "none"

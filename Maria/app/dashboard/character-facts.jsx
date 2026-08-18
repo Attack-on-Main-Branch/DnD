@@ -1,15 +1,12 @@
 import { alignmentLabel, classLabel } from "sina/rules/character";
 
 /**
- * The four facts under a character's name, as a Server Component.
+ * The four facts under a character's name, as a Server Component. Lifted out of
+ * `character-card.jsx` because `alignmentLabel` and `classLabel` are lookups
+ * over Sina's 400-line catalogue, and inside a Client Component all of it ships
+ * to produce two short strings.
  *
- * Lifted out of `character-card.jsx` because `alignmentLabel` and `classLabel`
- * are lookups over Sina's 400-line catalogue, and inside a Client Component all
- * of it ships to produce two short strings. The card still needs the browser
- * for its transition, clipboard and dialog; this does not.
- *
- * The Class row is omitted rather than dashed for characters made before
- * classes existed — an empty label is worse than one fewer fact.
+ * The Class row is omitted rather than dashed for pre-class characters.
  */
 export default function CharacterFacts({ character }) {
   const characterClass = classLabel(character.class_id);

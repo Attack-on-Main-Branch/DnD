@@ -25,15 +25,9 @@ import TabStrip from "@/app/components/ui/tab-strip";
 import PlayButton from "./play-button";
 
 /**
- * Both the locale and the time zone are pinned, and both matter.
- *
- * `toLocaleDateString()` with no arguments reads each of them from the host it
- * runs on. The tabs are a client component rendered from this Server
- * Component, so that call ran twice — once under Node's ICU default, usually
- * en-US at UTC, and once in a browser at hu-HU, Europe/Budapest — and produced
- * two different strings for the same row. That is a hydration mismatch. An
- * unpinned locale would also drift between deploy environments even if only
- * the server ever formatted it.
+ * Locale and time zone are both pinned: `toLocaleDateString()` reads them from
+ * the host, and this runs on the server and again in the browser, producing two
+ * different strings for the same row — a hydration mismatch.
  */
 /** The sheet's sections, named here beside the panels they select. */
 const SHEET_TABS = [
@@ -51,9 +45,8 @@ const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
 });
 
 /**
- * Ignores the loader's error deliberately: `character` is null on a failed read
- * so the generic branch below already titles it correctly, and there is nothing
- * useful to name a page that is about to be replaced. The page does the throwing.
+ * Ignores the loader's error deliberately: `character` is null on a failed read,
+ * so the generic branch below titles it. The page does the throwing.
  */
 export async function generateMetadata({ params }) {
   const { id } = await params;
@@ -71,20 +64,15 @@ export default async function CharacterPage({ params }) {
   // used to need it here now comes from dashboard/layout.jsx.
   const { character, campaigns, error } = await loadCharacter(id);
 
-  // A failed read is not a missing character: `getCharacter` returns null for
-  // both, and /dashboard already distinguishes them, offering "run the
-  // migrations" for the same `missing_table`.
-  //
-  // `bad_id` is the exception — a uuid column rejects a junk id before looking
-  // at a row, so it arrives as an error but really is a miss. It falls through
-  // to notFound() with everything else that was simply not there.
+  // A failed read is not a missing character, though `getCharacter` returns
+  // null for both. `bad_id` is the exception: a uuid column rejects a junk id
+  // before looking at a row, so it arrives as an error but really is a miss.
   if (error && error.reason !== "bad_id") {
     throw new Error(`Could not load the character (${error.reason})`);
   }
 
-  // Row Level Security means somebody else's id reads as missing rather than
-  // forbidden, which is the right answer: it does not confirm the character
-  // exists to someone who has no business knowing.
+  // RLS makes somebody else's id read as missing rather than forbidden, so a
+  // 404 does not confirm the character exists.
   if (!character) {
     notFound();
   }

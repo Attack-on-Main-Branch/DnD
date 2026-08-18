@@ -1,13 +1,9 @@
 /**
  * What a character is, and what makes one valid.
  *
- * Imported by both the creation form and the Server Action, so the browser and
- * the server cannot disagree about what is allowed. The browser's copy is for
- * speed; this one is the check that counts.
- *
- * Nothing here knows how any of it looks. Colours are slugs, not CSS — the
- * backend decides which colours exist, the frontend decides what they look
- * like.
+ * Imported by both the creation form and the Server Action; the browser's copy
+ * is for speed, this one is the check that counts. Colours are slugs, not CSS —
+ * the frontend decides what they look like.
  */
 
 import { countCharacters, readProse } from "./text.js";
@@ -20,17 +16,6 @@ export const MIN_NAME_LENGTH = 2;
 export const MAX_NAME_LENGTH = 40;
 export const MAX_PROSE_LENGTH = 2000;
 
-/*
- * No MIN_LEVEL / MAX_LEVEL here. There were two such constants, exported and
- * imported by nobody: `level` is never read off the form, never written by
- * insertCharacter and never checked by validateCharacter — it is set by the
- * column default and bounded by `characters_level_check` in the migrations, and
- * the app only ever displays it. A rule this file does not apply does not
- * belong in this file, whose header promises the opposite. When level becomes
- * editable, the bound comes back beside the validation that enforces it.
- */
-
-/** Human first by request; the rest of the Player's Handbook set follows. */
 export const RACES = [
   "Human",
   "Dragonborn",
@@ -43,19 +28,7 @@ export const RACES = [
   "Tiefling",
 ];
 
-/**
- * The class catalogue, two levels deep: five archetypes, each holding the paths
- * that belong to it. What gets stored is both — the archetype because it is
- * what the character *is* at a glance, the path because it is the actual class.
- *
- * Two steps rather than one flat list of thirteen. The archetype is the choice
- * most people have already made before they open the sheet ("something that
- * hits things"), and answering it first turns a wall of thirteen into a row of
- * five and then a row of two or three.
- *
- * No colours and no shapes here, per this file's contract: which archetypes
- * exist is a rule, what a Warrior's emblem looks like is not.
- */
+/** Five archetypes, each holding its paths. Both halves are stored. */
 export const ARCHETYPES = [
   {
     id: "warrior",
@@ -165,13 +138,7 @@ export const ARCHETYPES = [
   },
 ];
 
-/**
- * Listed in reading order for a 3×3 grid: lawful/neutral/chaotic across,
- * good/neutral/evil down.
- *
- * The film characters are conversation starters, not doctrine — half of them
- * are argued about endlessly, which is rather the point.
- */
+/** Reading order for a 3×3 grid: lawful/neutral/chaotic across, good/evil down. */
 export const ALIGNMENTS = [
   {
     value: "lawful_good",
@@ -261,45 +228,11 @@ export const DEFAULT_AVATAR_COLOR = "violet";
 
 const DISCRIMINATOR_PATTERN = /^[0-9]{4}$/;
 
-/**
- * Undoes the line-break rewrite that form submission applies, so what gets
- * measured is what the user typed.
- *
- * A textarea keeps two versions of its contents. The API value — what
- * `.value` returns, what the on-screen counter reads, and what `maxlength`
- * counts — normalises every line break to a single LF. The submission value,
- * which is what lands in FormData, normalises them to CRLF instead. So each
- * time the user pressed Enter, the string this function receives is one
- * character longer than the one the browser let them type.
- *
- * That is the whole of the "2000 characters, or a bit less, is rejected as
- * over 2000" bug: the real ceiling was 2000 minus the number of paragraph
- * breaks, while the counter above the box cheerfully read 1985/2000.
- *
- * `\r\n?` rather than `\r\n`, because this also runs on the server against a
- * request nobody has to have built with a browser, and a lone CR should not
- * survive into the database either.
- */
-/*
- * Both moved to ./text.js when campaigns arrived and needed the same two rules.
- * `countCharacters` is re-exported above rather than re-homed, so the form that
- * imports it from `sina/rules/character` keeps working — it counts a character
- * sheet's fields, and that is still where it belongs in the reader's head.
- */
-
 export function archetypeDetails(id) {
   return ARCHETYPES.find((entry) => entry.id === id) ?? null;
 }
 
-/**
- * Finds a path by its own id, without needing to be told the archetype.
- *
- * Path ids are unique across the whole catalogue, which is what lets a stored
- * `class_id` stand on its own — the archetype is stored too, but as a
- * convenience for reading rather than as part of the key.
- *
- * @returns {{archetype: object, path: object} | null}
- */
+/** Path ids are unique across the catalogue, so `class_id` stands on its own. */
 export function classDetails(classId) {
   for (const archetype of ARCHETYPES) {
     const path = archetype.paths.find((entry) => entry.id === classId);
@@ -325,18 +258,12 @@ export function alignmentDetails(value) {
   return ALIGNMENTS.find((entry) => entry.value === value) ?? null;
 }
 
-/** Name#0451 — the handle a DM will use to invite this character to a party. */
+/** Name#0451 — the handle a DM uses to invite this character to a party. */
 export function characterHandle({ name, discriminator }) {
   return `${name}#${discriminator}`;
 }
 
-/**
- * The six ability scores, in the order every character sheet prints them.
- *
- * `id` is what the column and the form field are called; `abbr` is what the
- * card shows. No colours and no glyphs here, per this file's contract — which
- * ability exists is a rule, what Strength's emblem looks like is not.
- */
+/** The six scores, in the order every sheet prints them. */
 export const ABILITIES = [
   { id: "str", name: "Strength", abbr: "STR" },
   { id: "dex", name: "Dexterity", abbr: "DEX" },
@@ -352,17 +279,8 @@ export const MAX_ABILITY = 15;
 export const ABILITY_BUDGET = 15;
 
 /**
- * What each score costs, counted from the baseline rather than per step.
- *
- * Cumulative on purpose. A per-step table has to be summed to answer "how much
- * has this character spent", and summing a stepwise cost is where an
- * off-by-one lives; here the spend is a lookup and the step price is the
- * difference between two neighbours. The curve steepens above 13 — the last
- * two points cost 2 each — which is what stops every character being a 15 in
- * their favourite score and a 7 in everything else.
- *
- * Negative entries are refunds: dropping to 7 hands back 3 points to spend
- * elsewhere.
+ * Cumulative cost from the baseline, not per step: the spend is a lookup and a
+ * step's price is the difference between two neighbours. Negatives are refunds.
  */
 const ABILITY_COST = {
   7: -3,
@@ -376,14 +294,13 @@ const ABILITY_COST = {
   15: 7,
 };
 
-/** Every score at the baseline, which is what an untouched sheet starts as. */
 export function defaultAbilityScores() {
   return Object.fromEntries(
     ABILITIES.map((ability) => [ability.id, ABILITY_BASELINE]),
   );
 }
 
-/** Points spent across all six. Unknown scores count as nothing. */
+/** Unknown scores count as nothing. */
 export function abilitySpend(scores) {
   return ABILITIES.reduce(
     (total, ability) => total + (ABILITY_COST[scores?.[ability.id]] ?? 0),
@@ -395,7 +312,7 @@ export function abilityPointsRemaining(scores) {
   return ABILITY_BUDGET - abilitySpend(scores);
 }
 
-/** What the next point up costs, or null at the ceiling. */
+/** Null at the ceiling. */
 export function abilityRaiseCost(score) {
   if (!Number.isInteger(score) || score >= MAX_ABILITY) {
     return null;
@@ -404,7 +321,7 @@ export function abilityRaiseCost(score) {
   return ABILITY_COST[score + 1] - ABILITY_COST[score];
 }
 
-/** What giving a point back hands over, or null at the floor. */
+/** Null at the floor. */
 export function abilityLowerRefund(score) {
   if (!Number.isInteger(score) || score <= MIN_ABILITY) {
     return null;
@@ -413,14 +330,7 @@ export function abilityLowerRefund(score) {
   return ABILITY_COST[score] - ABILITY_COST[score - 1];
 }
 
-/**
- * Whether the stepper's buttons are live.
- *
- * Raising asks two questions — is there room, and is there budget — and the
- * second is why this takes the whole set rather than one score: the price of a
- * point depends on where that score already is, and whether it is affordable
- * depends on what the other five have spent.
- */
+/** Takes the whole set: affordability depends on what the other five spent. */
 export function canRaiseAbility(scores, id) {
   const cost = abilityRaiseCost(scores?.[id]);
 
@@ -432,15 +342,8 @@ export function canLowerAbility(scores, id) {
 }
 
 /**
- * What each race adds, applied on top of the bought score.
- *
- * Mirrored by the generated total columns in
- * 20260817090000_ability_scores.sql, the same pairing `race` itself already
- * has with `characters_race_check` — changing a line here means a migration.
- *
- * Wisdom deliberately appears nowhere: none of the nine grants it. It still
- * gets a total column and a card, because a sheet with five abilities on it
- * is not a sheet.
+ * Mirrored by the generated total columns in 20260817090000_ability_scores.sql
+ * — changing a line here means a migration. No race grants Wisdom.
  */
 export const RACE_ABILITY_BONUSES = {
   Human: { str: 1, dex: 1, con: 1 },
@@ -458,7 +361,6 @@ export function raceAbilityBonus(race, abilityId) {
   return RACE_ABILITY_BONUSES[race]?.[abilityId] ?? 0;
 }
 
-/** Base plus race — the number the character actually plays with. */
 export function abilityTotal(race, abilityId, score) {
   return (score ?? ABILITY_BASELINE) + raceAbilityBonus(race, abilityId);
 }
@@ -468,15 +370,11 @@ export function abilityModifier(total) {
   return Math.floor((total - 10) / 2);
 }
 
-/** Modifiers are always written signed, `+0` included. */
 export function formatModifier(modifier) {
   return `${modifier >= 0 ? "+" : ""}${modifier}`;
 }
 
-/**
- * The six as the sheet wants them: base, what the race added, the total and
- * its modifier, in printing order.
- */
+/** Base, racial bonus, total and modifier, in printing order. */
 export function abilityBreakdown(race, scores) {
   return ABILITIES.map((ability) => {
     const base = scores?.[ability.id] ?? ABILITY_BASELINE;
@@ -497,22 +395,14 @@ export function readAbilityScores(formData) {
   return Object.fromEntries(
     ABILITIES.map((ability) => [
       ability.id,
-      // Deliberately not defaulted. A missing or mangled field has to reach
-      // validation as NaN and be refused, rather than quietly becoming a 10
-      // that the user never chose and the budget never charged for.
+      // Not defaulted: a mangled field must reach validation as NaN and be
+      // refused, not become a 10 the budget never charged for.
       Number.parseInt(String(formData.get(`ability_${ability.id}`) ?? ""), 10),
     ]),
   );
 }
 
-/**
- * @returns {{field: string, message: string} | null}
- *
- * Two separate refusals, because they are two different mistakes: a score out
- * of range is a broken payload, while an overspend is a sheet somebody could
- * plausibly have built by hand. Leftover points are allowed — the stepper lets
- * you stop early, and nothing downstream cares.
- */
+/** Leftover points are allowed; the stepper lets you stop early. */
 export function validateAbilityScores(scores) {
   for (const ability of ABILITIES) {
     const score = scores?.[ability.id];
@@ -557,9 +447,8 @@ export function readCharacterValues(formData) {
 }
 
 /**
- * @returns {{field: string, message: string} | null}
- *   `null` when the values are well-formed. Says nothing about whether the
- *   handle is still free — only the database can answer that.
+ * `null` when well-formed. Says nothing about whether the handle is still free
+ * — only the database can answer that.
  */
 export function validateCharacter({
   name,
@@ -573,8 +462,8 @@ export function validateCharacter({
   backstory,
   personality,
 }) {
-  // Counted the way the database counts, so a name this accepts is never one
-  // the CHECK constraint then rejects.
+  // Counted the way the CHECK constraint counts, so it cannot reject what
+  // this accepts.
   const nameLength = countCharacters(name);
 
   if (nameLength < MIN_NAME_LENGTH) {
@@ -608,8 +497,8 @@ export function validateCharacter({
     return { field: "archetype", message: "Choose a class." };
   }
 
-  // Checked against the chosen archetype's own paths rather than the whole
-  // catalogue, so a hand-crafted post cannot pair Warrior with Wizard.
+  // Against the chosen archetype's own paths, not the whole catalogue, so a
+  // hand-crafted post cannot pair Warrior with Wizard.
   if (!chosenArchetype.paths.some((entry) => entry.id === classId)) {
     return {
       field: "classId",
@@ -617,8 +506,6 @@ export function validateCharacter({
     };
   }
 
-  // Before alignment, because that is the order the sheet asks in — the first
-  // complaint should point at the first thing that is wrong on the way down.
   const abilityProblem = validateAbilityScores(abilities);
 
   if (abilityProblem) {
@@ -633,10 +520,7 @@ export function validateCharacter({
     return { field: "colorTheme", message: "Choose an avatar colour." };
   }
 
-  // Code points, not UTF-16 units — the same count the CHECK constraint uses.
-  // `.length` was here, which put the real ceiling below 2000 for anyone
-  // writing emoji or astral script, in the one field most likely to contain
-  // them.
+  // Code points, not UTF-16 units — the count the CHECK constraint uses.
   if (countCharacters(backstory) > MAX_PROSE_LENGTH) {
     return {
       field: "backstory",

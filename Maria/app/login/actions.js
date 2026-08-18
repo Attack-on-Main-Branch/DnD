@@ -40,8 +40,7 @@ const SIGN_UP_COPY = {
 export async function logIn(_prevState, formData) {
   const credentials = readSignInValues(formData);
 
-  // The browser checks this too, purely for speed. This is the copy that
-  // counts — anything client-side can be bypassed.
+  // The browser checks this too, for speed. This is the run that counts.
   const malformed = validateSignIn(credentials);
   if (malformed) {
     return rejected(malformed.message, malformed.field);
@@ -86,10 +85,8 @@ export async function signUp(_prevState, formData) {
   }
 
   if (!data.hasSession) {
-    // Only reachable if email confirmation is switched back on in the Supabase
-    // dashboard. Without this branch the redirect below would hand the user to
-    // /dashboard, which would bounce them straight back here with no
-    // explanation at all.
+    // Only reachable with email confirmation switched on. Without this branch
+    // the redirect below sends them to /dashboard, which bounces them back.
     return rejected(
       "Account created. Confirm your email address before signing in.",
       "email",
@@ -105,14 +102,10 @@ export async function logOut() {
   const supabase = await createClient();
   const { error } = await signOut(supabase);
 
-  // Still redirect: whatever went wrong, staying parked on a signed-in page is
-  // worse than being sent on. But a sign-out can half happen — other sessions
-  // not revoked, or the client returning early with the auth cookies intact on
-  // what may be a shared machine — and that is not something to find out about
-  // never, so it goes to the log on the way past.
-  //
-  // `logFailure`, not `logUncovered`: there is no copy here to have covered it.
-  // The user is told nothing either way, so every reason is worth a line.
+  // Redirect regardless — staying parked on a signed-in page is worse. But a
+  // sign-out can half happen (other sessions un-revoked, or cookies intact on a
+  // shared machine), so it is logged on the way past. `logFailure`, not
+  // `logUncovered`: there is no copy here, so every reason is worth a line.
   logFailure("logOut", error);
 
   revalidatePath("/", "layout");

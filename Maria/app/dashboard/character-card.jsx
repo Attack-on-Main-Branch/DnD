@@ -18,42 +18,28 @@ import {
 const COPIED_MS = 1600;
 
 /*
- * A note on `aspect-video min-h-58 w-full`, all three of which are load-bearing.
+ * `aspect-video min-h-58 w-full` — all three are load-bearing.
  *
- * 16:9 fixes the height from the width, and below roughly 400px of width that
- * height is less than the name, four facts and the corner row need — the card
- * would clip rather than shrink. `min-h-58` is that floor, and the number is
- * the content measured at the tighter of the two cases — `sm`, where the
- * padding is 20px: 1px of border, 20px of padding, a 56px avatar, an 8px gap,
- * four 20px facts with 6px between them, then the corner row's own 20px line
- * and its 20px inset. 232px leaves 8px of clearance, 16px at the base spacing.
- * Adding the class row is what moved it up from 52.
+ * Below ~400px of width the 16:9 height is less than the content needs, so the
+ * card would clip rather than shrink; `min-h-58` is that floor, measured at the
+ * tighter `sm` padding. `w-full` is required because a minimum height transfers
+ * *through* an aspect ratio into a minimum width, and the card would otherwise
+ * demand 412px and overflow its grid column at every breakpoint. `min-width: 0`
+ * does not help — the transfer lands on the used inline size.
  *
- * `w-full` is here because a minimum height transfers *through* an aspect
- * ratio into a minimum width: without it the card demands 232 × 16/9 = 412px
- * and takes that width whatever its grid column says, overflowing the column
- * at every breakpoint. `min-width: 0` does not help — the transfer lands on
- * the used inline size rather than on min-width — but a definite width does.
- *
- * And the spacing deliberately does not grow at `sm`. It used to add 4px to
- * the avatar gap and 2px to each gap between facts, and with the class row
- * that put the fourth fact on top of the Retire line at every desktop width —
- * because out there it is the floor that binds, not the ratio, so the card
- * cannot grow to absorb it.
+ * The spacing deliberately does not grow at `sm`: out there the floor binds
+ * rather than the ratio, so the card cannot grow to absorb it.
  */
 
 /**
- * One character as a 16:9 tile, with the artwork for their race behind it.
+ * One character as a 16:9 tile. The whole card is a link, but the retire and
+ * copy controls cannot sit inside an anchor — nested interactive elements are
+ * invalid HTML and unreachable by keyboard — so the link is a stretched overlay
+ * and both controls sit above it.
  *
- * The whole card is a link, but the retire and copy controls cannot live
- * inside an anchor — nested interactive elements are invalid HTML and a
- * keyboard user could never reach the inner ones. So the link is a stretched
- * overlay covering the card, and both controls sit above it on a higher layer.
- *
- * Only the artless variant is real glass. Where there is artwork the picture
- * is opaque and covers the whole tile, so a backdrop filter would sample
- * something nobody can see — and each one costs a full compositor readback per
- * frame against the animated background. Same rim, same glow, no filter.
+ * Only the artless variant is real glass: where there is artwork the picture is
+ * opaque, so a backdrop filter would sample something nobody can see while
+ * still costing a compositor readback per frame.
  */
 export default function CharacterCard({ character, handle, facts }) {
   const [confirming, setConfirming] = useState(false);

@@ -12,14 +12,10 @@ import {
 } from "@/app/dashboard/character-presentation";
 
 /**
- * The four tab panels, as Server Components.
- *
- * None of them needs the browser — no state, no handlers, no effects, and two
- * are hard-coded placeholders. Inside the client component all four shipped so
- * one could be visible, and they took `sina/rules/character` with them: a
- * 400-line catalogue sent to render a handful of short strings.
- *
- * The tabstrip receives them already rendered. It still decides which one shows.
+ * The four tab panels, as Server Components — none needs the browser. Inside
+ * the client component all four shipped so one could be visible, and they took
+ * `sina/rules/character` with them: a 400-line catalogue sent to render a
+ * handful of short strings. The tabstrip receives them already rendered.
  */
 export function OverviewPanel({ character, createdLabel }) {
   return (
@@ -43,15 +39,10 @@ export function OverviewPanel({ character, createdLabel }) {
 }
 
 /**
- * The six scores as played: what was bought, what the race added, and the
- * modifier that comes out.
- *
- * Read straight off the row, including the totals — those are generated
- * columns, so the number here is the one the database holds rather than one
- * this page worked out again from the racial table. The bonus is the
- * difference between the two for the same reason: if the table in
- * `character.js` and the one in the migration ever disagreed, a sheet that
- * recomputed would hide it and this one shows it.
+ * Read straight off the row, totals included — those are generated columns, so
+ * this prints what the database holds rather than recomputing from the racial
+ * table. The bonus is the difference between the two for the same reason: a
+ * sheet that recomputed would hide a disagreement between the two tables.
  */
 function AbilityScores({ character }) {
   const scores = ABILITIES.map((ability) => {

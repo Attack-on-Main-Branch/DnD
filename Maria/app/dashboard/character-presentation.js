@@ -11,16 +11,9 @@ import humanArt from "./race-art/human.webp";
 import tieflingArt from "./race-art/tiefling.webp";
 
 /**
- * How a character looks — the frontend half of what Sina defines.
- *
- * Sina decides which colour slugs exist and the database enforces them; this
- * decides what each one looks like. Adding a colour is a change in both, and
- * the check below fails loudly at module load rather than silently rendering
- * the default.
- *
- * This comment used to promise that while a `??` fallback did the opposite: a
- * colour added to Sina but not here appeared in the picker, rendered as violet
- * and saved as itself, with nothing logged and nothing thrown.
+ * How a character looks — the frontend half of what Sina defines. Sina decides
+ * which colour slugs exist, this decides what they look like, and the check
+ * below fails loudly at module load rather than rendering a silent default.
  *
  * The class strings must stay literal for Tailwind's scanner to find them.
  */
@@ -60,28 +53,18 @@ export const AVATAR_COLORS = AVATAR_COLOR_VALUES.map((value) => ({
 }));
 
 /**
- * The `??` stays here, and only here. This takes a value off a database row,
- * which can hold a slug written by an older deploy — a different question from
- * the two lists agreeing, which is what the check above settles.
+ * The `??` belongs here and nowhere else: this reads a database row, which can
+ * hold a slug written by an older deploy.
  */
 export function avatarColorClass(value) {
   return CLASS_BY_VALUE[value] ?? CLASS_BY_VALUE[DEFAULT_AVATAR_COLOR];
 }
 
 /**
- * The emblem for each archetype: one colour and one shape.
- *
- * The same split as the avatar palette above — Sina says which archetypes
- * exist, this says that a Warrior is a red lozenge and a Mage a blue disc.
- *
- * Hexes rather than palette slugs because these are not part of the app's
- * theme: they tint one 28px glyph and the faint wash behind a selected card,
- * and nothing else. Everything structural about selection — the rim, the glow,
- * the type — stays gold, so the accent reads as identity rather than as a
- * second, competing accent colour.
- *
- * Shapes are clip paths rather than SVG so the glyph is a single element that
- * can take the accent and its drop-shadow directly.
+ * One colour and one shape per archetype. Hexes rather than theme slugs because
+ * these are not part of the theme — they tint one 28px glyph and the wash behind
+ * a selected card, while everything structural about selection stays gold. Clip
+ * paths rather than SVG, so the glyph is one element carrying its own shadow.
  */
 const ARCHETYPE_EMBLEMS = {
   warrior: {
@@ -114,25 +97,15 @@ export function archetypeEmblem(id) {
 }
 
 /**
- * The same treatment for the six ability scores, drawn from the same kit: one
- * accent and one clip path each, so a stat card and a class card are visibly
- * the same object.
- *
- * The shapes are deliberately not reused from the archetypes. A stat card and a
- * class card can sit a few centimetres apart on the creation sheet, and two
- * different meanings wearing the same diamond is the kind of thing that reads
- * as a bug rather than as a style.
- *
- * Sword, arrow, shield, book, star, crown — chosen because each survives being
- * a flat 28px silhouette. Anything with an interior hole does not: a clip path
- * is one polygon, so a crescent or an outlined eye would come out as a blob.
+ * One accent and one clip path per ability, deliberately not reusing the
+ * archetype shapes — the two sit centimetres apart on the creation sheet.
+ * A clip path is a single polygon, so anything with an interior hole (a
+ * crescent, an outlined eye) comes out as a blob at 28px.
  */
 const ABILITY_EMBLEMS = {
   str: {
     accent: "#e0573f",
-    // A sword: point at the top, crossguard two thirds of the way down. A fist
-    // was tried here and read as a blob at this size — the creases that make a
-    // fist legible are interior lines, and a clip path is a single outline.
+    // A sword: point at the top, crossguard two thirds down.
     clip: "polygon(50% 0%, 58% 12%, 58% 50%, 80% 50%, 80% 62%, 58% 62%, 58% 100%, 42% 100%, 42% 62%, 20% 62%, 20% 50%, 42% 50%, 42% 12%)",
   },
   dex: {
@@ -141,8 +114,7 @@ const ABILITY_EMBLEMS = {
   },
   con: {
     accent: "#e08a3a",
-    // A heart. Two lobes and a point, approximated in twelve vertices — enough
-    // that the curve does not read as faceted at this size.
+    // A heart, in twelve vertices — enough not to read as faceted at 28px.
     clip: "polygon(50% 95%, 14% 61%, 3% 41%, 7% 22%, 23% 11%, 39% 16%, 50% 31%, 61% 16%, 77% 11%, 93% 22%, 97% 41%, 86% 61%)",
   },
   int: {
@@ -180,30 +152,16 @@ export function withAlpha(hex, alpha) {
 }
 
 /**
- * Artwork behind a character card, keyed by race.
+ * Artwork behind a character card, keyed by race. Not every race has one, and
+ * the card works without it — drop a file in ./race-art, add an import and an
+ * entry, and it appears.
  *
- * Not every race has one yet, and the card is designed to work without it —
- * drop a file in ./race-art, add an import and an entry here, and it appears.
- *
- * Imported as modules rather than referenced by a path under public/, and that
- * is load-bearing. A string like "/races/elf.webp" produces the same optimiser
- * URL forever, so replacing the file behind it leaves every browser that has
- * already fetched it showing the old picture until its cache expires — which
- * is exactly what happened the first time these were swapped. A static import
- * gives Next the file's contents, so the emitted URL carries a hash of them
- * and changing the art changes the URL. It also means the file is emitted once
- * rather than living in public/ and being copied again as a build asset.
- *
- * These are 1280px masters at WebP q85, 42-63 KB each. 1280 covers the widest
- * bucket any realistic device asks for: the card is 277px at desktop, and the
- * largest request in practice is a 430pt phone at 3x, around 1200px.
- *
- * Quality 85 rather than something smaller because this file is never served —
- * `next/image` re-encodes every bucket from it at q75, so a lossy master just
- * lowers the ceiling for a saving nobody downloads. What actually ships is
- * about 11 KB on a retina desktop and 25 KB on the largest phone.
- *
- * The full-resolution sources sit in assets/races, which is git-ignored.
+ * Imported as modules rather than referenced under public/, so the emitted URL
+ * carries a content hash: a fixed path serves the old picture from every cache
+ * that already fetched it, which is what happened the first time these were
+ * swapped. 1280px WebP q85 masters, never served directly — `next/image`
+ * re-encodes each bucket at q75, shipping ~11 KB on a retina desktop.
+ * Full-resolution sources sit in assets/races, which is git-ignored.
  */
 const IMAGE_BY_RACE = {
   Human: humanArt,
@@ -219,11 +177,8 @@ export function raceImage(race) {
 }
 
 /**
- * "Darth Vader" → "DV". First and last word, so a middle name does not push
- * the surname out. A single word falls back to its first two letters.
- *
- * Iterated as code points rather than UTF-16 units, so an emoji or an accented
- * letter does not come back as half a character.
+ * "Darth Vader" → "DV". First and last word, so a middle name does not push the
+ * surname out. Iterated as code points, so an emoji is not cut in half.
  */
 export function characterInitials(name) {
   const words = String(name ?? "")

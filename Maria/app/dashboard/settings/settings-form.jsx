@@ -5,16 +5,11 @@ import FormAlert from "@/app/components/ui/form-alert";
 import { useFormAction } from "@/app/components/use-form-action";
 
 /**
- * The scaffold all three settings forms sit in.
- *
- * All three had the `useFormAction` call, the `<form>`, the `isSuccess`
- * derivation, the `FormAlert` and a submit row written out identically — and
- * had already begun to drift, with `describedBy` spelled three different ways.
- *
- * A render prop rather than a `fields` array, because the fields are the part
- * that genuinely differs. Route-local on purpose: the sign-in forms have a
- * different submit row, alert placement and a mode switch, so pulling them in
- * would make this the wrong abstraction for all five.
+ * The scaffold all three settings forms sit in. A render prop rather than a
+ * `fields` array, because the fields are the part that genuinely differs.
+ * Route-local on purpose: the sign-in forms have a different submit row, alert
+ * placement and a mode switch, so including them makes this the wrong
+ * abstraction for all five.
  */
 export default function SettingsForm({
   feedbackId,

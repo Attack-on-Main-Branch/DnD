@@ -35,11 +35,9 @@ export default function SiteHeader({ displayName, email }) {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link
             href="/dashboard"
-            // Named here rather than left to the wordmark, because the wordmark
-            // is hidden on a phone and a `display: none` span is out of the
-            // accessibility tree — the link would have had no name at all
-            // there. The label is the same string that is visible everywhere
-            // else, so nothing is announced that cannot also be read.
+            // Named here rather than by the wordmark, which is `display: none`
+            // on a phone and so out of the accessibility tree — the link would
+            // have had no name at all there.
             aria-label="Grimoire Tales"
             className="group flex min-w-0 items-center gap-2.5 sm:gap-3"
           >
@@ -99,13 +97,10 @@ export default function SiteHeader({ displayName, email }) {
             <div
               className={surfaceClasses({
                 variant: "plain",
-                // From `lg`, not `sm`. Measured, the bar wants 772px: 304 for
-                // the mark and wordmark, 404 for this pill plus the two
-                // controls, 64 of padding and gap. Appearing at 640 left a
-                // 130px band where the wordmark ellipsised to "Grimoire …"
-                // and "Sign out" wrapped onto two lines. The pill is the part
-                // that can go — the same name and email are one click away
-                // behind Settings, which stays.
+                // From `lg`, not `sm`: the bar wants 772px with this pill, and
+                // appearing at 640 left a band where the wordmark ellipsised
+                // and "Sign out" wrapped. The pill is the part that can go —
+                // the same name and email sit behind Settings.
                 className:
                   "hidden items-center gap-3 rounded-full py-1.5 pr-4 pl-1.5 lg:flex",
               })}
@@ -169,14 +164,9 @@ export default function SiteHeader({ displayName, email }) {
 }
 
 /**
- * A single letter, unlike the two a character avatar gets.
- *
- * The account badge sits next to the name it abbreviates, so a second letter
- * adds nothing — and one letter reads as a monogram rather than as a
- * shortened word, which is what keeps it from competing with the character
- * avatars further down the page.
- *
- * Iterated as code points so an accented or non-Latin first letter survives.
+ * A single letter, unlike the two a character avatar gets: this badge sits next
+ * to the name it abbreviates. Iterated as code points so a non-Latin first
+ * letter survives.
  */
 function toInitials(value) {
   const first = Array.from(String(value).trim())[0];

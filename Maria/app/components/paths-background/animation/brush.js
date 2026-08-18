@@ -1,16 +1,11 @@
 /**
- * The brush a path is drawn with.
+ * The brush a path is drawn with. Paths are not stroked: nested strokes band
+ * visibly on a wide trunk, and round caps overlap segment to segment, making
+ * the core read as a chain of beads.
  *
- * Nested hard-edged strokes — one for the halo, one for the body, one for the
- * core — give exactly that many concentric bands, and on a wide trunk the steps
- * between them are plainly visible. Round line caps add a second artefact: each
- * segment's cap overlaps the previous one, so the deposit ripples once per
- * segment and the core reads as a chain of beads.
- *
- * So a path is not stroked at all. One smooth radial falloff is baked per colour
- * bucket, and each segment stamps it densely along its own length. The profile
- * is a sum of gaussians, so it is smooth to every derivative — no bands — and
- * convolving a smooth kernel along the line leaves no ripple either.
+ * Instead one smooth radial falloff is baked per colour bucket and stamped
+ * densely along each segment. The profile is a sum of gaussians, smooth to
+ * every derivative, so neither bands nor ripple survive.
  */
 
 import { HIGHLIGHT, mix, rgba, sampleRamp } from "./palette.js";
@@ -23,11 +18,8 @@ const BUCKETS = 16;
 const STOPS = 48;
 
 /**
- * Radial brightness, 1 at the centre falling to 0 at the rim.
- *
- * Three gaussians: a hot needle, the body of the stroke, and a wide soft halo.
- * `u` is the fraction of the stamp radius, and the nominal stroke edge sits at
- * u = 1 / SPREAD.
+ * Radial brightness, 1 at the centre to 0 at the rim: a hot needle, the stroke
+ * body, and a wide halo. `u` is the fraction of the stamp radius.
  */
 function profile(u) {
   if (u >= 1) return 0;
@@ -44,11 +36,9 @@ function tint(u) {
 }
 
 /**
- * Integral of the profile across a diameter, in units of the radius.
- *
- * Stamping along a line accumulates `alpha * radius * K / spacing` at the
- * centre, so this is what lets brightness be pinned independently of stroke
- * width, segment length and simulation step size.
+ * Integral of the profile across a diameter. Stamping accumulates
+ * `alpha * radius * K / spacing` at the centre, which is what pins brightness
+ * independently of width, segment length and step size.
  */
 const K = (() => {
   const n = 2048;
@@ -78,16 +68,10 @@ export function createBrush() {
   for (let i = 0; i < BUCKETS; i++)
     stamps.push(makeStamp(sampleRamp(i / (BUCKETS - 1))));
 
-  /**
-   * Stamp one segment onto `ctx`, which must already be in `lighter` mode.
-   *
-   * @param spread stamp radius as a multiple of the segment's nominal width
-   * @param brightness accumulated centre brightness for a straight run, 0..1
-   */
+  /** `ctx` must already be in `lighter` mode. */
   return function stampSegment(ctx, segment, spread, brightness) {
     const radius = Math.max(1.2, segment.w * spread * 0.5);
-    // Keep stamps far denser than the falloff is wide; any sparser and the
-    // ripple that caused the beading in the first place starts to come back.
+    // Far denser than the falloff is wide; sparser and the beading returns.
     const steps = Math.min(
       10,
       Math.max(1, Math.ceil(segment.len / (radius * 0.3))),

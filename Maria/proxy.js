@@ -3,15 +3,12 @@ import { createServerSupabase } from "sina/supabase/server";
 import { authCouldNotAnswer, resolveRedirect } from "sina/supabase/session";
 
 /**
- * Refreshes the Supabase auth token and enforces route protection.
+ * Refreshes the Supabase auth token and enforces route protection. Server
+ * Components cannot write cookies, so this is the only place a rotated refresh
+ * token gets back to the browser — without it, users log out at random.
  *
- * Server Components cannot write cookies, so this is the only place a rotated
- * refresh token can be handed back to the browser. Without it, users get
- * logged out at seemingly random moments.
- *
- * Next.js 16 renamed the `middleware` file convention to `proxy`; the old name
- * still works but warns on every build. The function must be the default
- * export, or a named export matching the file name.
+ * Next 16 renamed the `middleware` convention to `proxy`. The function must be
+ * the default export, or a named export matching the file name.
  */
 export async function proxy(request) {
   let response = NextResponse.next({ request });
@@ -31,9 +28,8 @@ export async function proxy(request) {
         response.cookies.set(name, value, options);
       }
 
-      // `@supabase/ssr` hands us the cache headers that must accompany a
-      // response carrying auth cookies, so a CDN can never serve one user's
-      // tokens to somebody else.
+      // `@supabase/ssr` supplies the cache headers a response carrying auth
+      // cookies needs, so a CDN cannot serve one user's tokens to another.
       for (const [header, value] of Object.entries(headers ?? {})) {
         response.headers.set(header, value);
       }
@@ -46,11 +42,9 @@ export async function proxy(request) {
   // it reads the cookie without verifying the JWT signature.
   const { data, error } = await supabase.auth.getUser();
 
-  // The error matters as much as the user. `getUser()` returns rather than
-  // throws when auth cannot be reached, so discarding it here turned every
-  // outage into "signed out" — and since this runs before every page and every
-  // Server Action, it decided the question before any of the handling further
-  // in could be reached. That is the layer the loop lived in.
+  // The error matters as much as the user: `getUser()` returns rather than
+  // throws when auth is unreachable, so discarding it turned every outage into
+  // "signed out" — decided here, before any page could disagree.
   const destination = resolveRedirect({
     pathname: request.nextUrl.pathname,
     isSignedIn: Boolean(data?.user),

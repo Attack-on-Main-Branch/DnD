@@ -6,12 +6,8 @@ import Button from "./button";
 import { surfaceClasses } from "./surface";
 
 /**
- * Confirmation modal for destructive actions.
- *
- * Built on the native <dialog> element, which brings focus trapping, the
- * top-layer stacking context, inertness of the page behind it and Escape-to-
- * close without any of it having to be reimplemented — and without the
- * accessibility bugs a hand-rolled modal usually ships with.
+ * Confirmation modal for destructive actions, on the native <dialog>: focus
+ * trapping, the top layer, inertness behind and Escape-to-close all come free.
  */
 export default function ConfirmDialog({
   open,

@@ -17,22 +17,14 @@ const RISE_STEP_MS = 65;
 const RISE_DELAY_MS = 60;
 
 /**
- * Class in two steps: archetype first, then the path within it.
- *
- * Thirteen classes in one flat grid is a wall nobody reads. The archetype is
- * the decision most people have already made before they open the sheet —
- * "something that hits things", "something that casts" — so asking it first
- * turns thirteen into five and then into two or three.
+ * Class in two steps: archetype first, then the path within it, so thirteen
+ * classes become five and then two or three.
  *
  * Both halves are real radio inputs inside labels rather than `role="radio"`
- * divs. The design's markup gives every card `tabindex="0"`, which makes five
- * tab stops out of one choice; a native radio group gives arrow-key movement,
- * the group name and the checked state for free, and it is what the alignment
- * and colour pickers on this form already do.
- *
- * The accent colours tint the emblem and the wash behind a chosen card, and
- * nothing else — every rim, glow and label stays gold, so the archetype colour
- * reads as identity rather than as a second accent competing with the theme.
+ * divs — a native group gives arrow-key movement, the group name and the
+ * checked state for free, where `tabindex="0"` cards make five tab stops out of
+ * one choice. The accent colours tint only the emblem and the chosen card's
+ * wash; every rim, glow and label stays gold.
  */
 export default function ClassPicker({
   archetype,
@@ -166,24 +158,12 @@ export default function ClassPicker({
 
               {isSelected && (
                 /*
-                  A hand-picked warm near-black, one step LIGHTER than
-                  `--color-surface` — #0f0c08 to #17110b, up in all three
-                  channels.
-
-                  It is not derivable by compositing, and it is worth saying so
-                  because the arithmetic looks inviting and does not work: every
-                  layer the card puts down is a darkening one — its bottom stop
-                  is `rgba(0,0,0,0.3)`, and 30% black over surface lands on
-                  #0b0806. Nothing made of surface and black can come out
-                  lighter than surface. This was matched by eye against the
-                  glass panel as it actually renders, backdrop-filter and all,
-                  which is not something the tokens can reproduce.
-
-                  It cannot track the accent either: the card's gradient runs
-                  from `withAlpha(accent, 0.13)` at the top to that flat black
-                  at the bottom, and the arrow hangs off the bottom, where the
-                  accent has already faded out. So one fixed value is right
-                  here in a way it would not be an inch higher up.
+                  A hand-picked near-black, one step LIGHTER than
+                  `--color-surface`, and so not derivable by compositing: every
+                  layer the card puts down darkens. Matched by eye against the
+                  glass panel as it renders, backdrop-filter and all. It cannot
+                  track the accent either — the arrow hangs off the bottom of
+                  the card, where the accent has already faded out.
                 */
                 <span
                   aria-hidden="true"

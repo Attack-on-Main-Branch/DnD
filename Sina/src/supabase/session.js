@@ -1,8 +1,4 @@
-/**
- * Which routes a signed-out visitor may reach — the access policy itself,
- * kept here with the rest of the backend rather than in the routing glue that
- * happens to enforce it.
- */
+/** The access policy itself, kept with the backend rather than the routing glue. */
 const PUBLIC_ROUTES = ["/login"];
 
 /** Where a signed-in visitor is sent if they open an auth-only page. */
@@ -18,21 +14,14 @@ export function isPublicRoute(pathname) {
 }
 
 /**
- * Whether an auth error means the service could not answer, as opposed to
- * answering "no".
+ * Whether auth could not answer, as opposed to answering "no". One function
+ * because two layers ask it and must agree: if the proxy says "signed out" the
+ * page never runs to disagree.
  *
- * One function rather than a comparison written out at each call site, because
- * two layers ask the same question and the answers must agree: the proxy
- * decides whether to redirect, the pages decide what to render, and if the
- * proxy says "signed out" the page never runs to disagree.
- *
- * Status 0 is the subtle one. `@supabase/auth-js` reports every transport
- * failure — DNS, refused connection, reset, TLS, timeout, abort — as an
- * `AuthRetryableFetchError` carrying status 0, not as an error with no status
- * (lib/fetch.js throws `(message, 0)` on both of its failure paths). A plain
- * `status < 500` therefore counted the most common outage as auth saying no,
- * which is exactly backwards. Anything without a number is unknown and treated
- * the same way; only a real 4xx is auth genuinely answering.
+ * Status 0 is the subtle case. `@supabase/auth-js` reports every transport
+ * failure — DNS, refused, reset, TLS, timeout, abort — as an
+ * `AuthRetryableFetchError` carrying status 0, so a plain `status < 500` counts
+ * the most common outage as auth saying no. Only a real 4xx is an answer.
  */
 export function authCouldNotAnswer(error) {
   if (!error) {
@@ -45,35 +34,26 @@ export function authCouldNotAnswer(error) {
 }
 
 /**
- * Decides where a request should go, given who is making it.
+ * A pathname to redirect to, or `null` to let the request through. Pure, so the
+ * proxy only deals with plumbing.
  *
- * Returns a pathname to redirect to, or `null` to let the request through.
- * Pure and framework-free, so the proxy that calls it only has to deal with
- * request and response plumbing.
- *
- * @param authUnavailable  true when we could not find out who is asking — the
- *                         auth service did not answer. Distinct from
- *                         `isSignedIn: false`, which means it answered no.
+ * `authUnavailable` means we could not find out who is asking — distinct from
+ * `isSignedIn: false`, which means auth answered no.
  */
 export function resolveRedirect({
   pathname,
   isSignedIn,
   authUnavailable = false,
 }) {
-  // There is no landing page: "/" is a doorway to wherever the visitor belongs.
-  // Somebody has to be sent somewhere even when we cannot tell who they are,
-  // and the sign-in page is the honest guess — letting this one through would
-  // only produce a 404.
+  // No landing page: "/" is a doorway. Letting it through would only 404, so
+  // even an unidentified visitor is sent somewhere.
   if (pathname === "/") {
     return isSignedIn ? AUTHENTICATED_HOME : SIGNED_OUT_HOME;
   }
 
-  // We do not know. Sending them to /login would be a diagnosis, and the wrong
-  // one: they would sign in, come back, and be bounced again, with nothing
-  // logged — the loop this whole distinction exists to break. Let the request
-  // through instead. Every protected page verifies for itself and throws into
-  // its error boundary, which can say what is actually wrong; a page that finds
-  // no user still redirects here on its own.
+  // Sending them to /login would be a diagnosis, and the wrong one: they would
+  // sign in, come back, and be bounced again. Let the request through — the
+  // page verifies for itself and throws into its error boundary.
   if (authUnavailable) {
     return null;
   }

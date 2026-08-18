@@ -1,17 +1,12 @@
 @import "tailwindcss";
 
 /*
- * The app is dark, always.
+ * The app is dark, always: the animated background paints an opaque near-black
+ * over the viewport and isolates itself, so a light-mode visitor would get
+ * near-black text on black.
  *
- * The animated background paints an opaque near-black over the entire
- * viewport and isolates itself, so it cannot be washed out by a light page
- * behind it. A visitor whose OS is set to light mode would therefore get
- * near-black text on black, and every light surface would float on the plume
- * as an opaque slab. Following the theme is no longer an option.
- *
- * Redefining Tailwind's built-in `dark` variant with the bare parent selector
- * makes every `dark:` utility apply unconditionally — the media query is
- * dropped from the output entirely, and compound variants such as
+ * The bare parent selector makes every `dark:` utility apply unconditionally,
+ * dropping the media query from the output while compound variants such as
  * `dark:hover:` keep working. v4 has no `darkMode` config key, and this needs
  * no `.dark` class on <html>.
  */
@@ -19,15 +14,10 @@
 
 /*
  * The sign-in page's two-column switch, and the one place its threshold lives.
+ * A container query rather than a breakpoint: what decides whether the two
+ * panels fit is the space left after that page's insets, not the window width.
  *
- * A container query rather than a viewport breakpoint, because what decides
- * whether the lore panel and the sign-in card fit beside each other is the
- * space left after that page's edge insets — not how wide the window is. The
- * `page` container is the <main> element there.
- *
- * 68rem is the floor: 28rem for the card, 6rem of gap, leaving the lore panel
- * no less than 34rem. Under it, the grid collapses to one column and the two
- * stack, lore first.
+ * 68rem is the floor — 28rem card, 6rem gap, 34rem of lore panel.
  */
 @custom-variant side-by-side (@container page (min-width: 68rem));
 
@@ -45,19 +35,13 @@
   color-scheme: dark;
 
   /*
-   * Alpha steps of the two theme colours, so changing `--color-gold` repaints
-   * every rim, hairline, glow and scrollbar thumb rather than only the
-   * utilities. These were sixteen hand-written `rgba(255, 223, 156, ·)`
-   * literals.
+   * Alpha steps of the theme colours, so changing `--color-gold` repaints every
+   * rim, hairline, glow and scrollbar thumb. NOT `--alpha()`, which resolves
+   * alone but is silently dropped — taking the whole declaration with it —
+   * inside a multi-value `border` or `box-shadow`.
    *
-   * `in srgb` mixed with `transparent` is exactly the rgba it replaces —
-   * color-mix premultiplies, so channels are untouched. NOT `--alpha()`, which
-   * resolves alone but is silently dropped, taking the whole declaration with
-   * it, inside a multi-value `border` or `box-shadow`.
-   *
-   * The achromatic focus casing `rgba(10, 8, 6, 0.9)` is deliberately absent:
-   * it is not a tint of the palette but the one colour that must stay put when
-   * the palette changes.
+   * The achromatic focus casing is deliberately absent: it is not a tint of the
+   * palette but the one colour that must stay put when the palette changes.
    */
   --gold-10: color-mix(in srgb, var(--color-gold) 10%, transparent);
   --gold-12: color-mix(in srgb, var(--color-gold) 12%, transparent);
@@ -88,11 +72,6 @@
   --font-display: var(--font-cinzel);
 
   /*
-   * The app's two easing curves. Any `--ease-*` key becomes an `ease-*`
-   * utility. Both were written out as arbitrary values six times between them,
-   * one buried inside an `animate-[...]` shorthand where a search for `ease-[`
-   * would not have found it.
-   *
    * `tray` opens the class picker's path list and the changelog drawer;
    * `flight` is the grimoire's arc, referenced from the view-transition rules
    * below where a utility cannot reach.
@@ -105,10 +84,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   /*
-   * No font-family here. Tailwind already points the document at --font-sans
-   * (theme.css sets --default-font-family, preflight applies it to html), and
-   * an explicit declaration on body beat that inherited value — which is why
-   * the font variables appeared to do nothing.
+   * No font-family here: Tailwind already points the document at --font-sans,
+   * and an explicit declaration on body beats that inherited value.
    */
 }
 
@@ -129,19 +106,13 @@ body {
   }
 
   /*
-   * One focus ring for the whole app, in the base layer at zero specificity so
-   * a component can still override it.
+   * One focus ring for the whole app, at zero specificity so a component can
+   * still override it. Two-tone: a plain gold ring measures 1.29:1 against the
+   * brightest part of the animation and disappears under a lit branch, failing
+   * 1.4.11. The achromatic casing always has contrast.
    *
-   * Two-tone on purpose. A plain gold ring measures 1.29:1 against the
-   * brightest part of the animation — it disappears entirely whenever a lit
-   * branch passes beneath it, failing 1.4.11. The dark casing around it is
-   * achromatic, so one half of the ring always has contrast no matter what the
-   * background is doing.
-   *
-   * The `[tabindex]` arm covers the two deliberate keyboard stops that are
-   * divs — the changelog's scroll region and the character sheet's tab panel.
-   * Both carry a role, but what makes them focusable is the tabindex, not the
-   * role. `-1` is excluded: a programmatic focus target is not a tab stop.
+   * The `[tabindex]` arm covers the two deliberate keyboard stops that are divs.
+   * `-1` is excluded: a programmatic focus target is not a tab stop.
    */
   :where(
     a,
@@ -161,14 +132,10 @@ body {
   }
 
   /*
-   * Browsers give <button> `cursor: default`, and Tailwind's preflight does not
-   * override it — so every button in the app looked unclickable. Fixing it here
-   * rather than by sprinkling `cursor-pointer` means a new button is correct the
-   * moment it is written, instead of the next time somebody notices.
-   *
-   * Anything disabled, or marked aria-disabled, is left alone: promising a click
-   * that does nothing is worse than no affordance at all. Utility classes such
-   * as `disabled:cursor-not-allowed` sit in a later layer and still win.
+   * Browsers give <button> `cursor: default` and Tailwind's preflight does not
+   * override it. Fixed here so a new button is correct the moment it is
+   * written. Anything disabled is left alone — promising a click that does
+   * nothing is worse than no affordance.
    */
   button:not(:disabled):not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]),
@@ -183,27 +150,19 @@ body {
 
 @layer components {
   /*
-   * Liquid glass.
+   * Liquid glass. A class rather than a utility stack: the media queries at the
+   * bottom need somewhere to hook onto.
    *
-   * A class rather than a utility stack, for two reasons: the media queries at
-   * the bottom need somewhere to hook onto, and `backdrop-filter` here is doing
-   * more than decoration.
+   * `brightness(0.35)` is load-bearing. The animation is additive and clips to
+   * near-white, so a plain rgba(0,0,0,0.4) scrim drops body text to 2.65:1 — an
+   * AA failure — whenever a bright branch passes under a panel. A brightness
+   * filter multiplies the backdrop, bounding its output: measured, text stays
+   * between 12.45:1 and 18.75:1.
    *
-   * `brightness(0.35)` is the load-bearing part. The animation is additive and
-   * clips to near-white at a dense crown, so a plain rgba(0,0,0,0.4) scrim
-   * drops body text to 2.65:1 — a hard AA failure — every time a bright branch
-   * passes under a panel. A brightness filter multiplies the backdrop, so its
-   * output is bounded however bright the input gets. Measured, this holds text
-   * between 12.45:1 at the brightest and 18.75:1 at the darkest: AAA at both
-   * ends, while still letting the plume move visibly through the glass.
-   *
-   * Cost note: `backdrop-filter` is charged per ELEMENT, not per pixel —
-   * Chromium reads back the destination surface once per filtered element.
-   * Measured on this background: one surface costs +60ms of compositor time
-   * per 2.5s, twenty-four cost +365ms, while growing a single surface from a
-   * quarter of the viewport to all of it costs nothing at all. So keep this to
-   * the few large surfaces — header and cards — and let small controls use a
-   * flat fill. Budget: 4-6 on screen, 8 is a warning.
+   * Cost: `backdrop-filter` is charged per ELEMENT, not per pixel. One surface
+   * costs +60ms of compositor time per 2.5s and twenty-four cost +365ms, while
+   * growing one surface to fill the viewport costs nothing. Keep to the few
+   * large surfaces; budget 4-6 on screen, 8 is a warning.
    */
   .glass {
     background: var(--surface-55);
@@ -216,10 +175,8 @@ body {
   }
 
   /*
-   * Near-opaque relatives, for surfaces that sit directly over other content:
-   * a dropdown covering the field it belongs to, or a modal over the page. The
-   * classic glass mistake is making these translucent and finding the text
-   * underneath reads straight through them.
+   * Near-opaque, for surfaces that sit over other content — a dropdown or a
+   * modal, where translucency lets the text underneath read straight through.
    */
   .glass-solid {
     background: var(--surface-96);
@@ -230,13 +187,10 @@ body {
   }
 
   /*
-   * The resting rim, for surfaces that are not `.glass` — an artwork card, for
-   * instance, where a backdrop filter would sample a picture nobody can see.
-   *
-   * A component class rather than a `border-gold/20` utility, and that is the
-   * point: utilities sit in a later layer than components, so a border utility
-   * would outrank `.glow-gold:hover` and the rim would never light up. That is
-   * exactly why the artwork cards had no glow.
+   * The resting rim for surfaces that are not `.glass`. A component class
+   * rather than a `border-gold/20` utility on purpose: utilities sit in a later
+   * layer, so a border utility outranks `.glow-gold:hover` and the rim never
+   * lights up.
    */
   .rim-gold {
     border: 1px solid var(--gold-22);
@@ -286,12 +240,8 @@ body {
 }
 
 /*
- * Scrollbars inside our own panels. The dropdown list is the visible one: a
- * default light-grey system bar down the side of a dark gold-rimmed menu is
- * the one part of the chrome the redesign could not reach with utilities.
- *
- * `scrollbar-color` is the standard property and covers Firefox and Chromium;
- * the WebKit pseudo-elements are there for Safari, which still ignores it.
+ * Scrollbars inside our own panels. `scrollbar-color` covers Firefox and
+ * Chromium; the WebKit pseudo-elements are for Safari, which ignores it.
  */
 @layer components {
   .scroll-gold {
@@ -344,46 +294,18 @@ body {
 }
 
 /*
- * The sign-in mark: the book drifts, its halo breathes, and two rune rings
- * turn against each other. Slow on purpose — 9s, 8s, 80s and 55s — so it reads
- * as something alive rather than as an animation playing.
+ * The book's drift: 12px below the layout spot at rest, 15px above at the top.
+ * The flight does not depend on which end 0% sits at — `adoptCarriedPhase` in
+ * view-nav.js carries the phase across, and how far from centre the book is
+ * when frozen is read off the live transform. See `--mark-drift`.
  *
- * The two rings rotate at different speeds in opposite directions, which is
- * what stops the pair from ever looking like one rigid object.
- */
-/*
- * The book's drift. This is the knob — the two translateY values below are the
- * travel, and the two rotations are the tilt.
+ * `--mark-tilt` is the resting lean, added on top. One custom property rather
+ * than a second set of keyframes, because both halves write `transform` and two
+ * animations on one property do not add — the later one simply wins.
  *
- * The swing is centred on the layout spot rather than hanging off one end of
- * it: 12px below at rest, 15px above at the top, for 27px of travel.
- *
- * Nothing about the flight depends on which end of the swing 0% sits at. An
- * earlier version of this note claimed it did — that the book landing after a
- * flight is a freshly mounted element starting at 0%, so 0% had to be the
- * arrival pose. That stopped being true when the phase started being carried
- * across: `adoptCarriedPhase` in view-nav.js puts the arriving drift at the
- * exact point the departing one was frozen at, so both ends match wherever in
- * the cycle the button happened to be pressed. What the flight does still care
- * about is how far from centre the book is when frozen, and it reads that off
- * the live transform rather than off these numbers — see `--mark-drift`.
- */
-/*
- * `--mark-tilt` is the book's resting lean, added on top of the drift. The
- * artwork is drawn tilted about 15° to the right, so the sign-in page leaves
- * this at 0 and the dashboard's corner copy sets -30deg, which lands it 15° to
- * the left instead. It is one custom property rather than a second set of
- * keyframes because both halves write `transform`, and two animations on one
- * property do not add — the later one simply wins.
- */
-/*
- * TWO keyframes, and that is not a simplification — `ease-in-out` is applied
- * to each interval separately, so every keyframe is a point where the speed
- * drops to zero. A three-keyframe version with a keyframe partway down the
- * travel therefore stopped dead halfway through the descent and then carried
- * on, which is exactly what it looked like. With only these two, the sole
- * places it pauses are the top and the bottom of the swing, where a floating
- * object is supposed to.
+ * TWO keyframes, not a simplification: `ease-in-out` applies to each interval
+ * separately, so every keyframe is a point where the speed drops to zero. A
+ * third one partway down made the book stop dead mid-descent.
  */
 @keyframes mark-float {
   0%,
@@ -482,28 +404,18 @@ body {
 /*
  * ── Route transitions ────────────────────────────────────────────────────────
  *
- * Pages cross-fade instead of cutting, and the grimoire mark is carried from
- * the sign-in page's lore panel down to the dashboard's corner rather than
- * being destroyed in one place and created in the other.
- *
- * All of this is inert without a `<ViewTransition>` in the tree — the browser
- * only runs these pseudo-elements while a transition is active — and inert
- * again in browsers that do not support the API, where navigation simply cuts
- * the way it always did.
+ * Inert without a `<ViewTransition>` in the tree, and inert again in browsers
+ * without the API, where navigation simply cuts.
  */
 
-/*
- * The overlay swallows clicks for as long as it is up, which on a slow
- * navigation is long enough to lose a tap. Let them through to the live page.
- */
+/* The overlay would otherwise swallow taps for as long as it is up. */
 ::view-transition {
   pointer-events: none;
 }
 
 /*
- * Asymmetric on purpose: the old page leaves quickly so it stops competing for
- * attention, and the new one arrives more slowly and only once the old one has
- * gone, so there is no moment where two pages are both half-visible.
+ * Asymmetric on purpose: the new page arrives only once the old one has gone,
+ * so there is no moment where two pages are both half-visible.
  */
 ::view-transition-old(root) {
   animation: 200ms cubic-bezier(0.4, 0, 1, 1) both view-fade reverse;
@@ -514,11 +426,9 @@ body {
 }
 
 /*
- * Opacity only. This used to animate a 5px blur across the whole viewport as
- * well, which is a full-screen filter re-rendered every frame for 340ms —
- * over an animated canvas and three backdrop-filter surfaces. That window
- * lands squarely on the fastest stretch of the book's flight, where dropped
- * frames read as the book stopping and starting again.
+ * Opacity only: a blur here is a full-screen filter re-rendered every frame,
+ * over an animated canvas and three backdrop-filter surfaces, during the
+ * fastest stretch of the book's flight.
  */
 @keyframes view-fade {
   from {
@@ -530,20 +440,14 @@ body {
 }
 
 /*
- * The mark's flight — one book, all the way.
+ * The mark's flight — one book, all the way. A view transition cross-fades two
+ * snapshots by default, which put a second, already-turned book on screen
+ * halfway through, so the new snapshot is not drawn at all and the old one
+ * turns the full -30° itself. The handoff is invisible because the two agree by
+ * then: the artwork leans ~15° right, so -30° reads as 15° left.
  *
- * By default a view transition holds two snapshots and cross-fades them, which
- * is what put a second, already-turned book on screen halfway through while
- * the first blurred out. So the new snapshot is not drawn at all: the old one
- * is the only thing in flight, and it turns the full -30° itself.
- *
- * The handoff at the end is invisible because the two agree by then. The
- * artwork leans about 15° right, so the login copy rotated -30° reads as 15°
- * left — exactly what the corner copy already is, at the same size. Nothing
- * cross-fades, nothing blurs, nothing scales.
- *
- * The group is left alone apart from timing: it is where the browser's own
- * computed move lives, and setting `animation` on it would throw that away.
+ * The group is left alone apart from timing — it holds the browser's own
+ * computed move, and setting `animation` on it would throw that away.
  */
 ::view-transition-group(.book-morph) {
   animation-duration: 900ms;
@@ -561,37 +465,24 @@ body {
   mix-blend-mode: normal;
 
   /*
-   * Turn about the book, not about the box it sits in.
-   *
-   * The photograph is of the wrapper, and the book inside it is up to 16px
-   * above that wrapper's centre — wherever the drift was frozen. Turning 30°
-   * about the default centre carried that 16px around the arc with it, while
-   * the real book on the far side holds a straight, unrotated 16px, because a
-   * transform list translates before it rotates. The two ends therefore missed
-   * each other by 2·16·sin(15°) ≈ 8px in the final frame, and by nothing at
-   * all in the first — an arrival jump that appeared or not depending on where
-   * in the swing the button was pressed.
-   *
-   * `--mark-drift` is that frozen offset, published on the root by view-nav.js
-   * and inherited down this pseudo-element tree. Pivoting on it holds the
-   * book's own centre still for the whole flight, so the first frame is
-   * unchanged and the last one lands dead on.
+   * Turn about the book, not the box it sits in. The photograph is of the
+   * wrapper, and the book inside it is up to 16px off centre wherever the drift
+   * froze; turning about the default centre carried that offset around the arc,
+   * while the real book on the far side holds it unrotated — a transform list
+   * translates before it rotates — so the two ends missed by 2·16·sin(15°) ≈
+   * 8px on the final frame. `--mark-drift` is that frozen offset, published on
+   * the root by view-nav.js.
    */
   transform-origin: 50% calc(50% + var(--mark-drift, 0px));
   animation: 900ms var(--ease-flight) both mark-turn;
 }
 
 /*
- * The halo and the rune rings travel with the book but do NOT turn with it.
- *
- * Rotating them was the arrival jump: the turn exists to flip the artwork's
- * lean, and the rings have no lean to flip — their two ends are the same
- * picture — so the 30° went on during the flight and came straight back off
- * when the snapshot was handed over. Their own drift across 900ms is 4° and
- * 6°, which is why simply moving them is enough.
- *
- * Left on the default cross-fade for the same reason: at that difference the
- * two snapshots are indistinguishable, so there is nothing to see.
+ * The halo and rings travel with the book but do NOT turn with it: the turn
+ * flips the artwork's lean, and the rings have no lean to flip — their two ends
+ * are the same picture — so the 30° came straight back off at the handover.
+ * Their own drift across 900ms is 4° and 6°, so moving them is enough, and the
+ * default cross-fade is invisible at that difference.
  */
 ::view-transition-group(.aura-morph) {
   animation-duration: 900ms;
@@ -627,31 +518,22 @@ body {
 }
 
 /*
- * The hover lift belongs to the book alone. On the button it scaled the rune
- * rings with it, which is not something a ring does.
- *
- * `scale` rather than a transform utility, because the drift owns `transform`
- * and the two would overwrite each other.
- *
- * Nothing here freezes the drift for a page transition any more. That used to
- * be a CSS rule pinning the book to its resting pose, and since that pose is
- * the bottom of the swing, the book dropped before every flight. It is held
- * where it already stands now, from view-nav.js, which moves it nowhere.
+ * The hover lift belongs to the book alone — on the button it scaled the rings
+ * too. `scale` rather than a transform utility, because the drift owns
+ * `transform`. The drift is frozen from view-nav.js rather than by a CSS rule
+ * pinning it to its resting pose, which is the bottom of the swing and so
+ * dropped the book before every flight.
  */
 .mark-book {
   /*
-   * The resting lean, declared rather than left to the drift.
+   * The resting lean, declared here rather than left to the drift: `--mark-tilt`
+   * is read only inside `@keyframes mark-float`, which is applied through
+   * `motion-safe:`, so a reduced-motion visitor got a bolt-upright book. A lean
+   * is a pose, not motion.
    *
-   * `--mark-tilt` is read nowhere but inside `@keyframes mark-float`, and that
-   * animation is applied through `motion-safe:` — so anyone asking for reduced
-   * motion got no rotation at all and the corner book sat bolt upright. The
-   * lean is a pose, not motion, and it belongs here.
-   *
-   * `transform` rather than the `rotate` property, and that is not a
-   * preference: individual transform properties apply before `transform`, so a
-   * `rotate` here would put the keyframes' translateY into a rotated frame and
-   * send the drift diagonally. On the same property, the animation simply wins
-   * whenever it is running, which leaves the flight untouched.
+   * `transform` rather than the `rotate` property: individual transform
+   * properties apply first, so a `rotate` here would put the keyframes'
+   * translateY into a rotated frame and send the drift diagonally.
    */
   transform: rotate(var(--mark-tilt, 0deg));
   transition: scale 300ms ease;
@@ -662,11 +544,7 @@ body {
   scale: 1.04;
 }
 
-/*
- * Motion sensitivity: a page-sized element sliding across the viewport is the
- * most common trigger there is. Everything still swaps, it just swaps at once
- * — which is the browser's own behaviour without any of this.
- */
+/* Everything still swaps, it just swaps at once — the browser's own default. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-image-pair(*),

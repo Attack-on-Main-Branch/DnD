@@ -1,13 +1,8 @@
 /**
- * Reads and validates the public Supabase environment variables.
- *
- * Both values are safe to ship to the browser: the anon key only ever grants
- * what your Row Level Security policies allow. The service role key must
- * never be given a `NEXT_PUBLIC_` prefix — it bypasses RLS entirely.
- *
- * The `NEXT_PUBLIC_` names are kept even though this package is framework
- * agnostic: the browser bundle needs them inlined at build time, and that only
- * happens for variables carrying the prefix the bundler looks for.
+ * Both values are safe to ship to the browser: the anon key only grants what
+ * RLS allows. The service role key must never carry a `NEXT_PUBLIC_` prefix —
+ * it bypasses RLS entirely. The prefix stays despite this package being
+ * framework-agnostic, because it is what makes the bundler inline the values.
  */
 export function supabaseEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -26,32 +21,17 @@ export function supabaseEnv() {
 }
 
 /**
- * Cookie attributes for the Supabase auth cookies, applied by every client.
+ * Cookie attributes for the auth cookies, applied by every client.
  *
- * `@supabase/ssr` already defaults to `path: "/"`, `sameSite: "lax"` and a
- * 400-day `maxAge` — that `maxAge` is what keeps a signed-in user signed in
- * after they close the browser, and the library force-resets it on every
- * write, so it cannot be lost here.
+ * `@supabase/ssr` supplies `path`, `sameSite` and a 400-day `maxAge`, but never
+ * `secure` or `httpOnly` — both are ours. `secure` is off in development
+ * because localhost is HTTP and the cookie would be dropped. `httpOnly` keeps
+ * the 400-day refresh token away from any script that runs on the page; every
+ * Supabase call here is server-side, so nothing needs to read it.
  *
- * What the library never sets is `secure`, so we do. Over HTTPS the session
- * cookie must not be sent on a plain HTTP request; left off in development
- * because localhost is served over HTTP and the cookie would be dropped.
- *
- * `httpOnly` is ours too, and `@supabase/ssr` leaves it false. The comment
- * here used to justify that by saying the browser client has to read these
- * cookies — but nothing in this app instantiates a browser client. Every
- * Supabase call runs server-side: Server Components and Server Actions through
- * `next/headers`, and the proxy through the request's own cookie store. Both
- * of those see HttpOnly cookies.
- *
- * So the session was readable from `document.cookie` for a code path that does
- * not exist. Marking it HttpOnly puts the 400-day refresh token out of reach
- * of anything that ever manages to run script on the page, and costs nothing.
- *
- * Note for later: `createBrowserSupabase` in ./supabase/browser.js shares this
- * object, and a browser client cannot see an HttpOnly cookie. Wiring one up
- * means deciding this trade-off again rather than just importing it — it would
- * come back unauthenticated rather than erroring.
+ * Note: `createBrowserSupabase` shares this object and cannot see an HttpOnly
+ * cookie. Wiring one up means re-deciding this, not just importing it — it
+ * would come back unauthenticated rather than erroring.
  */
 export const AUTH_COOKIE_OPTIONS = {
   secure: process.env.NODE_ENV === "production",

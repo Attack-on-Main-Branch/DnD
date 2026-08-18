@@ -43,10 +43,9 @@ export default async function CampaignPage({ params }) {
     throw new Error("Could not verify your session (auth_unavailable)");
   }
 
-  // A read that failed is not a campaign that is missing. Row Level Security
-  // already makes somebody else's id answer exactly like a deleted one, which
-  // is the answer we want; a query that never ran is a different thing and gets
-  // the error page rather than a 404 claiming the campaign does not exist.
+  // A failed read is not a missing campaign. RLS already makes somebody else's
+  // id answer like a deleted one; a query that never ran gets the error page
+  // rather than a 404 claiming the campaign does not exist.
   if (loaded.error) {
     throw new Error(`Could not load the campaign (${loaded.error.reason})`);
   }
@@ -140,15 +139,12 @@ function OverviewPanel({ campaign }) {
 }
 
 /**
- * One load for the page and its metadata.
+ * One load for the page and its metadata. `cache` deduplicates within a request:
+ * Next calls `generateMetadata` and the component separately, which would
+ * otherwise fetch the campaign and its party twice per view.
  *
- * `cache` deduplicates within a single request: Next calls `generateMetadata`
- * and the component separately, and without this the campaign and its party
- * would be fetched twice per view. The same reason character/[id] wraps its
- * own loader.
- *
- * Returns a sentinel rather than redirecting, because `generateMetadata` runs
- * in a context where a redirect is not what anybody wants — the page decides.
+ * Returns a sentinel rather than redirecting — `generateMetadata` is not the
+ * place for that, so the page decides.
  */
 const loadCampaign = cache(async function loadCampaign(id) {
   const supabase = await createClient();
@@ -169,9 +165,7 @@ const loadCampaign = cache(async function loadCampaign(id) {
   });
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
-  // failure, and the same answer a campaign belonging to somebody else gets.
-  // 404 does not confirm that it exists. Everything else is a real failure and
-  // is handed to the page to throw on.
+  // failure. Everything else is handed to the page to throw on.
   const realFailure = error && error.reason !== "bad_id" ? error : null;
 
   if (realFailure) {
@@ -191,7 +185,7 @@ const loadCampaign = cache(async function loadCampaign(id) {
     logFailure("listPartyMembers", partyError);
   }
 
-  // The party is logged rather than thrown on: the campaign is the page, and a
-  // roster that could not load is not a reason to replace it with an error.
+  // Logged rather than thrown on: the campaign is the page, and a party that
+  // could not load is no reason to replace it with an error.
   return { campaign, members: partyError ? [] : members, error: null };
 });

@@ -292,15 +292,9 @@ export default function PlayerCharacterForm({ onCreated }) {
 }
 
 /**
- * The nine alignments as a 3×3 grid of radios, each carrying a one-line gloss.
- *
- * The film examples for the current pick used to appear in a panel underneath.
- * They are still on the character's own sheet, where there is room for them;
- * here they were a block that grew out of the grid the moment anything was
- * chosen, pushing the rest of the form down mid-decision.
- *
- * A fieldset rather than a row of buttons, so keyboard and screen-reader users
- * get the grouping and arrow-key behaviour they expect from a single choice.
+ * The nine alignments as a 3×3 grid of radios. A fieldset rather than a row of
+ * buttons, so keyboard and screen-reader users get the grouping and arrow-key
+ * behaviour a single choice implies.
  */
 function AlignmentPicker({ value, onChange, disabled, invalid }) {
   return (
@@ -318,10 +312,8 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
           return (
             <label
               key={option.value}
-              // The path card's box, to the pixel: same padding, same gap,
-              // same radius. These two sections sit one above the other, and
-              // an alignment card that was a little tighter than a path card
-              // read as a different kind of thing rather than as the same
+              // The path card's box, to the pixel: these two sections sit one
+              // above the other, and a tighter card reads as a different
               // control asking a different question.
               className={`flex cursor-pointer flex-col gap-2 rounded-lg border p-4 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} ${
                 isSelected ? NESTED_CARD_SELECTED_CLASSES : NESTED_CARD_CLASSES

@@ -5,16 +5,10 @@ import Link from "next/link";
 import Button, { buttonClasses } from "@/app/components/ui/button";
 
 /**
- * The dashboard's own error boundary.
- *
- * The audit argued against one, correctly at the time — nothing here threw. The
- * error contract changed that: three pages now throw deliberately, and the root
- * boundary replaces everything below the ROOT layout, taking the header and the
- * corner grimoire with it. Contained here, the segment's shell stays up.
- *
- * `retry` re-fetches, which is right for anything transient but not the only
- * move needed — an unmigrated schema fails identically every time, so the link
- * matters as much as the button.
+ * The dashboard's own boundary, so the segment's shell stays up: the root one
+ * replaces everything below the root layout, header and corner grimoire
+ * included. `retry` re-fetches, which fixes anything transient — an unmigrated
+ * schema fails identically every time, so the link matters as much.
  */
 export default function DashboardError({ error, retry }) {
   return (

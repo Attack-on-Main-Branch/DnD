@@ -1,39 +1,23 @@
 /**
- * Which way the grimoire is about to fly, and keeping its drift continuous
- * across the navigation.
+ * Which way the grimoire flies, and keeping its drift continuous across the
+ * navigation. A view transition photographs one frame of the old page and hands
+ * it to a freshly mounted element on the new one, which needs three things:
  *
- * Two jobs, both needed because a view transition photographs one frame of the
- * old page and hands it to a freshly mounted element on the new one.
+ * DIRECTION — the transition pseudo-elements descend from the document root, so
+ * the root is the only place that can tell them which way to turn.
  *
- * DIRECTION. The transition pseudo-elements are children of the document root,
- * so the root is the only thing that can tell them anything. Signing in flies
- * the book down to the dashboard's corner and turns it one way; signing out
- * flies it back and has to turn it the other.
+ * PHASE — the arriving book would start its drift at 0% while the photograph
+ * caught the departing one mid-swing, up to 16px apart. The departing animation
+ * is paused and its position carried across. Paused rather than eased to rest:
+ * the resting pose is the bottom of the swing, so easing visibly dropped the
+ * book before it set off.
  *
- * PHASE. The book that lands would otherwise begin its drift at 0%, while the
- * photograph caught the departing one wherever it happened to be — up to 16px
- * and a couple of degrees apart, which is a jump on arrival. So the departing
- * animation is paused, its position along the cycle is carried across, and the
- * arriving one is set to the same point and held there until the flight ends.
- *
- * Pausing rather than easing to rest, and that is the whole difference: an
- * earlier version animated the book to its resting pose first, and since that
- * pose is the bottom of the swing, the book visibly dropped before setting
- * off. Freezing it where it already is moves nothing at all.
- *
- * PIVOT. Freezing it mid-swing has one consequence that has to be paid for.
- * The element the transition photographs is the book's wrapper, which never
- * moves; the book inside it is up to 16px above that wrapper's centre when the
- * shutter falls. The flight then turns the photograph 30° about the wrapper's
- * centre, which swings that internal 16px around with it — while the real book
- * waiting on the far side is at a straight, unrotated 16px, because a
- * transform list translates before it rotates. So the two ends disagree by
- * 2·16·sin(15°) ≈ 8px, and only in the very last frame: at rest they agree,
- * at the top of the swing they are 8px apart. That is the arrival jump that
- * came and went depending on when the button was pressed. The offset is
- * published here as `--mark-drift` so the stylesheet can pivot the photograph
- * about the book's own centre instead, which holds it still for the whole
- * flight and lands it exactly where the real one is.
+ * PIVOT — the photographed element is the wrapper, but the book inside it is up
+ * to 16px off-centre when the shutter falls. Rotating the photograph 30° about
+ * the wrapper swings that offset around, while the real book on the far side
+ * has it unrotated (a transform list translates before it rotates), leaving the
+ * two ends 2·16·sin(15°) ≈ 8px apart on the final frame. `--mark-drift`
+ * publishes the offset so the stylesheet can pivot about the book's own centre.
  */
 const ATTRIBUTE = "data-view-nav";
 const DRIFT_PROPERTY = "--mark-drift";
@@ -62,13 +46,9 @@ function driftOf(book) {
 }
 
 /**
- * Publishes how far the frozen book sits from its wrapper's centre, so the
- * flight can turn the photograph about the book rather than about the box.
- *
  * `f` of the composed matrix is exactly the translateY: the drift computes to
  * translate(0,tY)·rotate(θ), and a rotation contributes no translation of its
- * own. Written to the root because the transition pseudo-elements descend from
- * it, and custom properties inherit all the way down to them.
+ * own. Written to the root so it inherits down to the transition pseudo-elements.
  */
 function stampDriftOffset(book) {
   const transform = getComputedStyle(book).transform;
@@ -108,12 +88,8 @@ export function markNavDirection(direction) {
 }
 
 /**
- * Called by the mark that mounts on the far side, while the flight is still in
- * the air. Puts its drift at the same point the departing one was frozen at
- * and holds it there, so the hand-over when the photograph is taken away has
- * nothing to jump between.
- *
- * A no-op on an ordinary page load, when nothing has been carried.
+ * Called by the mark mounting on the far side while the flight is still in the
+ * air, so the hand-over has nothing to jump between. No-op on a normal load.
  */
 export function adoptCarriedPhase(book) {
   if (carriedPhase == null) {
@@ -132,16 +108,9 @@ export function adoptCarriedPhase(book) {
 }
 
 /**
- * Holds the flag until the transition has actually finished, rather than
- * guessing at a duration.
- *
- * Released too early and the arriving book starts drifting while it is still
- * in the air, so it is no longer where the photograph left it. Held too long
- * and it simply sits still after landing.
- *
- * `:active-view-transition` is the only signal for this and is newer than the
- * transition API itself, so a browser that does not know the selector falls
- * back to the timeout.
+ * Holds the flag until the transition finishes rather than guessing a duration.
+ * `:active-view-transition` is the only signal and is newer than the transition
+ * API, so a browser that does not know the selector falls back to the timeout.
  */
 function watchForEnd() {
   if (watching) {
@@ -175,16 +144,10 @@ function watchForEnd() {
 }
 
 /**
- * The last resort, for a submit that never navigates at all — a sign-out that
- * fails, say, which has no result to hang a release off.
- *
- * It cannot simply fire after six seconds, because from here a submit that
- * never navigates and a submit that navigates slowly look identical: the timer
- * measures round-trip latency, not failure. Firing mid-flight would unstamp
- * the direction, drop the carried phase and set the drift running again while
- * the book is still in the air — breaking exactly what it exists to protect.
- * So on expiry it looks first, and waits again if anything is actually
- * happening.
+ * Last resort for a submit that never navigates — a failed sign-out has no
+ * result to hang a release off. It cannot just fire on expiry: a slow
+ * navigation looks identical from here, and releasing mid-flight would break
+ * exactly what this protects. So it checks first and waits again if busy.
  */
 function armBackstop() {
   clearTimeout(backstop);

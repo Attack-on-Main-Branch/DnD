@@ -1,8 +1,6 @@
 /**
- * Account-level operations against Supabase Auth.
- *
- * As with the character queries, failures return a `reason` code and leave the
- * wording to the frontend.
+ * Account-level operations against Supabase Auth. Failures return a `reason`
+ * code and leave the wording to the frontend.
  */
 
 function classify(error) {
@@ -16,11 +14,8 @@ function classify(error) {
       return "weak_password";
     case "same_password":
       return "same_password";
-    // Both reachable only through verifyPassword — nothing else here signs in.
-    // `email_not_confirmed` is mirrored from the auth classifier on purpose:
-    // re-authentication hits the same endpoint the login form does, so it can
-    // come back the same way, and without a case for it a user with a correct
-    // password was told it was wrong every time.
+    // Both reachable only through verifyPassword, which hits the same endpoint
+    // the login form does and so can fail the same ways.
     case "invalid_credentials":
       return "invalid_credentials";
     case "email_not_confirmed":
@@ -41,21 +36,14 @@ function failure(error) {
 }
 
 /**
- * Confirms the caller still knows the account password.
+ * Re-authentication before an email or password change. Supabase will make both
+ * on the strength of a session cookie alone, so a stolen session would be
+ * enough to take an account over permanently.
  *
- * Supabase will change an email address or a password on the strength of a
- * session cookie alone, which makes a borrowed laptop or a stolen session
- * enough to take an account over permanently. Signing in again is the check:
- * it rotates the session for the same user, which is harmless, and it fails
- * without touching anything if the password is wrong.
- *
- * Returns the same tuple as everything else here rather than a boolean, because
- * "the password was wrong" and "the check could not run" are not the same fact
- * and must not reach the user as the same sentence. This calls the same
- * password grant the login form does, so it is subject to the same rate limits
- * and can come back with the same unconfirmed-email answer — and telling
- * someone their password is wrong is the one reply guaranteed to make them
- * retry, which against a limiter is what keeps them locked out.
+ * Returns a tuple rather than a boolean: "the password was wrong" and "the
+ * check could not run" must not reach the user as the same sentence. Subject to
+ * the login form's rate limits, and telling someone their password is wrong is
+ * the reply guaranteed to make them retry into the limiter.
  */
 export async function verifyPassword(supabase, { email, password }) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });

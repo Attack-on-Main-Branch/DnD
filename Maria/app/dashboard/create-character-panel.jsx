@@ -8,20 +8,13 @@ import CreateCampaignPanel from "./create-campaign-panel";
 import PlayerCharacterForm from "./player-character-form";
 
 /**
- * The creation sheet, for whichever of the two things is being made.
+ * The creation sheet, for whichever of the two things is being made. The role
+ * is already in the URL when this mounts — `?new=player` from the roster's
+ * empty slot, `?new=dm` from the campaign grid — so there is no role question
+ * and no step behind these forms, only Cancel.
  *
- * There used to be a role question in front of this — "What are you joining
- * as?" — and it is gone because nothing arrives here without having answered
- * it. The roster's empty slot links to `?new=player` and the campaign grid's to
- * `?new=dm`, so the role is in the URL before the panel mounts. Asking again
- * was a step whose answer was already on screen when it was clicked.
- *
- * That is also why neither form has a Back button any more: there is no step
- * behind them. They have Cancel, which is a link to the dashboard.
- *
- * Finishing calls `router.replace`. That sheet is spent, and on the third
- * character it is a form with no slot left to fill: Back would reopen an empty
- * creation panel whose only possible outcome is "you already have 3".
+ * Finishing calls `router.replace`: the sheet is spent, and on the third
+ * character Back would reopen a form whose only outcome is "you already have 3".
  * Replacing drops it from history so Back skips straight past it.
  */
 export default function CreateCharacterPanel({ role }) {

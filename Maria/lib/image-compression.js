@@ -1,39 +1,24 @@
 /**
- * Shrinking a map in the browser, before it ever reaches the network.
+ * Shrinking a map in the browser, before it reaches the network — a 4000px PNG
+ * export costs the upload, the bucket, and every later page view.
  *
- * A battle map arrives as whatever the DM exported — commonly a 4000px PNG of
- * several megabytes. Sending that costs the upload, the bucket, and every
- * later page view; re-encoded to WebP at 2560px it is usually a tenth of the
- * size with nothing visible lost. Doing it here rather than on the server also
- * means the bytes that never existed are never paid for anywhere.
- *
- * Browser only. It uses `createImageBitmap` and a canvas, neither of which the
- * server has, so this module must not be imported by a Server Component.
+ * Browser only: uses `createImageBitmap` and a canvas, so this module must not
+ * be imported by a Server Component.
  */
 
 /** Above this, on the longest edge, the image is scaled down. */
 export const MAX_EDGE = 2560;
 
 /**
- * 0.9, which is high for WebP.
- *
- * A map is read at 100% and scrolled around, not glanced at in a feed, so the
- * usual 0.75 leaves visible mush on hand-drawn linework and text labels. The
- * saving from 0.9 to 0.75 is small next to the saving from the resize, which is
- * where almost all of it comes from.
+ * High for WebP, because a map is read at 100% rather than glanced at, and 0.75
+ * leaves visible mush on hand-drawn linework. Almost all of the saving comes
+ * from the resize anyway.
  */
 export const QUALITY = 0.9;
 
 /**
- * @param {File} file
- * @param {{maxEdge?: number, quality?: number}} [options]
- * @returns {Promise<{file: File, width: number, height: number,
- *   originalBytes: number, bytes: number, changed: boolean}>}
- *
- * Always resolves with a usable file. If anything about the re-encode goes
- * wrong, or comes out worse, the original is returned with `changed: false` —
- * a map that uploads at full size is a far better outcome than one that does
- * not upload at all.
+ * Always resolves with a usable file: if the re-encode fails or comes out
+ * worse, the original is returned with `changed: false`.
  */
 export async function compressImage(file, { maxEdge, quality } = {}) {
   const edge = maxEdge ?? MAX_EDGE;
@@ -55,9 +40,7 @@ export async function compressImage(file, { maxEdge, quality } = {}) {
   try {
     bitmap = await decode(file);
   } catch {
-    // A file the browser will not decode is one the server would not have
-    // liked either, but that is validation's answer to give, not this
-    // function's.
+    // Validation's answer to give, not this function's.
     return unchanged({ width: 0, height: 0 });
   }
 
@@ -67,18 +50,10 @@ export async function compressImage(file, { maxEdge, quality } = {}) {
     const blob = await encodeWebp(bitmap, width, height, q);
 
     /*
-     * Re-encoding does not always win, and the resize does not guarantee it.
-     *
-     * Measured: a 4000×2500 map of flat colour blocks is 284KB as a PNG and
-     * 410KB as a 2560px WebP — lossless compression is very good at large flat
-     * areas, and lossy encoding of many hues is not. An earlier version of this
-     * guard only kept the original when no resize had happened, so that file
-     * would have been stored 44% larger AND at 64% of its resolution: worse on
-     * both counts.
-     *
-     * So the rule is bytes, which is what the bucket and every later page view
-     * are actually charged for. Smaller wins; a tie keeps the original, because
-     * the original is the one nobody has re-encoded.
+     * Re-encoding does not always win: a 4000×2500 map of flat colour blocks
+     * measured 284KB as a PNG against 410KB as a 2560px WebP, so keying this on
+     * "did we resize" stored some files larger AND at lower resolution. Bytes
+     * are what the bucket is charged for, and a tie keeps the original.
      */
     if (blob.size >= file.size) {
       return unchanged({ width: bitmap.width, height: bitmap.height });
@@ -103,13 +78,10 @@ export async function compressImage(file, { maxEdge, quality } = {}) {
 }
 
 /**
- * `createImageBitmap` where it exists, an `<img>` where it does not.
- *
- * The bitmap path decodes off the main thread, which on a 4000px PNG is the
- * difference between a dropped frame or two and a visibly frozen page. The
- * fallback exists because Safari only gained the File overload comparatively
- * recently, and the object URL is revoked either way — an un-revoked one holds
- * the whole decoded image for the life of the document.
+ * `createImageBitmap` decodes off the main thread, which on a 4000px PNG is the
+ * difference between a dropped frame and a frozen page. The `<img>` fallback is
+ * for Safari; its object URL must be revoked, or the decoded image is held for
+ * the life of the document.
  */
 async function decode(file) {
   if (typeof createImageBitmap === "function") {
@@ -196,10 +168,9 @@ function draw(canvas, source, width, height) {
 function toWebpName(name) {
   const base = String(name || "map").replace(/\.[^.]+$/, "");
 
-  // This is the File's name, not the storage key — the object is named after
-  // the campaign by `mapObjectPath`. It still gets sanitised, because the name
-  // is what travels in the multipart body's `filename` parameter, and a header
-  // value is not the place to pass on whatever was in the file picker.
+  // Not the storage key — `mapObjectPath` names the object. Sanitised anyway,
+  // because this travels in the multipart body's `filename` parameter, and a
+  // header value is not the place to pass on whatever the file picker gave.
   const safe = base.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 60);
 
   return `${safe || "map"}.webp`;

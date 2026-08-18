@@ -21,26 +21,17 @@ function getServerSnapshot() {
 }
 
 /**
- * Whether the visitor has asked their system to reduce motion.
- *
- * `useSyncExternalStore` is the right primitive here: matchMedia is external
- * state that can change at any moment, and this reads it without the
- * setState-inside-an-effect dance that causes a cascading re-render.
+ * matchMedia is external state that can change at any moment, so
+ * `useSyncExternalStore` reads it without a setState-inside-an-effect cascade.
  */
 export function useReducedMotion() {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 /**
- * The same preference, read on the spot rather than subscribed to.
- *
- * For code that animates imperatively and so has no render to hang a hook off
- * — the navigation bar drives itself through the Web Animations API and keeps
- * its effect on an empty dependency list on purpose. Asking at the moment of
- * animating is both simpler than threading the hook's value through a ref and
- * more current, since it cannot be a render behind.
- *
- * Callers must be in the browser; there is no server answer to give.
+ * The same preference read on the spot, for code that animates imperatively and
+ * has no render to hang a hook off. Cannot be a render behind, unlike a value
+ * threaded through a ref. Browser only — there is no server answer to give.
  */
 export function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia(QUERY).matches;

@@ -18,11 +18,8 @@ const HOVER_SPEED = 5;
 const SHEEN_ANGLE = 135;
 
 /**
- * A nine-pointed star as an SVG path.
- *
- * Points alternate between the outer and inner radius, starting at twelve
- * o'clock. Computed once at module load rather than typed out, so the shape can
- * be retuned by changing a number instead of forty coordinates.
+ * A nine-pointed star as an SVG path: points alternate between the outer and
+ * inner radius, starting at twelve o'clock.
  */
 function starPath(points, outerRadius, innerRadius, rotationDeg = 0) {
   const step = Math.PI / points;
@@ -48,16 +45,11 @@ const FRONT_STAR = starPath(9, 50, 21);
 const BACK_STAR = starPath(9, 44, 18, 20);
 
 /**
- * Rotation about the star's centre.
- *
- * `transform-origin: center` looks like the obvious value and is wrong here.
- * The lengths it resolves to are measured from the user-space origin, not from
- * the top-left of the viewBox — so with a viewBox of "-60 -60 120 120" it
- * lands on user-space (60, 60), a corner, and the star orbits it instead of
- * spinning in place. The star is drawn around (0, 0), so that is the origin.
- *
- * `transform-box` still has to be stated: its default is not the viewport, and
- * a fill-box reference would move with the content's bounding box.
+ * `transform-origin: center` is wrong here: it resolves from the user-space
+ * origin, not the viewBox corner, so with "-60 -60 120 120" it lands on (60,
+ * 60) and the star orbits instead of spinning. The star is drawn around (0, 0).
+ * `transform-box` must be stated too — a fill-box reference would move with the
+ * content's bounding box.
  */
 const SPIN_ORIGIN = { transformBox: "view-box", transformOrigin: "0 0" };
 
@@ -156,18 +148,13 @@ export default function PlayButton() {
         onPointerLeave={() => setSpeed(1)}
         onFocus={() => setSpeed(HOVER_SPEED)}
         onBlur={() => setSpeed(1)}
-        // size-20 matches the Avatar `lg` size it sits beside in the header.
+        // Amber rather than gold, because this control's own bloom is amber-500
+        // and a gold ring reads as a competing colour. globals.css puts the app
+        // ring at zero specificity so a component can do this.
         //
-        // Amber rather than the app's gold, because this control's own bloom is
-        // amber-500 and a gold ring around it read as a second, competing
-        // colour. globals.css puts the app ring at zero specificity precisely
-        // so a component can do this.
-        //
-        // The existing `outline-offset-4` clears the round star, which puts
-        // the outline 4-6px out — flush with the outer edge of the global 6px
-        // casing, leaving nothing dark beyond the ring. 8px restores it.
-        // Restated rather than widened because `box-shadow` does not
-        // accumulate: this utility replaces the global value outright.
+        // `outline-offset-4` clears the round star, which lands the outline
+        // flush with the global 6px casing; 8px restores the dark beyond it.
+        // Restated rather than widened, since `box-shadow` does not accumulate.
         className="group relative grid size-20 place-items-center rounded-full focus-visible:shadow-[0_0_0_8px_rgba(10,8,6,0.9)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-500"
       >
         <span

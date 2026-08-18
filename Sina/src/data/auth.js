@@ -1,9 +1,4 @@
-/**
- * Signing in, signing up and signing out.
- *
- * As everywhere in this package, failures come back as a `reason` code; the
- * frontend owns the wording.
- */
+/** Signing in, signing up and signing out. Failures come back as `reason` codes. */
 
 function classify(error) {
   switch (error.code) {
@@ -44,11 +39,8 @@ export async function signUp(supabase, { email, password, displayName }) {
     email,
     password,
     options: {
-      // Lands in auth.users.raw_user_meta_data, which is what the Supabase
-      // dashboard's "Display name" column reads.
-      //
-      // Note this is user-writable metadata: anyone can send whatever they
-      // like here. Treat it as a label, never as an authorisation input.
+      // Lands in auth.users.raw_user_meta_data, which is user-writable: treat
+      // it as a label, never as an authorisation input.
       data: { display_name: displayName },
     },
   });
@@ -63,17 +55,9 @@ export async function signUp(supabase, { email, password, displayName }) {
 }
 
 /**
- * Ends the session.
- *
- * Returns the tuple rather than swallowing the error, because the two failure
- * modes are not cosmetic. In the common one the local session is cleared but
- * the default global revocation does not happen, so the user's other sessions
- * survive a sign-out they watched succeed. In the rarer one the client returns
- * early and the auth cookies are left intact — a still-usable refresh token on
- * what may be a shared machine.
- *
- * The caller should still redirect either way; what it must not do is stay
- * silent about it.
+ * The error is returned rather than swallowed: a failed sign-out can leave
+ * other sessions un-revoked, or the auth cookies intact on a shared machine.
+ * Callers should redirect either way, but must not stay silent about it.
  */
 export async function signOut(supabase) {
   const { error } = await supabase.auth.signOut();

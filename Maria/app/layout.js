@@ -26,16 +26,9 @@ const cinzel = Cinzel({
 });
 
 /**
- * The suffix lives here, once.
- *
- * It used to be typed out at six call sites — the sign-in, dashboard and
- * settings pages, the 404, and both arms of the character route's
- * generateMetadata — which is six chances to miss one the next time this app is
- * renamed. It has been renamed once already.
- *
- * `default` is required alongside a template and cannot be dropped in favour of
- * it: a template applies to CHILD segments and never to the segment declaring
- * it, so this layout's own title has to be spelled out in full.
+ * The suffix lives here, once. `default` is required alongside `template` and
+ * cannot be dropped in favour of it: a template applies to CHILD segments only,
+ * never to the segment declaring it.
  */
 export const metadata = {
   title: {

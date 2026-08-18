@@ -10,12 +10,7 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "./auth.js";
 
-/*
- * Re-exported, not redeclared. The settings forms import their bounds from this
- * module, so moving MAX_DISPLAY_NAME_LENGTH up to auth.js — where the floor and
- * the sign-up check now use it too — has to keep this door open or
- * username-form.jsx stops resolving.
- */
+/* Re-exported, not redeclared: the settings forms import their bounds here. */
 export {
   MAX_DISPLAY_NAME_LENGTH,
   MIN_DISPLAY_NAME_LENGTH,
@@ -60,10 +55,7 @@ export function validateUsername({ displayName }) {
 }
 
 export function validateEmailChange({ email, currentPassword }) {
-  // Borrowed from auth.js rather than restated. The pattern was declared twice,
-  // character for character, in the one layer whose whole promise is a single
-  // definition — so tightening it in one place would have let a user hold an
-  // address they could never have signed up with.
+  // From auth.js rather than restated, so sign-up and this cannot diverge.
   const malformed = checkEmail(email);
   if (malformed) {
     return malformed;

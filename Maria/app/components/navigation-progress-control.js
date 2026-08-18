@@ -1,17 +1,12 @@
 "use client";
 
 /**
- * A tiny handle onto the single navigation bar mounted in the root layout.
+ * A handle onto the single navigation bar in the root layout. A module
+ * singleton rather than a context: there is exactly one bar and the callers are
+ * event handlers, not components.
  *
- * Deliberately a module singleton rather than a React context: there is
- * exactly one bar, the callers are event handlers rather than components, and
- * threading a provider through the tree to reach them would be ceremony around
- * a two-function API.
- *
- * There used to be a third, `startNavigationProgress`, which nothing imported.
- * The bar starts itself from its own capture-phase click and submit listeners,
- * so the only thing anyone outside it ever needs is a way to say "nothing is
- * going to happen after all" — which is `stop`.
+ * No `start`: the bar starts itself from its own capture-phase listeners, so
+ * the only thing outsiders need is a way to say nothing will happen after all.
  */
 let controller = null;
 

@@ -316,16 +316,9 @@ describe("the query shape itself", () => {
     });
 
     it("writes the caller's user_id, not the values'", async () => {
-      // The fixture has to be hostile for this to mean anything. Handed plain
-      // VALUES, which carries no owner at all, the assertion below could not
-      // fail — it restated what the test above already checks. Verified by
-      // mutation: with a clean fixture, changing insertCharacter to
-      // `user_id: values.userId ?? userId` — the exact inversion this test is
-      // named for — left all 124 green.
-      //
-      // Both spellings, because the caller decides the shape: `userId` is what
-      // a rule-layer object uses, `user_id` is what a hand-built one or a
-      // widened `readCharacterValues` could carry.
+      // The fixture has to be hostile: handed plain VALUES, which carries no
+      // owner, the assertion below cannot fail. Both spellings, because the
+      // caller decides the shape.
       const q = stubQuery({ data: null, error: null });
       await insertCharacter(q, {
         userId: "user-1",

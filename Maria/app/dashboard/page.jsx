@@ -12,17 +12,11 @@ import CharacterInventory from "./character-inventory";
 import CreateCharacterPanel from "./create-character-panel";
 
 /*
- * A static import, after trying `dynamic()` and measuring it.
- *
- * From a Server Component it cannot split: lazy-loading.md:60 says automatic
- * code splitting is not supported when a Server Component dynamically imports a
- * Client Component. In the built client-reference manifest the panel resolved to
- * the same eager chunk set as character-card.jsx, and `dynamic()` cost a little
- * more on top — bailout and preload modules pulled in for nothing.
- *
- * The other half of that change stays: character-inventory.jsx is a Server
- * Component again and the `?new` branch is decided here. A real split needs the
- * lazy boundary inside a Client Component (lazy-loading.md:66).
+ * A static import, after measuring `dynamic()`. A Server Component importing a
+ * Client Component cannot split (lazy-loading.md:60) — the panel resolved to
+ * the same eager chunk set either way, and `dynamic()` added bailout and
+ * preload modules for nothing. A real split needs the lazy boundary inside a
+ * Client Component (lazy-loading.md:66).
  */
 
 export const metadata = {
@@ -54,9 +48,7 @@ export default async function DashboardPage({ searchParams }) {
 
   const displayName = user.user_metadata?.display_name ?? null;
 
-  // Both at once. They are independent reads against the same connection, and
-  // awaiting them in sequence would put the second one's latency behind the
-  // first's for no reason.
+  // Independent reads, so awaiting them in sequence would stack the latencies.
   const [
     { data: characters, error },
     { data: campaigns, error: campaignError },
@@ -69,9 +61,8 @@ export default async function DashboardPage({ searchParams }) {
     logFailure("listCharacters", error);
   }
 
-  // Logged, not shown. The roster is the page; a campaign section that cannot
-  // load should not replace it with an error, and the banner below is about
-  // the characters.
+  // Logged, not shown: a campaign section that cannot load should not replace
+  // the roster with an error, and the banner below is about the characters.
   if (campaignError) {
     logFailure("listCampaigns", campaignError);
   }
@@ -86,9 +77,8 @@ export default async function DashboardPage({ searchParams }) {
               { text: "Welcome back, ", className: "text-ink" },
               {
                 text: displayName ?? user.email,
-                // The gold and the ivory are only 1.2:1 apart, so the glow
-                // does real work here — it separates the name from the
-                // sentence for anyone who cannot see the hue difference.
+                // Gold and ivory are 1.2:1 apart, so the glow is what separates
+                // the name for anyone who cannot see the hue difference.
                 className:
                   "text-gold drop-shadow-[0_0_20px_rgba(255,223,156,0.45)]",
               },
@@ -124,10 +114,8 @@ export default async function DashboardPage({ searchParams }) {
               browser with it for every visitor who only wanted the roster.
             */
         creating !== undefined ? (
-          // The role comes off the URL: `?new=dm` from an empty campaign slot,
-          // `?new=player` from an empty character slot. Anything else — a
-          // hand-typed `?new` — falls to the character sheet, which is the one
-          // the roster above it is about.
+          // `?new=dm` from an empty campaign slot, `?new=player` from a
+          // character slot. Anything else falls to the character sheet.
           <CreateCharacterPanel role={creating === "dm" ? "dm" : "player"} />
         ) : (
           <>

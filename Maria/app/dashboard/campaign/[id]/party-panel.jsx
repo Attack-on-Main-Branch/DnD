@@ -33,27 +33,20 @@ function validateQuery({ query }) {
     : {
         field: "query",
         message: "Search by name or id.",
-        // Carried through so the box keeps what was typed. `useFormAction`
-        // spreads this object into the state it returns, and this is the only
-        // path that never reaches the action — the one place the echoed query
-        // has to come from here instead.
+        // The only path that never reaches the action, so the echoed query has
+        // to come from here instead.
         query,
       };
 }
 
 /**
- * The party: who is in it, and how to add somebody.
+ * The party: who is in it, and how to add somebody. The search takes a fragment
+ * rather than a whole handle, since a DM usually has a name someone said out
+ * loud. It returns a list to pick from — two characters can differ only in
+ * their four digits and belong to different people.
  *
- * The search takes a fragment rather than a whole handle — `fri`, `1000` and
- * `fri#10` all work — because a DM is usually working from a name somebody said
- * out loud, not a string they can paste. It returns a list and the DM picks:
- * Two characters can differ only in their four digits and belong to different
- * people, so nobody joins anything without being looked at first.
- *
- * The box keeps what was typed across the round trip. The action echoes the
- * query back, and it reaches the field through `key` and `defaultValue` — which
- * is what makes an uncontrolled input adopt the echoed value after each search
- * instead of holding its first one.
+ * The echoed query reaches the box through `key` and `defaultValue`, which is
+ * what makes an uncontrolled input adopt it after each search.
  */
 export default function PartyPanel({ campaignId, members }) {
   const [error, setError] = useState(null);

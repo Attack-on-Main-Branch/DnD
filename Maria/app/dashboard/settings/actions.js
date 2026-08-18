@@ -24,11 +24,8 @@ function rejected(message, field = null) {
 }
 
 /**
- * The two reasons `getCurrentUser` hands back no user, told apart. No error
- * means auth answered and said no, and signing in again is the fix; an error
- * means it could not answer, and sending that user to a login form only repeats
- * the failure. Same helper as dashboard/actions.js, deliberately local to each
- * file because `rejected` is.
+ * No error means auth said no and signing in again fixes it; an error means it
+ * could not answer. Local to each actions file, as `rejected` is.
  */
 function sessionRejection(action, error) {
   if (!error) {
@@ -75,8 +72,7 @@ const USERNAME_COPY = {
 const REAUTH_COPY = {
   invalid_credentials: "That password is not correct.",
   rate_limited: "Too many attempts. Wait a few minutes and try again.",
-  // Same endpoint as the login form, so the same answer is possible here. Left
-  // out, this told someone typing the right password that it was wrong, forever.
+  // Same endpoint as the login form, so the same answers are possible.
   email_not_confirmed:
     "Confirm your email address first — check your inbox for the link.",
 };
@@ -102,10 +98,9 @@ export async function updateUsername(_prevState, formData) {
 
   const supabase = await createClient();
 
-  // The same guard the other two mutations have. `updateUser` does fail without
-  // a session, but as "Auth session missing!" — an SDK internal with no error
-  // code, so it classifies as `unknown` and the user gets a generic message
-  // that never mentions signing in again.
+  // `updateUser` does fail without a session, but as "Auth session missing!" —
+  // an SDK internal with no code, so it classifies as `unknown` and the user is
+  // never told to sign in again.
   const { user, error: authError } = await getCurrentUser(supabase);
 
   if (authError || !user) {

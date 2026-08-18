@@ -7,29 +7,20 @@ import CharacterCard from "./character-card";
 import CharacterFacts from "./character-facts";
 
 /**
- * The character roster, laid out as a fixed set of inventory slots: filled
- * ones show the character, empty ones are the way to create another. The slot
- * count *is* the account limit, so the ceiling is visible rather than being a
- * surprise error at the end.
+ * The character roster as a fixed set of inventory slots: filled ones show the
+ * character, empty ones create another. The slot count *is* the account limit,
+ * so the ceiling is visible rather than a surprise error at the end.
  *
- * A Server Component. It used to carry `"use client"` for one `router.push`,
- * and the cost of that directive was not the push — it was the static import of
- * the creation panel below it, which pulled `PlayerCharacterForm` and
- * `ClassPicker` into the same client chunk. Everything in a Client Component's
- * module graph goes to the browser, so the entire creation flow was downloaded
- * by every visitor who did nothing but look at their roster.
- *
- * The branch that chose between roster and creation sheet lived here too, which
- * was the odd part: `dashboard/page.jsx` reads `?new` off the URL on the server
- * and already knows the answer. It decides now, and this file only ever renders
- * the grid.
+ * A Server Component. `"use client"` here cost more than the one `router.push`
+ * it was for — everything in a Client Component's module graph goes to the
+ * browser, so the whole creation flow was downloaded by anyone who did nothing
+ * but look at their roster. `dashboard/page.jsx` reads `?new` on the server.
  */
 export default function CharacterInventory({ characters }) {
   const emptySlots = Math.max(0, MAX_CHARACTERS - characters.length);
 
-  // Two columns from `md` rather than `sm`. At the narrow end of the old range
-  // a card was only ~284px wide, and 16:9 made it 160px tall — shorter than
-  // the name, four facts and the corner row need.
+  // Two columns from `md` rather than `sm`: at the narrow end of the old range
+  // a card was ~284px wide, and 16:9 made it shorter than its content needs.
   return (
     <section>
       {/*
@@ -72,11 +63,7 @@ export default function CharacterInventory({ characters }) {
   );
 }
 
-/**
- * The same glass panel as a filled card and as the settings sections — only
- * the edge differs, dashed rather than solid, which is what reads as "empty
- * slot" without making it a different kind of object.
- */
+/** The same glass panel as a filled card; only the dashed edge differs. */
 function EmptySlot({ href }) {
   return (
     <Link

@@ -6,17 +6,10 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import CampaignCard from "./campaign-card";
 
 /**
- * The campaigns a Dungeon Master is running, laid out exactly as the roster is:
- * a fixed set of slots, filled ones showing the campaign and empty ones being
- * the way to make another. The slot count *is* the account limit, so the
- * ceiling is visible rather than being a surprise error at the end.
- *
- * A section of its own rather than more cells in the roster, because the two
- * caps are separate — three characters and three campaigns, each enforced by
- * its own database trigger. One shared grid would have to answer "3 of 3" with
- * two different meanings.
- *
- * A Server Component; the cards are the client half.
+ * The campaigns a Dungeon Master is running, laid out exactly as the roster is.
+ * A section of its own rather than more cells in that grid, because the two
+ * caps are separate triggers — one shared grid would have to answer "3 of 3"
+ * with two different meanings. A Server Component; the cards are the client half.
  */
 export default function CampaignInventory({ campaigns }) {
   const emptySlots = Math.max(0, MAX_CAMPAIGNS - campaigns.length);
@@ -53,11 +46,8 @@ export default function CampaignInventory({ campaigns }) {
 }
 
 /**
- * The roster's empty slot, pointed at the other half of the creation flow.
- *
  * `?new=dm` rather than `?new`, so this lands on the campaign form instead of
- * on the "what are you joining as?" question — the answer to which is already
- * known by anyone who clicked an empty campaign slot.
+ * the role question — already answered by clicking an empty campaign slot.
  */
 function EmptySlot() {
   return (

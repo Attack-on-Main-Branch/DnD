@@ -1,8 +1,6 @@
 /**
- * One step up from the sizes that came before. Cinzel sets a smaller apparent
- * size than a sans at the same nominal one — its capitals are narrower and its
- * cap height sits lower in the em box — so matching the old visual weight
- * needs the number to go up, not just the family to change.
+ * One step up: Cinzel sets a smaller apparent size than a sans at the same
+ * nominal one, so matching the old visual weight needs the number to go up.
  */
 const SIZE_CLASSES = {
   sm: "size-10 text-base",
@@ -17,12 +15,9 @@ const SIZE_CLASSES = {
  * `aria-hidden` because the character's name is always rendered next to it —
  * announcing "DV" before "Darth Vader" is noise, not information.
  *
- * Takes the initials and the colour class ready-made rather than deriving them.
- * It used to import both from `app/dashboard/character-presentation`, which made
- * this the one file in `components/ui/` reaching into a route folder — so a
- * primitive could not be reused outside the dashboard, and that route file could
- * not move without breaking it. The rule the rest of the folder follows:
- * `components/` never imports from a route directory.
+ * Takes the initials and the colour class ready-made rather than deriving them:
+ * `components/` never imports from a route directory, or the primitive cannot
+ * be reused outside the dashboard.
  */
 export default function Avatar({
   initials,

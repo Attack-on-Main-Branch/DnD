@@ -1,33 +1,19 @@
 /**
- * Central button styling for the whole app.
+ * Central button styling. `buttonClasses` is exported separately because
+ * non-button elements — Next's <Link>, a plain <a> — need the same look, and a
+ * <button> inside an anchor is invalid HTML.
  *
- * Every button in the project should come from here so they stay visually
- * consistent and a change lands in one place. `buttonClasses` is exported
- * separately because elements that are not <button> — Next's <Link>, a plain
- * <a> — need the same look, and nesting a <button> inside an anchor is
- * invalid HTML.
+ * No `backdrop-filter`: a button is under 48px tall, so the blur kernel is
+ * wider than the element and averages to a flat tint, and buttons usually sit
+ * inside a glass card, where a nested filter has an empty backdrop to sample.
  *
- * No `backdrop-filter` anywhere in here, deliberately. A button is under 48px
- * tall, and the glass blur radius has a kernel wider than that — every output
- * pixel would average the same neighbourhood and the result is a flat tint you
- * cannot tell from a solid fill. Buttons also usually sit inside a glass card,
- * and filtered-inside-filtered has an empty backdrop to sample. Both point the
- * same way: solid fills here, real glass on the few large surfaces.
- *
- * The focus ring comes from globals.css: a gold outline over an achromatic
- * casing, where the casing carries the contrast (gold alone measures 1.29:1
- * against the brightest part of the plume). `box-shadow` is ONE property, and
- * utilities sit in a later layer than that base rule — so any `shadow-*` here
- * replaces the casing wholesale. `primary` did that unconditionally and
- * `secondary` while hovered, neither of them deliberately.
- *
- * Hence each shadow-carrying state restates the casing, plus a compound
- * `hover:focus-visible:` for the overlap: single `hover:` and `focus-visible:`
- * utilities tie on specificity, so a button that is both would be decided by
- * emit order. The compound is (0,3,0) and wins outright.
- *
- * `ghost`, `danger` and `link` never touch `box-shadow`, so the base rule
- * reaches them intact.
+ * The focus ring comes from globals.css — a gold outline over an achromatic
+ * casing, which carries the contrast, since gold alone measures 1.29:1 against
+ * the brightest part of the plume. `box-shadow` is ONE property and utilities
+ * sit in a later layer, so any `shadow-*` here replaces the casing wholesale.
+ * Each shadow-carrying state therefore restates it, plus a compound
+ * `hover:focus-visible:` for the overlap — the single variants tie on
+ * specificity, so emit order would decide it otherwise.
  */
 
 const BASE_CLASSES =
@@ -36,13 +22,10 @@ const BASE_CLASSES =
 
 /** Padding lives in the variant: `link` and `ghost` are text, not slabs. */
 const VARIANT_CLASSES = {
-  /* The gold is a lit rim and a wash, not a fill — a solid gold slab would
-     shout louder than anything else on a page this dark.
-
-     The display face is on this variant rather than in BASE_CLASSES: primary
-     is the one action a screen is asking for, and the serif is what separates
-     it from the row of secondary and ghost controls beside it. That also keeps
-     the two auth submits — Sign In and Sign Up — matching each other. */
+  /* A lit rim and a wash rather than a fill: a solid gold slab shouts on a
+     page this dark. The display face is on this variant rather than in
+     BASE_CLASSES, so the serif separates the primary action from the
+     secondary and ghost controls beside it. */
   primary:
     "rounded-full px-5 py-2.5 border border-gold/45 bg-gold/15 text-gold font-display tracking-wide " +
     "shadow-[inset_0_1px_0_rgba(255,223,156,0.18)] " +

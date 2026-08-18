@@ -1,19 +1,13 @@
 /**
- * Canvas orchestration for the Paths background.
+ * Canvas orchestration for the Paths background. Stacked bottom to top:
  *
- * Stacked layers, bottom to top:
- *
- *   bloom   – a low-resolution mirror of both trails, blurred by CSS. Cheap,
- *             GPU-side glow: one `drawImage` per frame instead of a real
- *             multi-pass blur.
- *   trail×2 – accumulation buffers, one per generation. New segments are drawn
- *             additively and left untouched while their path grows; the layer is
- *             then dissolved to nothing. Two of them, because with an
- *             overlapping NEXT_PATH_DELAY the new path is already growing while
- *             the old one is still dissolving, and a dissolve is a whole-layer
- *             operation — it cannot pick out one generation.
- *   dust    – cleared every frame: floating motes and the pulse on freshly
- *             burnt-out path tips.
+ *   bloom   – low-resolution mirror of both trails, blurred by CSS. One
+ *             `drawImage` per frame instead of a real multi-pass blur.
+ *   trail×2 – accumulation buffers, one per generation. Two of them because a
+ *             dissolve is a whole-layer operation and cannot pick out one
+ *             generation, while an overlapping NEXT_PATH_DELAY has the new path
+ *             growing before the old has finished fading.
+ *   dust    – cleared every frame: motes and the pulse on burnt-out tips.
  */
 
 import { PathField, BULB_LIFE } from "./paths.js";
@@ -56,14 +50,9 @@ export function createRenderer({
   const stampSegment = createBrush();
 
   /**
-   * One entry per generation buffer; `level` is its current dissolve opacity,
-   * and `generation` is which path drew what is on it.
-   *
-   * The opacity is written back explicitly rather than assumed: these canvases
-   * outlive the renderer (React owns the elements), so a remount — StrictMode,
-   * or the reduced-motion listener rebuilding — would otherwise inherit a
-   * mid-dissolve opacity that `setLevel` then never corrects, leaving the whole
-   * background permanently dimmed.
+   * One entry per generation buffer. The opacity is written back explicitly:
+   * these canvases outlive the renderer, so a remount would otherwise inherit a
+   * mid-dissolve opacity that `setLevel` never corrects.
    */
   const layers = trails.map((canvas) => {
     canvas.style.opacity = "1";
@@ -109,13 +98,9 @@ export function createRenderer({
   }
 
   /**
-   * Grab a trail so a resize doesn't blank out what is on screen.
-   *
-   * Allocated per call and left to the collector as soon as the draw-back is
-   * done. Holding two of these for reuse was tried and reverted: reassigning
-   * `width` reallocates the backing store anyway, so only the element wrapper
-   * is saved, while ~63 MB at 1080p on a 2x display stays resident for the
-   * life of a page whose background never unmounts.
+   * Grab a trail so a resize doesn't blank out what is on screen. Allocated per
+   * call: caching two saves only the element wrapper, since reassigning `width`
+   * reallocates the backing store anyway, and costs ~63 MB resident at 1080p.
    */
   function snapshot(canvas) {
     if (!canvas.width || !canvas.height) return null;
@@ -127,14 +112,10 @@ export function createRenderer({
   }
 
   /**
-   * Coalesce resize events to one per frame.
-   *
-   * Both the ResizeObserver and the window listener fire during a drag, and
-   * each pass re-allocates every backing store on the stack. Collapsing them
-   * onto a frame boundary means one pass per painted frame at most.
-   *
-   * `start()` calls `applyResize` directly instead: the first sizing has to be
-   * synchronous, or `field` is still null when the caller uses it.
+   * Coalesce resize events to one per frame: the observer and the window
+   * listener both fire during a drag, and each pass reallocates every backing
+   * store. `start()` calls `applyResize` directly — the first sizing must be
+   * synchronous or `field` is still null when the caller uses it.
    */
   function resize() {
     if (disposed || resizeRaf) return;
@@ -179,66 +160,42 @@ export function createRenderer({
       motes.setSize(width, height);
     }
 
-    // Assigning `width` above cleared the dust and bloom bitmaps. The trails
-    // came back from the snapshot; these two have no equivalent, so they must
-    // be redrawn here or the frame ships without them.
+    // Assigning `width` cleared the dust and bloom bitmaps; the trails came
+    // back from the snapshot, these two have no equivalent. Required on every
+    // resize frame, since `tick` re-registers before a resize can append —
+    // skip it and a window drag shows the trail with no glow and no motes.
     //
-    // For resize-driven frames this has to happen every time: `tick`
-    // re-registers itself at the top of its own body, so its callback is
-    // already in the animation-frame map before a resize can append this one —
-    // the order is tick, then applyResize, then paint. Skip it and every frame
-    // of a window drag shows the trail with no glow and no motes.
-    //
-    // Suppressed only while the reduced-motion still is pending. That covers
-    // more than the one call `start()` makes directly: the flag stays up for
-    // however long the idle callback takes, so resizes inside that window skip
-    // the paint too. Safe because nothing paints dust or bloom before the still
-    // is composed, and the width reassignments above clear both bitmaps on
-    // every pass — there is never anything there to lose. Add any pre-still
-    // painting and that stops being true.
-    //
-    // Without the gate, the mount-time call would put a partial frame on
-    // screen — a static mote field at simulation time zero — which the still
-    // then replaces wholesale a few hundred milliseconds later, jumping the
-    // field by a quarter of the screen. Exactly the discontinuity this branch
-    // exists to avoid.
+    // Gated while the reduced-motion still is pending, or the mount-time call
+    // would show a partial frame that the still then replaces wholesale. Safe
+    // only because nothing paints dust or bloom before the still is composed.
     if (!stillPending) {
       paintDust();
       paintBloom();
     }
   }
 
-  /**
-   * Run the scene forward off-clock, for the reduced-motion still. Uses the same
-   * step as the rAF loop: one path at a time is cheap enough that a coarser step
-   * would only buy a beaded, wrongly-lit frame.
-   */
+  /** Run the scene forward off-clock, for the reduced-motion still. */
   function simulate(seconds) {
     const steps = Math.round(seconds / STEP);
     for (let i = 0; i < steps; i++) {
-      // Scaled by SPEED to match `tick`. Identical at the shipped SPEED of 1,
-      // but without it the still frame silently drifts to a different stage of
-      // growth than the animated version the moment that dial is turned.
+      // Scaled by SPEED to match `tick`, or the still drifts to a different
+      // stage of growth than the animated version as soon as that dial moves.
       field.step(STEP * SPEED);
       motes.step(STEP * SPEED);
-      // Paint as we go: segments are consumed each frame, so batching them all
-      // to the end would balloon the queue for no benefit.
+      // Painted as we go: segments are consumed each frame.
       paintTrail();
     }
   }
 
   /**
-   * Point `drawLayer` and `fadeLayer` at the right buffers for this frame.
-   *
    * A dissolve claims whichever layer was being drawn to when it started; a
-   * launch then moves new growth to the *other* one. With an overlapping
-   * NEXT_PATH_DELAY that is what keeps the incoming tree out of the outgoing
-   * tree's dissolve.
+   * launch moves new growth to the other one. That is what keeps an incoming
+   * tree out of the outgoing tree's dissolve.
    */
   function syncLayers() {
-    // Keyed on the dissolve's id, not on a false→true edge: if a dissolve ever
-    // began while the previous one was still running, an edge test would miss it
-    // and keep fading the wrong layer, stranding the other at a partial opacity.
+    // Keyed on the dissolve's id, not a false→true edge: a dissolve beginning
+    // while the previous one still ran would be missed, fading the wrong layer
+    // and stranding the other at a partial opacity.
     if (field.dissolveId !== lastDissolveId) {
       lastDissolveId = field.dissolveId;
       if (fadeLayer !== drawLayer) finishDissolve(layers[fadeLayer]);
@@ -263,7 +220,6 @@ export function createRenderer({
   }
 
   function setLevel(layer, level) {
-    // Sub-half-a-level moves are invisible; skip them rather than churn style.
     if (
       level !== 0 &&
       level !== 1 &&
@@ -276,16 +232,10 @@ export function createRenderer({
   }
 
   /**
-   * Dissolve by fading the layer *element*, never its pixels.
-   *
-   * Multiplying the canvas down in place — `destination-out` once per frame —
-   * looks equivalent but is a feedback loop: every pass rounds to 8 bits, so
-   * neighbouring values keep collapsing onto each other. About a hundred passes
-   * in, the whole 0..255 range has fallen to roughly twenty surviving levels and
-   * a dark, smooth glow has become a handful of countable plateaus.
-   *
-   * Compositor opacity multiplies once, at the end, from pristine source pixels.
-   * The canvas is still cleared outright at zero, so the frame genuinely empties.
+   * Fades the layer *element*, never its pixels. Multiplying the canvas down in
+   * place is a feedback loop: each pass rounds to 8 bits, and after ~100 passes
+   * the 0..255 range has collapsed to roughly twenty countable plateaus.
+   * Compositor opacity multiplies once, from pristine source pixels.
    */
   function applyDissolve() {
     const fading = layers[fadeLayer];
@@ -320,8 +270,7 @@ export function createRenderer({
     }
     segments.length = 0;
 
-    // Burnt-out tips get stamped into the buffer exactly once, and only onto
-    // their own generation's layer.
+    // Stamped once, and only onto their own generation's layer.
     for (const bulb of field.bulbs) {
       if (bulb.stamped) continue;
       bulb.stamped = true;
@@ -370,10 +319,9 @@ export function createRenderer({
       );
     }
 
-    // Fresh tips flare and settle rather than snapping on. The dust layer is
-    // never dissolved, so a bulb has to be dimmed by its own generation's level
-    // by hand — otherwise the last tips of a tree keep flaring at full strength
-    // while the tree they belong to fades out from under them.
+    // The dust layer is never dissolved, so a bulb is dimmed by its own
+    // generation's level by hand — otherwise a tree's last tips keep flaring at
+    // full strength while the tree fades out from under them.
     const now = field.time;
     for (const bulb of field.bulbs) {
       const age = now - bulb.born;
@@ -418,9 +366,8 @@ export function createRenderer({
     last = now;
     accumulator += delta;
 
-    // The accumulator runs on real time so the frame rate stays decoupled, but
-    // the scene is stepped by STEP * SPEED — every duration in config.js is in
-    // simulation seconds, so they all scale together.
+    // Real time in, simulation seconds out: every duration in config.js scales
+    // with SPEED together.
     let steps = 0;
     while (accumulator >= STEP && steps < MAX_CATCHUP) {
       field.step(STEP * SPEED);
@@ -439,8 +386,8 @@ export function createRenderer({
   function composeStillFrame() {
     idleHandle = 0;
     idleTimer = 0;
-    // Cleared before the disposal check, so the flag always means what its name
-    // says rather than staying latched on a renderer that died mid-schedule.
+    // Cleared before the disposal check, so it cannot stay latched on a
+    // renderer that died mid-schedule.
     stillPending = false;
     if (disposed) return;
 
@@ -451,8 +398,8 @@ export function createRenderer({
 
   return {
     start() {
-      // Guarded because a second call would overwrite `raf` and strand the
-      // first loop running forever, beyond the reach of destroy().
+      // A second call would overwrite `raf` and strand the first loop running
+      // forever, beyond the reach of destroy().
       if (disposed || started) return;
       started = true;
 
@@ -461,13 +408,10 @@ export function createRenderer({
       window.addEventListener("resize", resize, { passive: true });
 
       if (reducedMotion) {
-        // Compose one finished frame and leave it up — no rAF loop at all.
-        //
-        // Deferred off the critical path: simulate() runs its whole 8 seconds
-        // in one synchronous burst, and doing that inside the mount effect of a
-        // root-layout component blocks hydration for a few hundred milliseconds.
-        // Spreading it across frames instead is not an option — a tree visibly
-        // assembling itself is the exact motion this branch exists to avoid.
+        // Deferred off the critical path: simulate() runs its 8 seconds in one
+        // synchronous burst, which would block hydration from a root-layout
+        // mount effect. Spreading it across frames is not an option — a tree
+        // visibly assembling itself is the motion this branch exists to avoid.
         if (typeof requestIdleCallback === "function") {
           idleHandle = requestIdleCallback(composeStillFrame, { timeout: 500 });
         } else {
@@ -476,8 +420,6 @@ export function createRenderer({
         return;
       }
 
-      // No warm-up: the page opens on an empty frame and the first path grows
-      // in from nothing, same as every one after it.
       last = performance.now();
       raf = requestAnimationFrame(tick);
     },

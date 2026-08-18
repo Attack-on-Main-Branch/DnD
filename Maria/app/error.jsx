@@ -5,24 +5,13 @@ import Link from "next/link";
 import Button, { buttonClasses } from "./components/ui/button";
 
 /**
- * Route-level error boundary. Must be a Client Component — React needs to
- * attach it as an actual error boundary.
+ * Route-level error boundary. Must be a Client Component. `global-error.jsx` is
+ * a different thing and deliberately absent — it replaces <html> and <body>
+ * wholesale, so it only fires when the layout itself failed.
  *
- * It renders inside the root layout, so the animated background is still
- * behind it; without this file Next's default screen would appear instead,
- * with dark text and no awareness of the page it is sitting on.
- *
- * `global-error.jsx` is a different thing and deliberately absent: that one
- * replaces <html> and <body> wholesale, so it only fires when the layout
- * itself failed.
- *
- * `retry` rather than `reset`. Both exist; `retry` went stable in 16.3.0 and
- * is what the docs point at now. The difference is what happens on the way
- * back: `reset` re-renders the boundary's children from what is already in
- * hand, while `retry` re-fetches first. This is the root boundary, so it also
- * catches throws from the client subtrees below it — but most of what lands
- * here is a Server Component render, where re-rendering the same stale payload
- * is the one thing that cannot fix it.
+ * `retry` rather than `reset`: `reset` re-renders from what is already in hand,
+ * while `retry` re-fetches. Most of what lands here is a Server Component
+ * render, where re-rendering the same stale payload cannot help.
  */
 export default function Error({ error, retry }) {
   return (

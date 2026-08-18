@@ -1,14 +1,9 @@
 /**
- * Path growth simulation.
+ * Path growth simulation. One branching path at a time: a trunk climbs out of
+ * the frame, forks, and every tip sways, tapers and burns out into a bead. The
+ * next path launches only once the whole system is spent.
  *
- * One *branching* path at a time. A trunk climbs out of the bottom of the
- * frame, forks as it goes, and every tip sways, tapers and finally burns out
- * into a glowing bead. Only once the whole system is spent — trunk and every
- * descendant — is the next path launched.
- *
- * The field never draws anything itself: it pushes line segments into
- * `segments` (drained by the renderer each frame) so the simulation and the
- * canvas work stay decoupled.
+ * Never draws: it pushes segments into `segments`, drained by the renderer.
  */
 
 import {
@@ -36,17 +31,9 @@ const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const smoothstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
 /**
- * How far a forked branch takes to reach full brightness, as a multiple of its
- * own stamp radius.
- *
- * A child is born exactly where its parent is, so for its first stretch it is
- * depositing into pixels the parent has already lit — and light is additive, so
- * the junction comes out brighter than either line. Integrating the brush
- * profile, an un-ramped child adds half a line's worth at the fork point, making
- * it 1.5× as bright as the branches leaving it. Easing the child in over two
- * stamp radii brings that to 1.03×, which is under a percent of visible
- * difference, and the parent's own glow covers the stretch where the child is
- * still dim so there is no seam.
+ * Fork-in ramp, in stamp radii. A child is born where its parent already lit
+ * pixels, and light is additive, so an un-ramped fork point comes out 1.5× as
+ * bright as the branches leaving it. Two radii brings that to 1.03×.
  */
 const FORK_RAMP_RADII = 2;
 
@@ -57,11 +44,7 @@ const MAX_LEAN = 1;
 /** Seconds a burnt-out tip keeps pulsing on the overlay layer. */
 export const BULB_LIFE = 2.5;
 
-/**
- * Where a path is in its loop. The field owns the timing rather than the
- * renderer; the renderer just reads `fadeLevel` and `generation` and puts the
- * two generations on their own layers.
- */
+/** The field owns the loop timing; the renderer reads `fadeLevel`/`generation`. */
 const GROWING = "growing";
 const HOLDING = "holding";
 const PENDING = "pending";
@@ -81,53 +64,29 @@ export class PathField {
     this.launchTimer = 0;
     /** Seconds left of the post-growth hold. */
     this.holdTimer = 0;
-    /**
-     * Bumped every launch. The renderer uses it to move new growth onto the
-     * other trail layer, so an overlapping launch never gets caught by the
-     * previous generation's dissolve.
-     */
+    /** Bumped every launch, so the renderer can move new growth off the fading layer. */
     this.generation = 0;
     /**
-     * Whether a generation is currently dissolving, and how much of it is left
-     * (1 → 0). This runs on its own clock rather than as a stage, because the
-     * next path may well have launched and be growing while it finishes.
+     * Runs on its own clock rather than as a stage: the next path may have
+     * launched and be growing while this finishes.
      */
     this.dissolving = false;
     this.fadeLevel = 1;
-    /**
-     * Bumped each time a dissolve begins. The renderer keys off this rather than
-     * a false→true edge on `dissolving`, so a dissolve that starts while another
-     * is still running is still noticed.
-     */
+    /** Bumped per dissolve, so back-to-back dissolves are not missed as one. */
     this.dissolveId = 0;
     this.swayPhase = Math.random() * TAU;
     this.setSize(width, height);
   }
 
   setSize(width, height) {
-    // Tips and bulbs both carry absolute coordinates, so they have to move
-    // with the box the way DustField already moves its motes. A resize
-    // stretches the whole trail bitmap; anything holding a raw x/y is left
-    // behind by it.
+    // A resize stretches the trail bitmap, so anything holding a raw x/y is
+    // left behind by it: a live tip's next segment would start offset from
+    // where its own trail now ends, notching the line permanently into the
+    // accumulation buffer.
     //
-    // For a bulb that means its redrawn halo lands beside the core stamped
-    // into the bitmap rather than around it — self-healing within BULB_LIFE
-    // while the loop runs, permanent in the reduced-motion still. For a live
-    // tip it means the next segment starts offset from where its own trail now
-    // ends, notching the line, and that notch is baked into the accumulation
-    // buffer for the rest of the generation.
-    //
-    // `px`/`py` need no rescale: `advance` overwrites them from `x`/`y` before
-    // they are read again.
-    //
-    // Position only, deliberately. `width`, `speed` and `angle` stay in
-    // pre-resize units, so after a large or lopsided resize a live tip
-    // continues its stretched history at a slightly wrong thickness and
-    // heading. Both are gradual — the resize is coalesced to one pass per
-    // frame, and `straighten` pulls the heading back toward `target` within a
-    // second or two — whereas a positional break is a hard seam baked into the
-    // accumulation buffer for the rest of the generation. Correcting the angle
-    // would mean correcting speed to match, for an artefact nobody can see.
+    // Position only, deliberately. Width, speed and angle stay in pre-resize
+    // units — both self-correct within a second, while a positional break is a
+    // hard seam. `px`/`py` need no rescale; `advance` overwrites them.
     if (this.width && this.height) {
       const scaleX = width / this.width;
       const scaleY = height / this.height;
@@ -178,10 +137,8 @@ export class PathField {
   }
 
   /**
-   * Run the outgoing generation's dissolve down a straight ramp to exactly 0.
-   *
-   * Separate from the stage machine on purpose: with NEXT_PATH_DELAY shorter
-   * than FADE_DURATION the next path is already growing while this finishes.
+   * Separate from the stage machine: with NEXT_PATH_DELAY shorter than
+   * FADE_DURATION the next path is already growing while this finishes.
    */
   advanceDissolve(dt) {
     if (!this.dissolving) return;
@@ -192,12 +149,7 @@ export class PathField {
     if (this.fadeLevel <= 0) this.dissolving = false;
   }
 
-  /**
-   * Drive the grow → hold → launch-the-next loop.
-   *
-   * Nothing touches the trail while a path is growing, so the tree reaches full
-   * brightness intact.
-   */
+  /** Nothing touches the trail while growing, so the tree reaches full brightness. */
   advanceStage(dt) {
     switch (this.stage) {
       case GROWING:
@@ -234,9 +186,8 @@ export class PathField {
       this.width * 0.82,
     );
     const y = this.height + rand(8, 90) * s;
-    // The trunk climbs very close to vertical. With only one path on screen its
-    // heading is the axis the whole tree is built around, so any lean here gets
-    // inherited and compounded by every fork until the tree walks off the frame.
+    // Near-vertical: any lean here is inherited and compounded by every fork
+    // until the tree walks off the frame.
     const target = UP + rand(-0.12, 0.12);
     const trunk = this.makeTip(
       x,
@@ -275,15 +226,13 @@ export class PathField {
       age: 0,
       speed: rand(105, 165) * s * (1 - depth * 0.06),
       curl: side * rand(0.04, 0.24),
-      // Wobble is the angular amplitude, swaySpeed its frequency; a slow, wide
-      // sway is what makes a tendril rather than a blade of grass. `straighten`
-      // damps it, so it has to stay low or the strands go rigid.
+      // Angular amplitude and frequency. `straighten` damps this, so it has to
+      // stay low or the strands go rigid.
       wobble: rand(0.3, 0.95) * (0.7 + depth * 0.15),
       sway: Math.random() * TAU,
       swaySpeed: rand(0.35, 1.05),
-      // A second, faster, much shallower octave on top. One sine alone reads as
-      // a mechanical arc; two beating against each other give the curve the
-      // small irregularities that make it look drawn rather than plotted.
+      // A faster, shallower second octave: one sine alone reads as a mechanical
+      // arc, two beating against each other look drawn rather than plotted.
       wobble2: rand(0.1, 0.3),
       sway2: Math.random() * TAU,
       swaySpeed2: rand(2.4, 4.2),

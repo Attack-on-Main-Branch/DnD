@@ -15,27 +15,15 @@ const DRAG_SLOP_PX = 4;
 const ZOOM = 2.5;
 
 /**
- * The map: a thumbnail on the page, the original in a frame you can zoom.
+ * A thumbnail on the page, the original in a frame you can zoom. The split is
+ * bandwidth: a ~1.8MB map inline costs that on every visit, roughly thirty
+ * times what the box on screen can show.
  *
- * The point of the split is bandwidth. A campaign map is around 2560px and
- * something like 1.8MB, and a page that puts it inline spends that on every
- * visit — measured, roughly thirty times what the box on screen can show. The
- * thumbnail goes through the optimiser at the width it is actually drawn at,
- * which brings it to tens of kilobytes.
- *
- * The full-resolution `<img>` is not rendered until the dialog is first opened,
- * and from then on it stays. Both halves of that matter.
- *
- * Not before, because an `<img>` in the DOM downloads whether or not anything
- * can see it — hiding one with CSS would have cost exactly what this is
- * avoiding.
- *
- * And not removed afterwards, which is what an earlier version did: unmounting
- * on close meant every reopen was a fresh request, and maps uploaded before the
- * cache header was raised still carry a one-hour `max-age`, so after an hour
- * that request was a full download again. Once opened, the element stays inside
- * the closed dialog, which the browser renders as `display: none` — no pixels,
- * no layout, no second download whatever the cache says.
+ * The full-resolution `<img>` mounts on first open and then stays. Not before,
+ * because an `<img>` in the DOM downloads whether or not it is visible; and not
+ * unmounted on close, or every reopen is a fresh request — maps uploaded before
+ * the cache header was raised still carry a one-hour `max-age`. Inside a closed
+ * dialog it renders as `display: none`: no pixels, no layout, no re-download.
  */
 export default function CampaignMap({ url, title }) {
   const [open, setOpen] = useState(false);
@@ -60,8 +48,7 @@ export default function CampaignMap({ url, title }) {
 
   function close() {
     setOpen(false);
-    // Focus goes back to what opened the dialog rather than to the top of the
-    // document, which is where it lands otherwise.
+    // Otherwise focus lands at the top of the document.
     openerRef.current?.focus();
   }
 
@@ -82,12 +69,8 @@ export default function CampaignMap({ url, title }) {
         aria-label={`View the full map of ${title}`}
         className="group relative mx-auto block aspect-video w-[640px] max-w-full cursor-pointer overflow-hidden rounded-2xl border border-gold/15 bg-surface/60 transition duration-300 hover:border-gold/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70"
       >
-        {/*
-          `cover`, filling the frame. Cropping the edge of a map would be losing
-          part of what it says — but nothing is lost now that the whole thing is
-          one click away, and a letterboxed thumbnail spent a third of its box
-          on empty black.
-        */}
+        {/* `cover`: a letterboxed thumbnail spent a third of its box on black,
+          and the whole map is one click away. */}
         <Image
           src={url}
           alt=""
@@ -98,10 +81,9 @@ export default function CampaignMap({ url, title }) {
         />
 
         {/*
-          The dashboard card's vignette, from the same definition, so the two
-          views of a map darken identically. `pointer-events-none` so it cannot
-          intercept the click that opens the dialog, and outside the scaling
-          image so the hover zoom moves the map inside a frame that stays put.
+          `pointer-events-none` so it cannot intercept the opening click, and
+          outside the scaling image so the hover zoom moves the map inside a
+          frame that stays put.
         */}
         <span
           aria-hidden="true"
@@ -109,13 +91,8 @@ export default function CampaignMap({ url, title }) {
           style={MAP_VIGNETTE_STYLE}
         />
 
-        {/*
-          The label sits straight on the vignette now. It used to bring its own
-          gradient up from the bottom edge, and that band was a second darkening
-          on top of a symmetric one — the bottom of the frame came out visibly
-          heavier than the other three sides. A drop shadow does the same job
-          for a line of text without touching the picture.
-        */}
+        {/* Straight on the vignette: its own gradient was a second darkening on
+          top of a symmetric one, which weighted the bottom edge. */}
         <span
           aria-hidden="true"
           className="absolute inset-x-0 bottom-0 p-4 text-center font-mono text-[10px] tracking-[0.2em] text-ink/70 uppercase drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] transition-colors duration-300 group-hover:text-gold"
@@ -157,10 +134,7 @@ export default function CampaignMap({ url, title }) {
             </button>
           </div>
 
-          {/*
-            Mounted from the first open onwards, never before it and never
-            removed after — see the note at the top of this file.
-          */}
+          {/* Mounted from the first open onwards — see the note at the top. */}
           {hasOpened && <ZoomableMap url={url} title={title} />}
         </div>
       </dialog>
@@ -169,18 +143,12 @@ export default function CampaignMap({ url, title }) {
 }
 
 /**
- * The full map inside a frame that never changes size: click to zoom in, click
- * again to zoom out, drag to move around while zoomed.
+ * Click to zoom, drag to move. The frame is a proportion of the viewport rather
+ * than a fixed width, or the better monitor gets the smaller map.
  *
- * The frame keeps its 16:9 and takes 70% of the viewport width on a large
- * screen. That proportion is the point of it — a fixed 1152px was about 60% of
- * a 1080p display and only 45% of a 1440p one, so the better monitor got the
- * smaller map.
- *
- * The image is transformed rather than resized, so zooming costs no layout and
- * no second decode. It is also the original file: `next/image` would hand back
- * something smaller than what is already in the bucket, and this is the view
- * where the detail is the whole point.
+ * Transformed rather than resized, so zooming costs no layout and no second
+ * decode, and served as the original file — `next/image` would hand back
+ * something smaller than what is already in the bucket.
  */
 function ZoomableMap({ url, title }) {
   const frameRef = useRef(null);
@@ -190,18 +158,14 @@ function ZoomableMap({ url, title }) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
 
-  // Drag bookkeeping lives in a ref rather than state: it changes on every
-  // pointer move, and none of it belongs in a render.
+  // In a ref rather than state: it changes on every pointer move.
   const drag = useRef(null);
 
   /**
-   * How far the image may be moved before its edge would come inside the
-   * frame, in screen pixels.
-   *
-   * Computed from the *fitted* size rather than the natural one. The image is
-   * `object-contain`, so at rest it is letterboxed inside the frame and that
-   * painted size is what the scale multiplies — clamping against the natural
-   * size would let the map be dragged out into empty space.
+   * How far the image may move before its edge comes inside the frame. Computed
+   * from the *fitted* size: the image is `object-contain`, so the painted size
+   * is what the scale multiplies, and clamping against the natural size would
+   * let the map be dragged out into empty space.
    */
   const limits = useCallback((scale) => {
     const frame = frameRef.current;
@@ -253,16 +217,13 @@ function ZoomableMap({ url, title }) {
   }, [zoomed, clamp]);
 
   function onPointerDown(event) {
-    // Left button only. The pointer is captured so a drag that leaves the frame
-    // still reports its moves here instead of being lost to the document.
     if (event.button !== 0) {
       return;
     }
 
-    // Guarded: `setPointerCapture` throws NotFoundError if the pointer is no
-    // longer active by the time this runs. Capture is an improvement — it keeps
-    // a drag that leaves the frame reporting here — not a requirement, so
-    // losing it must not take the drag down with it.
+    // Capture keeps a drag that leaves the frame reporting here, but
+    // `setPointerCapture` throws NotFoundError if the pointer is already gone —
+    // an improvement, not a requirement, so it must not take the drag down.
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -317,8 +278,8 @@ function ZoomableMap({ url, title }) {
       // Never captured, or already released. Neither matters here.
     }
 
-    // A press that went nowhere is a click. The slop is what stops a hand that
-    // shakes two pixels from being read as a drag and swallowing the toggle.
+    // A press that went nowhere is a click; the slop stops a shaking hand from
+    // being read as a drag and swallowing the toggle.
     if (state.moved) {
       return;
     }
@@ -327,14 +288,9 @@ function ZoomableMap({ url, title }) {
 
     setZoomed(next);
 
-    // Zooming out recentres. Keeping the old offset would leave the map
-    // off-centre in a frame it now fits entirely.
-    //
-    // Decided here rather than inside a `setZoomed` updater, which is where it
-    // started: an updater has to be pure, and React is free to run it more than
-    // once for a single update — under StrictMode it deliberately does. A
-    // `setOffset` in there is a side effect firing an unpredictable number of
-    // times.
+    // Zooming out recentres, or the map is left off-centre in a frame it now
+    // fits. Decided here rather than in a `setZoomed` updater: updaters must be
+    // pure, and React may run them more than once per update.
     if (!next) {
       setOffset({ x: 0, y: 0 });
     }

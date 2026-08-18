@@ -13,29 +13,13 @@ import {
 import { deleteCampaign } from "./actions";
 
 /**
- * One campaign as a 16:9 tile, with its map behind it.
+ * One campaign as a 16:9 tile, with its map behind it. Deliberately the same
+ * object as `CharacterCard` — the same box, rim, corner row, stretched link and
+ * ConfirmDialog, and the sizing note there applies here word for word.
  *
- * Deliberately the same object as `CharacterCard`: the same `aspect-video
- * min-h-58 w-full` box and the note above it applies here word for word, the
- * same `rim-gold glow-gold` when there is artwork and real glass when there is
- * not, the same positioned corner row, the same stretched link, the same
- * ConfirmDialog. A campaign is a different subject, not a different kind of
- * tile.
- *
- * Where it parts company is the darkening over the artwork. A character card
- * washes from the lower left, giving its avatar and four facts a ground; a
- * campaign has a title and nothing else, and its map is worth seeing, so it
- * takes the symmetric vignette instead — the same one the campaign page's
- * thumbnail uses, from one definition in ui/surface.
- *
- * What it does not have is an avatar or a handle. A campaign has no initials
- * and nothing to copy, so those come out rather than being filled with
- * placeholders.
- *
- * The whole card is a link, and the delete control cannot live inside an
- * anchor — nested interactive elements are invalid HTML and a keyboard user
- * could never reach the inner one. So the link is a stretched overlay and the
- * button sits above it on a higher layer.
+ * It parts company on the darkening: a character card washes from the lower
+ * left to give its facts a ground, while a campaign has only a title and a map
+ * worth seeing, so it takes the symmetric vignette from ui/surface.
  */
 export default function CampaignCard({ campaign }) {
   const [confirming, setConfirming] = useState(false);
@@ -85,17 +69,10 @@ export default function CampaignCard({ campaign }) {
       >
         {map && (
           /*
-            next/image, and the reason is a measurement rather than a
-            convention. This card is about 400px wide; the uploaded map is
-            2560px and roughly 1.8MB, so a plain <img> spent that on every
-            first view of the dashboard — around thirty times what the box can
-            show. The optimiser serves a derivative cut to `sizes`, in AVIF or
-            WebP by content negotiation, and caches it for a year.
-
-            This file used to carry a plain <img> with a comment arguing that
-            optimising it would mean baking a project URL into the build
-            config. That was true and it was the wrong trade; the host is now
-            read from the environment, which costs nothing and settles it.
+            next/image for a measured reason: the card is ~400px wide and the
+            uploaded map is 2560px and ~1.8MB, so a plain <img> spent that on
+            every first view of the dashboard. The optimiser serves a
+            derivative cut to `sizes` and caches it for a year.
           */
           <Image
             src={map}

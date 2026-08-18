@@ -7,13 +7,9 @@ export const metadata = {
 };
 
 /**
- * Reached by `notFound()` on the character route whenever an id does not
- * resolve — which, under Row Level Security, also covers somebody else's
- * character. Saying "not found" rather than "forbidden" is deliberate: it does
- * not confirm the character exists to a visitor with no business knowing.
- *
- * Next's built-in screen would render here instead, and it is not written to
- * sit on a dark page with a fixed background behind it.
+ * Reached by `notFound()` whenever an id does not resolve — which, under RLS,
+ * also covers somebody else's character. "Not found" rather than "forbidden" is
+ * deliberate: it does not confirm the character exists.
  */
 export default function NotFound() {
   return (

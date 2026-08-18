@@ -28,19 +28,13 @@ import { createCampaign } from "./actions";
 const FEEDBACK_ID = "campaign-feedback";
 
 /**
- * The Dungeon Master's half of the creation flow: a campaign, its lore, and a
- * map.
+ * The Dungeon Master's half of the creation flow. The map is re-encoded in the
+ * browser first (`lib/image-compression`) — not only for bandwidth: the file
+ * travels inside the Server Action's body, so it is bounded by
+ * `serverActions.bodySizeLimit`, and an oversized export is refused by the
+ * framework before our code can say why.
  *
- * The map is re-encoded in the browser before it is ever sent — see
- * `lib/image-compression`. That is not only a bandwidth decision: the file
- * travels to the server inside the Server Action's body, so its size is
- * bounded by `serverActions.bodySizeLimit` rather than by the bucket, and a
- * 6MB export would be refused by the framework before any of our code could
- * say why.
- *
- * Controlled throughout, like the character sheet: a rejected title must not
- * cost the DM the world description they just wrote, or make them pick the map
- * again.
+ * Controlled throughout, so a rejected title does not cost the lore or the map.
  */
 export default function CreateCampaignPanel({ onCreated }) {
   const [title, setTitle] = useState("");
@@ -48,14 +42,9 @@ export default function CreateCampaignPanel({ onCreated }) {
   const [map, setMap] = useState(null);
 
   /*
-   * Whether the picked map is still being re-encoded.
-   *
-   * It lives up here rather than inside MapField because the submit button is
-   * what has to know. Compression starts when the file is chosen and the result
-   * is written back into the file input afterwards, so until it finishes the
-   * input still holds the original — and pressing Create in that window would
-   * upload the very megabytes this panel exists to avoid, or trip the size
-   * check on a file that was about to pass it.
+   * Up here rather than in MapField because the submit button has to know: the
+   * input still holds the original until compression finishes, so pressing
+   * Create in that window uploads the megabytes this panel exists to avoid.
    */
   const [mapBusy, setMapBusy] = useState(false);
 
@@ -150,12 +139,9 @@ export default function CreateCampaignPanel({ onCreated }) {
 }
 
 /**
- * Drop a map on it, or pick one.
- *
- * The compression runs the moment a file is chosen rather than on submit, so
- * the DM sees what will actually be uploaded — and so the wait happens while
- * they are still reading the form instead of after they have pressed the
- * button.
+ * Drop a map on it, or pick one. Compression runs the moment a file is chosen
+ * rather than on submit, so the wait happens while the form is still being
+ * filled in and the DM sees what will actually be uploaded.
  */
 function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
   const inputRef = useRef(null);
@@ -182,9 +168,8 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
     input.files = transfer.files;
   }, [map]);
 
-  // An object URL is a document-lifetime reference to the whole decoded image.
-  // Revoking the previous one on every change is what keeps choosing five maps
-  // in a row from holding five of them.
+  // An object URL holds the whole decoded image for the document's lifetime, so
+  // the previous one is revoked on every change.
   useEffect(() => {
     const url = map?.preview;
 

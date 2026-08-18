@@ -21,28 +21,14 @@ import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 import { abilityEmblem, withAlpha } from "./character-presentation";
 
 /**
- * Point-buy for the six ability scores.
+ * Point-buy for the six ability scores. The arithmetic lives in
+ * `sina/rules/character` — the same functions price the `+` button and decide
+ * whether the Server Action accepts the sheet, so the two cannot drift.
  *
- * Every score starts at 10 and moves between 7 and 15, paid for out of a
- * 15-point purse. The curve steepens at the top — the last two points cost two
- * each — which is the whole reason this is a budget rather than six sliders:
- * a character who is exceptional at one thing has to be ordinary at another.
- *
- * The arithmetic all lives in `sina/rules/character`, not here. The same
- * functions decide what the `+` button costs in the browser and whether the
- * Server Action accepts the sheet, so the two cannot drift; this file only
- * decides what that looks like.
- *
- * The racial bonus is shown but never added. On this screen the number in the
- * stepper is the value being *bought*, and folding the race into it would make
- * the price of the next point look wrong — an Elf's 12 in Dexterity would read
- * as 14 and then charge like a 12. The sheet adds them up afterwards, where
- * nothing is being priced.
- *
- * Buttons rather than a number input: an `<input type="number">` accepts typing
- * and pasting, which means every keystroke is a value that has to be validated,
- * clamped and paid for mid-edit. Two buttons can only ever ask for one legal
- * step, and the illegal ones are simply not offered.
+ * The racial bonus is shown but never added: the stepper's number is the value
+ * being *bought*, and folding the race in would make the next point's price
+ * look wrong. Buttons rather than `<input type="number">`, which accepts typing
+ * and pasting and so needs every keystroke validated and clamped mid-edit.
  */
 export default function AbilityPicker({
   race,
@@ -91,12 +77,8 @@ export default function AbilityPicker({
 
       <div
         /*
-          Three-up from `xl`, where it matches the path and alignment grids
-          exactly. Two-up below that, and the reason is arithmetic rather than
-          taste: at three columns a card is 249px, of which 69 are left for the
-          name once the emblem and the stepper have taken theirs — and
-          CONSTITUTION needs 119. No type size closes that gap, so the choice
-          is a truncated word or a wider card, and the word wins.
+          Two-up below `xl` for arithmetic rather than taste: at three columns
+          a card leaves 69px for the name, and CONSTITUTION needs 119.
         */
         className={`mt-1.5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 ${
           invalid ? `rounded-lg ${INVALID_GROUP_CLASSES}` : ""
@@ -251,13 +233,8 @@ export default function AbilityPicker({
 }
 
 /**
- * `Max` at the ceiling, `Min` at the floor, the price of the next point in
- * between.
- *
- * At the floor the price is deliberately not also shown. It is true that a
- * point can still be bought from 7 — but the label is there to say where the
- * stepper stands, and "Min" is the whole of that answer; the `+` being live is
- * what says the other thing.
+ * `Max` at the ceiling, `Min` at the floor, the next point's price in between.
+ * The floor deliberately shows no price: the `+` being live says that already.
  */
 function nextLabel(score, raiseCost) {
   if (score >= MAX_ABILITY) {

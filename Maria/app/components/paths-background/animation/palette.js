@@ -1,11 +1,7 @@
 /**
- * Colour ramp for the Paths tree.
- *
- * Sampled from the Attack on Titan S4 Part 1 ending: the core of the plume
- * burns pale chartreuse, the canopy is molten gold, and the outermost tendrils
- * cool off into rust. Everything is composited additively, so treat these as
- * "energy" values rather than final pixel colours — overlapping strokes bloom
- * towards white on their own.
+ * Colour ramp for the Paths tree: chartreuse core, gold canopy, rust tips.
+ * Composited additively, so these are energy values rather than final pixel
+ * colours — overlapping strokes bloom towards white on their own.
  */
 const STOPS = [
   { t: 0.0, c: [236, 248, 186] }, // pale chartreuse (hot core)

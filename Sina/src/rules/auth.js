@@ -1,12 +1,7 @@
 /**
- * Credential rules shared by the login forms and the Server Actions.
- *
- * The browser runs these for instant feedback; the server runs the exact same
- * functions as the check that actually gates access. One definition, so the
- * two can never drift apart.
- *
- * Deliberately not a "use server" module — it has to be importable from both
- * the client components and the actions.
+ * Credential rules shared by the login forms and the Server Actions. One
+ * definition, so the browser's copy and the check that gates access cannot
+ * drift. Deliberately not a "use server" module — both sides import it.
  */
 
 /** Supabase's own minimum is also 6, so nothing can exist below this. */
@@ -15,11 +10,9 @@ export const MIN_PASSWORD_LENGTH = 6;
 export const MIN_DISPLAY_NAME_LENGTH = 3;
 
 /**
- * The ceiling lives here rather than in account.js, beside the floor it belongs
- * with. It was only in account.js, which meant the settings form enforced it
- * and sign-up — an unauthenticated public endpoint — did not: a name created
- * there above this length could never afterwards be saved, leaving the account
- * permanently in a state its own settings form rejects.
+ * Here rather than in account.js so sign-up — an unauthenticated public
+ * endpoint — enforces it too. Otherwise a name created there can exceed the
+ * ceiling and never afterwards be saved by the settings form.
  */
 export const MAX_DISPLAY_NAME_LENGTH = 40;
 
@@ -41,11 +34,7 @@ export function readSignUpValues(formData) {
   };
 }
 
-/**
- * @returns {{field: string, message: string} | null}
- *   `null` when the values are well-formed. This says nothing about whether
- *   they are *correct* — only Supabase can answer that.
- */
+/** Well-formed, not correct — only Supabase can answer the latter. */
 export function validateSignIn({ email, password }) {
   return checkEmail(email) ?? checkPassword(password);
 }
@@ -85,12 +74,7 @@ export function validateSignUp({
   return null;
 }
 
-/**
- * Exported so account.js can call it rather than restating it. The pattern and
- * the sentence that goes with it travel together — they were declared twice,
- * character for character, in a file whose header promises "one definition, so
- * the two can never drift apart".
- */
+/** Exported so account.js calls it rather than restating the pattern. */
 export function checkEmail(email) {
   if (!email) {
     return { field: "email", message: "Enter your email address." };

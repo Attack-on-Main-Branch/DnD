@@ -6,28 +6,17 @@ import GrimoireMark from "./grimoire-mark";
 import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
 
 /**
- * The grimoire in the dashboard's bottom-left corner, and the changelog it
- * opens.
+ * The grimoire in the dashboard's corner, and the changelog it opens.
  *
- * A disclosure rather than a modal: the page behind stays where it is and
- * nothing is trapped. Escape closes it, so does the button, so does clicking
- * away — and focus goes back to the book afterwards, because a keyboard user
- * who opens something from the corner should not be returned to the top of the
- * document.
+ * A disclosure rather than a modal: nothing is trapped, and focus returns to
+ * the book on close. The panel stays mounted while closed so it can slide, and
+ * carries `inert` in that state — off-screen is not unreachable, and without it
+ * everything inside stays in the tab order.
  *
- * The panel stays mounted while closed so it can slide rather than appear, and
- * carries `inert` in that state. Off-screen is not the same as unreachable:
- * without it, everything inside is still in the tab order.
- *
- * Only the dashboard renders this. On the login page the same mark is drawn
- * directly, with nothing to click.
- *
- * The entries arrive as `children`, already rendered, from a Server Component.
- * This file needs the browser and everything it imports goes to the browser
- * with it — so holding the list here shipped a few thousand words of static
- * English as JavaScript to every signed-in visitor on every dashboard route.
- * What has to be client-side is the `open` boolean and the focus work; the
- * prose does not, and now travels as HTML.
+ * The entries arrive as already-rendered `children` from a Server Component:
+ * everything this file imports goes to the browser with it, and the prose is a
+ * few thousand words of static English. Only `open` and the focus work need to
+ * be client-side.
  */
 export default function ChangelogPanel({ children }) {
   const [open, setOpen] = useState(false);
@@ -43,9 +32,8 @@ export default function ChangelogPanel({ children }) {
     function handleKeyDown(event) {
       if (event.key === "Escape") {
         setOpen(false);
-        // Focus goes back with it. Closing without this leaves the caret on
-        // <body>, so the next Tab starts again from the top of the document —
-        // measured, that is exactly where it landed.
+        // Without this the caret is left on <body> and the next Tab starts
+        // again from the top of the document.
         launcherRef.current?.focus();
       }
     }
@@ -75,9 +63,8 @@ export default function ChangelogPanel({ children }) {
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-controls={panelId}
-        // `mark-launcher` rather than a hover utility here: scaling the button
-        // scaled the rune rings along with the book, and the rings should hold
-        // still. globals.css lifts the book alone.
+        // `mark-launcher` rather than a hover utility: scaling the button
+        // scaled the rings too. globals.css lifts the book alone.
         className="mark-launcher fixed bottom-20 left-20 z-0 cursor-pointer rounded-full"
       >
         {/* Width and the image-size hint both come from the component, so this
