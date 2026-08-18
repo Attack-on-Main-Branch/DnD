@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { getCampaign, listPartyMembers } from "sina/data/campaigns";
+import { classLabel } from "sina/rules/character";
 
 import TabStrip from "@/app/components/ui/tab-strip";
 import { surfaceClasses } from "@/app/components/ui/surface";
@@ -14,7 +15,9 @@ import PartyPanel from "./party-panel";
 /** The campaign's sections, named beside the panels they select. */
 const CAMPAIGN_TABS = [
   { value: "overview", label: "Overview" },
-  { value: "party", label: "Party" },
+  // `focusable: false` — the panel opens with a search field, so a tab stop on
+  // the panel itself only puts an empty step in front of it.
+  { value: "party", label: "Party", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -56,6 +59,15 @@ export default async function CampaignPage({ params }) {
 
   const { campaign, members } = loaded;
 
+  // Resolved here rather than in PartyPanel: `classLabel` reaches through
+  // `classDetails` into the whole ARCHETYPES catalogue, and importing it into a
+  // Client Component retains all of it in this route's bundle to print one
+  // word. The search results get the same treatment in `findPartyCandidate`.
+  const roster = members.map((member) => ({
+    ...member,
+    pathLabel: classLabel(member.class_id),
+  }));
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
       <Link
@@ -92,7 +104,7 @@ export default async function CampaignPage({ params }) {
           label="Campaign sections"
           panels={{
             overview: <OverviewPanel campaign={campaign} />,
-            party: <PartyPanel campaignId={campaign.id} members={members} />,
+            party: <PartyPanel campaignId={campaign.id} members={roster} />,
           }}
         />
       </div>

@@ -21,6 +21,7 @@ import {
   validateCampaign,
 } from "sina/rules/campaign";
 import {
+  classLabel,
   MAX_CHARACTERS,
   readCharacterValues,
   validateCharacter,
@@ -78,6 +79,9 @@ const SAVE_COPY = {
  */
 const DELETE_COPY = {
   not_found: "That character is no longer in your roster.",
+  // A uuid column refuses a malformed id before it looks at a row, so a
+  // hand-built request lands here rather than on a miss.
+  bad_id: "That character could not be found.",
 };
 
 /**
@@ -222,7 +226,11 @@ export async function createCampaign(_prevState, formData) {
   if (error) {
     // The row is what makes the object findable; without it, it is litter.
     if (mapPath) {
-      await removeCampaignMap(supabase, mapPath);
+      const cleanup = await removeCampaignMap(supabase, mapPath);
+
+      if (cleanup.error) {
+        logFailure("createCampaign/rollback", cleanup.error);
+      }
     }
 
     const copy = CAMPAIGN_COPY[error.reason];
@@ -274,7 +282,13 @@ export async function deleteCampaign(campaignId) {
   const path = mapPathFromUrl(data.mapUrl);
 
   if (path) {
-    await removeCampaignMap(supabase, path);
+    // Logged, not reported: the campaign is gone either way, and an orphaned
+    // object is an operator's problem rather than the user's.
+    const cleanup = await removeCampaignMap(supabase, path);
+
+    if (cleanup.error) {
+      logFailure("deleteCampaign/map", cleanup.error);
+    }
   }
 
   revalidatePath("/dashboard");
@@ -287,6 +301,7 @@ export async function deleteCampaign(campaignId) {
  */
 const CAMPAIGN_DELETE_COPY = {
   not_found: "That campaign is no longer in your list.",
+  bad_id: "That campaign could not be found.",
 };
 
 /** Deletes one of the caller's characters. */
@@ -335,6 +350,8 @@ const PARTY_COPY = {
     "The party table does not exist yet. Run the migrations in Sina/supabase/migrations.",
   missing_function:
     "The character lookup is missing. Run the migrations in Sina/supabase/migrations.",
+  // Neutral: an add carries two ids, so either could be the malformed one.
+  bad_id: "That campaign or character could not be found.",
 };
 
 /**
@@ -374,7 +391,16 @@ export async function findPartyCandidate(_prevState, formData) {
     };
   }
 
-  return { kind: "success", query, results: data };
+  // Labelled here for the same reason the roster is: PartyPanel renders both
+  // lists, and neither should drag the class catalogue into the browser.
+  return {
+    kind: "success",
+    query,
+    results: data.map((character) => ({
+      ...character,
+      pathLabel: classLabel(character.class_id),
+    })),
+  };
 }
 
 /** Adds a character the DM has already found to one of their campaigns. */
@@ -397,6 +423,11 @@ export async function addCharacterToParty(campaignId, characterId) {
   if (error) {
     const copy = PARTY_COPY[error.reason];
     logUncovered("addCharacterToParty", error, copy);
+
+    // Both of these mean the roster on screen no longer matches the table.
+    if (error.reason === "already_added" || error.reason === "party_full") {
+      revalidatePath(`/dashboard/campaign/${campaignId}`);
+    }
 
     return rejected(copy ?? "Could not add that character to the party.");
   }
@@ -423,13 +454,16 @@ export async function removeCharacterFromParty(campaignId, characterId) {
   });
 
   if (error) {
-    const copy = PARTY_COPY[error.reason];
-    logUncovered("removeCharacterFromParty", error, copy);
-
-    // Already gone is the outcome the click wanted.
+    // Already gone is the outcome the click wanted, so it is a success with
+    // nothing left to do. Ahead of logUncovered, or a benign no-op logs an
+    // error and shows a banner beside the row it just removed.
     if (error.reason === "not_found") {
       revalidatePath(`/dashboard/campaign/${campaignId}`);
+      return { kind: "success" };
     }
+
+    const copy = PARTY_COPY[error.reason];
+    logUncovered("removeCharacterFromParty", error, copy);
 
     return rejected(copy ?? "Could not remove that character.");
   }

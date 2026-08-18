@@ -15,6 +15,19 @@ const DRAG_SLOP_PX = 4;
 const ZOOM = 2.5;
 
 /**
+ * How far an arrow key moves the map, in screen pixels. Left moves the image
+ * right, so the view travels the way the key points.
+ */
+const KEY_STEP_PX = 48;
+
+const KEY_NUDGE = {
+  ArrowLeft: { x: KEY_STEP_PX, y: 0 },
+  ArrowRight: { x: -KEY_STEP_PX, y: 0 },
+  ArrowUp: { x: 0, y: KEY_STEP_PX },
+  ArrowDown: { x: 0, y: -KEY_STEP_PX },
+};
+
+/**
  * A thumbnail on the page, the original in a frame you can zoom. The split is
  * bandwidth: a ~1.8MB map inline costs that on every visit, roughly thirty
  * times what the box on screen can show.
@@ -43,13 +56,15 @@ export default function CampaignMap({ url, title }) {
       dialog.showModal();
     } else if (!open && dialog.open) {
       dialog.close();
+      // A closing dialog restores focus to whatever had it, so this is a
+      // fallback rather than the mechanism — but it has to run here: called
+      // straight from `close()` it lands while the document is still inert.
+      openerRef.current?.focus();
     }
   }, [open]);
 
   function close() {
     setOpen(false);
-    // Otherwise focus lands at the top of the document.
-    openerRef.current?.focus();
   }
 
   return (
@@ -217,7 +232,10 @@ function ZoomableMap({ url, title }) {
   }, [zoomed, clamp]);
 
   function onPointerDown(event) {
-    if (event.button !== 0) {
+    // `isPrimary` because `touch-none` suppresses the `pointercancel` that would
+    // otherwise reset the drag: a second finger would overwrite the single slot
+    // below and the first one's next move would jump the map.
+    if (event.button !== 0 || !event.isPrimary) {
       return;
     }
 
@@ -284,6 +302,11 @@ function ZoomableMap({ url, title }) {
       return;
     }
 
+    toggleZoom();
+  }
+
+  // Shared by the pointer and the keyboard so the two cannot drift apart.
+  function toggleZoom() {
     const next = !zoomed;
 
     setZoomed(next);
@@ -296,12 +319,38 @@ function ZoomableMap({ url, title }) {
     }
   }
 
+  function onKeyDown(event) {
+    const nudge = KEY_NUDGE[event.key];
+
+    if (nudge && zoomed) {
+      event.preventDefault();
+      setOffset((current) =>
+        clamp({ x: current.x + nudge.x, y: current.y + nudge.y }, ZOOM),
+      );
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleZoom();
+    }
+  }
+
   const scale = zoomed ? ZOOM : 1;
 
   return (
     <div className="flex flex-col gap-2">
+      {/*
+        A tab stop with a key handler, because zoom lived only in `onPointerUp`
+        and pan only in `onPointerMove` — while the live region below told a
+        keyboard user to drag something they could not even focus.
+      */}
       <div
         ref={frameRef}
+        role="button"
+        tabIndex={0}
+        aria-label={`Map of ${title}. ${zoomed ? "Zoomed in" : "Zoomed out"}.`}
+        onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -311,7 +360,7 @@ function ZoomableMap({ url, title }) {
         }}
         // `touch-none` so a drag on a touchscreen pans the map instead of
         // scrolling the dialog out from under it.
-        className={`relative aspect-video w-full touch-none overflow-hidden rounded-lg bg-surface/60 select-none ${
+        className={`relative aspect-video w-full touch-none overflow-hidden rounded-lg bg-surface/60 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 ${
           zoomed ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
         }`}
       >
@@ -337,7 +386,9 @@ function ZoomableMap({ url, title }) {
         aria-live="polite"
         className="text-center font-mono text-[10px] tracking-[0.2em] text-ink/50 uppercase"
       >
-        {zoomed ? "Drag to move · click to zoom out" : "Click to zoom in"}
+        {zoomed
+          ? "Drag or arrow keys to move · click or Enter to zoom out"
+          : "Click or Enter to zoom in"}
       </p>
     </div>
   );

@@ -110,12 +110,18 @@ highest-numbered file that touches it.
   sits in front of the Server Actions, so application code cannot be the only
   check.
 - **Cross-table policies go through `security definer` functions** —
-  `owns_campaign`, `owns_character`, `character_in_my_campaign` in
+  `owns_campaign`, `owns_character`, `my_character_in_campaign` in
   `20260818160000_break_policy_recursion.sql`. Policies that read each other's
   tables recurse, and because RLS ORs permissive SELECT policies together, one
   such cycle took down every read of `characters`, not just the new feature.
   Write a new cross-table question as a definer function rather than an inline
   `exists` over another RLS-protected table.
+- **RLS grants rows, never columns.** A policy that lets somebody read _a_ row
+  lets them read _every column_ of it; the `.select()` lists in the data layer
+  are ours to choose, not a boundary. Where only part of a row may be shared,
+  the read goes through a definer function whose return type is the column list
+  — `search_characters`, `campaign_party`. A policy granting a subset of a row
+  is not expressible and must not be attempted.
 - **Bounds are mirrored in SQL `CHECK` constraints.** Name lengths, `RACES`,
   ability ranges and the rest exist in both `Sina/src/rules/*.js` and a
   migration; changing one means changing both. SQL uses `char_length`, matching

@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { MAX_PARTY, parseCharacterQuery } from "sina/rules/campaign";
-import { classLabel } from "sina/rules/character";
 
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
@@ -209,7 +208,7 @@ export default function PartyPanel({ campaignId, members }) {
 }
 
 function MemberIdentity({ character }) {
-  const path = classLabel(character.class_id);
+  const path = character.pathLabel;
 
   return (
     <div className="flex min-w-0 items-center gap-3">

@@ -29,9 +29,13 @@ export default function CampaignInventory({ campaigns }) {
       {/* The roster's grid, so a campaign tile lands on the same column edges
           as the character tile above it. */}
       <ul className="mt-5 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {campaigns.map((campaign) => (
-          <li key={campaign.id}>
-            <CampaignCard campaign={campaign} />
+        {/* Projected rather than passed whole: the card is the client boundary
+            and reads three fields, so `world_description` — up to 2000
+            characters — would otherwise be serialised into the flight payload
+            on every dashboard load for nothing to render it. */}
+        {campaigns.map(({ id, title, map_url }) => (
+          <li key={id}>
+            <CampaignCard campaign={{ id, title, map_url }} />
           </li>
         ))}
 

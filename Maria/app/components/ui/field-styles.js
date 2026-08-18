@@ -18,12 +18,15 @@ const BASE =
   "placeholder:text-ink/35 outline-none transition duration-300 " +
   "disabled:opacity-50";
 
+/** The one invalid red, for controls that want the colour without the field. */
+export const INVALID_BORDER_CLASSES = "border-red-400/60";
+
 const BORDER = {
   valid:
     "border-gold/20 hover:border-gold/35 focus:border-gold/70 " +
     "focus:shadow-[0_0_0_1px_rgba(255,223,156,0.25),0_0_22px_-6px_rgba(255,223,156,0.55)]",
   invalid:
-    "border-red-400/60 focus:border-red-400 " +
+    `${INVALID_BORDER_CLASSES} focus:border-red-400 ` +
     "focus:shadow-[0_0_20px_-6px_rgba(248,113,113,0.55)]",
 };
 

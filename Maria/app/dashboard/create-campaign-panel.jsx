@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import Button, { buttonClasses } from "@/app/components/ui/button";
-import { LABEL_CLASSES } from "@/app/components/ui/field-styles";
+import {
+  CHOICE_CARD_FOCUS_CLASSES,
+  INVALID_BORDER_CLASSES,
+  LABEL_CLASSES,
+} from "@/app/components/ui/field-styles";
 import FormAlert from "@/app/components/ui/form-alert";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 import TextAreaField from "@/app/components/ui/textarea-field";
@@ -149,6 +153,11 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
 
+  // Two picks in flight resolve in completion order, not pick order, so without
+  // this the slower run wins the preview and the faster one clears `busy` while
+  // the other is still working.
+  const runId = useRef(0);
+
   // The compressed file has to reach the form somehow, and a file input's
   // `files` cannot be assigned a File directly — only a DataTransfer's list.
   // This is what puts the re-encoded map where the submit will find it.
@@ -180,10 +189,25 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
     };
   }, [map?.preview]);
 
+  // The DataTransfer effect below is keyed on `map`, and a reject leaves `map`
+  // at the null it already held — so nothing re-runs and the element keeps the
+  // file the form would then refuse to submit, with no way to clear it and no
+  // `change` event if the same file is picked again.
+  function reject(message) {
+    setProblem(message);
+    onChange(null);
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }
+
   async function accept(file) {
     if (!file) {
       return;
     }
+
+    const run = ++runId.current;
 
     setProblem(null);
     setBusy(true);
@@ -192,11 +216,22 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
     try {
       const result = await compressImage(file);
 
+      // A newer pick started while this one was encoding; it owns the field.
+      if (run !== runId.current) {
+        return;
+      }
+
+      if (result.decodable === false) {
+        reject(
+          "That file could not be read as an image. Try a PNG, JPEG or WebP.",
+        );
+        return;
+      }
+
       if (result.file.size > MAX_MAP_BYTES) {
-        setProblem(
+        reject(
           `That map is ${formatBytes(result.file.size)} even after compression, over the ${formatBytes(MAX_MAP_BYTES)} limit.`,
         );
-        onChange(null);
         return;
       }
 
@@ -205,8 +240,10 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
         preview: URL.createObjectURL(result.file),
       });
     } finally {
-      setBusy(false);
-      onBusyChange(false);
+      if (run === runId.current) {
+        setBusy(false);
+        onBusyChange(false);
+      }
     }
   }
 
@@ -218,6 +255,15 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
       accept(event.dataTransfer.files?.[0]);
     }
   }
+
+  // Mutually exclusive, so no state can be overridden by the one after it. The
+  // invalid branch restates its own hover, since it is replacing a resting
+  // style that carries one.
+  const zone = dragging
+    ? "border-gold/60 bg-gold/5"
+    : invalid
+      ? `${INVALID_BORDER_CLASSES} bg-surface/60 hover:border-red-400`
+      : NESTED_CARD_CLASSES;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -238,11 +284,16 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`flex cursor-pointer flex-col items-center gap-3 rounded-lg border border-dashed p-6 text-center transition duration-300 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold/70 ${
-          dragging ? "border-gold/60 bg-gold/5" : NESTED_CARD_CLASSES
-        } ${invalid ? "border-red-500/50" : ""} ${
-          disabled ? "cursor-not-allowed opacity-60" : ""
-        }`}
+        // One zone class, not three overlapping ones. Appended, the invalid
+        // border lost to NESTED_CARD_CLASSES' `hover:border-gold/45`, so the
+        // error state vanished under the pointer, and `cursor-not-allowed` lost
+        // to the base `cursor-pointer` on emit order. `has-focus-visible`
+        // rather than `focus-within`, or clicking the label lights the zone up
+        // for a mouse user.
+        className={`flex flex-col items-center gap-3 rounded-lg border border-dashed p-6 text-center transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
+          disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        } ${zone}`}
+        aria-invalid={invalid || undefined}
       >
         <input
           ref={inputRef}

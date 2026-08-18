@@ -31,8 +31,13 @@ export async function compressImage(file, { maxEdge, quality } = {}) {
     ...extra,
   });
 
+  // `decodable: false` on the two paths that never produced a bitmap, and only
+  // those: the encode-side catches below hand back a file that decoded fine,
+  // where keeping the original is the right answer rather than a fault. Without
+  // the flag the caller cannot tell "already optimal" from "unreadable", and a
+  // corrupt image is uploaded and rendered broken.
   if (!file?.type?.startsWith("image/")) {
-    return unchanged({ width: 0, height: 0 });
+    return unchanged({ width: 0, height: 0, decodable: false });
   }
 
   let bitmap;
@@ -40,8 +45,7 @@ export async function compressImage(file, { maxEdge, quality } = {}) {
   try {
     bitmap = await decode(file);
   } catch {
-    // Validation's answer to give, not this function's.
-    return unchanged({ width: 0, height: 0 });
+    return unchanged({ width: 0, height: 0, decodable: false });
   }
 
   const { width, height } = fit(bitmap.width, bitmap.height, edge);

@@ -169,14 +169,23 @@ export async function uploadCampaignMap(supabase, { path, file }) {
 }
 
 /**
- * Best-effort cleanup for a map whose row never got written. Reports nothing:
- * the caller already has a more useful failure to tell the user about.
+ * Cleanup for a map whose campaign is gone or never got written.
+ *
+ * Best-effort for the caller — neither one has anything better to tell the user
+ * than the failure that brought them here — but it reports, because a storage
+ * client returns `{ error }` rather than throwing, and swallowing that leaves
+ * orphaned objects nobody can see. The `catch` stays for the transport failure
+ * that does throw: cleanup must not take the caller down with it.
  */
 export async function removeCampaignMap(supabase, path) {
   try {
-    await supabase.storage.from(BUCKET).remove([path]);
-  } catch {
-    // The object is unreferenced either way.
+    const { error } = await supabase.storage.from(BUCKET).remove([path]);
+
+    return error
+      ? { error: { reason: classifyStorage(error), detail: error.message } }
+      : { error: null };
+  } catch (thrown) {
+    return { error: { reason: "map_failed", detail: String(thrown) } };
   }
 }
 
@@ -205,30 +214,25 @@ function classifyStorage(error) {
 }
 
 /**
- * PostgREST embeds `characters` through the foreign key, so one round trip
- * fetches the membership and who is in it. The column list is spelled out
- * because `characters(*)` would send `user_id`.
- *
- * Two policies must agree for this to return anything: the membership rows are
- * readable because the campaign is the caller's, the characters because they
- * are in it. Neither alone is enough.
+ * An RPC rather than an embed, and for the same reason `searchCharacters` is
+ * one: RLS grants whole rows, so a policy wide enough to let a DM read a party
+ * member also let them read that player's `user_id`, backstory and personality.
+ * The function's return type is the column list — see
+ * 20260818170000_party_display_columns.sql.
  */
 export async function listPartyMembers(supabase, campaignId) {
-  const { data, error } = await supabase
-    .from("campaign_members")
-    .select(
-      "character_id, added_at, characters(id, name, discriminator, race, archetype, class_id, color_theme)",
-    )
-    .eq("campaign_id", campaignId)
-    .order("added_at", { ascending: true });
+  const { data, error } = await supabase.rpc("campaign_party", {
+    target_campaign: campaignId,
+  });
 
   if (error) {
     return failure(error);
   }
 
-  const members = (data ?? [])
-    .filter((row) => row.characters)
-    .map((row) => ({ ...row.characters, addedAt: row.added_at }));
+  const members = (data ?? []).map(({ added_at, ...character }) => ({
+    ...character,
+    addedAt: added_at,
+  }));
 
   return { data: members, error: null };
 }

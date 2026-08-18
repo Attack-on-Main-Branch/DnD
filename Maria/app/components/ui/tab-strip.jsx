@@ -174,7 +174,11 @@ export default function TabStrip({ tabs, label, panels }) {
           id={`${baseId}-panel-${tab.value}`}
           aria-labelledby={`${baseId}-tab-${tab.value}`}
           hidden={tab.value !== active}
-          tabIndex={0}
+          // The ARIA pattern wants a tab stop only where the panel holds
+          // nothing focusable; a panel with its own controls gets a redundant
+          // one in front of them. Defaults to a stop, so a tab that says
+          // nothing keeps today's behaviour.
+          tabIndex={tab.focusable === false ? undefined : 0}
           className="py-6"
         >
           {panels[tab.value]}

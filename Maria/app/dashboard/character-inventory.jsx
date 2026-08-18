@@ -41,10 +41,21 @@ export default function CharacterInventory({ characters }) {
       </div>
 
       <ul className="mt-5 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* The card is the client boundary and reads five fields, so only
+            those cross it. The other eighteen — `backstory` and `personality`
+            among them, up to 2000 characters each — were being serialised into
+            the flight payload on every dashboard load with nothing rendering
+            them. `facts` and `handle` are built here and cross as output. */}
         {characters.map((character) => (
           <li key={character.id}>
             <CharacterCard
-              character={character}
+              character={{
+                id: character.id,
+                name: character.name,
+                discriminator: character.discriminator,
+                race: character.race,
+                color_theme: character.color_theme,
+              }}
               handle={characterHandle(character)}
               facts={<CharacterFacts character={character} />}
             />
