@@ -12,6 +12,24 @@
  */
 export const CHANGELOG = [
   {
+    id: "4bea9bb",
+    date: "2026-08-18",
+    title: "Dungeon Masters and ability scores",
+    changes: [
+      "Ability scores on the character sheet: fifteen points to spend across the six, from 7 to 15, with the last two points of any score costing double. Your race adds its own on top, and the sheet shows the total and its modifier.",
+      "Campaigns, up to three of them. Give one a title, the lore the party already knows, and a world map — the map is scaled and re-encoded in your browser before it is sent, so a 20MB export leaves as about one.",
+      "A campaign page with the lore, the map and the party. The map opens full size; click it to zoom in, drag to move around, click again to come back out.",
+      "Add characters to a party by searching for a name, an id, or both — fri, 1000 and fri#10 all find the same elf. Six to a party.",
+      "A character sheet names the campaigns it plays in, beside the character's name.",
+      "The dashboard shows its own slot count for characters and for campaigns, in each section rather than once at the top.",
+    ],
+    fixes: [
+      "Character sheets stopped loading entirely — every tab, for everyone — once campaigns existed. Two security rules each asked the other a question, and the database refused to answer either.",
+      "Switching between tabs on a sheet threw away whatever the tab you left was holding. A map you had opened at full size downloaded itself again on the way back.",
+      "Choosing a map could make the file larger than the one you picked, and store it at a lower resolution as well.",
+    ],
+  },
+  {
     id: "1c18149",
     date: "2026-08-16",
     title: "Steadier ground",
