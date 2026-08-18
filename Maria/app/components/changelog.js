@@ -12,6 +12,22 @@
  */
 export const CHANGELOG = [
   {
+    id: "2be9d14",
+    date: "2026-08-18",
+    title: "What a party may see",
+    changes: [
+      "The full-size map works from the keyboard: tab to it, Enter to zoom in and out, arrow keys to move around while zoomed.",
+    ],
+    fixes: [
+      "Adding a character to a campaign showed the Dungeon Master more of that character than a card does — their backstory and personality among it. A party now sees only what is printed on the card.",
+      "A map that was still too large after compression left the form unable to submit and no way to clear it short of reloading the page.",
+      "A file that could not be read as an image was accepted as a map and then drawn as a broken picture. It now says so when you choose it.",
+      "Removing somebody from a party could report an error at the same moment it worked.",
+      "The dashboard was sending every character's whole sheet to the browser, backstory and all, to draw cards that show five things.",
+      "The drop zone for a map kept its error outline only until the pointer touched it.",
+    ],
+  },
+  {
     id: "4bea9bb",
     date: "2026-08-18",
     title: "Dungeon Masters and ability scores",
