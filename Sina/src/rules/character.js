@@ -431,6 +431,34 @@ export function validateAbilityScores(scores) {
   return null;
 }
 
+export const MAX_HP = 100;
+
+/** Worst first, so a reader sees the thresholds in the order they are tested. */
+export const HEALTH_TIERS = ["critical", "wounded", "healthy"];
+
+// Fractions rather than hit points: 40 of 200 is the same trouble as 20 of 100.
+const WOUNDED_AT = 0.5;
+const CRITICAL_AT = 0.2;
+
+/** Clamped, so a corrupt row cannot draw a bar past its track. */
+export function healthFraction(current, max = MAX_HP) {
+  if (!Number.isFinite(current) || !Number.isFinite(max) || max <= 0) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, current / max));
+}
+
+export function healthTier(current, max = MAX_HP) {
+  const fraction = healthFraction(current, max);
+
+  if (fraction > WOUNDED_AT) {
+    return "healthy";
+  }
+
+  return fraction > CRITICAL_AT ? "wounded" : "critical";
+}
+
 export function readCharacterValues(formData) {
   return {
     name: String(formData.get("name") ?? "").trim(),

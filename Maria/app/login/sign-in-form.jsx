@@ -85,7 +85,12 @@ export default function SignInForm({ email, onEmailChange }) {
 
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
-      <Button type="submit" fullWidth disabled={isPending} className="mt-1">
+      <Button
+        type="submit"
+        fullWidth
+        disabled={isPending}
+        className="mt-1 motion-safe:animate-[auth-text-in_180ms_ease-out]"
+      >
         {isPending ? "Signing in…" : "Sign In"}
       </Button>
     </form>

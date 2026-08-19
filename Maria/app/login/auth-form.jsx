@@ -1,7 +1,7 @@
 "use client";
 
 import { PANEL_CLASSES, surfaceClasses } from "@/app/components/ui/surface";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import Button from "@/app/components/ui/button";
 
@@ -25,6 +25,8 @@ const VIEWS = {
   },
 };
 
+const MORPH_MS = 300;
+
 export default function AuthForm() {
   const [mode, setMode] = useState("signin");
 
@@ -34,7 +36,53 @@ export default function AuthForm() {
   // along with any stale error from the view being left behind.
   const [email, setEmail] = useState("");
 
+  const bodyRef = useRef(null);
+  // Measured in the click, not the effect: an error or a reveal can change the
+  // height between renders, and the one on screen is the one to travel from.
+  const fromHeight = useRef(null);
+
   const view = VIEWS[mode];
+
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const from = fromHeight.current;
+    fromHeight.current = null;
+
+    if (!body || from === null) {
+      return;
+    }
+
+    const to = body.getBoundingClientRect().height;
+
+    if (
+      to === from ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+
+    const easing =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--ease-tray")
+        .trim() || "ease-out";
+
+    body.style.overflow = "hidden";
+    body
+      .animate([{ height: `${from}px` }, { height: `${to}px` }], {
+        duration: MORPH_MS,
+        easing,
+      })
+      .finished.catch(() => {})
+      .then(() => {
+        body.style.overflow = "";
+      });
+  }, [mode]);
+
+  function switchMode() {
+    fromHeight.current =
+      bodyRef.current?.getBoundingClientRect().height ?? null;
+    setMode(view.next);
+  }
 
   return (
     <div
@@ -49,18 +97,24 @@ export default function AuthForm() {
         columns stack, that heading is a screen away by the time the form is
         on screen.
       */}
-      <div className="mb-7 flex flex-col gap-1.5">
+      {/* Keyed on the mode, so the new wording arrives as a fresh element. */}
+      <div
+        key={mode}
+        className="mb-7 flex flex-col gap-1.5 motion-safe:animate-[auth-text-in_180ms_ease-out]"
+      >
         <h2 className="font-display text-2xl font-semibold tracking-wide text-gold">
           {view.title}
         </h2>
         <p className="text-sm text-ink/60">{view.subtitle}</p>
       </div>
 
-      {mode === "signin" ? (
-        <SignInForm email={email} onEmailChange={setEmail} />
-      ) : (
-        <SignUpForm email={email} onEmailChange={setEmail} />
-      )}
+      <div ref={bodyRef}>
+        {mode === "signin" ? (
+          <SignInForm email={email} onEmailChange={setEmail} />
+        ) : (
+          <SignUpForm email={email} onEmailChange={setEmail} />
+        )}
+      </div>
 
       {/*
         Inside the card now, set off by the gap above it rather than by a
@@ -70,7 +124,7 @@ export default function AuthForm() {
       */}
       <p className="mt-7 text-center text-sm text-ink/60">
         {view.switchPrompt}{" "}
-        <Button variant="link" onClick={() => setMode(view.next)}>
+        <Button variant="link" onClick={switchMode}>
           {view.switchLabel}
         </Button>
       </p>

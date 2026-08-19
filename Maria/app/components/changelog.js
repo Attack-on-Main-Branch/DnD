@@ -16,6 +16,24 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.8.0",
+    date: "2026-08-19",
+    title: "Hit points, and doors that open",
+    changes: [
+      "A health bar on the character sheet, reading gold while a character is holding up, amber once they are bloodied, and red with a heartbeat under it near the end.",
+      "Character sheets, campaign pages and the creation panel now open: a line of light that unfolds into the card, and then the contents arrive.",
+      "Switching between tabs on a sheet fades the panels instead of cutting, and the card grows or shrinks to fit the one you picked rather than jumping.",
+      "The sign-in card grows and shrinks between signing in and creating an account, and the new fields slide in rather than appearing.",
+      "The full-size map grows out of its preview and folds back into it, and can be worked from the keyboard throughout.",
+    ],
+    fixes: [
+      "The full-size map showed black bars down both sides that the preview does not, and snapped back to the preview's framing at the end of closing.",
+      "Opening the changelog darkened the room in one step while the panel was still sliding in. The two now travel together.",
+      "The dashboard flickered on the way to and from the creation panel, and the empty slots came back with their glass broken.",
+      "Tab panels no longer add their hidden height to the page, which was putting a scrollbar on tabs that had nothing to scroll.",
+    ],
+  },
+  {
     version: "0.7.1",
     date: "2026-08-18",
     title: "What a party may see",

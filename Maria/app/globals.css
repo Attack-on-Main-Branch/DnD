@@ -77,7 +77,19 @@
    * below where a utility cannot reach.
    */
   --ease-tray: cubic-bezier(0.22, 0.8, 0.2, 1);
+  /* `--ease-tray` played backwards, for the closing half of anything it opens:
+     an ease-out run in reverse crawls into its end instead of arriving. */
+  --ease-tray-in: cubic-bezier(0.8, 0, 0.78, 0.2);
   --ease-flight: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/*
+ * Reserved whether or not the page scrolls, so hiding it behind a modal takes
+ * nothing away. Without it the page and the modal are centred on different
+ * widths and a transition between them lands half a scrollbar off.
+ */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -268,6 +280,311 @@ body {
   .scroll-gold::-webkit-scrollbar-thumb:hover {
     background-color: var(--gold-60);
   }
+
+  /*
+   * The health bar: two blurred auras behind the track, a plasma gradient in
+   * the fill. Here rather than in utilities because the width and the colour
+   * want different durations, which one `transition-*` cannot express, and
+   * because the reduced-motion overrides cannot reach an inline `transition`.
+   */
+  .hp-bar {
+    /* Sine-shaped easing, shared by everything on this component that breathes. */
+    --hp-wave: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+
+    animation: hp-breathe var(--hp-breathe-time) var(--hp-wave) infinite;
+    transition:
+      --hp-c1 500ms ease-in-out,
+      --hp-c2 500ms ease-in-out,
+      --hp-c3 500ms ease-in-out,
+      --hp-c4 500ms ease-in-out,
+      --hp-glow 500ms ease-in-out;
+  }
+
+  /* Scaled off one inherited breath, so the two layers cannot drift apart. */
+  .hp-aura {
+    background: var(--hp-glow);
+    opacity: calc(var(--hp-breath) * var(--hp-aura-strength, 1));
+  }
+
+  .hp-aura-wide {
+    --hp-aura-strength: 0.5;
+  }
+
+  .hp-fill {
+    background-color: var(--hp-base);
+    /*
+     * Granule on top, body underneath, and the order is load-bearing: a layer
+     * blends with what is below it, so screening the body onto the base colour
+     * would erase its darkest stop -- #d97706 screened over gold comes back
+     * gold, and the coronal depth with it. The body paints normally and the
+     * granule screens onto it, which is what makes the bright cores read as
+     * light rather than as a second stripe.
+     */
+    background-image:
+      radial-gradient(55% 220% at 30% 50%, var(--hp-c1) 0%, transparent 62%),
+      linear-gradient(
+        var(--hp-angle),
+        var(--hp-c1) 0%,
+        var(--hp-c2) 20%,
+        var(--hp-c3) 46%,
+        var(--hp-c4) 66%,
+        var(--hp-c2) 86%,
+        var(--hp-c1) 100%
+      );
+    background-size:
+      180% 100%,
+      300% 300%;
+    background-blend-mode: screen, normal;
+    animation:
+      hp-plasma var(--hp-drift-time) ease-in-out infinite,
+      hp-shear var(--hp-shear-time) ease-in-out infinite,
+      hp-flare var(--hp-flare-time) var(--hp-wave) infinite;
+    transition:
+      width 700ms ease-out,
+      background-color 500ms ease-in-out;
+  }
+
+  /*
+   * The tab panels. All stay mounted and a collapsed one is clipped rather than
+   * removed, so the outgoing row runs 1fr to 0fr while the incoming runs the
+   * other way and the card's height is a straight interpolation between them.
+   *
+   * `visibility` covers what clipping does not: clipped text is still found by
+   * Ctrl+F, still read aloud, still a tab stop. It flips at the END of a
+   * collapse and the START of an expansion — hence the delay.
+   */
+  .tab-shell {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 420ms var(--ease-tray);
+  }
+
+  /* The backdrop cannot be reached from script, so its half of the morph is
+     here; `data-closing` restarts it reversed. */
+  .map-dialog::backdrop {
+    animation: map-backdrop 420ms var(--ease-tray) both;
+  }
+
+  .map-dialog[data-closing]::backdrop {
+    animation: map-backdrop 420ms var(--ease-tray) reverse both;
+  }
+
+  /*
+   * `overflow: hidden` did all three of these at once, and its clipping cost
+   * the health bar its glow. `min-height` lets the row collapse below its
+   * content; `clip` keeps a collapsed panel out of the page's scrollable area,
+   * which `clip-path` alone does not; the margin hands back room for the glow
+   * and the path takes the block axis back.
+   */
+  .tab-clip {
+    min-height: 0;
+    overflow: clip;
+    overflow-clip-margin: 4rem;
+    clip-path: inset(0 -4rem);
+  }
+
+  .tab-shell[data-state="collapsed"] {
+    grid-template-rows: 0fr;
+  }
+
+  .tab-panel {
+    transition:
+      opacity 260ms var(--ease-tray),
+      visibility 0s;
+  }
+
+  .tab-shell[data-state="collapsed"] .tab-panel {
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 260ms var(--ease-tray),
+      visibility 0s 420ms;
+  }
+
+  /* A collapsed panel is only clipped, so without this the health bar's four
+     animations go on painting behind the Story tab. */
+  .tab-shell[data-state="collapsed"] * {
+    animation-play-state: paused;
+  }
+
+  .hp-solar {
+    --hp-base: var(--color-gold);
+    --hp-c1: #fffadc;
+    --hp-c2: #ffdf9c;
+    --hp-c3: #f59e0b;
+    --hp-c4: #dd9700;
+    --hp-glow: #ffdf9c;
+    --hp-breathe-min: 0.4;
+    --hp-breathe-max: 0.7;
+    --hp-breathe-time: 5s;
+    --hp-drift-time: 15s;
+    --hp-shear-time: 9s;
+    --hp-flare-min: 1;
+    --hp-flare-max: 1.05;
+    --hp-flare-time: 7s;
+  }
+
+  .hp-ember {
+    --hp-base: #f59e0b;
+    --hp-c1: #fdc03d;
+    --hp-c2: #fb9724;
+    --hp-c3: #f97316;
+    --hp-c4: #df6000;
+    --hp-glow: #ff7b00;
+    --hp-breathe-min: 0.5;
+    --hp-breathe-max: 0.75;
+    --hp-breathe-time: 3.5s;
+    --hp-drift-time: 11s;
+    --hp-shear-time: 7s;
+    --hp-flare-min: 0.97;
+    --hp-flare-max: 1.09;
+    --hp-flare-time: 3.6s;
+  }
+
+  .hp-ruby {
+    --hp-base: #ff0000;
+    --hp-c1: #ff5959;
+    --hp-c2: #ff3232;
+    --hp-c3: #ff0000;
+    --hp-c4: #b90000;
+    --hp-glow: #ef4444;
+    --hp-breathe-min: 0.55;
+    --hp-breathe-max: 0.9;
+    --hp-breathe-time: 2s;
+    --hp-drift-time: 7s;
+    --hp-shear-time: 5s;
+    --hp-flare-min: 0.84;
+    --hp-flare-max: 1.2;
+    --hp-flare-time: 1.9s;
+  }
+}
+
+/* `translate` rather than `transform`, so a transformed panel keeps its own. */
+@keyframes map-backdrop {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes auth-text-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes auth-field-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+
+@keyframes tab-panel-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+/* Registered, or none of these interpolate: an unregistered custom property is
+   a string to the animation engine, and a string cannot be eased. */
+@property --hp-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 92deg;
+}
+
+@property --hp-breath {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.72;
+}
+
+@property --hp-c1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #fffdf0;
+}
+
+@property --hp-c2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffdf9c;
+}
+
+@property --hp-c3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f59e0b;
+}
+
+@property --hp-c4 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #d97706;
+}
+
+@property --hp-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffdf9c;
+}
+
+/*
+ * Not `animate-pulse`: that holds its brightest value across the 100%/0% seam,
+ * which reads as a hitch at the top of every beat. The peak sits at 50% and the
+ * seam at the trough, so there is no dwell at the apex.
+ */
+@keyframes hp-breathe {
+  0%,
+  100% {
+    --hp-breath: var(--hp-breathe-min);
+  }
+  50% {
+    --hp-breath: var(--hp-breathe-max);
+  }
+}
+
+@keyframes hp-flare {
+  0%,
+  100% {
+    filter: brightness(var(--hp-flare-min));
+  }
+  50% {
+    filter: brightness(var(--hp-flare-max));
+  }
+}
+
+/* Two layers crossing: their interference is what reads as convection. A
+   single layer, however many stops it has, only ever sweeps. */
+@keyframes hp-plasma {
+  0% {
+    background-position:
+      0% 50%,
+      100% 50%;
+  }
+  50% {
+    background-position:
+      100% 50%,
+      0% 50%;
+  }
+  100% {
+    background-position:
+      0% 50%,
+      100% 50%;
+  }
+}
+
+/* A few degrees, not a rotation: past about 10deg on a bar this thin the
+   gradient stops being a flow and becomes banding. */
+@keyframes hp-shear {
+  0%,
+  100% {
+    --hp-angle: 96deg;
+  }
+  50% {
+    --hp-angle: 84deg;
+  }
 }
 
 /* The caret in the typing greeting. 1Hz, well under the 3Hz flash threshold. */
@@ -362,8 +679,36 @@ body {
     }
   }
 
-  .glow-gold {
+  .map-dialog::backdrop,
+  .map-dialog[data-closing]::backdrop {
+    animation: none;
+  }
+
+  .glow-gold,
+  .hp-bar,
+  .hp-fill,
+  .tab-shell,
+  .tab-panel,
+  .tab-shell[data-state="collapsed"] .tab-panel {
     transition: none;
+  }
+
+  /*
+   * Slowed and flattened rather than switched off, so the palette that carries
+   * the meaning survives: the drift becomes a minute-long crawl, the shear and
+   * the flare stop, and the breath narrows to a tenth of its range.
+   */
+  .hp-solar,
+  .hp-ember,
+  .hp-ruby {
+    --hp-breathe-min: 0.68;
+    --hp-breathe-max: 0.78;
+    --hp-breathe-time: 14s;
+    --hp-drift-time: 60s;
+    --hp-shear-time: 0s;
+    --hp-flare-min: 1;
+    --hp-flare-max: 1;
+    --hp-flare-time: 0s;
   }
 }
 

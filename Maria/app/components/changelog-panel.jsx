@@ -74,13 +74,17 @@ export default function ChangelogPanel({ children }) {
         <span className="sr-only">What&rsquo;s new</span>
       </button>
 
-      {open && (
-        <div
-          aria-hidden="true"
-          onClick={close}
-          className="fixed inset-0 z-40 bg-black/40"
-        />
-      )}
+      {/* Mounted either way: rendered only while open it arrived at full
+          strength on its first frame. Same duration and curve as the panel, so
+          it darkens in step. `pointer-events-none` while closed, or an
+          invisible sheet swallows every click on the page. */}
+      <div
+        aria-hidden="true"
+        onClick={close}
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-500 ease-tray motion-reduce:transition-none ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
 
       <aside
         id={panelId}

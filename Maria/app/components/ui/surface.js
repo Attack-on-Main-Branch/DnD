@@ -59,9 +59,21 @@ export const PANEL_CLASSES = "rounded-2xl p-6 sm:p-8";
  * `closest-side` measures to half the short side instead, and the stops run
  * past 100% so the ramp reaches the long edges rather than flattening early.
  */
+const MAP_VIGNETTE_STOPS =
+  "transparent 30%, rgba(0,0,0,0.75) 130%, rgba(0,0,0,1) 190%";
+
 export const MAP_VIGNETTE_STYLE = {
-  background:
-    "radial-gradient(circle closest-side at center, transparent 30%, rgba(0,0,0,0.75) 130%, rgba(0,0,0,1) 190%)",
+  background: `radial-gradient(circle closest-side at center, ${MAP_VIGNETTE_STOPS})`,
+};
+
+/**
+ * The same vignette for a box on its way to another size. `closest-side` is
+ * measured before the transform, so a scaled box turns the circle into an
+ * ellipse; these radii are set from the scale instead. Custom properties
+ * because React owns this element's `style`.
+ */
+export const MAP_VIGNETTE_SCALED_STYLE = {
+  background: `radial-gradient(ellipse var(--veil-rx, 50%) var(--veil-ry, 50%) at center, ${MAP_VIGNETTE_STOPS})`,
 };
 
 /** The hairline under the header and the changelog panel's title. */

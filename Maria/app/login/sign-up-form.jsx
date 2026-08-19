@@ -52,21 +52,24 @@ export default function SignUpForm({ email, onEmailChange }) {
       onSubmit={() => markNavDirection("in")}
       className="flex flex-col gap-5"
     >
-      <TextField
-        label="Display name"
-        name="displayName"
-        type="text"
-        autoComplete="nickname"
-        placeholder="Elminster"
-        required
-        minLength={MIN_DISPLAY_NAME_LENGTH}
-        maxLength={MAX_DISPLAY_NAME_LENGTH}
-        value={displayName}
-        onChange={(event) => setDisplayName(event.target.value)}
-        disabled={isPending}
-        invalid={state?.field === "displayName"}
-        aria-describedby={describedBy}
-      />
+      {/* Only the fields this view adds: Email and Password are on both. */}
+      <div className="motion-safe:animate-[auth-field-in_260ms_var(--ease-tray)_both]">
+        <TextField
+          label="Display name"
+          name="displayName"
+          type="text"
+          autoComplete="nickname"
+          placeholder="Elminster"
+          required
+          minLength={MIN_DISPLAY_NAME_LENGTH}
+          maxLength={MAX_DISPLAY_NAME_LENGTH}
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          disabled={isPending}
+          invalid={state?.field === "displayName"}
+          aria-describedby={describedBy}
+        />
+      </div>
 
       <TextField
         label="Email"
@@ -101,25 +104,32 @@ export default function SignUpForm({ email, onEmailChange }) {
         aria-describedby={describedBy}
       />
 
-      <TextField
-        label="Confirm password"
-        name="passwordConfirm"
-        type="password"
-        revealable
-        autoComplete="new-password"
-        placeholder="••••••••"
-        required
-        minLength={MIN_PASSWORD_LENGTH}
-        value={passwordConfirm}
-        onChange={(event) => setPasswordConfirm(event.target.value)}
-        disabled={isPending}
-        invalid={state?.field === "passwordConfirm"}
-        aria-describedby={describedBy}
-      />
+      <div className="motion-safe:animate-[auth-field-in_260ms_var(--ease-tray)_70ms_both]">
+        <TextField
+          label="Confirm password"
+          name="passwordConfirm"
+          type="password"
+          revealable
+          autoComplete="new-password"
+          placeholder="••••••••"
+          required
+          minLength={MIN_PASSWORD_LENGTH}
+          value={passwordConfirm}
+          onChange={(event) => setPasswordConfirm(event.target.value)}
+          disabled={isPending}
+          invalid={state?.field === "passwordConfirm"}
+          aria-describedby={describedBy}
+        />
+      </div>
 
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
-      <Button type="submit" fullWidth disabled={isPending} className="mt-1">
+      <Button
+        type="submit"
+        fullWidth
+        disabled={isPending}
+        className="mt-1 motion-safe:animate-[auth-text-in_180ms_ease-out]"
+      >
         {isPending ? "Creating account…" : "Create account"}
       </Button>
     </form>

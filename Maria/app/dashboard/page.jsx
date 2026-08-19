@@ -10,6 +10,7 @@ import { createClient, currentUser } from "@/lib/supabase";
 import CampaignInventory from "./campaign-inventory";
 import CharacterInventory from "./character-inventory";
 import CreateCharacterPanel from "./create-character-panel";
+import CreationTransition from "./creation-transition";
 
 /*
  * A static import, after measuring `dynamic()`. A Server Component importing a
@@ -116,7 +117,9 @@ export default async function DashboardPage({ searchParams }) {
         creating !== undefined ? (
           // `?new=dm` from an empty campaign slot, `?new=player` from a
           // character slot. Anything else falls to the character sheet.
-          <CreateCharacterPanel role={creating === "dm" ? "dm" : "player"} />
+          <CreationTransition>
+            <CreateCharacterPanel role={creating === "dm" ? "dm" : "player"} />
+          </CreationTransition>
         ) : (
           <>
             <CharacterInventory characters={characters} />

@@ -21,6 +21,7 @@ import {
   OverviewPanel,
   StoryPanel,
 } from "./character-panels";
+import PanelReveal from "@/app/components/ui/panel-reveal";
 import TabStrip from "@/app/components/ui/tab-strip";
 import PlayButton from "./play-button";
 
@@ -161,34 +162,38 @@ export default async function CharacterPage({ params }) {
         <PlayButton />
       </header>
 
-      <div
-        className={surfaceClasses({
-          glow: true,
-          className: "rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
-        })}
-      >
-        {/*
+      {/* The creation sheet's opening. Tab switching afterwards is the
+          tabstrip's own. */}
+      <PanelReveal>
+        <div
+          className={surfaceClasses({
+            glow: true,
+            className: "rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
+          })}
+        >
+          {/*
             Built here, on the server, and handed over as rendered output. The
             tabstrip needs the browser; the panels do not.
           */}
-        <TabStrip
-          tabs={SHEET_TABS}
-          label="Character sheet sections"
-          panels={{
-            overview: (
-              <OverviewPanel
-                character={character}
-                createdLabel={CREATED_FORMAT.format(
-                  new Date(character.created_at),
-                )}
-              />
-            ),
-            story: <StoryPanel character={character} />,
-            inventory: <InventoryPanel />,
-            notes: <NotesPanel />,
-          }}
-        />
-      </div>
+          <TabStrip
+            tabs={SHEET_TABS}
+            label="Character sheet sections"
+            panels={{
+              overview: (
+                <OverviewPanel
+                  character={character}
+                  createdLabel={CREATED_FORMAT.format(
+                    new Date(character.created_at),
+                  )}
+                />
+              ),
+              story: <StoryPanel character={character} />,
+              inventory: <InventoryPanel />,
+              notes: <NotesPanel />,
+            }}
+          />
+        </div>
+      </PanelReveal>
     </main>
   );
 }

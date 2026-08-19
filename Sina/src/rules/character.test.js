@@ -18,6 +18,9 @@ import {
   canLowerAbility,
   canRaiseAbility,
   characterHandle,
+  healthFraction,
+  healthTier,
+  HEALTH_TIERS,
   classDetails,
   classLabel,
   defaultAbilityScores,
@@ -568,6 +571,48 @@ describe("ability point-buy", () => {
         validateCharacter(validValues({ abilities: values.abilities }))?.field,
         "ability_str",
       );
+    });
+  });
+});
+
+describe("hit points", () => {
+  describe("healthFraction", () => {
+    it("is the share of the maximum, clamped to the track", () => {
+      assert.equal(healthFraction(50, 100), 0.5);
+      assert.equal(healthFraction(140, 100), 1);
+      assert.equal(healthFraction(-20, 100), 0);
+    });
+
+    it("reads a missing or impossible maximum as no health rather than NaN", () => {
+      assert.equal(healthFraction(undefined, 100), 0);
+      assert.equal(healthFraction(50, 0), 0);
+      assert.equal(healthFraction(Number.NaN, 100), 0);
+    });
+
+    it("defaults the maximum to MAX_HP", () => {
+      assert.equal(healthFraction(25), 0.25);
+    });
+  });
+
+  describe("healthTier", () => {
+    it("draws both thresholds where the sheet says they are", () => {
+      assert.equal(healthTier(51, 100), "healthy");
+      assert.equal(healthTier(50, 100), "wounded");
+      assert.equal(healthTier(21, 100), "wounded");
+      assert.equal(healthTier(20, 100), "critical");
+      assert.equal(healthTier(0, 100), "critical");
+    });
+
+    it("is a fraction of the maximum, not a count of hit points", () => {
+      // 40 of 200 is the same trouble as 20 of 100, and neither is 40 of 100.
+      assert.equal(healthTier(40, 200), "critical");
+      assert.equal(healthTier(40, 100), "wounded");
+    });
+
+    it("only ever answers with a tier the presentation layer knows", () => {
+      for (const current of [-5, 0, 20, 21, 50, 51, 100, 500]) {
+        assert.ok(HEALTH_TIERS.includes(healthTier(current, 100)));
+      }
     });
   });
 });

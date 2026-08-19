@@ -4,12 +4,22 @@ import {
   alignmentLabel,
   classLabel,
   formatModifier,
+  healthFraction,
+  healthTier,
+  MAX_HP,
 } from "sina/rules/character";
 
 import {
   abilityEmblem,
+  healthBarClass,
   withAlpha,
 } from "@/app/dashboard/character-presentation";
+
+/*
+ * Hit points are not a column yet, so the sheet shows a fixed value rather than
+ * a random one — a bar that moved on every reload would read as data.
+ */
+const MOCK_CURRENT_HP = 100;
 
 /**
  * The four tab panels, as Server Components — none needs the browser. Inside
@@ -33,8 +43,60 @@ export function OverviewPanel({ character, createdLabel }) {
         <Fact label="Created" value={createdLabel} />
       </dl>
 
+      <Health current={MOCK_CURRENT_HP} max={MAX_HP} />
+
       <AbilityScores character={character} />
     </div>
+  );
+}
+
+/**
+ * `role="progressbar"` on the track, not the fill: a progressbar whose width
+ * changes would be announced as though it were resizing.
+ */
+function Health({ current, max }) {
+  const tier = healthTier(current, max);
+  const width = `${healthFraction(current, max) * 100}%`;
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-between gap-4">
+        <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
+          Health
+        </h3>
+
+        <p className="font-mono text-xs text-ink/50 tabular-nums">
+          <span className="text-sm text-gold">{current}</span> / {max} HP
+        </p>
+      </div>
+
+      {/* The near aura follows the fill; a glow under an empty track would be
+          light coming from health that is not there. */}
+      <div className={`hp-bar relative mt-3 ${healthBarClass(tier)}`}>
+        <span
+          aria-hidden="true"
+          className="hp-aura hp-aura-wide pointer-events-none absolute -inset-x-3 -inset-y-2.5 rounded-full blur-xl"
+        />
+        <span
+          aria-hidden="true"
+          className="hp-aura pointer-events-none absolute left-0 -inset-y-1.5 rounded-full blur-lg"
+          style={{ width }}
+        />
+
+        <div
+          role="progressbar"
+          aria-valuenow={current}
+          aria-valuemin={0}
+          aria-valuemax={max}
+          aria-valuetext={`${current} of ${max} hit points`}
+          aria-label="Health"
+          className="relative h-3 w-full overflow-hidden rounded-full border border-gold/15 bg-black/40 shadow-[inset_0_1px_3px] shadow-black/70"
+        >
+          {/* Inline width: the value is only known at render. */}
+          <div className="hp-fill h-full rounded-full" style={{ width }} />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -60,7 +122,7 @@ function AbilityScores({ character }) {
   return (
     <section>
       <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-        Ability scores
+        Skills
       </h3>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

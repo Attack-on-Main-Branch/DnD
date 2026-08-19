@@ -161,29 +161,42 @@ export default function TabStrip({ tabs, label, panels }) {
         again. Anything a panel ever holds — a scroll position, a half-typed
         field, an open disclosure — had the same fate.
 
-        The `hidden` attribute rather than a class, because it takes the panel
-        out of the accessibility tree as well as off the screen. It also fixes
-        the ids: each tab's `aria-controls` now names a panel that exists at all
-        times, where before it pointed at an id that only appeared while that
-        tab was the active one.
+        An inactive panel is collapsed rather than `hidden`: `display: none`
+        leaves in one frame, so the card had no second height to travel towards.
+        `.tab-shell` in globals.css also takes it out of the accessibility tree,
+        the tab order and Ctrl+F — the three things `hidden` was here for.
       */}
-      {tabs.map((tab) => (
-        <div
-          key={tab.value}
-          role="tabpanel"
-          id={`${baseId}-panel-${tab.value}`}
-          aria-labelledby={`${baseId}-tab-${tab.value}`}
-          hidden={tab.value !== active}
-          // The ARIA pattern wants a tab stop only where the panel holds
-          // nothing focusable; a panel with its own controls gets a redundant
-          // one in front of them. Defaults to a stop, so a tab that says
-          // nothing keeps today's behaviour.
-          tabIndex={tab.focusable === false ? undefined : 0}
-          className="py-6"
-        >
-          {panels[tab.value]}
-        </div>
-      ))}
+      {tabs.map((tab) => {
+        const isActive = tab.value === active;
+
+        return (
+          <div
+            key={tab.value}
+            data-state={isActive ? "open" : "collapsed"}
+            className="tab-shell"
+          >
+            <div className="tab-clip">
+              <div
+                role="tabpanel"
+                id={`${baseId}-panel-${tab.value}`}
+                aria-labelledby={`${baseId}-tab-${tab.value}`}
+                // The ARIA pattern wants a tab stop only where the panel holds
+                // nothing focusable; a panel with its own controls gets a
+                // redundant one in front of them. Defaults to a stop, so a tab
+                // that says nothing keeps today's behaviour.
+                tabIndex={tab.focusable === false ? undefined : 0}
+                className={`tab-panel py-6 ${
+                  isActive
+                    ? "motion-safe:animate-[tab-panel-in_380ms_var(--ease-tray)]"
+                    : ""
+                }`}
+              >
+                {panels[tab.value]}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

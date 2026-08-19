@@ -4,6 +4,7 @@ import { cache } from "react";
 import { getCampaign, listPartyMembers } from "sina/data/campaigns";
 import { classLabel } from "sina/rules/character";
 
+import PanelReveal from "@/app/components/ui/panel-reveal";
 import TabStrip from "@/app/components/ui/tab-strip";
 import { surfaceClasses } from "@/app/components/ui/surface";
 import { logFailure } from "@/lib/errors";
@@ -88,26 +89,30 @@ export default async function CampaignPage({ params }) {
         </div>
       </header>
 
-      <div
-        className={surfaceClasses({
-          glow: true,
-          className: "rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
-        })}
-      >
-        {/*
+      {/* The creation sheet's opening. Tab switching afterwards is the
+          tabstrip's own. */}
+      <PanelReveal>
+        <div
+          className={surfaceClasses({
+            glow: true,
+            className: "rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
+          })}
+        >
+          {/*
           Built here, on the server, and handed over as rendered output — the
           tabstrip needs the browser, the panels do not. The party panel is the
           exception and says so itself: it owns a form and two actions.
         */}
-        <TabStrip
-          tabs={CAMPAIGN_TABS}
-          label="Campaign sections"
-          panels={{
-            overview: <OverviewPanel campaign={campaign} />,
-            party: <PartyPanel campaignId={campaign.id} members={roster} />,
-          }}
-        />
-      </div>
+          <TabStrip
+            tabs={CAMPAIGN_TABS}
+            label="Campaign sections"
+            panels={{
+              overview: <OverviewPanel campaign={campaign} />,
+              party: <PartyPanel campaignId={campaign.id} members={roster} />,
+            }}
+          />
+        </div>
+      </PanelReveal>
     </main>
   );
 }
