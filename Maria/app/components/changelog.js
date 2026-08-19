@@ -5,20 +5,22 @@
  * build has no git history to read on a deploy host, and a commit subject is
  * written for whoever maintains the code rather than for whoever uses it.
  *
- * KEEP THIS UPDATED WITH EVERY COMMIT — add an entry at the top with the short
- * hash, the date, and what actually changed for someone using the app.
+ * KEEP THIS UPDATED WITH EVERY RELEASE — add an entry at the top with the
+ * version, the date, and what actually changed for someone using the app.
  * `changes` is what is new or different, `fixes` is what was broken and is not
  * any more. Either may be omitted.
+ *
+ * `version` is the SemVer this release carries, and it must match the three
+ * package.json files. A commit that changes nothing a user can observe gets no
+ * entry and no number — the ledger records releases, not commits.
  */
 export const CHANGELOG = [
   {
-    id: "2be9d14",
+    version: "0.7.1",
     date: "2026-08-18",
     title: "What a party may see",
-    changes: [
-      "The full-size map works from the keyboard: tab to it, Enter to zoom in and out, arrow keys to move around while zoomed.",
-    ],
     fixes: [
+      "The full-size map could not be worked from the keyboard at all, while telling anyone using one to drag it. Tab reaches it now, Enter zooms, and the arrow keys move around while zoomed.",
       "Adding a character to a campaign showed the Dungeon Master more of that character than a card does — their backstory and personality among it. A party now sees only what is printed on the card.",
       "A map that was still too large after compression left the form unable to submit and no way to clear it short of reloading the page.",
       "A file that could not be read as an image was accepted as a map and then drawn as a broken picture. It now says so when you choose it.",
@@ -28,7 +30,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "4bea9bb",
+    version: "0.7.0",
     date: "2026-08-18",
     title: "Dungeon Masters and ability scores",
     changes: [
@@ -46,7 +48,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "1c18149",
+    version: "0.6.1",
     date: "2026-08-16",
     title: "Steadier ground",
     fixes: [
@@ -55,7 +57,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "9971bf1",
+    version: "0.6.0",
     date: "2026-08-15",
     title: "The grimoire mark",
     changes: [
@@ -66,7 +68,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "fca6c26",
+    version: "0.5.0",
     date: "2026-08-15",
     title: "Grimoire Tales",
     changes: [
@@ -84,7 +86,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "abe3312",
+    version: "0.4.0",
     date: "2026-08-13",
     title: "The animated background",
     changes: [
@@ -98,7 +100,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "e7e974b",
+    version: "0.3.0",
     date: "2026-08-13",
     title: "Race artwork",
     changes: [
@@ -110,7 +112,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "b26fbe5",
+    version: "0.2.0",
     date: "2026-08-11",
     title: "Settings and character sheets",
     changes: [
@@ -120,7 +122,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    id: "6875b91",
+    version: "0.1.0",
     date: "2026-08-10",
     title: "Accounts and characters",
     changes: [

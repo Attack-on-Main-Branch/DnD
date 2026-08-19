@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Ultra-Concise Responses:** Keep user-facing explanations to an absolute minimum to save token context. State what was changed in 1–3 bullet points without conversational fluff or introductory preamble.
 - **Strict Code Architecture:** Always respect the split between `Sina` (data layer, rules, schema) and `Maria` (UI, components). Derive constants instead of duplicating them.
 - **Token Consistency:** Use established Tailwind theme tokens and `@theme inline` variables (`--color-gold`, `--color-surface`, `field-styles.js`) instead of hardcoded hex or arbitrary RGBA values.
+- **Versioning:** Follow SemVer format `v0.x.y`. Bump the minor version (`0.X.0`, resetting patch to 0) when adding new features or capabilities, and bump the patch version (`0.x.Y`) for bug fixes, tests, security updates, or refactoring.
 
 ## Commands
 
@@ -152,9 +153,14 @@ highest-numbered file that touches it.
 ## Per-commit
 
 - **Add an entry to [changelog.js](Maria/app/components/changelog.js) with every
-  commit** — short hash, date, and what changed for someone _using_ the app.
+  release** — `version`, date, and what changed for someone _using_ the app.
   `changes` is what is new, `fixes` is what was broken. It is hand-written
   because a deploy host has no git history to read, and a commit subject is
   written for whoever maintains the code.
+- **The `version` is the SemVer above, and the changelog is where it is
+  decided.** Bump it there and in all three `package.json` files together, then
+  run `npm install --package-lock-only` so the lockfile agrees. A commit that
+  changes nothing a user can observe — a README pass, a comment sweep — gets no
+  entry and no number; the ledger records releases, not commits.
 - `next dev` rewrites `Maria/AGENTS.md` and `Maria/CLAUDE.md` with its managed
   block. Commit that alongside your work rather than reverting it.

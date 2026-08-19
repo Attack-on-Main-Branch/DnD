@@ -14,13 +14,13 @@ export default function ChangelogEntries() {
   return (
     <ol className="flex flex-col gap-8">
       {CHANGELOG.map((entry) => (
-        <li key={entry.id}>
+        <li key={entry.version}>
           <h3 className="font-display text-base font-semibold tracking-wide text-ink">
             {entry.title}
           </h3>
 
           <p className="mt-0.5 font-mono text-[0.7rem] tracking-wide text-ink/45">
-            <time dateTime={entry.date}>{entry.date}</time> · {entry.id}
+            <time dateTime={entry.date}>{entry.date}</time> · v{entry.version}
           </p>
 
           {entry.changes && (
