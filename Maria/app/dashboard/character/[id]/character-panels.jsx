@@ -75,11 +75,11 @@ function Health({ current, max }) {
       <div className={`hp-bar relative mt-3 ${healthBarClass(tier)}`}>
         <span
           aria-hidden="true"
-          className="hp-aura hp-aura-wide pointer-events-none absolute -inset-x-3 -inset-y-2.5 rounded-full blur-xl"
+          className="hp-aura hp-aura-wide pointer-events-none absolute -inset-x-0 -inset-y-0.3 rounded-full blur-lg"
         />
         <span
           aria-hidden="true"
-          className="hp-aura pointer-events-none absolute left-0 -inset-y-1.5 rounded-full blur-lg"
+          className="hp-aura pointer-events-none absolute left-0 -inset-y-0.5 rounded-full blur-lg"
           style={{ width }}
         />
 

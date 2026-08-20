@@ -10,7 +10,6 @@ import { createClient, currentUser } from "@/lib/supabase";
 import CampaignInventory from "./campaign-inventory";
 import CharacterInventory from "./character-inventory";
 import CreateCharacterPanel from "./create-character-panel";
-import CreationTransition from "./creation-transition";
 
 /*
  * A static import, after measuring `dynamic()`. A Server Component importing a
@@ -69,9 +68,18 @@ export default async function DashboardPage({ searchParams }) {
   }
 
   // The header and the flex column come from dashboard/layout.jsx now.
+  //
+  // `overflow-x-clip` keeps the inventory tiles' off-screen start out of the
+  // page's scrollable area. Not `hidden`: that computes `overflow-y` to `auto`
+  // and puts a second scroll container around the page.
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 sm:py-14">
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+    <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-clip px-4 py-10 sm:px-6 sm:py-14">
+      {/* `route`: `?new` swaps the panel below without changing the page
+          around it, so this stays where it is. See panel-fold.js. */}
+      <div
+        data-fade="route"
+        className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3"
+      >
         <h1 className="font-display text-3xl leading-tight font-semibold sm:text-4xl">
           <TypingText
             segments={[
@@ -117,9 +125,7 @@ export default async function DashboardPage({ searchParams }) {
         creating !== undefined ? (
           // `?new=dm` from an empty campaign slot, `?new=player` from a
           // character slot. Anything else falls to the character sheet.
-          <CreationTransition>
-            <CreateCharacterPanel role={creating === "dm" ? "dm" : "player"} />
-          </CreationTransition>
+          <CreateCharacterPanel role={creating === "dm" ? "dm" : "player"} />
         ) : (
           <>
             <CharacterInventory characters={characters} />

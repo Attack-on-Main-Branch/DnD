@@ -81,6 +81,9 @@
      an ease-out run in reverse crawls into its end instead of arriving. */
   --ease-tray-in: cubic-bezier(0.8, 0, 0.78, 0.2);
   --ease-flight: cubic-bezier(0.65, 0, 0.35, 1);
+  /* The dashboard's tiles arriving: most of the distance in the first third,
+     then a long brake. */
+  --ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /*
@@ -345,6 +348,58 @@ body {
   }
 
   /*
+   * A panel opening: a slit fades in, unfolds, and its contents arrive after
+   * it. In CSS rather than script because a reveal started from a layout effect
+   * only runs once React has hydrated, by which time the panel had already
+   * painted at full size — the flash on a cold load. The closing stays in
+   * panel-fold.js, which has to know when it has finished.
+   */
+  .panel-in {
+    animation:
+      panel-slit 150ms ease-out backwards,
+      panel-unfold 320ms var(--ease-tray) 150ms backwards;
+  }
+
+  /* The one element child of a panel, or a piece that arrives on its beat. */
+  .panel-in > *,
+  .panel-content-in {
+    animation: panel-content 200ms ease-out 470ms backwards;
+  }
+
+  /* The application bar dropping into place. It lives in the layout and so
+     never remounts — nav-transition.jsx replays this with script on every
+     later arrival; the class is only for the first paint. */
+  .bar-in {
+    animation: bar-in 420ms var(--ease-tray) backwards;
+  }
+
+  /* What stands outside a panel — a page's heading, avatar and play button —
+     arriving the way the dashboard's own headings do. Shorter than theirs:
+     that duration is set from the tile stagger it has to land with. */
+  .float-in {
+    animation: float-up 420ms var(--ease-tray) backwards;
+  }
+
+  /*
+   * The sign-in page's lore column. Its panel does not fold with the card
+   * beside it — the grimoire flies in and out of that box, and React commits a
+   * navigation inside `startViewTransition`, so a fold would already be scaled
+   * when the browser photographs the book's landing place. The words arrive and
+   * leave on their own instead.
+   *
+   * A transition rather than an animation for the leaving: a sign-in the server
+   * turns down clears the flag, and the text eases back from wherever it had
+   * got to rather than snapping.
+   */
+  .lore-fade {
+    transition: opacity 150ms ease-out;
+  }
+
+  :root[data-view-nav="in"] .lore-fade {
+    opacity: 0;
+  }
+
+  /*
    * The tab panels. All stay mounted and a collapsed one is clipped rather than
    * removed, so the outgoing row runs 1fr to 0fr while the incoming runs the
    * other way and the card's height is a straight interpolation between them.
@@ -415,8 +470,8 @@ body {
     --hp-c4: #dd9700;
     --hp-glow: #ffdf9c;
     --hp-breathe-min: 0.4;
-    --hp-breathe-max: 0.7;
-    --hp-breathe-time: 5s;
+    --hp-breathe-max: 0.8;
+    --hp-breathe-time: 6s;
     --hp-drift-time: 15s;
     --hp-shear-time: 9s;
     --hp-flare-min: 1;
@@ -432,8 +487,8 @@ body {
     --hp-c4: #df6000;
     --hp-glow: #ff7b00;
     --hp-breathe-min: 0.5;
-    --hp-breathe-max: 0.75;
-    --hp-breathe-time: 3.5s;
+    --hp-breathe-max: 0.85;
+    --hp-breathe-time: 2.5s;
     --hp-drift-time: 11s;
     --hp-shear-time: 7s;
     --hp-flare-min: 0.97;
@@ -448,9 +503,9 @@ body {
     --hp-c3: #ff0000;
     --hp-c4: #b90000;
     --hp-glow: #ef4444;
-    --hp-breathe-min: 0.55;
-    --hp-breathe-max: 0.9;
-    --hp-breathe-time: 2s;
+    --hp-breathe-min: 0.6;
+    --hp-breathe-max: 0.95;
+    --hp-breathe-time: 1.5s;
     --hp-drift-time: 7s;
     --hp-shear-time: 5s;
     --hp-flare-min: 0.84;
@@ -483,6 +538,62 @@ body {
   from {
     opacity: 0;
     translate: 0 8px;
+  }
+}
+
+/* The dashboard's headings, drifting up beside the tiles. A longer reach than
+   `rise`, and no duration of its own: each section sets one from its own tile
+   stagger, so the text settles as the last tile lands. */
+@keyframes float-up {
+  from {
+    opacity: 0;
+    translate: 0 50px;
+  }
+}
+
+/* The three stages of a panel opening. `.panel-in` runs the first two together
+   and the third on the contents. */
+@keyframes panel-slit {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-unfold {
+  from {
+    transform: scaleY(0.02);
+  }
+}
+
+@keyframes panel-content {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+/* Above the viewport: the bar sits at `top: 0`, so its own height is the whole
+   way out. */
+@keyframes bar-in {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+/*
+ * The dashboard's tiles, gliding in from the side their section sits on.
+ * Movement only, no fade: the tiles are `.glass`, and anything below full
+ * opacity is a backdrop root, leaving the filter nothing to sample.
+ */
+@keyframes glide-in-left {
+  from {
+    translate: -100vw 0;
+  }
+}
+
+@keyframes glide-in-right {
+  from {
+    translate: 100vw 0;
   }
 }
 
@@ -681,6 +792,14 @@ body {
 
   .map-dialog::backdrop,
   .map-dialog[data-closing]::backdrop {
+    animation: none;
+  }
+
+  .panel-in,
+  .panel-in > *,
+  .panel-content-in,
+  .float-in,
+  .bar-in {
     animation: none;
   }
 

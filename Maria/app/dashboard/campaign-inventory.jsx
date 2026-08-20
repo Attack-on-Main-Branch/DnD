@@ -4,6 +4,12 @@ import { MAX_CAMPAIGNS } from "sina/rules/campaign";
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import CampaignCard from "./campaign-card";
+import {
+  CAMPAIGNS,
+  HEADING_CLASSES,
+  headingStyle,
+  tileEntrance,
+} from "./entrance";
 
 /**
  * The campaigns a Dungeon Master is running, laid out exactly as the roster is.
@@ -16,7 +22,11 @@ export default function CampaignInventory({ campaigns }) {
 
   return (
     <section className="mt-14">
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+      <div
+        data-fade
+        className={`flex flex-wrap items-end justify-between gap-x-8 gap-y-3 ${HEADING_CLASSES}`}
+        style={headingStyle(CAMPAIGNS)}
+      >
         <h2 className="font-display text-xl font-semibold tracking-wide text-ink">
           Campaigns
         </h2>
@@ -33,14 +43,17 @@ export default function CampaignInventory({ campaigns }) {
             and reads three fields, so `world_description` — up to 2000
             characters — would otherwise be serialised into the flight payload
             on every dashboard load for nothing to render it. */}
-        {campaigns.map(({ id, title, map_url }) => (
-          <li key={id}>
+        {campaigns.map(({ id, title, map_url }, index) => (
+          <li key={id} {...tileEntrance(CAMPAIGNS, index)}>
             <CampaignCard campaign={{ id, title, map_url }} />
           </li>
         ))}
 
         {Array.from({ length: emptySlots }, (_, index) => (
-          <li key={`empty-${index}`}>
+          <li
+            key={`empty-${index}`}
+            {...tileEntrance(CAMPAIGNS, campaigns.length + index)}
+          >
             <EmptySlot />
           </li>
         ))}

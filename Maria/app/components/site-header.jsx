@@ -20,7 +20,7 @@ export default function SiteHeader({ displayName, email }) {
   const initials = toInitials(displayName ?? email ?? "?");
 
   return (
-    <header className="sticky top-0 z-20">
+    <header data-bar className="bar-in sticky top-0 z-20">
       {/*
         `border-b-0` as well as the other three. `.glass` sets a border on all
         sides, and leaving the bottom one on drew a second divider: a flat,

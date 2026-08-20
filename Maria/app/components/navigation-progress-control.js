@@ -5,8 +5,10 @@
  * singleton rather than a context: there is exactly one bar and the callers are
  * event handlers, not components.
  *
- * No `start`: the bar starts itself from its own capture-phase listeners, so
- * the only thing outsiders need is a way to say nothing will happen after all.
+ * The bar mostly starts itself, from its own capture-phase listeners. `start`
+ * is for the one case those cannot see: a navigation whose click was cancelled
+ * so a closing animation could play first, which reads to those listeners as a
+ * click that goes nowhere.
  */
 let controller = null;
 
@@ -18,6 +20,10 @@ export function registerNavigationProgress(api) {
       controller = null;
     }
   };
+}
+
+export function startNavigationProgress() {
+  controller?.start();
 }
 
 export function stopNavigationProgress() {

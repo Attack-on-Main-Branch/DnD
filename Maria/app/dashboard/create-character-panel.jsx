@@ -23,9 +23,10 @@ export default function CreateCharacterPanel({ role }) {
 
   return (
     <div
+      data-fold
       className={surfaceClasses({
         glow: true,
-        className: PANEL_CLASSES,
+        className: `panel-in ${PANEL_CLASSES}`,
       })}
     >
       {role === "dm" ? (

@@ -4,6 +4,7 @@ import { PANEL_CLASSES, surfaceClasses } from "@/app/components/ui/surface";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import Button from "@/app/components/ui/button";
+import { closeOut, reopen } from "@/app/components/ui/panel-fold";
 
 import SignInForm from "./sign-in-form";
 import SignUpForm from "./sign-up-form";
@@ -78,6 +79,12 @@ export default function AuthForm() {
       });
   }, [mode]);
 
+  // Both halves of the page leave together. The lore column is a sibling
+  // rendered on the server, so its glass is found rather than passed —
+  // view-nav.js reaches for the grimoire the same way.
+  const leave = () => closeOut(document);
+  const stay = () => reopen();
+
   function switchMode() {
     fromHeight.current =
       bodyRef.current?.getBoundingClientRect().height ?? null;
@@ -86,48 +93,62 @@ export default function AuthForm() {
 
   return (
     <div
+      data-fold
       className={surfaceClasses({
         glow: true,
-        className: PANEL_CLASSES,
+        className: `panel-in ${PANEL_CLASSES}`,
       })}
     >
-      {/*
-        The card names itself now. It used to lean on the page's <h1>, which
-        has moved into the lore column beside it — and on a phone, where the
-        columns stack, that heading is a screen away by the time the form is
-        on screen.
-      */}
-      {/* Keyed on the mode, so the new wording arrives as a fresh element. */}
-      <div
-        key={mode}
-        className="mb-7 flex flex-col gap-1.5 motion-safe:animate-[auth-text-in_180ms_ease-out]"
-      >
-        <h2 className="font-display text-2xl font-semibold tracking-wide text-gold">
-          {view.title}
-        </h2>
-        <p className="text-sm text-ink/60">{view.subtitle}</p>
-      </div>
+      {/* One element child, which is what the reveal fades and lifts. */}
+      <div>
+        {/*
+          The card names itself now. It used to lean on the page's <h1>, which
+          has moved into the lore column beside it — and on a phone, where the
+          columns stack, that heading is a screen away by the time the form is
+          on screen.
+        */}
+        {/* Keyed on the mode, so the new wording arrives as a fresh element. */}
+        <div
+          key={mode}
+          className="mb-7 flex flex-col gap-1.5 motion-safe:animate-[auth-text-in_180ms_ease-out]"
+        >
+          <h2 className="font-display text-2xl font-semibold tracking-wide text-gold">
+            {view.title}
+          </h2>
+          <p className="text-sm text-ink/60">{view.subtitle}</p>
+        </div>
 
-      <div ref={bodyRef}>
-        {mode === "signin" ? (
-          <SignInForm email={email} onEmailChange={setEmail} />
-        ) : (
-          <SignUpForm email={email} onEmailChange={setEmail} />
-        )}
-      </div>
+        <div ref={bodyRef}>
+          {mode === "signin" ? (
+            <SignInForm
+              email={email}
+              onEmailChange={setEmail}
+              onLeaving={leave}
+              onStaying={stay}
+            />
+          ) : (
+            <SignUpForm
+              email={email}
+              onEmailChange={setEmail}
+              onLeaving={leave}
+              onStaying={stay}
+            />
+          )}
+        </div>
 
-      {/*
-        Inside the card now, set off by the gap above it rather than by a
-        divider. It is the card's own second option rather than a note about
-        the page, and out on the background it was the one piece of the
-        sign-in flow with nothing behind it.
-      */}
-      <p className="mt-7 text-center text-sm text-ink/60">
-        {view.switchPrompt}{" "}
-        <Button variant="link" onClick={switchMode}>
-          {view.switchLabel}
-        </Button>
-      </p>
+        {/*
+          Inside the card now, set off by the gap above it rather than by a
+          divider. It is the card's own second option rather than a note about
+          the page, and out on the background it was the one piece of the
+          sign-in flow with nothing behind it.
+        */}
+        <p className="mt-7 text-center text-sm text-ink/60">
+          {view.switchPrompt}{" "}
+          <Button variant="link" onClick={switchMode}>
+            {view.switchLabel}
+          </Button>
+        </p>
+      </div>
     </div>
   );
 }

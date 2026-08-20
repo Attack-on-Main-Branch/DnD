@@ -20,7 +20,13 @@ import {
 
 const FEEDBACK_ID = "sign-up-feedback";
 
-export default function SignUpForm({ email, onEmailChange }) {
+/** `onLeaving` / `onStaying` as in sign-in-form.jsx: the same departure. */
+export default function SignUpForm({
+  email,
+  onEmailChange,
+  onLeaving,
+  onStaying,
+}) {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -33,7 +39,10 @@ export default function SignUpForm({ email, onEmailChange }) {
     // `onSettled`, not `onResult` — see the note in sign-in-form.jsx. The
     // client-side-invalid path returns without ever calling the action, and
     // that path has to release the book too.
-    onSettled: clearNavDirection,
+    onSettled: () => {
+      clearNavDirection();
+      onStaying();
+    },
     onResult: (result) => {
       if (result?.kind === "rejected") {
         setPassword("");
@@ -49,7 +58,10 @@ export default function SignUpForm({ email, onEmailChange }) {
     <form
       action={formAction}
       noValidate
-      onSubmit={() => markNavDirection("in")}
+      onSubmit={() => {
+        markNavDirection("in");
+        onLeaving();
+      }}
       className="flex flex-col gap-5"
     >
       {/* Only the fields this view adds: Email and Password are on both. */}

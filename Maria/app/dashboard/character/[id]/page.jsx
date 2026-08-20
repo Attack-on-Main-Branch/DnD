@@ -21,7 +21,6 @@ import {
   OverviewPanel,
   StoryPanel,
 } from "./character-panels";
-import PanelReveal from "@/app/components/ui/panel-reveal";
 import TabStrip from "@/app/components/ui/tab-strip";
 import PlayButton from "./play-button";
 
@@ -81,13 +80,17 @@ export default async function CharacterPage({ params }) {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
       <Link
+        data-fade
         href="/dashboard"
-        className="cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold"
+        className="float-in cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold"
       >
         ← Back to dashboard
       </Link>
 
-      <header className="flex flex-wrap items-center justify-between gap-6">
+      <header
+        data-fade
+        className="float-in flex flex-wrap items-center justify-between gap-6"
+      >
         {/*
           `min-w-0` here as well as on the column inside it. Truncation only
           happens if every flex item along the chain is allowed to shrink, and
@@ -162,38 +165,38 @@ export default async function CharacterPage({ params }) {
         <PlayButton />
       </header>
 
-      {/* The creation sheet's opening. Tab switching afterwards is the
-          tabstrip's own. */}
-      <PanelReveal>
-        <div
-          className={surfaceClasses({
-            glow: true,
-            className: "rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
-          })}
-        >
-          {/*
+      {/* `panel-in` is the creation sheet's opening; `data-fold` is its
+          closing, played by the layout on any way back to the dashboard. Tab
+          switching in between is the tabstrip's own. */}
+      <div
+        data-fold
+        className={surfaceClasses({
+          glow: true,
+          className: "panel-in rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
+        })}
+      >
+        {/*
             Built here, on the server, and handed over as rendered output. The
             tabstrip needs the browser; the panels do not.
           */}
-          <TabStrip
-            tabs={SHEET_TABS}
-            label="Character sheet sections"
-            panels={{
-              overview: (
-                <OverviewPanel
-                  character={character}
-                  createdLabel={CREATED_FORMAT.format(
-                    new Date(character.created_at),
-                  )}
-                />
-              ),
-              story: <StoryPanel character={character} />,
-              inventory: <InventoryPanel />,
-              notes: <NotesPanel />,
-            }}
-          />
-        </div>
-      </PanelReveal>
+        <TabStrip
+          tabs={SHEET_TABS}
+          label="Character sheet sections"
+          panels={{
+            overview: (
+              <OverviewPanel
+                character={character}
+                createdLabel={CREATED_FORMAT.format(
+                  new Date(character.created_at),
+                )}
+              />
+            ),
+            story: <StoryPanel character={character} />,
+            inventory: <InventoryPanel />,
+            notes: <NotesPanel />,
+          }}
+        />
+      </div>
     </main>
   );
 }

@@ -222,10 +222,10 @@ export default function NavigationProgress() {
       }
     }
 
-    // Only `stop` is published: the bar starts itself from the capture
-    // listeners below, but a caller needs a way to say the navigation it just
-    // armed will not happen — a form that failed validation in the browser.
-    const unregister = registerNavigationProgress({ stop });
+    // `stop` for a navigation that will not happen after all — a form that
+    // failed validation in the browser. `start` for one the listeners below
+    // cannot see, because its click was cancelled to play a closing first.
+    const unregister = registerNavigationProgress({ start, stop });
 
     // Capture phase: React calls preventDefault on form actions, and this needs
     // to see the event before that happens.

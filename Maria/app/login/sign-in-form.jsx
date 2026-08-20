@@ -18,7 +18,18 @@ import {
 
 const FEEDBACK_ID = "sign-in-feedback";
 
-export default function SignInForm({ email, onEmailChange }) {
+/**
+ * @param onLeaving  the card is on its way out — stamped on submit, beside the
+ *                   book's own direction flag.
+ * @param onStaying  it is not, after all. `onSettled` is the signal: a submit
+ *                   that redirects never reaches it.
+ */
+export default function SignInForm({
+  email,
+  onEmailChange,
+  onLeaving,
+  onStaying,
+}) {
   const [password, setPassword] = useState("");
   const passwordRef = useRef(null);
 
@@ -32,7 +43,10 @@ export default function SignInForm({ email, onEmailChange }) {
     // server and so never produces a result, and that is the most common way
     // to press this button without leaving the page. Hung off `onResult`, a
     // mistyped password left the book frozen until the 6s backstop.
-    onSettled: clearNavDirection,
+    onSettled: () => {
+      clearNavDirection();
+      onStaying();
+    },
     onResult: (result) => {
       if (result?.kind === "rejected") {
         setPassword("");
@@ -49,7 +63,10 @@ export default function SignInForm({ email, onEmailChange }) {
       noValidate
       // Stamped before the action runs, so the book is already settling by the
       // time the redirect comes back and the transition captures it.
-      onSubmit={() => markNavDirection("in")}
+      onSubmit={() => {
+        markNavDirection("in");
+        onLeaving();
+      }}
       className="flex flex-col gap-5"
     >
       <TextField

@@ -146,14 +146,14 @@ const KEY_NUDGE = {
  * A thumbnail on the page, the original in a frame you can zoom. The split is
  * bandwidth: a ~1.8MB map inline costs that on every visit.
  *
- * The full-resolution `<img>` mounts on first open and then stays. Not before,
- * because an `<img>` in the DOM downloads whether or not it is visible; not
- * unmounted after, or every reopen is a fresh request.
+ * The full-resolution `<img>` mounts when the visitor first reaches for the
+ * map rather than on page load — an `<img>` in the DOM downloads whether or not
+ * it is visible — and stays mounted after, or every reopen is a fresh request.
  */
 export default function CampaignMap({ url, title }) {
   const [open, setOpen] = useState(false);
-  // Sticky: the full image is mounted from the first open onwards. See above.
-  const [hasOpened, setHasOpened] = useState(false);
+  // Sticky: the full image is mounted from the first reach onwards. See above.
+  const [ready, setReady] = useState(false);
   const [stage, setStage] = useState("idle");
   // Read from the preview; the card is sized from it. 16:9 until first open.
   const [ratio, setRatio] = useState(null);
@@ -168,6 +168,7 @@ export default function CampaignMap({ url, title }) {
   const pictureRef = useRef(null);
   const veilRef = useRef(null);
 
+  const preparedRef = useRef(false);
   const stageRef = useRef("idle");
   // Supersedes an in-flight sequence, so a second press cannot leave its
   // last stage behind.
@@ -176,6 +177,37 @@ export default function CampaignMap({ url, title }) {
   function enter(next) {
     stageRef.current = next;
     setStage(next);
+  }
+
+  /**
+   * Everything the open needs, done before it is asked for: the frame mounted,
+   * its aspect read off the preview, and the full map fetched and decoded. All
+   * three used to land on the click, inside the animation — measured, the first
+   * open blocked the main thread for 375ms of its 520ms. Hover or focus is
+   * warning enough, and the download is the one the click would have made.
+   *
+   * `createElement` rather than `new Image()` — `Image` here is next/image.
+   * Mounting alone does not decode: the closed dialog is `display: none`.
+   */
+  function prepare() {
+    // Ahead of the guard: a reach this early can beat the preview's own load,
+    // and the frame is sized off it. Same value re-set is a React no-op.
+    const preview = openerRef.current?.querySelector("img");
+
+    if (preview?.naturalWidth) {
+      setRatio(preview.naturalWidth / preview.naturalHeight);
+    }
+
+    if (preparedRef.current) {
+      return;
+    }
+
+    preparedRef.current = true;
+    setReady(true);
+
+    const image = document.createElement("img");
+    image.src = url;
+    image.decode().catch(() => {});
   }
 
   const layers = useCallback(
@@ -370,12 +402,7 @@ export default function CampaignMap({ url, title }) {
   }, [open]);
 
   function openDialog() {
-    const preview = openerRef.current?.querySelector("img");
-
-    if (preview?.naturalWidth) {
-      setRatio(preview.naturalWidth / preview.naturalHeight);
-    }
-    setHasOpened(true);
+    prepare();
     setOpen(true);
   }
 
@@ -401,6 +428,8 @@ export default function CampaignMap({ url, title }) {
         ref={openerRef}
         type="button"
         onClick={openDialog}
+        onPointerEnter={prepare}
+        onFocus={prepare}
         aria-label={`View the full map of ${title}`}
         className="group relative mx-auto block aspect-video w-[640px] max-w-full cursor-pointer overflow-hidden rounded-2xl border border-gold/15 bg-surface/60 transition duration-300 hover:border-gold/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70"
       >
@@ -491,9 +520,9 @@ export default function CampaignMap({ url, title }) {
                 </button>
               </div>
 
-              {/* Mounted from the first open onwards — see the note at the
+              {/* Mounted from the first reach onwards — see the note at the
                   top of this file. */}
-              {hasOpened && (
+              {ready && (
                 <ZoomableMap
                   url={url}
                   title={title}

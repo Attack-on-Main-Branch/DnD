@@ -5,6 +5,12 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 
 import CharacterCard from "./character-card";
 import CharacterFacts from "./character-facts";
+import {
+  HEADING_CLASSES,
+  headingStyle,
+  ROSTER,
+  tileEntrance,
+} from "./entrance";
 
 /**
  * The character roster as a fixed set of inventory slots: filled ones show the
@@ -30,7 +36,11 @@ export default function CharacterInventory({ characters }) {
         were two grids with two separate caps, one of them floating at the top
         of the page could only be confusing.
       */}
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+      <div
+        data-fade
+        className={`flex flex-wrap items-end justify-between gap-x-8 gap-y-3 ${HEADING_CLASSES}`}
+        style={headingStyle(ROSTER)}
+      >
         <h2 className="font-display text-xl font-semibold tracking-wide text-ink">
           Characters
         </h2>
@@ -46,8 +56,8 @@ export default function CharacterInventory({ characters }) {
             among them, up to 2000 characters each — were being serialised into
             the flight payload on every dashboard load with nothing rendering
             them. `facts` and `handle` are built here and cross as output. */}
-        {characters.map((character) => (
-          <li key={character.id}>
+        {characters.map((character, index) => (
+          <li key={character.id} {...tileEntrance(ROSTER, index)}>
             <CharacterCard
               character={{
                 id: character.id,
@@ -63,7 +73,10 @@ export default function CharacterInventory({ characters }) {
         ))}
 
         {Array.from({ length: emptySlots }, (_, index) => (
-          <li key={`empty-${index}`}>
+          <li
+            key={`empty-${index}`}
+            {...tileEntrance(ROSTER, characters.length + index)}
+          >
             {/* `?new=player`, so the sheet knows which of the two it is before
                 it mounts — the role question in front of it is gone. */}
             <EmptySlot href="/dashboard?new=player" />

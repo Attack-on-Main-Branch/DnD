@@ -16,6 +16,20 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.8.1",
+    date: "2026-08-20",
+    title: "Doors on every room",
+    changes: [
+      "Every page opens and closes now rather than cutting. Sheets, the creation panel, settings and the sign-in card unfold out of a line of light; the dashboard's cards glide in from the sides and slide back out the way they came.",
+      "The bar across the top drops into place when a page is opened fresh, and leaves over the top when you sign out. Moving between the signed-in pages leaves it where it is.",
+      "The settings page is one panel rather than three stacked cards, and the sign-in page types its own name out.",
+    ],
+    fixes: [
+      "Panels flashed at full size for an instant before folding open.",
+      "Opening the full-size map stuttered the first time, while the picture was still arriving. It is now fetched the moment you reach for the preview.",
+    ],
+  },
+  {
     version: "0.8.0",
     date: "2026-08-19",
     title: "Hit points, and doors that open",

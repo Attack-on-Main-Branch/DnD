@@ -1,5 +1,6 @@
 import GrimoireMark from "@/app/components/grimoire-mark";
 import { surfaceClasses } from "@/app/components/ui/surface";
+import TypingText from "@/app/components/ui/typing-text";
 
 import AuthForm from "./auth-form";
 
@@ -72,56 +73,72 @@ export default function LoginPage() {
 /** The mark, the name, and what the place is for. */
 function LorePanel() {
   return (
-    // The two elements cannot be merged. The outer owns the definite width that
-    // lets `mx-auto` centre it; the inner owns `@container`, and
+    // Three elements, none of which can be merged. The outer owns the definite
+    // width that lets `mx-auto` centre it; the middle is the glass layer's
+    // positioning context; the inner owns `@container`, and
     // `container-type: inline-size` stops contents contributing to width — so
-    // together they collapsed the panel to its padding, 66px with a 0px title.
+    // outer and inner alone collapsed the panel to its padding, 66px with a
+    // 0px title.
     <div className="mx-auto w-full max-w-2xl side-by-side:mx-0">
-      {/*
-        The glass is what makes the prose legible: unpanelled, this text
-        measured 1.01:1 over a bulb centre. `.glass` carries `brightness(0.35)`,
-        which multiplies, so the ground stays bounded however bright the
-        backdrop clips. `@container` sizes the title against this panel.
-      */}
-      <div
-        className={surfaceClasses({
-          // No entrance animation: the grimoire is inside this panel, so an
-          // entrance carried the book 12px down after its flight had already
-          // landed it. Navigation cross-fades the page anyway.
-          className: `@container flex flex-col items-center rounded-3xl text-center side-by-side:items-start side-by-side:text-left ${PANEL_PADDING}`,
-        })}
-      >
-        {/* `whitespace-nowrap`: the mark overlaps the title, which only works
-        on one line — wrapped, the book landed on the word "Tales". */}
-        <h1
-          className={`font-display leading-[0.98] font-semibold tracking-[0.06em] whitespace-nowrap text-gold drop-shadow-[0_0_46px_rgba(255,223,156,0.34)] ${TITLE_SIZE}`}
-        >
-          Grimoire Tales
-        </h1>
+      <div className="relative">
+        {/*
+          The glass is what makes the prose legible: unpanelled, this text
+          measured 1.01:1 over a bulb centre. `.glass` carries
+          `brightness(0.35)`, which multiplies, so the ground stays bounded
+          however bright the backdrop clips.
 
-        {/* `ml-16` clears the outer ring, which reaches ~26% of the mark's
-          width past the text edge once the column is left-aligned. */}
-        <GrimoireMark
-          className={`${TITLE_TO_MARK} ${MARK_TO_PROSE} side-by-side:ml-16`}
+          A layer of its own rather than the box the words sit in, so folding it
+          leaves the grimoire's geometry alone. The book flies between this
+          panel and the dashboard's corner, and React commits a navigation
+          inside `startViewTransition` — a book scaled to 2% when the browser
+          photographs the new page gives the flight a 2% place to land. Nothing
+          is lost: the words have already faded before the fold begins.
+        */}
+        <div
+          data-fold
+          aria-hidden="true"
+          className={surfaceClasses({
+            className: "panel-in absolute inset-0 rounded-3xl",
+          })}
         />
 
-        <div className="flex flex-col gap-5 font-display text-[clamp(0.95rem,1.25vw,1.125rem)] leading-[1.7] text-pretty text-ink/60">
-          <p>
-            Step beyond the veil into Grimoire Tales, an interactive tabletop
-            role-playing platform crafted for adventurers seeking unforgettable,
-            custom-tailored journeys. Here, bespoke D&amp;D chronicles come
-            alive allowing you to create and bind your heroes, manage your
-            inventory, and dive into immersive, narrative-driven campaigns
-            shaped by your choices and imagination.
-          </p>
+        <div
+          className={`@container relative flex flex-col items-center text-center side-by-side:items-start side-by-side:text-left ${PANEL_PADDING}`}
+        >
+          {/* Typed out, as the dashboard's greeting is; the caret holds the
+              line's height so the mark below never waits for the last letter.
+              `whitespace-nowrap` because the mark overlaps the title, which
+              only works on one line — wrapped, the book landed on "Tales". */}
+          <h1
+            className={`lore-fade font-display leading-[0.98] font-semibold tracking-[0.06em] whitespace-nowrap text-gold drop-shadow-[0_0_46px_rgba(255,223,156,0.34)] ${TITLE_SIZE}`}
+          >
+            <TypingText segments={[{ text: "Grimoire Tales" }]} />
+          </h1>
 
-          <p>
-            Whether you are here to test your mettle against ancient beasts,
-            uncover forgotten arcane secrets, or weave epic sagas alongside your
-            party, your personal tome awaits. Sign in to unseal your chronicles,
-            awaken the light of your journey, and let destiny unfold with every
-            roll.
-          </p>
+          {/* `ml-16` clears the outer ring, which reaches ~26% of the mark's
+              width past the text edge once the column is left-aligned. */}
+          <GrimoireMark
+            className={`${TITLE_TO_MARK} ${MARK_TO_PROSE} side-by-side:ml-16`}
+          />
+
+          <div className="lore-fade panel-content-in flex flex-col gap-5 font-display text-[clamp(0.95rem,1.25vw,1.125rem)] leading-[1.7] text-pretty text-ink/60">
+            <p>
+              Step beyond the veil into Grimoire Tales, an interactive tabletop
+              role-playing platform crafted for adventurers seeking
+              unforgettable, custom-tailored journeys. Here, bespoke D&amp;D
+              chronicles come alive allowing you to create and bind your heroes,
+              manage your inventory, and dive into immersive, narrative-driven
+              campaigns shaped by your choices and imagination.
+            </p>
+
+            <p>
+              Whether you are here to test your mettle against ancient beasts,
+              uncover forgotten arcane secrets, or weave epic sagas alongside
+              your party, your personal tome awaits. Sign in to unseal your
+              chronicles, awaken the light of your journey, and let destiny
+              unfold with every roll.
+            </p>
+          </div>
         </div>
       </div>
     </div>

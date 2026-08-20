@@ -3,6 +3,8 @@ import ChangelogPanel from "@/app/components/changelog-panel";
 import SiteHeader from "@/app/components/site-header";
 import { currentUser } from "@/lib/supabase";
 
+import NavTransition from "./nav-transition";
+
 /**
  * Everything signed in: the header, the flex column every page fills, and the
  * corner grimoire — the other half of the sign-in transition, carrying the same
@@ -31,14 +33,16 @@ export default async function DashboardLayout({ children }) {
         <ChangelogEntries />
       </ChangelogPanel>
 
-      <div className="flex flex-1 flex-col">
+      {/* The flex column, and every move between these pages — the wordmark
+          inside the bar among them. */}
+      <NavTransition className="flex flex-1 flex-col">
         <SiteHeader
           displayName={user?.user_metadata?.display_name ?? null}
           email={user?.email}
         />
 
         {children}
-      </div>
+      </NavTransition>
     </>
   );
 }
