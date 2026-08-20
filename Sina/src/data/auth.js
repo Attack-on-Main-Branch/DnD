@@ -64,3 +64,24 @@ export async function signOut(supabase) {
 
   return error ? failure(error) : { data: true, error: null };
 }
+
+/**
+ * The current session's access token, for the Realtime socket and nothing else.
+ *
+ * The one deliberate `getSession()` in the project, and it is not an
+ * authorisation decision: callers verify with `getUser()` first and only then
+ * ask for the token to hand over. `getSession()` reads the cookie without
+ * checking the signature, which is exactly why it must never be the thing that
+ * decides whether somebody is signed in — but it is the only way to reach the
+ * token itself, and Supabase verifies that token again at the other end.
+ *
+ * `null` rather than an error when there is no session: a page with no socket
+ * is a degraded page, not a broken one.
+ */
+export async function sessionAccessToken(supabase) {
+  const { data, error } = await supabase.auth.getSession();
+
+  return error
+    ? failure(error)
+    : { data: data?.session?.access_token ?? null, error: null };
+}

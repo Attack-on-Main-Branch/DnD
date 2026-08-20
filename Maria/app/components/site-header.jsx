@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import grimoireLogo from "./brand/grimoire.webp";
+import NotificationButton from "./notifications/notification-button";
 import SignOutButton from "./sign-out-button";
 import { buttonClasses } from "./ui/button";
 import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
@@ -16,7 +17,13 @@ import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
  * be portalled out or use the top layer, or it will anchor to this 4rem strip
  * instead of the viewport.
  */
-export default function SiteHeader({ displayName, email }) {
+export default function SiteHeader({
+  displayName,
+  email,
+  userId,
+  notifications,
+  announce,
+}) {
   const initials = toInitials(displayName ?? email ?? "?");
 
   return (
@@ -87,7 +94,29 @@ export default function SiteHeader({ displayName, email }) {
             />
           </Link>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* `self-stretch` so this column is the full height of the bar's
+              content line, which is what the notification panel measures its
+              drop from. Nothing in here moves — the children are still
+              centred. */}
+          <div className="flex items-center gap-2 self-stretch sm:gap-3">
+            {/*
+              The inbox, immediately to the left of the profile pill — and so
+              still beside the person it belongs to below `lg`, where the pill
+              itself is dropped for want of room.
+
+              Rendered only for a request that has a user. This bar draws for
+              requests the page is about to redirect or throw on, and the
+              envelope opens a socket and posts release notices, neither of
+              which belongs to a visitor we could not identify.
+            */}
+            {userId && (
+              <NotificationButton
+                userId={userId}
+                notifications={notifications ?? []}
+                announce={announce}
+              />
+            )}
+
             {/*
               Plain rather than glass: at this height the blur kernel is wider
               than the pill, so it would render as a flat tint anyway — and

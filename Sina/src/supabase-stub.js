@@ -16,7 +16,10 @@ export function stubQuery(result) {
     // absence of `user_id` from COLUMNS are all checked through these.
     filters: [],
     lastInsert: null,
+    lastUpdate: null,
     lastSelect: null,
+    lastRpc: null,
+    lastLimit: null,
 
     from: () => chain,
     select: (columns) => {
@@ -27,13 +30,35 @@ export function stubQuery(result) {
       chain.lastInsert = payload;
       return chain;
     },
+    update: (payload) => {
+      chain.lastUpdate = payload;
+      return chain;
+    },
     delete: () => chain,
     eq: (column, value) => {
       chain.filters.push([column, value]);
       return chain;
     },
+    // Recorded in the same list, with the operator, so a test can tell
+    // `.eq("status", "pending")` from `.neq("status", "pending")` — the two
+    // mean opposite things in the notification updates.
+    neq: (column, value) => {
+      chain.filters.push([column, value, "neq"]);
+      return chain;
+    },
+    // The RPC surface. `rpc` sits on the client rather than on a table, so the
+    // stub answers it from the same object every other call comes back to.
+    rpc: (name, params) => {
+      chain.lastRpc = { name, params };
+      return chain;
+    },
     order: () => chain,
+    limit: (count) => {
+      chain.lastLimit = count;
+      return chain;
+    },
     maybeSingle: () => chain,
+    single: () => chain,
     then: (onFulfilled, onRejected) =>
       Promise.resolve(result).then(onFulfilled, onRejected),
   };

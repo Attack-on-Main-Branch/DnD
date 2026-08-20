@@ -24,12 +24,14 @@ function classify(error) {
     return "invalid_value";
   }
 
-  // The party's primary key is (campaign_id, character_id).
+  // Only reachable from `insertCampaign`, whose id this module generates: a
+  // collision means the same uuid came round twice. The party's own duplicate
+  // is raised by `send_campaign_invite` now and classified next door.
   if (error.code === UNIQUE_VIOLATION) {
     return "already_added";
   }
 
-  // A character retired between being found by handle and being added.
+  // A campaign or character that went away mid-request.
   if (error.code === FOREIGN_KEY_VIOLATION) {
     return "not_found";
   }
@@ -276,19 +278,13 @@ export async function listCampaignsForCharacter(supabase, characterId) {
   };
 }
 
-/**
- * The insert policy checks `campaign_id` against the caller, so a campaign that
- * is not theirs is refused by the database. The character is deliberately
- * unchecked: anyone holding a handle may add it, which is what a handle is for.
+/*
+ * There is deliberately no `addPartyMember` here any more. A character joins a
+ * party by accepting an invitation, which is one transaction over in
+ * Sina/src/data/notifications.js -- and 20260820120000 withdrew the Dungeon
+ * Master's INSERT policy on this table, so a direct insert would be refused by
+ * the database as well as absent from this file.
  */
-export async function addPartyMember(supabase, { campaignId, characterId }) {
-  const { error } = await supabase.from("campaign_members").insert({
-    campaign_id: campaignId,
-    character_id: characterId,
-  });
-
-  return error ? failure(error) : { data: { characterId }, error: null };
-}
 
 export async function removePartyMember(supabase, { campaignId, characterId }) {
   const { data, error } = await supabase

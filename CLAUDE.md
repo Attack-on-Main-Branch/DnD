@@ -72,7 +72,14 @@ What keeps that seam intact:
 - **Sina's `exports` map is the public surface.** A new module is unimportable
   until it is listed in `Sina/package.json`. `src/supabase/browser.js` is absent
   on purpose: auth cookies are `httpOnly`, so a browser client would come back
-  unauthenticated and silent. Every Supabase call in the app is server-side.
+  unauthenticated and silent. Every Supabase _query_ in the app is server-side.
+- **The one client-side Supabase connection is `src/supabase/realtime.js`**, and
+  it reads nothing. It takes an `accessToken` callback instead of a cookie —
+  Maria's `realtimeToken` Server Action verifies the session and hands back the
+  short-lived token — so the refresh token stays `httpOnly`. Its payloads are
+  deliberately discarded: a row off the socket has not been through a `select()`
+  list, so `useLiveRefresh` treats a change as a doorbell and answers it with
+  `router.refresh()`.
 - **Validation runs twice on purpose.** The browser's run is for speed; the
   Server Action calls the same `Sina/src/rules/*` functions, and that is the run
   that counts.
@@ -127,6 +134,17 @@ highest-numbered file that touches it.
   ability ranges and the rest exist in both `Sina/src/rules/*.js` and a
   migration; changing one means changing both. SQL uses `char_length`, matching
   the rules layer's code-point counting rather than JS `.length`.
+- **A party is joined by consent, not by being found.** `campaign_members` has
+  no INSERT policy at all since 20260820120000: a Dungeon Master sends an
+  invitation through `send_campaign_invite`, and `accept_campaign_invite` — a
+  definer function, the only writer left — adds the row for the character's
+  owner. It re-counts the party under the same advisory lock
+  `enforce_party_limit` uses, because that trigger stands aside for a caller who
+  does not own the campaign.
+- `notifications` has no INSERT policy either. Every row is written by one of
+  the three definer functions, and dismissal is a `status`, never a delete — the
+  newest `system_changelog` row is the record of which release its reader has
+  been told about.
 - `SELECT` column lists are explicit and never include `user_id`; a test asserts
   it stays out.
 

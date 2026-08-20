@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { registerChangelog } from "./changelog-control";
 import GrimoireMark from "./grimoire-mark";
 import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
 
@@ -24,6 +25,21 @@ export default function ChangelogPanel({ children }) {
   const launcherRef = useRef(null);
   const closeRef = useRef(null);
 
+  /**
+   * Whoever asked for the drawer, so closing it puts focus back there. The book
+   * is the default and the envelope in the header is the other caller; without
+   * this, opening from the header left the caret on a control at the bottom
+   * left of a page it had never been on.
+   */
+  const openerRef = useRef(null);
+
+  const close = useCallback(function close() {
+    setOpen(false);
+    // Without this the caret is left on <body> and the next Tab starts again
+    // from the top of the document.
+    (openerRef.current ?? launcherRef.current)?.focus();
+  }, []);
+
   useEffect(() => {
     if (!open) {
       return undefined;
@@ -31,10 +47,7 @@ export default function ChangelogPanel({ children }) {
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        setOpen(false);
-        // Without this the caret is left on <body> and the next Tab starts
-        // again from the top of the document.
-        launcherRef.current?.focus();
+        close();
       }
     }
 
@@ -42,11 +55,23 @@ export default function ChangelogPanel({ children }) {
     closeRef.current?.focus();
 
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, [open, close]);
 
-  function close() {
-    setOpen(false);
-    launcherRef.current?.focus();
+  /* The notification popover's "Read the grimoire" opens this drawer. */
+  useEffect(
+    () =>
+      registerChangelog({
+        open({ returnFocus }) {
+          openerRef.current = returnFocus ?? null;
+          setOpen(true);
+        },
+      }),
+    [],
+  );
+
+  function toggle() {
+    openerRef.current = null;
+    setOpen((current) => !current);
   }
 
   return (
@@ -60,7 +85,7 @@ export default function ChangelogPanel({ children }) {
       <button
         ref={launcherRef}
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
         // `mark-launcher` rather than a hover utility: scaling the button

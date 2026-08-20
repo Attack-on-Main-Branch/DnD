@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useState, useTransition } from "react";
 import { MAX_PARTY, parseCharacterQuery } from "sina/rules/campaign";
 
+import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
 import FormAlert from "@/app/components/ui/form-alert";
@@ -15,8 +17,8 @@ import {
 } from "@/app/dashboard/character-presentation";
 
 import {
-  addCharacterToParty,
   findPartyCandidate,
+  inviteCharacterToParty,
   removeCharacterFromParty,
 } from "../../actions";
 
@@ -39,17 +41,35 @@ function validateQuery({ query }) {
 }
 
 /**
- * The party: who is in it, and how to add somebody. The search takes a fragment
- * rather than a whole handle, since a DM usually has a name someone said out
- * loud. It returns a list to pick from — two characters can differ only in
- * their four digits and belong to different people.
+ * The party: who is in it, and how to ask somebody to join. The search takes a
+ * fragment rather than a whole handle, since a DM usually has a name someone
+ * said out loud. It returns a list to pick from — two characters can differ
+ * only in their four digits and belong to different people.
+ *
+ * Picking one sends an invitation rather than adding the character. The row
+ * appears below when its player accepts, which is a moment this page cannot
+ * predict — hence the subscription: the party arrives on its own rather than on
+ * a reload.
  *
  * The echoed query reaches the box through `key` and `defaultValue`, which is
  * what makes an uncontrolled input adopt it after each search.
  */
 export default function PartyPanel({ campaignId, members }) {
+  const router = useRouter();
   const [error, setError] = useState(null);
+  const [invited, setInvited] = useState(() => new Set());
   const [isPending, startTransition] = useTransition();
+
+  const refresh = useCallback(() => {
+    startTransition(() => router.refresh());
+  }, [router]);
+
+  useLiveRefresh({
+    channel: `party:${campaignId}`,
+    table: "campaign_members",
+    filter: `campaign_id=eq.${campaignId}`,
+    onChange: refresh,
+  });
 
   const {
     state,
@@ -65,7 +85,7 @@ export default function PartyPanel({ campaignId, members }) {
   const full = members.length >= MAX_PARTY;
   const inParty = new Set(members.map((member) => member.id));
 
-  function run(work) {
+  function run(work, onDone) {
     setError(null);
 
     startTransition(async () => {
@@ -73,7 +93,10 @@ export default function PartyPanel({ campaignId, members }) {
 
       if (result?.kind === "rejected") {
         setError(result.message);
+        return;
       }
+
+      onDone?.();
     });
   }
 
@@ -83,7 +106,7 @@ export default function PartyPanel({ campaignId, members }) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
         <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-          Add a character
+          Invite a character
         </h3>
 
         <p className="font-mono text-[10px] tracking-[0.2em] text-ink/50 uppercase">
@@ -120,6 +143,12 @@ export default function PartyPanel({ campaignId, members }) {
         </p>
       )}
 
+      {invited.size > 0 && !full && (
+        <p className="text-xs text-ink/50">
+          An invitation waits in its player&rsquo;s keeping until they answer.
+        </p>
+      )}
+
       {/*
         Anything that is not a success, not only a rejection. The client-side
         check returns `kind: "invalid"` rather than `"rejected"` — that is the
@@ -147,14 +176,25 @@ export default function PartyPanel({ campaignId, members }) {
               <div className="ml-auto">
                 {inParty.has(character.id) ? (
                   <p className="text-xs text-ink/50">Already in this party.</p>
+                ) : invited.has(character.id) ? (
+                  /* Local to this search, not a read of the table: an
+                     outstanding invitation is in its recipient's inbox, and
+                     nothing here may look in there. */
+                  <p className="text-xs text-gold/70">Invitation sent.</p>
                 ) : (
                   <Button
                     onClick={() =>
-                      run(() => addCharacterToParty(campaignId, character.id))
+                      run(
+                        () => inviteCharacterToParty(campaignId, character.id),
+                        () =>
+                          setInvited((current) =>
+                            new Set(current).add(character.id),
+                          ),
+                      )
                     }
                     disabled={busy || full}
                   >
-                    Add
+                    Invite
                   </Button>
                 )}
               </div>
@@ -176,7 +216,7 @@ export default function PartyPanel({ campaignId, members }) {
 
         {members.length === 0 ? (
           <p className="mt-3 text-sm text-ink/50 italic">
-            Nobody yet. Search for a character above.
+            Nobody yet. Invitations appear here once their players accept.
           </p>
         ) : (
           <ul className="mt-3 flex flex-col gap-3">

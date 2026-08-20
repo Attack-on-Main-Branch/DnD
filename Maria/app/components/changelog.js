@@ -16,6 +16,19 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.9.0",
+    date: "2026-08-20",
+    title: "Sealed missives",
+    changes: [
+      "A wax-sealed envelope in the bar across the top, and everything waiting for you behind it. A ruby pip glows on the seal while something is unanswered.",
+      "Dungeon Masters now invite a character rather than adding one. The player finds the invitation in their own keeping and answers it — accepting puts their character in the party, declining says no, and the Dungeon Master's party list fills in the moment they do.",
+      "Nobody's character can be enlisted without their say-so any more. Being findable by your handle is an invitation to be asked, not a way to be signed up.",
+      "A note arrives whenever the app has been updated, with a way straight into this grimoire from it.",
+      "Invitations and party changes arrive on their own. No reloading the page to find out whether anybody answered.",
+      "The missives panel unfolds downwards out of the seal and folds back up into it, and sits centred under the envelope that opens it.",
+    ],
+  },
+  {
     version: "0.8.1",
     date: "2026-08-20",
     title: "Doors on every room",

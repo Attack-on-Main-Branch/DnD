@@ -1,20 +1,23 @@
 {
   "name": "sina",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
   "exports": {
     "./supabase/server": "./src/supabase/server.js",
     "./supabase/session": "./src/supabase/session.js",
+    "./supabase/realtime": "./src/supabase/realtime.js",
     "./rules/auth": "./src/rules/auth.js",
     "./rules/character": "./src/rules/character.js",
     "./rules/campaign": "./src/rules/campaign.js",
     "./rules/account": "./src/rules/account.js",
+    "./rules/notifications": "./src/rules/notifications.js",
     "./data/auth": "./src/data/auth.js",
     "./data/characters": "./src/data/characters.js",
     "./data/campaigns": "./src/data/campaigns.js",
-    "./data/account": "./src/data/account.js"
+    "./data/account": "./src/data/account.js",
+    "./data/notifications": "./src/data/notifications.js"
   },
   "scripts": {
     "lint": "eslint",

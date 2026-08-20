@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  addPartyMember,
   searchCharacters,
   insertCampaign,
   removeCampaign,
@@ -11,6 +10,7 @@ import {
   uploadCampaignMap,
 } from "sina/data/campaigns";
 import { insertCharacter, removeCharacter } from "sina/data/characters";
+import { sendCampaignInvite } from "sina/data/notifications";
 import {
   mapObjectPath,
   mapPathFromUrl,
@@ -345,12 +345,16 @@ export async function deleteCharacter(characterId) {
 const PARTY_COPY = {
   party_full: `That party is full at ${MAX_PARTY} characters.`,
   already_added: "That character is already in this party.",
+  invite_pending:
+    "That player has already been asked, and has not replied yet.",
+  character_not_found: "That character no longer exists.",
+  campaign_not_found: "That campaign is no longer yours.",
   not_found: "That character no longer exists.",
   missing_table:
     "The party table does not exist yet. Run the migrations in Sina/supabase/migrations.",
   missing_function:
     "The character lookup is missing. Run the migrations in Sina/supabase/migrations.",
-  // Neutral: an add carries two ids, so either could be the malformed one.
+  // Neutral: an invitation carries two ids, so either could be the malformed one.
   bad_id: "That campaign or character could not be found.",
 };
 
@@ -403,8 +407,19 @@ export async function findPartyCandidate(_prevState, formData) {
   };
 }
 
-/** Adds a character the DM has already found to one of their campaigns. */
-export async function addCharacterToParty(campaignId, characterId) {
+/**
+ * Asks a character's player to join one of the DM's campaigns.
+ *
+ * This used to write the membership row outright, which meant anybody who could
+ * be found by a handle could be enlisted without ever being asked. The row is
+ * now written by the player, when they accept — see `acceptCampaignInvite` in
+ * app/actions/notifications.js and the migration behind it.
+ *
+ * The campaign is checked against the caller inside the definer function rather
+ * than here, for the same reason the insert policy did it: a check up here
+ * could be walked past by calling the RPC directly.
+ */
+export async function inviteCharacterToParty(campaignId, characterId) {
   if (typeof campaignId !== "string" || typeof characterId !== "string") {
     return rejected("Missing campaign or character id.");
   }
@@ -413,26 +428,26 @@ export async function addCharacterToParty(campaignId, characterId) {
   const { user, error: authError } = await getCurrentUser(supabase);
 
   if (authError || !user) {
-    return sessionRejection("addCharacterToParty", authError);
+    return sessionRejection("inviteCharacterToParty", authError);
   }
 
-  // The insert policy checks the campaign against the caller, so the database
-  // refuses one that is not theirs — a check here could be walked past.
-  const { error } = await addPartyMember(supabase, { campaignId, characterId });
+  const { error } = await sendCampaignInvite(supabase, {
+    campaignId,
+    characterId,
+  });
 
   if (error) {
     const copy = PARTY_COPY[error.reason];
-    logUncovered("addCharacterToParty", error, copy);
+    logUncovered("inviteCharacterToParty", error, copy);
 
     // Both of these mean the roster on screen no longer matches the table.
     if (error.reason === "already_added" || error.reason === "party_full") {
       revalidatePath(`/dashboard/campaign/${campaignId}`);
     }
 
-    return rejected(copy ?? "Could not add that character to the party.");
+    return rejected(copy ?? "Could not send that invitation.");
   }
 
-  revalidatePath(`/dashboard/campaign/${campaignId}`);
   return { kind: "success" };
 }
 
