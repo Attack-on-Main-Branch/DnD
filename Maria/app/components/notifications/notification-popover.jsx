@@ -296,7 +296,7 @@ function NotificationItem({
 
         <time
           dateTime={notification.created_at}
-          className="shrink-0 font-mono text-[10px] tracking-wide text-ink/40"
+          className="shrink-0 font-mono text-xs tracking-wide text-ink/40"
         >
           {SENT_FORMAT.format(new Date(notification.created_at))}
         </time>

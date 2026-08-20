@@ -60,7 +60,22 @@ export default function NotificationButton({
           ),
   );
 
-  const unread = countUnread(items);
+  /* Over the prop, not `items`: a rejected answer reverts the optimistic count
+     upward, which counted over the guess reads as new mail. */
+  const unread = countUnread(notifications);
+
+  /* A counter, not a flag — it is the `key` below, and changing a key is what
+     restarts a CSS animation. Seeded so a full inbox shakes on load. */
+  const [arrival, setArrival] = useState(unread > 0 ? 1 : 0);
+  const lastUnread = useRef(unread);
+
+  useEffect(() => {
+    if (unread > lastUnread.current) {
+      setArrival((count) => count + 1);
+    }
+
+    lastUnread.current = unread;
+  }, [unread]);
 
   const refresh = useCallback(() => {
     startTransition(() => router.refresh());
@@ -119,7 +134,9 @@ export default function NotificationButton({
     // is one to read, or every open would cost an UPDATE and a re-render for
     // an inbox that has nothing new in it.
     if (
-      items.some((item) => item.type === "system_changelog" && isUnread(item))
+      notifications.some(
+        (item) => item.type === "system_changelog" && isUnread(item),
+      )
     ) {
       startTransition(async () => {
         await markAnnouncementsRead();
@@ -170,20 +187,25 @@ export default function NotificationButton({
         }
         // `text-ink/60` is the ink the fact labels on a character card use —
         // Race, Class, Alignment, Level. The same grey, so the envelope sits at
-        // the weight of a label rather than of a heading.
-        className="relative grid size-10 place-items-center rounded-full text-ink/60 transition-colors duration-300 hover:text-gold"
+        // the weight of a label rather than of a heading. `glow-mark` owns the
+        // glow and the ink's transition, so no `transition-*` utility here.
+        className="glow-mark relative grid size-10 place-items-center rounded-full text-ink/60 hover:text-gold focus-visible:text-gold"
       >
-        {/* Sized against the pill and the two buttons beside it rather than
-            against its own hit area: 36px is the avatar circle in the profile
-            pill, and a 24px glyph next to it read as an afterthought. */}
-        <WaxSealEnvelope className="size-9" />
+        {/* 36px, the avatar circle's size in the profile pill. `--mark-size`
+            is `.glow-mark`'s, which shapes the glow from the same number. */}
+        <WaxSealEnvelope
+          key={`seal-${arrival}`}
+          className={`size-(--mark-size) ${arrival > 0 ? "mail-arriving" : ""}`}
+        />
 
-        {/* Clear of the envelope's own corner now that the envelope fills the
-            button — at `top-1` the pip sat on the parchment. */}
-        {unread > 0 && (
+        {/* Plain pixels rather than the spacing scale, so any value works,
+            negatives included. Gated on `arrival` too: on `unread` alone the
+            pip flashed for a frame before its entrance took it away again. */}
+        {unread > 0 && arrival > 0 && (
           <span
+            key={`pip-${arrival}`}
             aria-hidden="true"
-            className="seal-pip absolute top-0 right-0 size-2.5 rounded-full border border-gold/70 bg-ruby"
+            className="seal-pip absolute top-[3px] right-[-1px] size-2.5 rounded-full border border-gold/70 bg-ruby"
           />
         )}
       </button>

@@ -18,16 +18,16 @@ export default function WaxSealEnvelope({ className = "" }) {
       aria-hidden="true"
       className={className}
     >
-      {/* The body, with the barest wash of the ink colour so it reads as paper
-          rather than as an outline. */}
+      {/* Solid, not a wash of `currentColor`: that took the gold with it on
+          hover and lit the paper from inside. A hand-picked near-black, one
+          step darker than `--color-surface`. */}
       <rect
         x="3.4"
         y="7.4"
         width="25.2"
         height="17.2"
         rx="2.4"
-        fill="currentColor"
-        fillOpacity="0.09"
+        fill="#090805"
         stroke="currentColor"
         strokeOpacity="0.85"
         strokeWidth="1.5"

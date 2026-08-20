@@ -260,6 +260,46 @@ body {
       0 16px 40px -20px rgba(0, 0, 0, 0.9),
       0 0 0 6px rgba(10, 8, 6, 0.9);
   }
+
+  /*
+   * The secondary button's glow, on a box the shape of the envelope. A
+   * box-shadow and not a drop-shadow: an outer box-shadow is clipped to outside
+   * the border box, while a drop-shadow follows every stroke and lit the paper
+   * from the inside.
+   */
+  .glow-mark {
+    /* The drawing's size. The glow below is built from it too. */
+    --mark-size: 2.25rem;
+
+    transition: color var(--default-transition-duration)
+      var(--default-transition-timing-function);
+  }
+
+  /*
+   * The envelope's own `<rect>`, in the drawing's units. Revealed with
+   * `opacity` -- the one property a compositor animates without repainting;
+   * transitioning the shadow itself arrived in a jump.
+   */
+  .glow-mark::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: calc(var(--mark-size) * 25.2 / 32);
+    height: calc(var(--mark-size) * 17.2 / 32);
+    border-radius: calc(var(--mark-size) * 2.4 / 32);
+    /* Blur, spread, strength: the knob. Not the button's `-6px` spread, which
+       on a box a third the size leaves a sliver and reads dim. */
+    box-shadow: 0 0 20px -1px var(--gold-25);
+    opacity: 0;
+    transition: opacity var(--default-transition-duration)
+      var(--default-transition-timing-function);
+  }
+
+  .glow-mark:hover::before,
+  .glow-mark:focus-visible::before {
+    opacity: 1;
+  }
 }
 
 /*
@@ -304,7 +344,18 @@ body {
     box-shadow:
       0 0 6px -1px var(--color-ruby),
       0 0 10px -2px var(--gold-35);
-    animation: seal-pip-breathe 3.4s ease-in-out infinite;
+
+    /* The delay is `mail-attention`'s length, so the pip lands after the
+       shake; `both` keeps it absent until then. The breath picks up where the
+       pop leaves off, in time and in opacity. */
+    animation:
+      seal-pip-in 250ms var(--ease-tray) 1s both,
+      seal-pip-breathe 3.4s ease-in-out 1.25s infinite;
+  }
+
+  /* On the drawing, not the button, so the hit area and focus ring stay put. */
+  .mail-arriving {
+    animation: mail-attention 1s var(--ease-tray);
   }
 
   /*
@@ -732,6 +783,51 @@ body {
   }
 }
 
+/* Something landing in the envelope: up to size, a rock that settles, back down. */
+@keyframes mail-attention {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  15% {
+    transform: scale(1.15) rotate(0deg);
+  }
+  30% {
+    transform: scale(1.15) rotate(5deg);
+  }
+  45% {
+    transform: scale(1.15) rotate(-5deg);
+  }
+  60% {
+    transform: scale(1.15) rotate(4deg);
+  }
+  75% {
+    transform: scale(1.15) rotate(-4deg);
+  }
+  90% {
+    transform: scale(1.15) rotate(0deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* The pip arriving after it, overshooting a quarter and settling. */
+@keyframes seal-pip-in {
+  from {
+    opacity: 0;
+    scale: 0;
+  }
+  60% {
+    opacity: 1;
+    scale: 1.25;
+  }
+  to {
+    /* 0.85, where `seal-pip-breathe` begins, or the handover steps. */
+    opacity: 0.85;
+    scale: 1;
+  }
+}
+
 /*
  * The pip breathing. Opacity and glow only -- no scale, because it sits half
  * off the corner of the envelope and growing it would clip against the button's
@@ -844,8 +940,14 @@ body {
   .panel-content-in,
   .float-in,
   .bar-in,
+  .mail-arriving,
   .seal-pip {
     animation: none;
+  }
+
+  .glow-mark,
+  .glow-mark::before {
+    transition: none;
   }
 
   .glow-gold,

@@ -16,6 +16,19 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.9.1",
+    date: "2026-08-21",
+    title: "A knock at the seal",
+    changes: [
+      "The envelope in the bar answers when something lands in it: it grows, rocks itself still, and settles back down.",
+      "The ruby pip waits for that to finish before dropping onto the seal, rather than lighting up beside it. It plays again each time something new arrives.",
+    ],
+    fixes: [
+      "The unread pip sat in the air above the envelope instead of on its corner.",
+      "The envelope was the one control in the bar that did not light up under the pointer.",
+    ],
+  },
+  {
     version: "0.9.0",
     date: "2026-08-20",
     title: "Sealed missives",
