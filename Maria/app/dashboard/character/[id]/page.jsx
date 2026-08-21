@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { listCampaignsForCharacter } from "sina/data/campaigns";
-import { getCharacter } from "sina/data/characters";
+import { getCharacter, listCharacterNotes } from "sina/data/characters";
 import { characterHandle } from "sina/rules/character";
 
 import {
@@ -11,8 +11,10 @@ import {
 } from "@/app/dashboard/character-presentation";
 
 import Avatar from "@/app/components/ui/avatar";
+import PlayButton from "@/app/components/ui/play-button";
 import { surfaceClasses } from "@/app/components/ui/surface";
 import { logFailure } from "@/lib/errors";
+import { campaignTablePath } from "@/lib/routes";
 import { createClient, currentUser } from "@/lib/supabase";
 
 import {
@@ -22,7 +24,6 @@ import {
   StoryPanel,
 } from "./character-panels";
 import TabStrip from "@/app/components/ui/tab-strip";
-import PlayButton from "./play-button";
 
 /**
  * Locale and time zone are both pinned: `toLocaleDateString()` reads them from
@@ -62,7 +63,7 @@ export default async function CharacterPage({ params }) {
   const { id } = await params;
   // `user` is loaded too, for the guard inside the loader — the header that
   // used to need it here now comes from dashboard/layout.jsx.
-  const { character, campaigns, error } = await loadCharacter(id);
+  const { character, campaigns, notes, error } = await loadCharacter(id);
 
   // A failed read is not a missing character, though `getCharacter` returns
   // null for both. `bad_id` is the exception: a uuid column rejects a junk id
@@ -76,6 +77,8 @@ export default async function CharacterPage({ params }) {
   if (!character) {
     notFound();
   }
+
+  const [table] = campaigns;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
@@ -162,7 +165,19 @@ export default async function CharacterPage({ params }) {
           </div>
         </div>
 
-        <PlayButton />
+        {/*
+          The table this character sits at, and the seat with it — pressing Play
+          here means playing this character, even where the same account also
+          runs the campaign. That is why the table needs no chair-picker; the
+          campaign sheet's Play button is the other door.
+
+          The first campaign where there is more than one: nothing on this sheet
+          asks which table. With none, the button stays inert.
+        */}
+        <PlayButton
+          href={table ? campaignTablePath(table.id, character.id) : undefined}
+          label={table ? `Play as ${character.name}` : "Play"}
+        />
       </header>
 
       {/* `panel-in` is the creation sheet's opening; `data-fold` is its
@@ -193,7 +208,7 @@ export default async function CharacterPage({ params }) {
             ),
             story: <StoryPanel character={character} />,
             inventory: <InventoryPanel />,
-            notes: <NotesPanel />,
+            notes: <NotesPanel notes={notes} />,
           }}
         />
       </div>
@@ -230,22 +245,30 @@ const loadCharacter = cache(async function loadCharacter(id) {
   }
 
   if (!data) {
-    return { character: null, campaigns: [], error, user };
+    return { character: null, campaigns: [], notes: [], error, user };
   }
 
-  // Where this character plays. Logged rather than shown if it fails: the sheet
-  // is the page, and a campaign line that cannot load is not a reason to
+  // Where this character plays, and what its player wrote while playing: one
+  // round trip's worth of waiting rather than two. Both are logged rather than
+  // shown if they fail — the sheet is the page, and neither is a reason to
   // replace it with an error.
-  const { data: campaigns, error: campaignError } =
-    await listCampaignsForCharacter(supabase, id);
+  const [campaigns, notes] = await Promise.all([
+    listCampaignsForCharacter(supabase, id),
+    listCharacterNotes(supabase, id),
+  ]);
 
-  if (campaignError) {
-    logFailure("listCampaignsForCharacter", campaignError);
+  if (campaigns.error) {
+    logFailure("listCampaignsForCharacter", campaigns.error);
+  }
+
+  if (notes.error) {
+    logFailure("listCharacterNotes", notes.error);
   }
 
   return {
     character: data,
-    campaigns: campaignError ? [] : campaigns,
+    campaigns: campaigns.error ? [] : campaigns.data,
+    notes: notes.error ? [] : notes.data,
     error,
     user,
   };

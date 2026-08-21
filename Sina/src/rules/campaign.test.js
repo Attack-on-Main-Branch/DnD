@@ -10,6 +10,7 @@ import {
   mapObjectPath,
   MIN_SEARCH_LENGTH,
   parseCharacterQuery,
+  parseMarkPoint,
   readCampaignValues,
   validateCampaign,
 } from "./campaign.js";
@@ -396,4 +397,35 @@ describe("parseCharacterQuery", () => {
     assert.equal(parseCharacterQuery("%"), null);
     assert.equal(parseCharacterQuery("a%").namePrefix, "a%");
   });
+});
+
+describe("parseMarkPoint", () => {
+  it("keeps a point inside the picture as it was given", () => {
+    assert.deepEqual(parseMarkPoint(0.25, 0.75), { x: 0.25, y: 0.75 });
+  });
+
+  it("keeps both corners, which are on the map and not off it", () => {
+    assert.deepEqual(parseMarkPoint(0, 0), { x: 0, y: 0 });
+    assert.deepEqual(parseMarkPoint(1, 1), { x: 1, y: 1 });
+  });
+
+  it("clamps a rounding artefact at the edge rather than refusing it", () => {
+    assert.deepEqual(parseMarkPoint(1.0000001, -0.0000001), { x: 1, y: 0 });
+  });
+
+  it("reads the numbers a form body sends as strings", () => {
+    assert.deepEqual(parseMarkPoint("0.5", "0.1"), { x: 0.5, y: 0.1 });
+  });
+
+  for (const [x, y, why] of [
+    [null, 0.5, "a missing coordinate"],
+    [0.5, undefined, "the other one missing"],
+    ["left", 0.5, "a word where a number belongs"],
+    [Number.NaN, 0.5, "NaN, which no clamp would catch"],
+    [Number.POSITIVE_INFINITY, 0.5, "an infinity, which clamping would hide"],
+  ]) {
+    it(`refuses ${why}`, () => {
+      assert.equal(parseMarkPoint(x, y), null);
+    });
+  }
 });

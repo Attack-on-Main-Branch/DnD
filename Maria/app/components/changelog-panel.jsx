@@ -1,6 +1,9 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { isCampaignTablePath } from "@/lib/routes";
 
 import { registerChangelog } from "./changelog-control";
 import GrimoireMark from "./grimoire-mark";
@@ -22,6 +25,15 @@ import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
 export default function ChangelogPanel({ children }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+
+  /**
+   * The book stands down at the table, where it sits in the corner of a board
+   * somebody is playing over. Read from the pathname rather than passed down:
+   * this lives in the layout, which does not re-render on navigation, so a prop
+   * would be stuck at whichever route mounted it. `inert` the moment it starts
+   * to go — an animating control is still a tab stop.
+   */
+  const away = isCampaignTablePath(usePathname());
   const launcherRef = useRef(null);
   const closeRef = useRef(null);
 
@@ -88,9 +100,12 @@ export default function ChangelogPanel({ children }) {
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
+        inert={away || undefined}
         // `mark-launcher` rather than a hover utility: scaling the button
         // scaled the rings too. globals.css lifts the book alone.
-        className="mark-launcher fixed bottom-20 left-20 z-0 cursor-pointer rounded-full"
+        className={`mark-launcher fixed bottom-20 left-20 z-0 cursor-pointer rounded-full ${
+          away ? "mark-away" : ""
+        }`}
       >
         {/* Width and the image-size hint both come from the component, so this
             copy and the login page's are always the same — see MARK_SIZE in

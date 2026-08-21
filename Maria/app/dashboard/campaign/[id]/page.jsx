@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { cache } from "react";
-import { getCampaign, listPartyMembers } from "sina/data/campaigns";
 import { classLabel } from "sina/rules/character";
 
+import NoteList from "@/app/components/ui/note-list";
+import PlayButton from "@/app/components/ui/play-button";
 import TabStrip from "@/app/components/ui/tab-strip";
 import { surfaceClasses } from "@/app/components/ui/surface";
-import { logFailure } from "@/lib/errors";
-import { createClient, currentUser } from "@/lib/supabase";
+import { campaignTablePath, DUNGEON_MASTER_SEAT } from "@/lib/routes";
 
 import CampaignMap from "./campaign-map";
+import { loadCampaign } from "./load-campaign";
 import PartyPanel from "./party-panel";
 
 /** The campaign's sections, named beside the panels they select. */
@@ -18,6 +18,7 @@ const CAMPAIGN_TABS = [
   // `focusable: false` — the panel opens with a search field, so a tab stop on
   // the panel itself only puts an empty step in front of it.
   { value: "party", label: "Party", focusable: false },
+  { value: "notes", label: "Notes" },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -57,7 +58,7 @@ export default async function CampaignPage({ params }) {
     notFound();
   }
 
-  const { campaign, members } = loaded;
+  const { campaign, members, notes } = loaded;
 
   // Resolved here rather than in PartyPanel: `classLabel` reaches through
   // `classDetails` into the whole ARCHETYPES catalogue, and importing it into a
@@ -90,6 +91,14 @@ export default async function CampaignPage({ params }) {
             Created {CREATED_FORMAT.format(new Date(campaign.created_at))}
           </p>
         </div>
+
+        {/* A link, so nav-transition.jsx plays the sheet away before the
+            table arrives. This is the Dungeon Master's own page, so the seat
+            that goes with it is the head of the table. */}
+        <PlayButton
+          href={campaignTablePath(campaign.id, DUNGEON_MASTER_SEAT)}
+          label="Run this campaign"
+        />
       </header>
 
       {/* `panel-in` is the creation sheet's opening; `data-fold` is its
@@ -113,6 +122,15 @@ export default async function CampaignPage({ params }) {
           panels={{
             overview: <OverviewPanel campaign={campaign} />,
             party: <PartyPanel campaignId={campaign.id} members={roster} />,
+            // The Dungeon Master's own book, written at the table and read
+            // back here the way a character's is on their sheet.
+            notes: (
+              <NoteList
+                notes={notes}
+                emptyTitle="No notes yet"
+                emptyDescription="Notes you write at the table appear here."
+              />
+            ),
           }}
         />
       </div>
@@ -157,55 +175,3 @@ function OverviewPanel({ campaign }) {
     </div>
   );
 }
-
-/**
- * One load for the page and its metadata. `cache` deduplicates within a request:
- * Next calls `generateMetadata` and the component separately, which would
- * otherwise fetch the campaign and its party twice per view.
- *
- * Returns a sentinel rather than redirecting — `generateMetadata` is not the
- * place for that, so the page decides.
- */
-const loadCampaign = cache(async function loadCampaign(id) {
-  const supabase = await createClient();
-  const { user, error: authError } = await currentUser();
-
-  if (authError) {
-    logFailure("campaign/auth", authError);
-    return "auth-unavailable";
-  }
-
-  if (!user) {
-    return "signed-out";
-  }
-
-  const { data: campaign, error } = await getCampaign(supabase, {
-    id,
-    userId: user.id,
-  });
-
-  // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
-  // failure. Everything else is handed to the page to throw on.
-  const realFailure = error && error.reason !== "bad_id" ? error : null;
-
-  if (realFailure) {
-    logFailure("getCampaign", realFailure);
-  }
-
-  if (!campaign) {
-    return { campaign: null, members: [], error: realFailure };
-  }
-
-  const { data: members, error: partyError } = await listPartyMembers(
-    supabase,
-    id,
-  );
-
-  if (partyError) {
-    logFailure("listPartyMembers", partyError);
-  }
-
-  // Logged rather than thrown on: the campaign is the page, and a party that
-  // could not load is no reason to replace it with an error.
-  return { campaign, members: partyError ? [] : members, error: null };
-});

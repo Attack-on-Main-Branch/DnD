@@ -210,6 +210,24 @@ body {
   }
 
   /*
+   * The same surface with its backdrop filter withdrawn, for one that is not
+   * always on screen. `backdrop-filter` darkens the backdrop under its
+   * element's box regardless of `opacity` or of a `scale` folded to nothing, so
+   * a closed dropdown went on painting over the table's animated plume as a
+   * dark slab under the mark that opens it. The notification dropdown never
+   * showed this: it hangs inside the header, itself a backdrop root, so there
+   * is only a flat fill there to darken.
+   *
+   * Nothing is lost. `--surface-96` is opaque to within four per cent, so the
+   * blur was never visible, and a filter costs a compositor readback per frame
+   * whether or not it shows -- see surface.js.
+   */
+  .glass-unfiltered {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /*
    * The resting rim for surfaces that are not `.glass`. A component class
    * rather than a `border-gold/20` utility on purpose: utilities sit in a later
    * layer, so a border utility outranks `.glow-gold:hover` and the rim never
@@ -262,6 +280,24 @@ body {
   }
 
   /*
+   * The same lit rim, standing rather than summoned by a pointer: `.glow-gold`
+   * means "this is yours to press", this means "somebody is here". Deliberately
+   * the same shadow, so one lit edge means one thing across the app.
+   *
+   * No transition of its own — the card carries one as a utility, since a rule
+   * that only exists while it applies cannot animate its own removal. It sits
+   * after `.glass` in this layer, which is what puts its border over that one's.
+   */
+  .lit-gold {
+    border-color: var(--gold-60);
+    box-shadow:
+      inset 0 1px 0 var(--gold-20),
+      0 0 0 1px var(--gold-25),
+      0 0 28px -4px var(--gold-35),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
    * The secondary button's glow, on a box the shape of the envelope. A
    * box-shadow and not a drop-shadow: an outer box-shadow is clipped to outside
    * the border box, while a drop-shadow follows every stroke and lit the paper
@@ -271,12 +307,19 @@ body {
     /* The drawing's size. The glow below is built from it too. */
     --mark-size: 2.25rem;
 
+    /* The lit box, in the drawing's own units — the envelope's `<rect>`. A
+       mark of another shape overrides these three and inherits everything else;
+       see `.glow-bloom` below, which keeps the shadow and moves the box. */
+    --mark-lit-w: calc(var(--mark-size) * 25.2 / 32);
+    --mark-lit-h: calc(var(--mark-size) * 17.2 / 32);
+    --mark-lit-r: calc(var(--mark-size) * 2.4 / 32);
+
     transition: color var(--default-transition-duration)
       var(--default-transition-timing-function);
   }
 
   /*
-   * The envelope's own `<rect>`, in the drawing's units. Revealed with
+   * The mark's own `<rect>`, in the drawing's units. Revealed with
    * `opacity` -- the one property a compositor animates without repainting;
    * transitioning the shadow itself arrived in a jump.
    */
@@ -285,9 +328,9 @@ body {
     position: absolute;
     inset: 0;
     margin: auto;
-    width: calc(var(--mark-size) * 25.2 / 32);
-    height: calc(var(--mark-size) * 17.2 / 32);
-    border-radius: calc(var(--mark-size) * 2.4 / 32);
+    width: var(--mark-lit-w);
+    height: var(--mark-lit-h);
+    border-radius: var(--mark-lit-r);
     /* Blur, spread, strength: the knob. Not the button's `-6px` spread, which
        on a box a third the size leaves a sliver and reads dim. */
     box-shadow: 0 0 20px -1px var(--gold-25);
@@ -299,6 +342,53 @@ body {
   .glow-mark:hover::before,
   .glow-mark:focus-visible::before {
     opacity: 1;
+  }
+
+  /*
+   * The glow for a mark drawn in outline -- the scroll, the pack and the globe
+   * above the board, and the pencil beside a health bar. Nothing about the
+   * effect changes; only the box casting it moves, and it has to.
+   *
+   * `.glow-mark`'s shadow is an OUTER one, clipped away inside the box it
+   * rings. The envelope's box is its own filled `<rect>`, so the drawing covers
+   * that clipped-out middle. These are outlines with nothing behind their
+   * strokes, so a box cut to their bounds showed its middle through every gap.
+   * Tucked INSIDE the drawing the ring falls under the strokes and only the
+   * blur reaches past -- which is exactly the halo the envelope has.
+   */
+  .glow-bloom {
+    /* Inside the scroll's sheet and inside the pack's body, in the drawings'
+       own units: both are ~20 wide by ~25 tall of a 32 viewBox, and this sits
+       within both. */
+    --mark-lit-w: calc(var(--mark-size) * 15 / 32);
+    --mark-lit-h: calc(var(--mark-size) * 16 / 32);
+    --mark-lit-r: calc(var(--mark-size) * 3 / 32);
+  }
+
+  /*
+   * The same colour and blur as the envelope's, grown by a spread. A shadow is
+   * only as big as the box casting it, and these boxes have to be smaller to
+   * fit inside a drawing rather than under one, so at the envelope's own spread
+   * the halo came out visibly fainter beside it. Spread grows the SHADOW and
+   * not the element, so the clipped-out middle stays as small as it was.
+   */
+  .glow-bloom::before {
+    box-shadow: 0 0 20px 4px var(--gold-25);
+  }
+
+  .glow-bloom-small::before {
+    box-shadow: 0 0 20px 5px var(--gold-25);
+  }
+
+  /*
+   * The pencil is a diagonal, so it has no rectangle to sit inside -- only its
+   * own body, about a third of the drawing. Written out rather than derived
+   * from `--mark-size`, which the pencil is not drawn at.
+   */
+  .glow-bloom-small {
+    --mark-lit-w: 0.5rem;
+    --mark-lit-h: 0.5rem;
+    --mark-lit-r: 9999px;
   }
 }
 
@@ -356,6 +446,45 @@ body {
   /* On the drawing, not the button, so the hit area and focus ring stay put. */
   .mail-arriving {
     animation: mail-attention 1s var(--ease-tray);
+  }
+
+  /*
+   * A tray that unfolds in the flow rather than over it — the hit-point editor
+   * under a health bar. A height cannot interpolate from `auto`, so the row runs
+   * 0fr to 1fr and the box inside carries the `overflow: hidden`. The closing
+   * curve is the opening one reversed.
+   */
+  .tray-fold {
+    display: grid;
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition:
+      grid-template-rows 300ms var(--ease-tray),
+      opacity 200ms ease-out 100ms;
+  }
+
+  .tray-fold.tray-folded {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows 300ms var(--ease-tray-in),
+      opacity 150ms ease-in;
+  }
+
+  /*
+   * The hit-point box. Native number spinners duplicate the − and + beside them
+   * and cannot be themed -- browsers draw them in the OS palette. Two engines,
+   * two answers: WebKit and Blink draw a pseudo-element, Firefox answers to
+   * `appearance`.
+   */
+  .no-spin {
+    appearance: textfield;
+  }
+
+  .no-spin::-webkit-outer-spin-button,
+  .no-spin::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
   }
 
   /*
@@ -671,6 +800,50 @@ body {
   }
 }
 
+/*
+ * The table's arrival: the title converges out of wide kerning, the map grows
+ * from the middle, the frame blooms around it once it has landed. The party
+ * rail reuses `glide-in-right` above.
+ *
+ * `letter-spacing` interpolates towards whatever the element rests at, so the
+ * halves collapse into `tracking-wide` rather than a number written twice. It
+ * costs a layout per frame on one line of text, which is the effect itself.
+ */
+@keyframes kern-in-left {
+  from {
+    opacity: 0;
+    letter-spacing: 2em;
+    translate: -3em 0;
+  }
+}
+
+@keyframes kern-in-right {
+  from {
+    opacity: 0;
+    letter-spacing: 2em;
+    translate: 3em 0;
+  }
+}
+
+@keyframes map-rise {
+  from {
+    opacity: 0;
+    scale: 0.7;
+  }
+}
+
+/*
+ * `inset` rather than a scale: the frame is a rim, and scaling one about its
+ * centre thins the rim on the way out instead of pushing it away from the map.
+ * It is out of flow, so the interpolation lays out nothing but itself.
+ */
+@keyframes frame-bloom {
+  from {
+    opacity: 0;
+    inset: 0;
+  }
+}
+
 /* Registered, or none of these interpolate: an unregistered custom property is
    a string to the animation engine, and a string cannot be eased. */
 @property --hp-angle {
@@ -950,6 +1123,11 @@ body {
     transition: none;
   }
 
+  .tray-fold,
+  .tray-fold.tray-folded {
+    transition: none;
+  }
+
   .glow-gold,
   .hp-bar,
   .hp-fill,
@@ -1153,6 +1331,43 @@ body {
 .mark-launcher:hover .mark-book,
 .mark-launcher:focus-visible .mark-book {
   scale: 1.04;
+}
+
+/*
+ * The grimoire leaving the corner for the table: the rings and their halo
+ * shrink away first, the book follows on the same curve once they have gone.
+ *
+ * A transition rather than keyframes, which is what makes coming back free —
+ * `.mark-away` carries the departed pose as a declaration, so taking the class
+ * off eases the pair home from wherever they had reached. Only the leaving is
+ * staged.
+ *
+ * On the wrappers rather than the drawings inside them, which already own
+ * `transform` for their drift, breath and turn. Unlayered on purpose:
+ * Tailwind's utilities sit in a layer of their own and would outrank this.
+ */
+.mark-aura,
+.mark-plate {
+  transition:
+    opacity 800ms var(--ease-tray),
+    scale 800ms var(--ease-tray);
+}
+
+.mark-away .mark-aura,
+.mark-away .mark-plate {
+  opacity: 0;
+  scale: 0.6;
+}
+
+.mark-away .mark-plate {
+  transition-delay: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark-aura,
+  .mark-plate {
+    transition: none;
+  }
 }
 
 /* Everything still swaps, it just swaps at once — the browser's own default. */

@@ -9,7 +9,7 @@
  * the base ones, so the sheet prints the number Postgres would sort by.
  */
 const COLUMNS =
-  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, " +
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, current_hp, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
   "backstory, personality, created_at";
@@ -18,6 +18,8 @@ const COLUMNS =
 const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
 const UNDEFINED_TABLE = "42P01";
+const UNDEFINED_FUNCTION = "42883";
+const FOREIGN_KEY_VIOLATION = "23503";
 const INVALID_TEXT_REPRESENTATION = "22P02";
 
 function classify(error) {
@@ -38,6 +40,17 @@ function classify(error) {
 
   if (error.code === UNDEFINED_TABLE) {
     return "missing_table";
+  }
+
+  // A migration written but never pushed, which is what `npm run db:list` is
+  // for. The tests never reach a database, so nothing else catches it.
+  if (error.code === UNDEFINED_FUNCTION) {
+    return "missing_function";
+  }
+
+  // The character went away between the page rendering and the write landing.
+  if (error.code === FOREIGN_KEY_VIOLATION) {
+    return "not_found";
   }
 
   // A malformed uuid: Postgres refuses the cast before considering a row, so it
@@ -135,4 +148,75 @@ export async function removeCharacter(supabase, { id, userId }) {
   }
 
   return { data: true, error: null };
+}
+
+/**
+ * Hit points, through the definer function rather than an UPDATE. RLS grants
+ * rows and not columns, so the narrowest policy that would let this write also
+ * lets its holder rewrite the name and the handle — see
+ * 20260821140000_health_and_notes.sql. The function writes one column of one
+ * row, for a character the caller owns or one sitting in a campaign they run.
+ *
+ * `campaignId` scopes the second of those: a character can play at more than
+ * one table, so the question is "is this the Dungeon Master of the campaign
+ * that character is in", and the function re-checks the membership itself.
+ *
+ * Anybody else gets null, which is what a deleted character gives too — a
+ * caller must not be able to tell a refusal from a miss.
+ */
+export async function updateCharacterHealth(
+  supabase,
+  { id, hitPoints, campaignId },
+) {
+  const { data, error } = await supabase.rpc("set_character_health", {
+    target_character: id,
+    hit_points: hitPoints,
+    target_campaign: campaignId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (data === null) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: { currentHp: data }, error: null };
+}
+
+/** Newest first: the table shows the last thing written at the top. */
+export async function listCharacterNotes(supabase, characterId) {
+  const { data, error } = await supabase
+    .from("character_notes")
+    .select("id, body, created_at")
+    .eq("character_id", characterId)
+    .order("created_at", { ascending: false });
+
+  return error ? failure(error) : { data: data ?? [], error: null };
+}
+
+/**
+ * `created_at` is deliberately absent from the insert — the column's default is
+ * the database's clock, which is the one every reader's timestamp is formatted
+ * from.
+ */
+export async function insertCharacterNote(supabase, { characterId, body }) {
+  const { data, error } = await supabase
+    .from("character_notes")
+    .insert({ character_id: characterId, body })
+    .select("id, body, created_at")
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  // RLS refuses an insert for somebody else's character by returning no row
+  // rather than by failing.
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
 }

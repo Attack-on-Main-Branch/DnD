@@ -66,3 +66,46 @@ export function watchTable(
     client.removeChannel(subscription);
   };
 }
+
+/**
+ * Who else is on this channel, for as long as we are on it too.
+ *
+ * The opposite of `watchTable` above in one respect: this payload is the point.
+ * Nothing is read from the database, so there is no `select()` list to bypass —
+ * what comes back is what the other subscribers said about themselves, and the
+ * caller decides how much of it to trust.
+ *
+ * `private: true` is what makes that trustworthy: Realtime puts the channel's
+ * topic to the policies on `realtime.messages` before anyone may join or track,
+ * so an outsider can neither read this roster nor add themselves to it — see
+ * 20260821240000_table_presence.sql. Without those policies the subscription
+ * fails and `onChange` is handed the empty roster it reports for an empty room.
+ *
+ * `key` collapses one person's several tabs into one seat; left to itself
+ * Realtime keys on the socket, so opening the table twice seats you twice.
+ */
+export function watchPresence(client, { channel, key, meta, onChange }) {
+  const subscription = client.channel(channel, {
+    config: { private: true, presence: { key, enabled: true } },
+  });
+
+  subscription
+    .on("presence", { event: "sync" }, () =>
+      onChange(Object.values(subscription.presenceState()).flat()),
+    )
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        Promise.resolve(subscription.track(meta)).catch(() => {});
+        return;
+      }
+
+      // A socket that dropped is not a table that emptied, but it is the last
+      // thing we know for certain — better a rail that goes dark than one
+      // reporting a room from ten minutes ago.
+      onChange([]);
+    });
+
+  return () => {
+    client.removeChannel(subscription);
+  };
+}

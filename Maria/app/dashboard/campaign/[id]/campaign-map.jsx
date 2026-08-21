@@ -9,11 +9,7 @@ import {
   surfaceClasses,
 } from "@/app/components/ui/surface";
 
-/** How far a press may drift before it counts as a drag rather than a click. */
-const DRAG_SLOP_PX = 4;
-
-/** One step, and only one: a map is either being surveyed or being read. */
-const ZOOM = 2.5;
+import { useMapZoom } from "./use-map-zoom";
 
 const OPEN_MAP_MS = 320;
 const OPEN_FRAME_MS = 200;
@@ -131,16 +127,6 @@ function lockScroll() {
 function unlockScroll() {
   document.body.style.overflow = "";
 }
-
-/** Left moves the image right, so the view travels the way the key points. */
-const KEY_STEP_PX = 48;
-
-const KEY_NUDGE = {
-  ArrowLeft: { x: KEY_STEP_PX, y: 0 },
-  ArrowRight: { x: -KEY_STEP_PX, y: 0 },
-  ArrowUp: { x: 0, y: KEY_STEP_PX },
-  ArrowDown: { x: 0, y: -KEY_STEP_PX },
-};
 
 /**
  * A thumbnail on the page, the original in a frame you can zoom. The split is
@@ -542,12 +528,9 @@ export default function CampaignMap({ url, title }) {
 }
 
 /**
- * Click to zoom, drag to move. The frame is a proportion of the viewport rather
- * than a fixed width, or the better monitor gets the smaller map.
- *
- * Transformed rather than resized, so zooming costs no layout and no second
- * decode, and served as the original file — `next/image` would hand back
- * something smaller than what is already in the bucket.
+ * The modal's map. The zooming and panning are `useMapZoom`'s, shared with the
+ * table's board; what is here is this frame — sized from an aspect ratio, and
+ * wearing the refs the reveal above measures and animates.
  */
 function ZoomableMap({
   url,
@@ -561,173 +544,10 @@ function ZoomableMap({
   const ownFrameRef = useRef(null);
   const imageRef = useRef(null);
 
-  const [zoomed, setZoomed] = useState(false);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-
-  // In a ref rather than state: it changes on every pointer move.
-  const drag = useRef(null);
-
-  /**
-   * How far the image may move before its edge comes inside the frame. Computed
-   * from the *fitted* size: the image is `object-contain`, so the painted size
-   * is what the scale multiplies, and clamping against the natural size would
-   * let the map be dragged out into empty space.
-   */
-  const limits = useCallback((scale) => {
-    const frame = ownFrameRef.current;
-    const image = imageRef.current;
-
-    if (!frame || !image?.naturalWidth) {
-      return { x: 0, y: 0 };
-    }
-
-    const box = frame.getBoundingClientRect();
-    const ratio = image.naturalWidth / image.naturalHeight;
-    const fittedWidth = Math.min(box.width, box.height * ratio);
-    const fittedHeight = fittedWidth / ratio;
-
-    return {
-      x: Math.max(0, (fittedWidth * scale - box.width) / 2),
-      y: Math.max(0, (fittedHeight * scale - box.height) / 2),
-    };
-  }, []);
-
-  const clamp = useCallback(
-    (next, scale) => {
-      const bound = limits(scale);
-
-      return {
-        x: Math.min(bound.x, Math.max(-bound.x, next.x)),
-        y: Math.min(bound.y, Math.max(-bound.y, next.y)),
-      };
-    },
-    [limits],
-  );
-
-  // A frame that changes size while zoomed can leave the map parked outside its
-  // own limits, which shows as a gap along one edge until the next drag.
-  useEffect(() => {
-    const frame = ownFrameRef.current;
-
-    if (!zoomed || !frame) {
-      return undefined;
-    }
-
-    const observer = new ResizeObserver(() => {
-      setOffset((current) => clamp(current, ZOOM));
-    });
-
-    observer.observe(frame);
-
-    return () => observer.disconnect();
-  }, [zoomed, clamp]);
-
-  function onPointerDown(event) {
-    // `touch-none` suppresses the `pointercancel` that would reset the drag, so
-    // a second finger would overwrite the slot below and jump the map.
-    if (event.button !== 0 || !event.isPrimary) {
-      return;
-    }
-
-    // Capture keeps a drag that leaves the frame reporting here, but
-    // `setPointerCapture` throws NotFoundError if the pointer is already gone —
-    // an improvement, not a requirement, so it must not take the drag down.
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Without capture the drag still works inside the frame.
-    }
-
-    setDragging(true);
-    drag.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: offset.x,
-      originY: offset.y,
-      moved: false,
-    };
-  }
-
-  function onPointerMove(event) {
-    const state = drag.current;
-
-    if (!state) {
-      return;
-    }
-
-    const dx = event.clientX - state.startX;
-    const dy = event.clientY - state.startY;
-
-    if (Math.hypot(dx, dy) > DRAG_SLOP_PX) {
-      state.moved = true;
-    }
-
-    // Only a zoomed map has anywhere to go: at rest it is inside its frame and
-    // every direction is already at its limit.
-    if (!zoomed || !state.moved) {
-      return;
-    }
-
-    setOffset(clamp({ x: state.originX + dx, y: state.originY + dy }, ZOOM));
-  }
-
-  function onPointerUp(event) {
-    const state = drag.current;
-    drag.current = null;
-    setDragging(false);
-
-    if (!state) {
-      return;
-    }
-
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      // Never captured, or already released. Neither matters here.
-    }
-
-    // A press that went nowhere is a click; the slop stops a shaking hand from
-    // being read as a drag and swallowing the toggle.
-    if (state.moved) {
-      return;
-    }
-
-    toggleZoom();
-  }
-
-  // Shared by the pointer and the keyboard so the two cannot drift apart.
-  function toggleZoom() {
-    const next = !zoomed;
-
-    setZoomed(next);
-
-    // Zooming out recentres, or the map is left off-centre in a frame it now
-    // fits. Decided here rather than in a `setZoomed` updater: updaters must be
-    // pure, and React may run them more than once per update.
-    if (!next) {
-      setOffset({ x: 0, y: 0 });
-    }
-  }
-
-  function onKeyDown(event) {
-    const nudge = KEY_NUDGE[event.key];
-
-    if (nudge && zoomed) {
-      event.preventDefault();
-      setOffset((current) =>
-        clamp({ x: current.x + nudge.x, y: current.y + nudge.y }, ZOOM),
-      );
-      return;
-    }
-
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      toggleZoom();
-    }
-  }
-
-  const scale = zoomed ? ZOOM : 1;
+  const { zoomed, frameProps, imageStyle, hint } = useMapZoom({
+    frameRef: ownFrameRef,
+    imageRef,
+  });
 
   return (
     <div className="flex flex-col gap-2">
@@ -744,19 +564,8 @@ function ZoomableMap({
             frameRef.current = node;
           }
         }}
-        role="button"
-        tabIndex={0}
         aria-label={`Map of ${title}. ${zoomed ? "Zoomed in" : "Zoomed out"}.`}
-        onKeyDown={onKeyDown}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={() => {
-          drag.current = null;
-          setDragging(false);
-        }}
-        // `touch-none` so a drag on a touchscreen pans the map instead of
-        // scrolling the dialog out from under it.
+        {...frameProps}
         style={{ aspectRatio: ratio ?? 16 / 9 }}
         className={`relative w-full origin-top-left touch-none overflow-hidden rounded-lg bg-surface/60 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 ${
           zoomed ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
@@ -773,12 +582,7 @@ function ZoomableMap({
             // mousedown, which cancels the pan before it begins.
             draggable={false}
             className="absolute inset-0 size-full object-contain"
-            style={{
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-              // Only the zoom is animated. Easing the pan would leave the map a
-              // frame behind the pointer, which reads as lag.
-              transition: dragging ? "none" : "transform 250ms ease",
-            }}
+            style={imageStyle}
           />
         </div>
 
@@ -797,9 +601,7 @@ function ZoomableMap({
         aria-live="polite"
         className="text-center font-mono text-[10px] tracking-[0.2em] text-ink/50 uppercase"
       >
-        {zoomed
-          ? "Drag or arrow keys to move · click or Enter to zoom out"
-          : "Click or Enter to zoom in"}
+        {hint}
       </p>
     </div>
   );

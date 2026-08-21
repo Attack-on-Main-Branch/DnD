@@ -216,11 +216,35 @@ function classifyStorage(error) {
 }
 
 /**
+ * A campaign as its party sees it: the title, the map, and whether the caller
+ * is the Dungeon Master. No `user_id` filter and none wanted — the function
+ * answers for the owner and for anyone with a character in the party alike, and
+ * gives everyone else no row, which reads as a miss.
+ *
+ * An RPC because RLS grants whole rows: a SELECT policy wide enough to let a
+ * player read the title would hand them `world_description` and the owner's
+ * `user_id` with it. See 20260821120000_campaign_table.sql.
+ */
+export async function getCampaignTable(supabase, campaignId) {
+  const { data, error } = await supabase.rpc("campaign_table", {
+    target_campaign: campaignId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  // `returns table` is a set, so a hit is one row and a miss is none.
+  return { data: data?.[0] ?? null, error: null };
+}
+
+/**
  * An RPC rather than an embed, and for the same reason `searchCharacters` is
  * one: RLS grants whole rows, so a policy wide enough to let a DM read a party
  * member also let them read that player's `user_id`, backstory and personality.
  * The function's return type is the column list — see
- * 20260818170000_party_display_columns.sql.
+ * 20260821120000_campaign_table.sql, which widened it from the Dungeon Master
+ * to the whole party.
  */
 export async function listPartyMembers(supabase, campaignId) {
   const { data, error } = await supabase.rpc("campaign_party", {
@@ -303,4 +327,105 @@ export async function removePartyMember(supabase, { campaignId, characterId }) {
   }
 
   return { data: { characterId }, error: null };
+}
+
+/**
+ * The Dungeon Master's notes on their own table, newest first — the other half
+ * of listCharacterNotes. A campaign rather than a character, because a Dungeon
+ * Master has no character to write from, and no sheet for these to appear on.
+ */
+export async function listCampaignNotes(supabase, campaignId) {
+  const { data, error } = await supabase
+    .from("campaign_notes")
+    .select("id, body, created_at")
+    .eq("campaign_id", campaignId)
+    .order("created_at", { ascending: false });
+
+  return error ? failure(error) : { data: data ?? [], error: null };
+}
+
+/**
+ * `created_at` is deliberately absent from the insert — the column's default is
+ * the database's clock, which is the one every reader's timestamp is formatted
+ * from.
+ */
+export async function insertCampaignNote(supabase, { campaignId, body }) {
+  const { data, error } = await supabase
+    .from("campaign_notes")
+    .insert({ campaign_id: campaignId, body })
+    .select("id, body, created_at")
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  // RLS refuses an insert for somebody else's campaign by returning no row
+  // rather than by failing.
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/**
+ * Every mark on this campaign's map. One per seat, so a full table is seven
+ * rows at the outside — no order, no limit, nothing worth paginating.
+ *
+ * A plain select rather than an RPC, unlike `campaign_party` above, because
+ * there is no column here to withhold: a campaign, a character and a point are
+ * all already on the board. The SELECT policy answers for the whole party.
+ */
+export async function listCampaignMarks(supabase, campaignId) {
+  const { data, error } = await supabase
+    .from("campaign_marks")
+    .select("character_id, x, y, placed_at")
+    .eq("campaign_id", campaignId);
+
+  return error ? failure(error) : { data: data ?? [], error: null };
+}
+
+/**
+ * One seat's mark, moved to a new point or placed for the first time. A null
+ * `characterId` is the Dungeon Master's chair, as everywhere at this table.
+ *
+ * `false` is a refusal, not a failure: the function writes nothing for a caller
+ * who is not in that chair, which reads here as `not_found` — the same answer a
+ * character who has left the party gives.
+ */
+export async function placeCampaignMark(
+  supabase,
+  { campaignId, characterId, x, y },
+) {
+  const { data, error } = await supabase.rpc("place_campaign_mark", {
+    target_campaign: campaignId,
+    target_character: characterId,
+    mark_x: x,
+    mark_y: y,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data: { characterId, x, y }, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
+}
+
+/** The other half. Yours to clear, or the Dungeon Master's over any of them. */
+export async function clearCampaignMark(supabase, { campaignId, characterId }) {
+  const { data, error } = await supabase.rpc("clear_campaign_mark", {
+    target_campaign: campaignId,
+    target_character: characterId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data: { characterId }, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { realtimeToken } from "@/app/actions/notifications";
+import { realtime } from "@/app/components/realtime";
 
 /**
  * "Something you can see has changed on the server — go and re-read it."
@@ -14,35 +14,9 @@ import { realtimeToken } from "@/app/actions/notifications";
  * how to fetch itself. So the socket is a doorbell and `router.refresh()` is
  * answering it.
  *
- * The client is built once for the whole page and shared, because a socket per
- * subscription is a socket per subscription. It is loaded with `import()`
- * rather than at the top of the module so that supabase-js lands in a chunk
- * fetched after hydration instead of in the bundle every signed-in page pays
- * for up front.
+ * The client and its token live in `components/realtime.js` — one socket for
+ * the page, shared with the table's presence channel.
  */
-let client = null;
-
-/**
- * supabase-js warns that this may be called concurrently and often, and each
- * call is a Server Action round trip. Held for well under the token's own
- * lifetime, so an expired one is replaced on the next connect rather than
- * cached past its use.
- */
-const TOKEN_HELD_MS = 25000;
-let held = { token: null, at: 0 };
-
-async function accessToken() {
-  const now = Date.now();
-
-  if (held.token && now - held.at < TOKEN_HELD_MS) {
-    return held.token;
-  }
-
-  const token = await realtimeToken();
-  held = { token, at: now };
-
-  return token;
-}
 
 /** A tab that has been in the background is a tab that has missed things. */
 const REFOCUS_QUIET_MS = 20000;
@@ -72,13 +46,11 @@ export function useLiveRefresh({ channel, table, filter, onChange }) {
     let stop = null;
     let cancelled = false;
 
-    import("sina/supabase/realtime")
-      .then(({ createRealtimeSupabase, watchTable }) => {
+    realtime()
+      .then(({ client, watchTable }) => {
         if (cancelled) {
           return;
         }
-
-        client ??= createRealtimeSupabase(accessToken);
 
         stop = watchTable(client, {
           channel,

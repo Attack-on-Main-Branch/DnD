@@ -3,6 +3,9 @@
  * nominal one, so matching the old visual weight needs the number to go up.
  */
 const SIZE_CLASSES = {
+  /* The map's tokens: small enough that two side by side still leave the
+     ground between them readable. */
+  xs: "size-7 text-xs",
   sm: "size-10 text-base",
   md: "size-14 text-xl",
   lg: "size-20 text-3xl",

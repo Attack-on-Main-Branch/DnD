@@ -239,3 +239,35 @@ export function parseCharacterQuery(value) {
 
   return { namePrefix: text, discriminatorPrefix: null };
 }
+
+/**
+ * A point on the campaign's map, as fractions of the picture, or null. `x` runs
+ * left to right and `y` top to bottom, both 0 to 1 — never pixels, since the
+ * board zooms and is drawn at whatever height the page has left over.
+ *
+ * Clamped at the edges rather than refused, the browser deriving these from the
+ * picture's own box so 1.0000001 is a rounding artefact; anything that is not a
+ * finite number is null. Mirrors the CHECK and the clamp in
+ * 20260821260000_campaign_marks.sql, which are the ones that count.
+ */
+export function parseMarkPoint(x, y) {
+  const across = fraction(x);
+  const down = fraction(y);
+
+  return across === null || down === null ? null : { x: across, y: down };
+}
+
+/**
+ * `Number` alone is not enough: it reads null, undefined and the empty string
+ * as 0, planting a mark in the map's top-left corner every time a coordinate
+ * went missing. An absent point is no point.
+ */
+function fraction(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? Math.min(1, Math.max(0, number)) : null;
+}

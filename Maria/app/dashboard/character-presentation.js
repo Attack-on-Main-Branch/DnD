@@ -1,7 +1,6 @@
 import {
   AVATAR_COLOR_VALUES,
   DEFAULT_AVATAR_COLOR,
-  HEALTH_TIERS,
 } from "sina/rules/character";
 
 import dragonbornArt from "./race-art/dragonborn.webp";
@@ -210,31 +209,4 @@ export function suggestedAvatarColor(name) {
   }
 
   return AVATAR_COLOR_VALUES[hash % AVATAR_COLOR_VALUES.length];
-}
-
-/**
- * What each health tier looks like: solar while the character is holding up,
- * ember once bloodied, ruby with a heartbeat near the end. Sina decides where
- * the thresholds fall, globals.css holds the treatment — the same division
- * `.glass` has with surfaceClasses.
- */
-const HEALTH_BAR_BY_TIER = {
-  healthy: "hp-solar",
-  wounded: "hp-ember",
-  critical: "hp-ruby",
-};
-
-const UNSTYLED_TIERS = HEALTH_TIERS.filter((tier) => !HEALTH_BAR_BY_TIER[tier]);
-
-if (UNSTYLED_TIERS.length > 0) {
-  throw new Error(
-    `character-presentation: no class for health tier ` +
-      `${UNSTYLED_TIERS.join(", ")}. Sina lists it in rules/character.js — ` +
-      `add it to HEALTH_BAR_BY_TIER here, or the bar renders untinted.`,
-  );
-}
-
-/** No fallback: `healthTier` only ever returns one of the tiers checked above. */
-export function healthBarClass(tier) {
-  return HEALTH_BAR_BY_TIER[tier];
 }

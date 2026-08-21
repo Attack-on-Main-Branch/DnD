@@ -6,9 +6,20 @@
  * the frontend decides what they look like.
  */
 
+import {
+  healthFraction,
+  healthTier,
+  HEALTH_TIERS,
+  MAX_HP,
+  parseHitPoints,
+} from "./health.js";
 import { countCharacters, readProse } from "./text.js";
 
 export { countCharacters };
+
+/** Hit points live in health.js so the browser can import them without the
+    catalogues below; re-exported where callers already look for them. */
+export { healthFraction, healthTier, HEALTH_TIERS, MAX_HP, parseHitPoints };
 
 export const MAX_CHARACTERS = 3;
 
@@ -431,32 +442,22 @@ export function validateAbilityScores(scores) {
   return null;
 }
 
-export const MAX_HP = 100;
+/** One note. The database holds the same bound as a CHECK constraint. */
+export const MAX_NOTE_LENGTH = 1000;
 
-/** Worst first, so a reader sees the thresholds in the order they are tested. */
-export const HEALTH_TIERS = ["critical", "wounded", "healthy"];
+/**
+ * A note as written, trimmed, or null if it is empty or too long. Code points
+ * rather than `.length`, matching `char_length` in the migration: in UTF-16
+ * units an emoji costs two and the two bounds disagree.
+ */
+export function parseNote(value) {
+  const body = String(value ?? "").trim();
 
-// Fractions rather than hit points: 40 of 200 is the same trouble as 20 of 100.
-const WOUNDED_AT = 0.5;
-const CRITICAL_AT = 0.2;
-
-/** Clamped, so a corrupt row cannot draw a bar past its track. */
-export function healthFraction(current, max = MAX_HP) {
-  if (!Number.isFinite(current) || !Number.isFinite(max) || max <= 0) {
-    return 0;
+  if (!body || countCharacters(body) > MAX_NOTE_LENGTH) {
+    return null;
   }
 
-  return Math.min(1, Math.max(0, current / max));
-}
-
-export function healthTier(current, max = MAX_HP) {
-  const fraction = healthFraction(current, max);
-
-  if (fraction > WOUNDED_AT) {
-    return "healthy";
-  }
-
-  return fraction > CRITICAL_AT ? "wounded" : "critical";
+  return body;
 }
 
 export function readCharacterValues(formData) {

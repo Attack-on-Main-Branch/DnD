@@ -16,6 +16,22 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.10.0",
+    date: "2026-08-21",
+    title: "A seat at the table",
+    changes: [
+      "The gold star opens the table now: the campaign's board, with the world in the middle and the party down the side. Pressing it on a character's sheet seats you as that character; pressing it on a campaign's page seats you at the head of the table.",
+      "The map is the board. Click to zoom in on it, drag or use the arrow keys to travel across it, and click again to come back out.",
+      "Right-click the map to put your token down, and right-click the token to lift it again. A player marks with their character's own face, the Dungeon Master with the party's gold token — and may clear anybody's.",
+      "Marks arrive as they are made. Everybody at the table is looking at the same board, without anyone reloading it.",
+      "The party sits down the right, a card each with its level in a ring, and a card lights gold for as long as its player has the table open.",
+      "Hit points are kept now rather than drawn at full on every visit, so the bar on a character's sheet shows what they actually have left.",
+      "Health runs along the bottom of the board: a player watches their own, the Dungeon Master watches the whole party's and holds the pen over all of it. Type an amount and give it or take it — seven damage, four healed — rather than working out anybody's new total.",
+      "A scroll above the map for writing notes while you play. A player's are read back under Notes on their character sheet; a Dungeon Master keeps their own book, on a new Notes tab on the campaign page. Beside it a globe, for reading the world's lore without leaving the board, and a pack, which stays empty until loot exists.",
+      "The table arrives rather than appears: the campaign's name converges out of wide-spaced letters, the map grows into the middle, its frame blooms around it, and the party falls in down the rail. The grimoire in the corner stands down for as long as you are playing.",
+    ],
+  },
+  {
     version: "0.9.1",
     date: "2026-08-21",
     title: "A knock at the seal",

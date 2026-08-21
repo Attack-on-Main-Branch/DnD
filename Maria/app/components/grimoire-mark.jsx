@@ -76,7 +76,9 @@ export default function GrimoireMark({ className = "", tilt }) {
       <ViewTransition name="grimoire-aura" share="aura-morph">
         <span
           aria-hidden="true"
-          className="absolute inset-0 grid place-items-center"
+          // The hook globals.css uses to stand the rings down ahead of the
+          // book: the two leave on one curve, which is a rule, not a class.
+          className="mark-aura absolute inset-0 grid place-items-center"
         >
           <span
             // `opacity-50` is the resting value: the breathing keyframes only
@@ -135,7 +137,9 @@ export default function GrimoireMark({ className = "", tilt }) {
         direction. The wrapper has no transform.
       */}
       <ViewTransition name="grimoire-book" share="book-morph">
-        <span className="relative block w-full">
+        {/* The dismissal rides here, not on the image, which already owns
+            `transform` for its drift. */}
+        <span className="mark-plate relative block w-full">
           <Image
             ref={bookRef}
             src={grimoireLogo}

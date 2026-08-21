@@ -1,0 +1,6 @@
+{
+  "//": "Tailwind v4 keeps its configuration in the stylesheet: @theme, @custom-variant, @utility and @source are its at-rules, and VS Code's built-in CSS server has no grammar for them. The three warnings in globals.css are the linter being out of date, not the file being wrong. Deliberately NOT setting files.associations to tailwindcss — that association needs the Tailwind IntelliSense extension installed, and without it the file loses highlighting altogether.",
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore"
+}

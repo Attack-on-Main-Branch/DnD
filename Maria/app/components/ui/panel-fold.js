@@ -73,12 +73,21 @@ function fadeAway(element) {
   return CONTENT_OUT_MS;
 }
 
+/** Where a `data-slide` piece goes when it leaves. */
+const SLIDE_OUT = {
+  right: "100vw 0",
+  left: "-100vw 0",
+  /* The table's health bar and its scroll, dropping back below the fold they
+     rose out of. */
+  down: "0 100vh",
+};
+
 /**
  * A tile leaving the way it arrived, out the side it came in by. Movement only:
  * these are `.glass`, and anything below full opacity stops being glass — which
  * is what a fold's closing fade did to them, at a size where it showed. The
  * side and the stagger are the row's own, carried on the element by
- * dashboard/entrance.js.
+ * dashboard/entrance.js and by the table's own entrance.js.
  */
 function slideAway(tile) {
   const delay = Number(tile.dataset.slideDelay) || 0;
@@ -87,7 +96,7 @@ function slideAway(tile) {
     tile,
     [
       { translate: "0 0" },
-      { translate: tile.dataset.slide === "right" ? "100vw 0" : "-100vw 0" },
+      { translate: SLIDE_OUT[tile.dataset.slide] ?? SLIDE_OUT.left },
     ],
     {
       duration: SLIDE_OUT_MS,

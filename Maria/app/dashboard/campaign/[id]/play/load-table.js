@@ -1,0 +1,150 @@
+import { cache } from "react";
+import {
+  getCampaignTable,
+  listCampaignMarks,
+  listCampaignNotes,
+  listPartyMembers,
+} from "sina/data/campaigns";
+import { listCharacterNotes } from "sina/data/characters";
+
+import { logFailure } from "@/lib/errors";
+import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
+import { createClient, currentUser } from "@/lib/supabase";
+
+/**
+ * The table's own load, and deliberately not the sheet's. load-campaign.js
+ * reads the campaign as its owner; this goes through `campaign_table`, which
+ * answers for the Dungeon Master and for every player with a character in the
+ * party, and hands back only what the board paints.
+ *
+ * `cache` deduplicates within a request: `generateMetadata` and the component
+ * each call it. Sentinels rather than redirects, since `generateMetadata` is
+ * not the place for those.
+ */
+export const loadTable = cache(async function loadTable(id, requestedSeat) {
+  const supabase = await createClient();
+  const { user, error: authError } = await currentUser();
+
+  if (authError) {
+    logFailure("table/auth", authError);
+    return "auth-unavailable";
+  }
+
+  if (!user) {
+    return "signed-out";
+  }
+
+  const { data: campaign, error } = await getCampaignTable(supabase, id);
+
+  // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
+  // failure. Everything else is handed to the page to throw on.
+  const realFailure = error && error.reason !== "bad_id" ? error : null;
+
+  if (realFailure) {
+    logFailure("getCampaignTable", realFailure);
+  }
+
+  if (!campaign) {
+    return {
+      campaign: null,
+      members: [],
+      marks: [],
+      seat: null,
+      error: realFailure,
+    };
+  }
+
+  const { data: members, error: partyError } = await listPartyMembers(
+    supabase,
+    id,
+  );
+
+  if (partyError) {
+    logFailure("listPartyMembers", partyError);
+  }
+
+  const party = partyError ? [] : members;
+
+  const { data: marks, error: marksError } = await listCampaignMarks(
+    supabase,
+    id,
+  );
+
+  if (marksError) {
+    logFailure("listCampaignMarks", marksError);
+  }
+
+  // Logged rather than thrown on: the map is the page, and neither a party nor
+  // a set of marks that could not load is a reason to replace it with an error.
+  return {
+    campaign,
+    members: party,
+    marks: marksError ? [] : marks,
+    seat: await readSeat(supabase, campaign, party, requestedSeat),
+    error: null,
+  };
+});
+
+/**
+ * Every chair at this table that belongs to the viewer, which an account owning
+ * the campaign and a character in it can be more than one of. Not offered as a
+ * choice — it is what the requested seat is checked against. The Dungeon
+ * Master's comes first, being the fallback when no seat was named at all.
+ */
+function seatsAt(campaign, members) {
+  const seats = campaign.is_owner
+    ? [
+        {
+          id: DUNGEON_MASTER_SEAT,
+          characterId: null,
+          title: "Dungeon Master",
+        },
+      ]
+    : [];
+
+  for (const member of members) {
+    if (member.is_mine) {
+      seats.push({
+        id: member.id,
+        characterId: member.id,
+        title: member.name,
+      });
+    }
+  }
+
+  return seats;
+}
+
+/**
+ * The chair the viewer is actually in, and the notes that come with it.
+ *
+ * `requestedSeat` comes from the query string, so the chair survives a reload
+ * and can be linked. Anything that is not one of theirs falls back to the
+ * first: a hand-typed id is not a way into somebody else's notebook, and
+ * neither is a stale link to a character that has left the party.
+ *
+ * The notes follow the chair rather than the account — a Dungeon Master writes
+ * on the campaign, the only note in the app that belongs to no sheet. A failure
+ * comes back empty rather than taking the board down.
+ */
+async function readSeat(supabase, campaign, members, requestedSeat) {
+  const seats = seatsAt(campaign, members);
+  const seat = seats.find((one) => one.id === requestedSeat) ?? seats[0];
+
+  if (!seat) {
+    return null;
+  }
+
+  const { data, error } = seat.characterId
+    ? await listCharacterNotes(supabase, seat.characterId)
+    : await listCampaignNotes(supabase, campaign.id);
+
+  if (error) {
+    logFailure(
+      seat.characterId ? "listCharacterNotes" : "listCampaignNotes",
+      error,
+    );
+  }
+
+  return { ...seat, notes: error ? [] : data };
+}
