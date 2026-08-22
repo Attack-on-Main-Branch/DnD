@@ -99,7 +99,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
     notFound();
   }
 
-  const { campaign, members, seat } = loaded;
+  const { campaign, members, seat, inventory } = loaded;
 
   // The seat, not the deed: owning this campaign offers the chair, sitting in
   // it is what makes the party's health and the whole board yours.
@@ -126,6 +126,14 @@ export default async function CampaignTablePage({ params, searchParams }) {
   const roster = members.map((member) => ({
     ...member,
     pathLabel: classLabel(member.class_id),
+  }));
+
+  /* The pack draws a name and a face, so only those cross the boundary —
+     `roster` beside it carries the race, the path and the hit points. */
+  const carriers = members.map(({ id, name, color_theme }) => ({
+    id,
+    name,
+    color_theme,
   }));
 
   // Out by the door you came in: the seat says which Play button was pressed,
@@ -182,7 +190,15 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 lore={campaign.world_description}
               />
               <NotesScroll campaignId={campaign.id} seat={seat} />
-              <InventoryPack seat={seat} />
+              {/* Split up in the browser; RLS has already decided which
+                  packs this viewer was handed. */}
+              <InventoryPack
+                campaignId={campaign.id}
+                seat={{ characterId: seat.characterId, title: seat.title }}
+                members={carriers}
+                rows={inventory}
+                isDungeonMaster={isDungeonMaster}
+              />
             </>
           )}
         </div>

@@ -46,6 +46,12 @@ export function stubQuery(result) {
       chain.filters.push([column, value, "neq"]);
       return chain;
     },
+    // The set membership the inventory layer reads a whole party's packs with.
+    // Recorded with its operator too, so a test can tell it from `.eq`.
+    in: (column, values) => {
+      chain.filters.push([column, values, "in"]);
+      return chain;
+    },
     // The RPC surface. `rpc` sits on the client rather than on a table, so the
     // stub answers it from the same object every other call comes back to.
     rpc: (name, params) => {

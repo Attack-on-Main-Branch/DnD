@@ -520,6 +520,31 @@ body {
   }
 
   /*
+   * The cross that clears a search field. Chromium draws a 12px glyph in the OS
+   * palette with no padding and an arrow cursor; this is that box at 20px, the
+   * extra being transparent padding the mask does not paint.
+   *
+   * A MASK rather than a background image, so it takes `currentColor`. WebKit
+   * and Blink only -- Firefox draws no clear button to enlarge.
+   */
+  .search-clear::-webkit-search-cancel-button {
+    appearance: none;
+    height: 1.25rem;
+    width: 1.25rem;
+    cursor: pointer;
+    background-color: currentColor;
+    opacity: 0.45;
+    transition: opacity 300ms ease-out;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6.4 6.4l7.2 7.2M13.6 6.4l-7.2 7.2' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+    mask-repeat: no-repeat;
+    mask-position: center;
+  }
+
+  .search-clear::-webkit-search-cancel-button:hover {
+    opacity: 1;
+  }
+
+  /*
    * The health bar: two blurred auras behind the track, a plasma gradient in
    * the fill. Here rather than in utilities because the width and the colour
    * want different durations, which one `transition-*` cannot express, and

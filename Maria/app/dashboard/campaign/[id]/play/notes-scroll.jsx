@@ -9,7 +9,7 @@ import ParchmentScroll from "@/app/components/ui/parchment-scroll";
 import { NOTE_TIME_FORMAT } from "@/lib/dates";
 
 import { writeTableNote } from "./actions";
-import TablePopover from "./table-popover";
+import TablePopover, { POPOVER_BODY_CLASSES } from "./table-popover";
 
 /**
  * The scroll above the map, and the notes behind it. The panel, the halo, the
@@ -69,74 +69,77 @@ export default function NotesScroll({ campaignId, seat }) {
       arrival={written}
       onShortcut={save}
     >
-      <div className="px-5 pt-4 pb-3">
-        {/* The box is `rows` tall; its width is the panel's, in
+      {/* The composer keeps its size, the ledger takes what is left. */}
+      <div className={`flex flex-col ${POPOVER_BODY_CLASSES}`}>
+        <div className="shrink-0 px-5 pt-4 pb-3">
+          {/* The box is `rows` tall; its width is the panel's, in
             table-popover.jsx. */}
-        <textarea
-          rows={6}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={isPending}
-          placeholder="What happened at the table…"
-          aria-label="Write a note"
-          aria-invalid={tooLong || undefined}
-          className={controlClasses({
-            invalid: tooLong,
-            className: "scroll-gold resize-none",
-          })}
-        />
+          <textarea
+            rows={6}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            disabled={isPending}
+            placeholder="What happened at the table…"
+            aria-label="Write a note"
+            aria-invalid={tooLong || undefined}
+            className={controlClasses({
+              invalid: tooLong,
+              className: "scroll-gold resize-none",
+            })}
+          />
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <p
-            className={`font-mono text-[10px] tracking-[0.16em] tabular-nums uppercase ${
-              tooLong ? "text-red-300" : "text-ink/45"
-            }`}
-          >
-            {length} / {MAX_NOTE_LENGTH}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <p
+              className={`font-mono text-[10px] tracking-[0.16em] tabular-nums uppercase ${
+                tooLong ? "text-red-300" : "text-ink/45"
+              }`}
+            >
+              {length} / {MAX_NOTE_LENGTH}
+            </p>
 
-          <button
-            type="button"
-            onClick={save}
-            disabled={isPending || empty || tooLong}
-            className="cursor-pointer font-display text-sm tracking-wide text-gold transition-colors duration-300 hover:text-ink disabled:cursor-not-allowed disabled:text-ink/30"
-          >
-            {isPending ? "Writing…" : "Write it down"}
-          </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={isPending || empty || tooLong}
+              className="cursor-pointer font-display text-sm tracking-wide text-gold transition-colors duration-300 hover:text-ink disabled:cursor-not-allowed disabled:text-ink/30"
+            >
+              {isPending ? "Writing…" : "Write it down"}
+            </button>
+          </div>
+
+          {error && (
+            <p role="alert" className="mt-2 text-xs text-red-300">
+              {error}
+            </p>
+          )}
         </div>
 
-        {error && (
-          <p role="alert" className="mt-2 text-xs text-red-300">
-            {error}
+        {notes.length === 0 ? (
+          <p className="flex flex-1 items-center justify-center px-5 pb-6 text-center text-sm text-ink/50 italic">
+            Nothing written yet.
           </p>
+        ) : (
+          <ul className="scroll-gold min-h-0 flex-1 overflow-y-auto border-t border-gold/10">
+            {notes.map((note) => (
+              <li
+                key={note.id}
+                className="border-b border-gold/10 px-5 py-3 last:border-b-0"
+              >
+                <time
+                  dateTime={note.created_at}
+                  className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase"
+                >
+                  {NOTE_TIME_FORMAT.format(new Date(note.created_at))}
+                </time>
+
+                <p className="mt-1 text-sm whitespace-pre-wrap text-ink/75">
+                  {note.body}
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-
-      {notes.length === 0 ? (
-        <p className="px-5 pt-1 pb-6 text-center text-sm text-ink/50 italic">
-          Nothing written yet.
-        </p>
-      ) : (
-        <ul className="scroll-gold max-h-86 overflow-y-auto border-t border-gold/10">
-          {notes.map((note) => (
-            <li
-              key={note.id}
-              className="border-b border-gold/10 px-5 py-3 last:border-b-0"
-            >
-              <time
-                dateTime={note.created_at}
-                className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase"
-              >
-                {NOTE_TIME_FORMAT.format(new Date(note.created_at))}
-              </time>
-
-              <p className="mt-1 text-sm whitespace-pre-wrap text-ink/75">
-                {note.body}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
     </TablePopover>
   );
 }

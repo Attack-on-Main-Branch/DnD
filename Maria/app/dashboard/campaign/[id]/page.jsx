@@ -9,6 +9,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import { campaignTablePath, DUNGEON_MASTER_SEAT } from "@/lib/routes";
 
 import CampaignMap from "./campaign-map";
+import ItemsPanel from "./items-panel";
 import { loadCampaign } from "./load-campaign";
 import PartyPanel from "./party-panel";
 
@@ -19,6 +20,10 @@ const CAMPAIGN_TABS = [
   // the panel itself only puts an empty step in front of it.
   { value: "party", label: "Party", focusable: false },
   { value: "notes", label: "Notes" },
+  // `focusable: false` for the same reason the party tab has it — the panel
+  // opens with a text field, so a stop on the panel itself is an empty step in
+  // front of it.
+  { value: "items", label: "Items", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -58,7 +63,7 @@ export default async function CampaignPage({ params }) {
     notFound();
   }
 
-  const { campaign, members, notes } = loaded;
+  const { campaign, members, notes, items } = loaded;
 
   // Resolved here rather than in PartyPanel: `classLabel` reaches through
   // `classDetails` into the whole ARCHETYPES catalogue, and importing it into a
@@ -131,6 +136,8 @@ export default async function CampaignPage({ params }) {
                 emptyDescription="Notes you write at the table appear here."
               />
             ),
+            // Where homebrew is invented. The table only finds it.
+            items: <ItemsPanel campaignId={campaign.id} items={items} />,
           }}
         />
       </div>

@@ -15,6 +15,8 @@ import {
   abilityEmblem,
   withAlpha,
 } from "@/app/dashboard/character-presentation";
+import { rowItem } from "@/app/dashboard/inventory-presentation";
+import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
 
 /**
@@ -156,13 +158,29 @@ function Prose({ title, body }) {
   );
 }
 
-/** Placeholder until items exist. */
-export function InventoryPanel() {
+/**
+ * Read-only, deliberately: an item is used, dropped or handed over at a table,
+ * in front of whoever is running it. The pack above the map has the verbs.
+ */
+export function InventoryPanel({ items }) {
+  if (items.length === 0) {
+    return (
+      <EmptyPack description="What you are given or pick up at a table will be here." />
+    );
+  }
+
   return (
-    <EmptyPanel
-      title="The pack is empty"
-      description="Items, coin and equipment will live here once loot exists."
-    />
+    <ul className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((row, index) => (
+        <li key={row.id} className="flex">
+          <PackItemCard
+            item={rowItem(row)}
+            index={index}
+            quantity={row.quantity}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -174,17 +192,6 @@ export function NotesPanel({ notes }) {
       emptyTitle="No notes yet"
       emptyDescription="Notes written at the table appear here."
     />
-  );
-}
-
-function EmptyPanel({ title, description }) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gold/20 py-14 text-center">
-      <p className="font-display text-base font-medium tracking-wide text-ink/80">
-        {title}
-      </p>
-      <p className="max-w-sm text-xs text-ink/50">{description}</p>
-    </div>
   );
 }
 

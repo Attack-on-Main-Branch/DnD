@@ -3,13 +3,14 @@ import {
   listCampaignNotes,
   listPartyMembers,
 } from "sina/data/campaigns";
+import { listCampaignItems } from "sina/data/inventory";
 import { cache } from "react";
 
 import { logFailure } from "@/lib/errors";
 import { createClient, currentUser } from "@/lib/supabase";
 
 /**
- * One load for a campaign, its party and its notes. `cache` deduplicates within
+ * One load for a campaign, its party, its notes and its items. `cache` deduplicates within
  * a request: Next calls `generateMetadata` and the component separately, which
  * would otherwise fetch all three twice per view.
  *
@@ -43,13 +44,20 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   }
 
   if (!campaign) {
-    return { campaign: null, members: [], notes: [], error: realFailure };
+    return {
+      campaign: null,
+      members: [],
+      notes: [],
+      items: [],
+      error: realFailure,
+    };
   }
 
-  // Together rather than one after the other: two round trips, one wait.
-  const [party, notes] = await Promise.all([
+  // Together rather than one after the other: three round trips, one wait.
+  const [party, notes, items] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignNotes(supabase, id),
+    listCampaignItems(supabase, id),
   ]);
 
   if (party.error) {
@@ -60,12 +68,17 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     logFailure("listCampaignNotes", notes.error);
   }
 
+  if (items.error) {
+    logFailure("listCampaignItems", items.error);
+  }
+
   // Logged rather than thrown on: the campaign is the page, and a party or a
   // notes tab that could not load is no reason to replace it with an error.
   return {
     campaign,
     members: party.error ? [] : party.data,
     notes: notes.error ? [] : notes.data,
+    items: items.error ? [] : items.data,
     error: null,
   };
 });

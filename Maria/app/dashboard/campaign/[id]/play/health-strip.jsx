@@ -17,6 +17,7 @@ import {
 
 import { controlClasses } from "@/app/components/ui/field-styles";
 import HealthBar from "@/app/components/ui/health-bar";
+import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
 
 import { setCharacterHealth } from "./actions";
@@ -284,21 +285,6 @@ function HealthRow({ campaignId, member, canEdit, onWritten }) {
         </div>
       </div>
     </div>
-  );
-}
-
-/** The two halves of the stepper, so − and + cannot drift apart. */
-function StepButton({ onClick, disabled, label, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border border-gold/20 bg-surface/30 text-lg leading-none text-ink/70 transition-colors duration-300 hover:border-gold/45 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {children}
-    </button>
   );
 }
 

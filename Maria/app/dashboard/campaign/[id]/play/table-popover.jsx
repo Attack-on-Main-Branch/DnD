@@ -7,6 +7,17 @@ import {
   surfaceClasses,
 } from "@/app/components/ui/surface";
 
+/**
+ * How tall a panel's contents stand, the same for the scroll and the pack —
+ * they sit side by side, and one half the height of the other read as two
+ * different kinds of thing. Fixing the body also stops a panel resizing as a
+ * note is written or an item used.
+ *
+ * A literal, or Tailwind's scanner never sees it. `60vh` is the guard: the
+ * panel hangs off the marks above the board.
+ */
+export const POPOVER_BODY_CLASSES = "h-[min(34rem,60vh)]";
+
 /** Everything a Tab can reach, for the keyboard loop below. */
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { listCampaignsForCharacter } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
+import { listCharacterInventory } from "sina/data/inventory";
 import { characterHandle } from "sina/rules/character";
 
 import {
@@ -63,7 +64,7 @@ export default async function CharacterPage({ params }) {
   const { id } = await params;
   // `user` is loaded too, for the guard inside the loader — the header that
   // used to need it here now comes from dashboard/layout.jsx.
-  const { character, campaigns, notes, error } = await loadCharacter(id);
+  const { character, campaigns, notes, items, error } = await loadCharacter(id);
 
   // A failed read is not a missing character, though `getCharacter` returns
   // null for both. `bad_id` is the exception: a uuid column rejects a junk id
@@ -207,7 +208,7 @@ export default async function CharacterPage({ params }) {
               />
             ),
             story: <StoryPanel character={character} />,
-            inventory: <InventoryPanel />,
+            inventory: <InventoryPanel items={items} />,
             notes: <NotesPanel notes={notes} />,
           }}
         />
@@ -252,9 +253,10 @@ const loadCharacter = cache(async function loadCharacter(id) {
   // round trip's worth of waiting rather than two. Both are logged rather than
   // shown if they fail — the sheet is the page, and neither is a reason to
   // replace it with an error.
-  const [campaigns, notes] = await Promise.all([
+  const [campaigns, notes, items] = await Promise.all([
     listCampaignsForCharacter(supabase, id),
     listCharacterNotes(supabase, id),
+    listCharacterInventory(supabase, id),
   ]);
 
   if (campaigns.error) {
@@ -265,10 +267,15 @@ const loadCharacter = cache(async function loadCharacter(id) {
     logFailure("listCharacterNotes", notes.error);
   }
 
+  if (items.error) {
+    logFailure("listCharacterInventory", items.error);
+  }
+
   return {
     character: data,
     campaigns: campaigns.error ? [] : campaigns.data,
     notes: notes.error ? [] : notes.data,
+    items: items.error ? [] : items.data,
     error,
     user,
   };

@@ -6,6 +6,7 @@ import {
   listPartyMembers,
 } from "sina/data/campaigns";
 import { listCharacterNotes } from "sina/data/characters";
+import { listPartyInventory } from "sina/data/inventory";
 
 import { logFailure } from "@/lib/errors";
 import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
@@ -49,6 +50,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       campaign: null,
       members: [],
       marks: [],
+      inventory: [],
       seat: null,
       error: realFailure,
     };
@@ -73,13 +75,29 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
 
   const members = party.error ? [] : party.data;
 
+  /* Both wait on the party and neither on the other. RLS decides what comes
+     back: the Dungeon Master reads the whole table's packs, a player their
+     own. */
+  const [seat, packs] = await Promise.all([
+    readSeat(supabase, campaign, members, requestedSeat),
+    listPartyInventory(
+      supabase,
+      members.map((member) => member.id),
+    ),
+  ]);
+
+  if (packs.error) {
+    logFailure("listPartyInventory", packs.error);
+  }
+
   // Logged rather than thrown on: the map is the page, and neither a party nor
   // a set of marks that could not load is a reason to replace it with an error.
   return {
     campaign,
     members,
     marks: tokens.error ? [] : tokens.data,
-    seat: await readSeat(supabase, campaign, members, requestedSeat),
+    inventory: packs.error ? [] : packs.data,
+    seat,
     error: null,
   };
 });

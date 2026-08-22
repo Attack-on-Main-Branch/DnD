@@ -16,6 +16,22 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.10.2",
+    date: "2026-08-22",
+    title: "What the party carries",
+    changes: [
+      "The pack above the map has something in it at last. Open it as a player and there is everything your character is carrying, a card each with its count: say how many and use them, drop them, or hand them to somebody across the table.",
+      "The Dungeon Master's pack is the whole party's. Pick a name from the row along the top to see what they are carrying and take any of it back, or leave it on the whole party and give the same thing to every one of them at once.",
+      "Search the rulebook without leaving the board. Type two letters and the equipment and magic items come back as cards — the name, what kind of thing it is, and what it actually does — and whichever you pick goes into the pack you aimed at.",
+      "An Items tab on the campaign page, for everything the rulebook has never heard of. Write down a rusted key or a bag of rats once and it is there in the table's search from then on, ahead of the rulebook's own.",
+      "Handing something over is one movement rather than two. It leaves your pack and arrives in theirs together, so nothing can be lost in between — and a Dungeon Master can move loot around their own party the same way.",
+      "Loot arrives as it is handed out. A Dungeon Master giving the party torches puts one in every pack on every screen, and nobody reloads anything.",
+      "Using something writes itself into your notes — “Used Potion of Healing” — so the session keeps its own ledger of what was spent.",
+      "Use, drop and give all ask first, with the number in the question, and the answer that does the thing sits on the right of it every time.",
+      "The same items are read back under Inventory on the character sheet, where nothing can be spent. What a party is carrying is settled at the table, in front of whoever is running it.",
+    ],
+  },
+  {
     version: "0.10.1",
     date: "2026-08-22",
     title: "One roll, every screen",
