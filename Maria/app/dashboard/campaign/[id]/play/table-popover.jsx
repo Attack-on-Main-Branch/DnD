@@ -14,16 +14,19 @@ const FOCUSABLE =
 /**
  * The marks that hang above the map, and the panels behind them. One component
  * for all three, so the lore, the notes and the pack cannot drift apart: the
- * same halo, the same shake when something lands, the same unfold downward out
- * of the same arrow. All of it is the header envelope's — `glow-mark` for the
- * ink and glow, `mail-arriving` for the shake, the notification dropdown's
- * fold — with `markClass` reshaping the halo to whichever drawing this is.
+ * same ink, the same shake when something lands, the same unfold downward out
+ * of the same arrow — `mail-arriving` for the shake and the notification
+ * dropdown's fold.
+ *
+ * No halo behind the drawing any more. It was a box tucked INSIDE an outline,
+ * which is where it had to go for the light to fall under the strokes rather
+ * than through the gaps between them; these marks are solid, so there is no
+ * inside to tuck it into and it came out as a smudge.
  *
  * The panel's width is the `w-[min(…)]` below, and both controls follow it.
  */
 export default function TablePopover({
   icon: Icon,
-  markClass = "",
   label,
   title,
   count,
@@ -135,15 +138,13 @@ export default function TablePopover({
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={label}
-        // `glow-mark` owns the glow and the ink's transition, so no
-        // `transition-*` utility here.
-        className={`glow-mark ${markClass} relative grid size-12 cursor-pointer place-items-center rounded-full text-ink/60 hover:text-gold focus-visible:text-gold`}
+        className="relative grid size-12 cursor-pointer place-items-center rounded-full text-ink/60 transition-colors duration-300 hover:text-gold focus-visible:text-gold"
       >
         {/* `key` is what restarts the shake: a class toggled on the same node
             coalesces into one style recalc and never replays. */}
         <Icon
           key={`mark-${arrival}`}
-          className={`size-(--mark-size) ${arrival > 0 ? "mail-arriving" : ""}`}
+          className={`size-9 ${arrival > 0 ? "mail-arriving" : ""}`}
         />
       </button>
 

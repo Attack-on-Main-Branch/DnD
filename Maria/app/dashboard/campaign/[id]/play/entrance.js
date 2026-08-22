@@ -49,6 +49,13 @@ export const FRAME_CLASSES = `motion-safe:animate-[frame-bloom_0.22s_var(--ease-
  */
 export const CARD_CLASSES = `motion-safe:animate-[glide-in-right_0.7s_var(--ease-glide)_var(--enter-delay)_backwards] ${STILL}`;
 
+/**
+ * The dice rail beside the board. `map-rise` rather than `frame-bloom`, which
+ * interpolates `inset` and so only moves something out of flow; on the frame's
+ * beat, because the rail is the board's furniture rather than the party's.
+ */
+export const RAIL_CLASSES = `motion-safe:animate-[map-rise_0.3s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
+
 export const MAP_DELAY = { "--enter-delay": `${MAP_AT}ms` };
 export const FRAME_DELAY = { "--enter-delay": `${FRAME_AT}ms` };
 
@@ -81,4 +88,8 @@ export function healthEntrance() {
 
 export function notesEntrance() {
   return { "--enter-delay": `${NOTES_AT}ms` };
+}
+
+export function railEntrance() {
+  return { "--enter-delay": `${FRAME_AT}ms` };
 }

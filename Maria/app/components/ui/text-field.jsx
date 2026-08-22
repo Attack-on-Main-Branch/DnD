@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 
+import EyeIcon from "./eye-icon";
 import { controlClasses, LABEL_CLASSES } from "./field-styles";
 
 /**
@@ -56,40 +57,10 @@ export default function TextField({
             // they typed, so the control simply did not exist for them.
             className="absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-r-lg text-ink/50 transition hover:text-ink"
           >
-            <EyeIcon crossedOut={revealed} />
+            <EyeIcon crossedOut={revealed} className="size-[18px]" />
           </button>
         )}
       </div>
     </div>
-  );
-}
-
-function EyeIcon({ crossedOut }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {crossedOut ? (
-        <>
-          <path d="M3 3l18 18" />
-          <path d="M10.6 6.1A9.3 9.3 0 0 1 12 6c6 0 9.5 6 9.5 6a16.8 16.8 0 0 1-3.2 3.9" />
-          <path d="M6.4 8.1A16.7 16.7 0 0 0 2.5 12S6 18 12 18a9.4 9.4 0 0 0 3.6-.7" />
-          <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
-        </>
-      ) : (
-        <>
-          <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
-          <circle cx="12" cy="12" r="3.2" />
-        </>
-      )}
-    </svg>
   );
 }

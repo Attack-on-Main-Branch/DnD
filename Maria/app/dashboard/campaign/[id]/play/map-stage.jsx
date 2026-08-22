@@ -20,14 +20,21 @@ import TableMap from "./table-map";
  * a border wrapped around the picture would have grown with it. `-inset-6` is
  * the same 1.5rem mat on all four sides whatever shape the map turns out to be,
  * and the two radii are concentric — the outer is the inner plus that mat.
+ *
+ * `children` is the dice board, and it goes inside this box rather than around
+ * it because that is the only place a `-inset-6` means the same 1.5rem the mat
+ * above does. A table with no map has nowhere to throw onto, so the branch
+ * below takes none — the roll still happens, see dice-engine.js.
  */
 export default function MapStage({
   url,
   title,
   campaignId,
   marks,
+  faces,
   seat,
   canSweep,
+  children,
 }) {
   if (!url) {
     return (
@@ -61,11 +68,14 @@ export default function MapStage({
         title={title}
         campaignId={campaignId}
         marks={marks}
+        faces={faces}
         seat={seat}
         canSweep={canSweep}
         className={`relative ${MAP_CLASSES}`}
         style={MAP_DELAY}
       />
+
+      {children}
     </div>
   );
 }

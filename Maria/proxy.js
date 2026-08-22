@@ -81,7 +81,14 @@ export const config = {
     /*
      * Run on every request except static assets, so the Supabase auth token
      * is refreshed before any page, action or route handler executes.
+     *
+     * `assets/` is everything under `public/assets` — the dice, at the moment.
+     * The extension list above it does not cover them: a `.json` exemption
+     * would exempt real routes too, and the roller asks for a `.wasm` and two
+     * `.json` files, so without this the proxy sent a signed-out visitor's
+     * dice off to the login page and every signed-in one paid a `getUser()`
+     * round trip for a texture.
      */
-    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|assets/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

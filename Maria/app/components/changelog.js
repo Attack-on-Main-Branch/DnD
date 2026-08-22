@@ -16,6 +16,24 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.10.1",
+    date: "2026-08-22",
+    title: "One roll, every screen",
+    changes: [
+      "Dice down the rail beside the board, d4 through d100. Press one and it is thrown onto the map: it tumbles across the world, comes to rest on a face, and the number slides out from under your card.",
+      "Everybody at the table watches the same throw. Not a picture of it and not a number arriving afterwards — the same dice, the same tumble, the same face, on every screen at once.",
+      "The Dungeon Master can draw a veil over the rail. The boards turn violet for the whole table while a kept roll is in the air, so everyone knows something is being rolled and nobody but the roller learns what came up.",
+      "Ask for stillness in your system settings and the dice are not thrown at all — the number simply arrives.",
+    ],
+    fixes: [
+      "Hit points somebody else changed never changed on your screen. A Dungeon Master could take half a party's health off and every player would keep looking at full bars until they reloaded the page.",
+      "Tokens put on the map took a couple of seconds to reach anybody else. They arrive as they are put down now, which is what this app has been claiming since the table opened.",
+      "Leaving the table left your card lit in everybody else's party rail for several seconds after you had gone. You stand up as you go now.",
+      "Somebody who accepted an invitation while you were already at the table never appeared in your party until you reloaded. They arrive as they sit down.",
+      "The party rail went dark and relit itself whenever the connection so much as blinked, which read as the whole party standing up and sitting back down.",
+    ],
+  },
+  {
     version: "0.10.0",
     date: "2026-08-21",
     title: "A seat at the table",

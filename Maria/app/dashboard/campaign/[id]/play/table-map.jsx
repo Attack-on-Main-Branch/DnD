@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { useMapZoom } from "../use-map-zoom";
 
+import { holdTray } from "./dice-engine";
 import MapMarks, { MarkRoll } from "./map-marks";
 import { MAP_MAX_HEIGHT_CLASS } from "./map-height";
 import { useTableMarks } from "./use-table-marks";
@@ -18,12 +19,17 @@ import { useTableMarks } from "./use-table-marks";
  * already carrying the pan and the scale.
  *
  * Right-click puts a token down: the left button zooms, and held it pans.
+ *
+ * It also announces the picture's own size: the dice tray IS this picture, and
+ * `naturalWidth` is a property of the file rather than of the box it is drawn
+ * in, so it is the same pair of numbers in every chair. See dice-engine.js.
  */
 export default function TableMap({
   url,
   title,
   campaignId,
   marks: placed,
+  faces,
   seat,
   canSweep,
   className = "",
@@ -40,9 +46,20 @@ export default function TableMap({
   const { marks, place, clear, error } = useTableMarks({
     campaignId,
     marks: placed,
+    faces,
     seat,
     canSweep,
   });
+
+  /* `onLoad` below never fires for a picture that was already in the cache when
+     this mounted, and that is the common case on the second visit. */
+  useEffect(() => {
+    const image = imageRef.current;
+
+    if (image?.complete && image.naturalWidth) {
+      holdTray(image.naturalWidth, image.naturalHeight);
+    }
+  }, []);
 
   function onContextMenu(event) {
     if (!place) {
@@ -86,6 +103,9 @@ export default function TableMap({
           draggable={false}
           className={`block max-w-full ${MAP_MAX_HEIGHT_CLASS}`}
           style={imageStyle}
+          onLoad={(event) =>
+            holdTray(event.target.naturalWidth, event.target.naturalHeight)
+          }
         />
 
         {/* The instruction, over the map rather than under it: a line of its

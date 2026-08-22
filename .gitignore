@@ -58,3 +58,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# The 3D dice, copied out of @3d-dice/dice-box and tinted by
+# Maria/scripts/dice-assets.mjs on every dev run and build. Derived, binary,
+# and regenerated from the lockfile — the same reasons /assets/ is ignored
+# above apply to a wasm blob and four textures.
+Maria/public/assets/dice-box/
+
+# Where @3d-dice/dice-box’s own postinstall drops a second, untinted copy of
+# those same files. Anchored to the root: Maria/public is a real directory.
+/public/

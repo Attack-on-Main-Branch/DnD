@@ -21,12 +21,14 @@ let client = null;
 let authorised = null;
 
 /**
- * supabase-js warns that this may be called concurrently and often, and each
- * call is a Server Action round trip. Held for well under the token's own
- * lifetime, so an expired one is replaced on the next connect rather than
- * cached past its use.
+ * supabase-js calls this often and each call is a Server Action round trip, so
+ * it is held — for well under the token's own hour.
+ *
+ * Not twenty-five seconds, which is what it was: that is exactly the socket's
+ * heartbeat, and supabase-js re-reads the token on every one, so the window
+ * closed as the next call arrived and the cache missed every single time.
  */
-const TOKEN_HELD_MS = 25000;
+const TOKEN_HELD_MS = 60000;
 let held = { token: null, at: 0 };
 
 async function accessToken() {
@@ -42,9 +44,15 @@ async function accessToken() {
   return token;
 }
 
-/** The client and the two ways of listening on it, in one await. */
+/** The client and the ways of listening on it, in one await. */
 export async function realtime() {
+  /* Started before the import, not after: a megabyte off the network and a
+     Server Action have nothing to say to each other, and waiting for them in
+     turn put a whole round trip on the front of every arrival at a table. */
+  const warming = accessToken().catch(() => null);
   const listeners = await import("sina/supabase/realtime");
+
+  await warming;
 
   if (!client) {
     client = listeners.createRealtimeSupabase(accessToken);

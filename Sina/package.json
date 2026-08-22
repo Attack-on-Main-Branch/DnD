@@ -1,6 +1,6 @@
 {
   "name": "sina",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
@@ -10,6 +10,7 @@
     "./supabase/realtime": "./src/supabase/realtime.js",
     "./rules/auth": "./src/rules/auth.js",
     "./rules/character": "./src/rules/character.js",
+    "./rules/dice": "./src/rules/dice.js",
     "./rules/health": "./src/rules/health.js",
     "./rules/text": "./src/rules/text.js",
     "./rules/campaign": "./src/rules/campaign.js",

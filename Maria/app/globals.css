@@ -49,7 +49,21 @@
   --gold-22: color-mix(in srgb, var(--color-gold) 22%, transparent);
   --gold-25: color-mix(in srgb, var(--color-gold) 25%, transparent);
   --gold-35: color-mix(in srgb, var(--color-gold) 35%, transparent);
+  --gold-55: color-mix(in srgb, var(--color-gold) 55%, transparent);
   --gold-60: color-mix(in srgb, var(--color-gold) 60%, transparent);
+  --gold-70: color-mix(in srgb, var(--color-gold) 70%, transparent);
+
+  /* The same ladder for the other accent. Only the steps the dice actually
+     stand on — a token nothing reads is a token nobody maintains. */
+  --arcane-15: color-mix(in srgb, var(--color-arcane) 15%, transparent);
+  --arcane-30: color-mix(in srgb, var(--color-arcane) 30%, transparent);
+  --arcane-40: color-mix(in srgb, var(--color-arcane) 40%, transparent);
+  --arcane-55: color-mix(in srgb, var(--color-arcane) 55%, transparent);
+  --arcane-70: color-mix(in srgb, var(--color-arcane) 70%, transparent);
+
+  /* The resting ink of every mark in the app. A token because the dice rail
+     has to hand it to a custom property rather than write `text-ink/60`. */
+  --ink-60: color-mix(in srgb, var(--color-ink) 60%, transparent);
 
   --surface-55: color-mix(in srgb, var(--color-surface) 55%, transparent);
   --surface-96: color-mix(in srgb, var(--color-surface) 96%, transparent);
@@ -74,6 +88,14 @@
    * a scale rather than a colour.
    */
   --color-ruby: #a01c2c;
+
+  /*
+   * Arcane violet: what gold becomes while a roll is being kept back. Tailwind's
+   * violet-400, so `text-violet-400` and `text-arcane` are the same ink — it is
+   * named here because the meaning is "secret", not "violet", and because the
+   * alpha ladder above has to be built from something.
+   */
+  --color-arcane: #a78bfa;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -280,20 +302,25 @@ body {
   }
 
   /*
-   * The same lit rim, standing rather than summoned by a pointer: `.glow-gold`
-   * means "this is yours to press", this means "somebody is here". Deliberately
-   * the same shadow, so one lit edge means one thing across the app.
+   * A lit rim, standing rather than summoned by a pointer: `.glow-gold` means
+   * "this is yours to press", this means something is HAPPENING — somebody is
+   * at the table, or a die is on the board.
    *
-   * No transition of its own — the card carries one as a utility, since a rule
-   * that only exists while it applies cannot animate its own removal. It sits
-   * after `.glass` in this layer, which is what puts its border over that one's.
+   * Brighter than that hover, and deliberately so: this is the intensity a text
+   * field takes when the caret lands in it — 70% on the line and a bloom at 55%
+   * rather than 35%, over the same 1px casing. A state you are being told about
+   * should outshine an invitation to press something.
+   *
+   * No transition of its own — whatever wears it carries one, since a rule that
+   * only exists while it applies cannot animate its own removal. It sits after
+   * `.glass` in this layer, which is what puts its border over that one's.
    */
   .lit-gold {
-    border-color: var(--gold-60);
+    border-color: var(--gold-70);
     box-shadow:
       inset 0 1px 0 var(--gold-20),
       0 0 0 1px var(--gold-25),
-      0 0 28px -4px var(--gold-35),
+      0 0 28px -4px var(--gold-55),
       0 16px 40px -20px rgba(0, 0, 0, 0.9);
   }
 
@@ -306,6 +333,11 @@ body {
   .glow-mark {
     /* The drawing's size. The glow below is built from it too. */
     --mark-size: 2.25rem;
+
+    /* The halo's colour. A property rather than the token directly, so the
+       dice rail can hand it arcane violet while a roll is being kept back and
+       every other mark in the app goes on being gold. */
+    --mark-glow: var(--gold-25);
 
     /* The lit box, in the drawing's own units — the envelope's `<rect>`. A
        mark of another shape overrides these three and inherits everything else;
@@ -333,7 +365,7 @@ body {
     border-radius: var(--mark-lit-r);
     /* Blur, spread, strength: the knob. Not the button's `-6px` spread, which
        on a box a third the size leaves a sliver and reads dim. */
-    box-shadow: 0 0 20px -1px var(--gold-25);
+    box-shadow: 0 0 20px -1px var(--mark-glow);
     opacity: 0;
     transition: opacity var(--default-transition-duration)
       var(--default-transition-timing-function);
@@ -373,11 +405,11 @@ body {
    * not the element, so the clipped-out middle stays as small as it was.
    */
   .glow-bloom::before {
-    box-shadow: 0 0 20px 4px var(--gold-25);
+    box-shadow: 0 0 20px 4px var(--mark-glow);
   }
 
   .glow-bloom-small::before {
-    box-shadow: 0 0 20px 5px var(--gold-25);
+    box-shadow: 0 0 20px 5px var(--mark-glow);
   }
 
   /*
@@ -663,6 +695,90 @@ body {
      animations go on painting behind the Story tab. */
   .tab-shell[data-state="collapsed"] * {
     animation-play-state: paused;
+  }
+
+  /*
+   * The board's rim, at rest and while a die is on it.
+   *
+   * A component class and not `border` plus `transition-*` utilities: those sit
+   * in a later cascade layer, so a `border-*` utility outranked `.lit-cast`
+   * below and the edge lit its shadow without ever lighting its line. Same trap
+   * `.glow-gold` and `.rim-gold` are written this way to avoid.
+   *
+   * `--cast-idle` is transparent for a roll everybody will see — the glass mat
+   * underneath keeps its own gold hairline — and arcane violet while the
+   * Dungeon Master has the veil closed, which is how they can tell at a glance,
+   * without rolling anything, that the next one will be kept.
+   */
+  .rim-cast {
+    border: 1px solid var(--cast-idle);
+    transition:
+      border-color 300ms ease,
+      box-shadow 300ms ease;
+  }
+
+  /*
+   * `.lit-gold` above in whichever colour the roll is wearing. The same shadow
+   * at the same strengths, because one lit edge means one thing across the app.
+   */
+  .lit-cast {
+    border-color: var(--cast-rim);
+    box-shadow:
+      inset 0 1px 0 var(--cast-wash),
+      0 0 0 1px var(--cast-ring),
+      0 0 28px -4px var(--cast-bloom),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /* The dice leaving the board. The canvas is never a click target, rolling or
+     not — the map underneath has to keep receiving the right-click that marks
+     it, and there is nothing here to press. */
+  .dice-stage {
+    transition: opacity 200ms ease-out;
+  }
+
+  .dice-stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /*
+   * The result, sliding out from under the roller's card and back beneath it.
+   *
+   * Clipped rather than faded: the slot's right edge is the card's left edge,
+   * so a pill parked one width past it is genuinely behind the card rather than
+   * merely invisible in front of it. The other three sides are cut a long way
+   * out, because a clip that hugged the pill would take its bloom with it.
+   *
+   * The card cannot do this itself — it is `.glass`, and a `backdrop-filter`
+   * makes it a stacking context, so nothing inside it can paint underneath it.
+   *
+   * Two boxes because both want the `translate` property: the slot holds the
+   * pill on the card's centre line, the pill does the sliding. The margin is in
+   * here beside the distance that has to clear it, and not a `mr-*` utility, so
+   * the two numbers cannot drift apart.
+   *
+   * Numbers repeated in use-table-rolls.js, which has to know when it has gone.
+   */
+  .dice-slot {
+    clip-path: inset(-3rem 0 -3rem -3rem);
+  }
+
+  .dice-capsule {
+    margin-right: 0.75rem;
+    /* Spelled out rather than left at `none`, which is what `translate`
+       computes to unset. A length and a keyword have nothing to interpolate
+       between, so the browser transitions them DISCRETELY — the pill teleported
+       across the gap at the halfway mark instead of sliding it. */
+    translate: 0 0;
+    transition: translate 420ms var(--ease-tray);
+  }
+
+  .dice-capsule[data-away] {
+    translate: calc(100% + 0.75rem) 0;
+    transition: translate 300ms var(--ease-tray-in);
   }
 
   .hp-solar {
@@ -1125,6 +1241,15 @@ body {
 
   .tray-fold,
   .tray-fold.tray-folded {
+    transition: none;
+  }
+
+  /* The throw is skipped for a reader who asked for stillness — no dice reach
+     the board and the result arrives on its own. These cover the pieces that
+     are on the page either way. */
+  .dice-stage,
+  .dice-capsule,
+  .dice-capsule[data-away] {
     transition: none;
   }
 

@@ -54,33 +54,32 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     };
   }
 
-  const { data: members, error: partyError } = await listPartyMembers(
-    supabase,
-    id,
-  );
+  /* Together rather than one after the other, the way load-campaign.js does.
+     Not only the first paint: every doorbell here is answered by re-rendering
+     the whole route. The seat still waits for the party, being chosen out of
+     it. */
+  const [party, tokens] = await Promise.all([
+    listPartyMembers(supabase, id),
+    listCampaignMarks(supabase, id),
+  ]);
 
-  if (partyError) {
-    logFailure("listPartyMembers", partyError);
+  if (party.error) {
+    logFailure("listPartyMembers", party.error);
   }
 
-  const party = partyError ? [] : members;
-
-  const { data: marks, error: marksError } = await listCampaignMarks(
-    supabase,
-    id,
-  );
-
-  if (marksError) {
-    logFailure("listCampaignMarks", marksError);
+  if (tokens.error) {
+    logFailure("listCampaignMarks", tokens.error);
   }
+
+  const members = party.error ? [] : party.data;
 
   // Logged rather than thrown on: the map is the page, and neither a party nor
   // a set of marks that could not load is a reason to replace it with an error.
   return {
     campaign,
-    members: party,
-    marks: marksError ? [] : marks,
-    seat: await readSeat(supabase, campaign, party, requestedSeat),
+    members,
+    marks: tokens.error ? [] : tokens.data,
+    seat: await readSeat(supabase, campaign, members, requestedSeat),
     error: null,
   };
 });

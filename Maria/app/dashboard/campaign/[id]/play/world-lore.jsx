@@ -14,7 +14,6 @@ export default function WorldLore({ title, lore }) {
   return (
     <TablePopover
       icon={WorldGlobe}
-      markClass="glow-bloom"
       label={`World lore of ${title}`}
       title={`The world of ${title}`}
     >

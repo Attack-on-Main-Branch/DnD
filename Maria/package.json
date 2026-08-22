@@ -1,15 +1,19 @@
 {
   "name": "maria",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "description": "Frontend: the Next.js application.",
   "scripts": {
+    "dice-assets": "node scripts/dice-assets.mjs",
+    "predev": "npm run dice-assets",
     "dev": "next dev",
+    "prebuild": "npm run dice-assets",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@3d-dice/dice-box": "^1.1.4",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

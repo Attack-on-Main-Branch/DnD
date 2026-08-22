@@ -15,7 +15,6 @@ export default function InventoryPack({ seat }) {
   return (
     <TablePopover
       icon={TravellingPack}
-      markClass="glow-bloom"
       label={`Inventory as ${seat.title}`}
       title={`${seat.title}\u2019s pack`}
     >

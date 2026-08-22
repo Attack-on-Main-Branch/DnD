@@ -59,7 +59,6 @@ export default function NotesScroll({ campaignId, seat }) {
   return (
     <TablePopover
       icon={ParchmentScroll}
-      markClass="glow-bloom"
       label={
         notes.length > 0
           ? `Notes as ${title}, ${notes.length} written`

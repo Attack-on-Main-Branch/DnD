@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { classLabel } from "sina/rules/character";
 
@@ -8,13 +7,18 @@ import {
 } from "@/app/dashboard/character-presentation";
 import { campaignSheetPath, characterSheetPath } from "@/lib/routes";
 
+import DiceBoard from "./dice-board";
+import DiceRail from "./dice-rail";
+import DiceTable from "./dice-table";
 import HealthStrip from "./health-strip";
 import { loadTable } from "./load-table";
+import LeaveTable from "./leave-table";
 import MapStage from "./map-stage";
 import { NOTES_CLASSES, notesEntrance } from "./entrance";
 import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
 import PartyRail from "./party-rail";
+import TableWire from "./table-wire";
 import TableTitle from "./table-title";
 import WorldLore from "./world-lore";
 
@@ -109,6 +113,14 @@ export default async function CampaignTablePage({ params, searchParams }) {
     })
     .filter(Boolean);
 
+  /* Every face a token could wear. One somebody else puts down arrives as an id
+     and a point — never a name or a colour — so the board needs the set in hand
+     to draw it from. */
+  const faces = [
+    markFace(null, members),
+    ...members.map((member) => markFace(member.id, members)),
+  ].filter(Boolean);
+
   // Resolved on the server: `classLabel` reaches through the whole ARCHETYPES
   // catalogue, and the rail only ever prints one word of it.
   const roster = members.map((member) => ({
@@ -124,23 +136,30 @@ export default async function CampaignTablePage({ params, searchParams }) {
 
   return (
     <main className="grid flex-1 grid-rows-[auto_auto_auto_1fr] gap-4 overflow-clip px-4 py-6 sm:px-6">
-      {/* Three columns so the title is centred on the viewport rather than on
+      {/* One socket for everything this table tells itself: who is sitting
+          down, a bar moved, a token put down. Outside the dice provider and the
+          grid both, because the way out and the health band are neither. */}
+      <TableWire
+        campaignId={campaign.id}
+        seatId={seat?.id ?? null}
+        // The seat, not the account: a Dungeon Master announces no character
+        // even when they own one at this table.
+        seatCharacterId={seat?.characterId ?? null}
+      >
+        {/* Three columns so the title is centred on the viewport rather than on
           what is left beside the way out. The empty third balances the first. */}
-      <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-        <Link
-          data-fade
-          href={wayOut}
-          className="float-in cursor-pointer justify-self-start font-sans text-sm text-ink/60 transition hover:text-gold"
-        >
-          ← Leave the table
-        </Link>
+        <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <LeaveTable
+            href={wayOut}
+            className="float-in cursor-pointer justify-self-start font-sans text-sm text-ink/60 transition hover:text-gold"
+          />
 
-        <div data-fade className="min-w-0">
-          <TableTitle title={campaign.title} />
+          <div data-fade className="min-w-0">
+            <TableTitle title={campaign.title} />
+          </div>
         </div>
-      </div>
 
-      {/*
+        {/*
         A row of their own above the board: sharing the map's column pulled the
         party cards up, since they centre against whatever sits beside them.
 
@@ -151,59 +170,85 @@ export default async function CampaignTablePage({ params, searchParams }) {
         both are TablePopover, and a shared shell has no business knowing where
         on a page it was put.
       */}
-      <div
-        className={`flex justify-center gap-3 ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
-        style={notesEntrance()}
-        data-slide="down"
-      >
-        {seat && (
-          <>
-            <WorldLore
-              title={campaign.title}
-              lore={campaign.world_description}
-            />
-            <NotesScroll campaignId={campaign.id} seat={seat} />
-            <InventoryPack seat={seat} />
-          </>
-        )}
-      </div>
+        <div
+          className={`flex justify-center gap-3 ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
+          style={notesEntrance()}
+          data-slide="down"
+        >
+          {seat && (
+            <>
+              <WorldLore
+                title={campaign.title}
+                lore={campaign.world_description}
+              />
+              <NotesScroll campaignId={campaign.id} seat={seat} />
+              <InventoryPack seat={seat} />
+            </>
+          )}
+        </div>
 
-      {/*
+        {/*
         A grid, and the empty first column is the reason: matching side columns
         straddle the map on the viewport's centre line whether the party is full
         or empty, and the rail keeps its 20rem instead of being squeezed by a
         wide map. 20rem and not 18: the level ring takes 56px out of the name's
         line, and at 18rem a fourteen-letter name no longer fit.
       */}
-      <div className="grid items-center justify-items-center gap-6 lg:grid-cols-[20rem_minmax(0,1fr)_20rem] lg:gap-8">
-        <div aria-hidden="true" className="hidden lg:block" />
-
-        <div data-fade className="flex w-full min-w-0 justify-center">
-          <MapStage
-            url={campaign.map_url}
-            title={campaign.title}
-            campaignId={campaign.id}
-            marks={marks}
-            // The token this viewer puts down, drawn before the write so it
-            // appears under the pointer at once.
-            seat={seat && markFace(seat.characterId, members)}
-            canSweep={isDungeonMaster}
-          />
-        </div>
-
-        {/* Not `data-fade`: the cards carry `data-slide` instead and leave the
-            way they arrived. See play/entrance.js. */}
-        <PartyRail
+        {/* The provider renders no element of its own, so the grid below is
+          still this row — and it has to stand outside all three columns: the
+          rail is pressed in one, the dice land in another, and the result comes
+          out from under a card in the third. */}
+        <DiceTable
           campaignId={campaign.id}
-          members={roster}
-          // The seat, not the account: a Dungeon Master announces no character
-          // even when they own one at this table.
           seatId={seat?.id ?? null}
-          seatCharacterId={seat?.characterId ?? null}
-        />
-      </div>
+          characterId={seat?.characterId ?? null}
+          canKeepSecrets={isDungeonMaster}
+        >
+          <div className="grid items-center justify-items-center gap-6 lg:grid-cols-[20rem_minmax(0,1fr)_20rem] lg:gap-8">
+            <div aria-hidden="true" className="hidden lg:block" />
 
-      {/*
+            {/* The dice stand immediately to the right of the board, and the
+              empty box on the left is what keeps the board itself on the
+              viewport's centre line — the same trick the grid outside plays
+              with its own first column, one level in. Both are the rail's
+              width.
+
+              `gap-10` and not the row's own `gap-3`: the map's glass mat
+              stands 1.5rem proud of the picture on every side, so the gap has
+              to clear that before it is a gap at all. At 2.5rem the marks sit
+              1rem off the frame; at anything under 1.5rem they sit on it. */}
+            <div
+              data-fade
+              className="flex w-full min-w-0 items-center justify-center gap-10"
+            >
+              {seat && <div aria-hidden="true" className="w-14 shrink-0" />}
+
+              <MapStage
+                url={campaign.map_url}
+                title={campaign.title}
+                campaignId={campaign.id}
+                marks={marks}
+                faces={faces}
+                // The token this viewer puts down, drawn before the write so it
+                // appears under the pointer at once.
+                seat={seat && markFace(seat.characterId, members)}
+                canSweep={isDungeonMaster}
+              >
+                {seat && <DiceBoard />}
+              </MapStage>
+
+              {/* The seat, not the deed, decides who may keep a roll back — the
+                same line the health band and the board are drawn on. */}
+              {seat && <DiceRail canKeepSecrets={isDungeonMaster} />}
+            </div>
+
+            {/* Not `data-fade`: the cards carry `data-slide` instead and leave
+              the way they arrived. See play/entrance.js. */}
+            <PartyRail campaignId={campaign.id} members={roster} />
+          </div>
+        </DiceTable>
+
+        {/*
         The health band, outside the grid and the full width of the page: inside
         the map's column it was pinned to the board's width and the bars came
         out unreadably small.
@@ -213,14 +258,15 @@ export default async function CampaignTablePage({ params, searchParams }) {
         distance apart on every screen and unfolding an editor cannot change it.
         The room the stepper needs is set aside in map-height.js instead.
       */}
-      <div className="flex min-h-0 items-start pt-10">
-        <HealthStrip
-          campaignId={campaign.id}
-          members={members}
-          isDungeonMaster={isDungeonMaster}
-          seatCharacterId={seat?.characterId ?? null}
-        />
-      </div>
+        <div className="flex min-h-0 items-start pt-10">
+          <HealthStrip
+            campaignId={campaign.id}
+            members={members}
+            isDungeonMaster={isDungeonMaster}
+            seatCharacterId={seat?.characterId ?? null}
+          />
+        </div>
+      </TableWire>
     </main>
   );
 }

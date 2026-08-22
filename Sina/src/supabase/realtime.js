@@ -28,13 +28,11 @@ export function createRealtimeSupabase(getAccessToken) {
   return createClient(url, anonKey, {
     accessToken: getAccessToken,
 
-    /*
-     * A ceiling on how often the server will send us anything, not a buffer:
-     * these subscriptions exist to say "something changed, go and re-read",
-     * and the re-read is a round trip of its own. Four a second is generous
-     * for an inbox and cheap insurance against a loop.
-     */
-    realtime: { params: { eventsPerSecond: 4 } },
+    /* How many messages a second this client may PUSH before the server holds
+       them back. Four was written when the socket carried only doorbells; it
+       now carries the dice, the hit points, the tokens and the chairs, and a
+       busy moment reaches four in a breath. */
+    realtime: { params: { eventsPerSecond: 30 } },
   });
 }
 
@@ -68,44 +66,103 @@ export function watchTable(
 }
 
 /**
- * Who else is on this channel, for as long as we are on it too.
+ * The table's own channel: who is sitting at it, and what they are doing.
  *
- * The opposite of `watchTable` above in one respect: this payload is the point.
- * Nothing is read from the database, so there is no `select()` list to bypass —
- * what comes back is what the other subscribers said about themselves, and the
- * caller decides how much of it to trust.
+ * The opposite of `watchTable` above in one respect: these payloads are the
+ * point. Nothing is read from the database, so there is no `select()` list to
+ * bypass, and the caller decides how much to trust.
  *
- * `private: true` is what makes that trustworthy: Realtime puts the channel's
- * topic to the policies on `realtime.messages` before anyone may join or track,
- * so an outsider can neither read this roster nor add themselves to it — see
- * 20260821240000_table_presence.sql. Without those policies the subscription
- * fails and `onChange` is handed the empty roster it reports for an empty room.
+ * `private: true` is what makes that trustworthy: Realtime puts the topic to
+ * the policies on `realtime.messages` before anyone may join, track or speak —
+ * 20260821240000_table_presence.sql for the chairs, 20260822090000_table_rolls
+ * for the talking. Without them the subscription fails and `onChairs` is handed
+ * the empty roster it reports for an empty room.
  *
- * `key` collapses one person's several tabs into one seat; left to itself
- * Realtime keys on the socket, so opening the table twice seats you twice.
+ * Both questions on ONE channel, because a socket may not join a topic twice.
+ * `key` collapses one person's several tabs into one seat, and `self: false`
+ * because whoever moved the bar moved it on their own screen first.
+ *
+ * `leave` gives the chair up without giving the channel up — the two are not
+ * the same moment, as play/leave-table.jsx explains.
  */
-export function watchPresence(client, { channel, key, meta, onChange }) {
+export function joinTable(
+  client,
+  { channel, key, meta, event, onChairs, onMessage, onReady },
+) {
   const subscription = client.channel(channel, {
-    config: { private: true, presence: { key, enabled: true } },
+    config: {
+      private: true,
+      presence: { key, enabled: true },
+      broadcast: { self: false },
+    },
   });
 
   subscription
     .on("presence", { event: "sync" }, () =>
-      onChange(Object.values(subscription.presenceState()).flat()),
+      onChairs(Object.values(subscription.presenceState()).flat()),
     )
+    .on("broadcast", { event }, ({ payload }) => onMessage(payload))
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
         Promise.resolve(subscription.track(meta)).catch(() => {});
+        // Every SUBSCRIBED, first join and rejoin alike: it is the only moment
+        // a caller can be sure anything it says will be heard.
+        onReady?.();
         return;
       }
 
-      // A socket that dropped is not a table that emptied, but it is the last
-      // thing we know for certain — better a rail that goes dark than one
-      // reporting a room from ten minutes ago.
-      onChange([]);
+      /* Only when the channel has genuinely gone. A dropped socket is not a
+         table that emptied, and supabase-js rejoins one by itself and resyncs
+         the roster when it does — so blanking on `CHANNEL_ERROR` and
+         `TIMED_OUT` as well turned every blip into the whole party appearing
+         to stand up and sit back down. */
+      if (status === "CLOSED") {
+        onChairs([]);
+      }
     });
 
-  return () => {
-    client.removeChannel(subscription);
+  return {
+    send: (payload) =>
+      subscription.send({ type: "broadcast", event, payload }).catch(() => {}),
+    leave: () => Promise.resolve(subscription.untrack()).catch(() => {}),
+    stop: () => client.removeChannel(subscription),
+  };
+}
+
+/**
+ * What one person at a table tells the others directly, with no row in between.
+ *
+ * Presence's caveat applies here and not `watchTable`'s: nothing is read from
+ * the database, so there is no `select()` list to bypass — what comes back is
+ * what another subscriber said, and the caller decides how much of it to trust.
+ * The channel's policies in 20260822090000_table_rolls.sql decide who may say
+ * anything at all, and the caller is expected to put every value through the
+ * same rules it would apply to its own.
+ *
+ * `self: false`, because the sender already knows: whoever rolled has the die
+ * on their own board and does not want it back off the wire.
+ *
+ * `onReady` fires on every SUBSCRIBED, first join and reconnect alike. It is
+ * the only moment a caller can be sure anything it says will be heard, which is
+ * what a channel carrying state — rather than only events — needs in order to
+ * catch a newcomer up.
+ */
+export function watchBroadcast(client, { channel, event, onMessage, onReady }) {
+  const subscription = client.channel(channel, {
+    config: { private: true, broadcast: { self: false } },
+  });
+
+  subscription
+    .on("broadcast", { event }, ({ payload }) => onMessage(payload))
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        onReady?.();
+      }
+    });
+
+  return {
+    send: (payload) =>
+      subscription.send({ type: "broadcast", event, payload }).catch(() => {}),
+    stop: () => client.removeChannel(subscription),
   };
 }
