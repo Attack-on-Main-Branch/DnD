@@ -74,6 +74,11 @@ const NO_SESSION_NOTE = "Sessions are not available yet.";
  * closing animation and the loading bar behind it — both hang off anchors in
  * nav-transition.jsx. Without one it stays the inert control the character
  * sheet has always shown, because that route has nowhere to go yet.
+ *
+ * `data-bloom` beside `data-fade` is how it leaves: pressed, it grows past the
+ * page and fades slowly as the table opens behind it; on any other way off this
+ * sheet it fades with everything else. panel-fold.js decides which, from the
+ * anchor the click came through.
  */
 export default function PlayButton({ href, label = "Play" }) {
   const spinRef = useRef(null);
@@ -268,6 +273,8 @@ export default function PlayButton({ href, label = "Play" }) {
     return (
       <Link
         href={href}
+        data-fade
+        data-bloom
         // Everything inside is `aria-hidden`, so the name comes from here.
         aria-label={label}
         className={CONTROL_CLASSES}

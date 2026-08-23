@@ -17,6 +17,15 @@ const SLIT_OUT_MS = 100;
 const BAR_UP_MS = 300;
 const SLIDE_OUT_MS = 380;
 
+/** The table's furniture, stepping back behind the map it belongs to. */
+const TUCK_MS = 240;
+
+/** The board itself, once nothing is left standing around it. */
+const SHRINK_MS = 380;
+
+/** The play star, on its way to the table it opens. */
+const BLOOM_MS = 700;
+
 /** Flat enough to read as a line, tall enough to keep its rounded ends. */
 const SLIT = "scaleY(0.02)";
 
@@ -108,6 +117,87 @@ function slideAway(tile) {
   return SLIDE_OUT_MS + delay;
 }
 
+/** Which way a piece marked `data-tuck` steps back out of sight. */
+const TUCK_OUT = {
+  /* The marks above the board, dropping behind it. Their own height and then
+     some: the mat stands 1.5rem proud of the picture, and a mark that stops
+     short of it fades out in the open air instead of going anywhere. */
+  down: "0 5rem",
+  /* The dice rail, sliding back under the map's right edge — the entrance in
+     entrance.js run backwards. */
+  left: "-5rem 0",
+};
+
+/**
+ * A piece going behind the map rather than off the page. It has somewhere to
+ * hide, so it travels its own length and no further; the fade finishes the job
+ * for whatever part of it never reaches cover.
+ */
+function tuckAway(piece) {
+  play(
+    piece,
+    [
+      { translate: "0 0", opacity: 1 },
+      { translate: TUCK_OUT[piece.dataset.tuck] ?? TUCK_OUT.down, opacity: 0 },
+    ],
+    {
+      duration: TUCK_MS,
+      easing: ease("--ease-tray-in", "ease-in"),
+    },
+  );
+
+  return TUCK_MS;
+}
+
+/**
+ * The map, going the way it arrived: `map-rise` reversed, at the same 0.7. It
+ * waits for the tuck above, because a board that shrinks out from under its own
+ * furniture leaves the furniture hanging in the air.
+ */
+function shrinkAway(map) {
+  play(
+    map,
+    [
+      { scale: "1", opacity: 1 },
+      { scale: "0.7", opacity: 0 },
+    ],
+    {
+      duration: SHRINK_MS,
+      delay: TUCK_MS,
+      easing: ease("--ease-tray-in", "ease-in"),
+    },
+  );
+
+  return TUCK_MS + SHRINK_MS;
+}
+
+/**
+ * The star that was pressed, growing past the page as the table opens behind
+ * it. Only ever the one that was pressed — see `closeOut` — because every other
+ * way off these pages leaves it fading with the header it sits in.
+ *
+ * The fade lags the growth deliberately: on a straight ramp it had gone before
+ * it was large enough to read as anything. `--ease-flight` and not the tray's
+ * curve for the same reason — that one spends four fifths of its travel in the
+ * first fifth of its time, which is a snap rather than a swell.
+ */
+function bloomAway(star) {
+  play(
+    star,
+    [
+      { scale: "1", opacity: 1, offset: 0 },
+      { scale: "1.5", opacity: 0.85, offset: 0.4 },
+      { scale: "2.6", opacity: 0, offset: 1 },
+    ],
+    {
+      duration: BLOOM_MS,
+      easing: ease("--ease-flight", "ease-in-out"),
+    },
+  );
+
+  return BLOOM_MS;
+}
+
 /** Contents out, then the panel folds, then the slit goes. */
 function foldPanel(panel) {
   const content = panel.firstElementChild;
@@ -140,7 +230,9 @@ function foldPanel(panel) {
  * Everything under `root` that is marked to leave, and how long it takes.
  *
  * Each piece only goes when the thing it belongs to goes. The bar belongs to
- * the layout, so it waits for `leavingLayout` — signing out. `data-fade="route"`
+ * the layout, so it waits for `leavingLayout` — signing out. A `data-bloom`
+ * piece belongs to the press: `pressed` is the anchor the click came through,
+ * and only a star inside it grows rather than fades. `data-fade="route"`
  * belongs to the route rather than the view: `?new` swaps the panel underneath
  * the dashboard's greeting while the page around it stays, and taking it away
  * and putting it back for that reads as leaving somewhere you have not left.
@@ -149,7 +241,7 @@ function foldPanel(panel) {
  */
 export function closeOut(
   root,
-  { leavingLayout = false, leavingRoute = true } = {},
+  { leavingLayout = false, leavingRoute = true, pressed = null } = {},
 ) {
   for (const animation of closing) {
     animation.cancel();
@@ -165,10 +257,19 @@ export function closeOut(
     ? "[data-fade]"
     : '[data-fade]:not([data-fade="route"])';
 
+  /* A `data-bloom` piece is only ever the one that was pressed. It carries
+     `data-fade` as well, and takes that instead on every other way out. */
+  const blooming = pressed?.closest("[data-bloom]") ?? null;
+
   const waits = [
     ...(leavingLayout ? [raiseBar(root.querySelector("[data-bar]"))] : []),
-    ...[...root.querySelectorAll(fading)].map(fadeAway),
+    ...(blooming ? [bloomAway(blooming)] : []),
+    ...[...root.querySelectorAll(fading)]
+      .filter((piece) => piece !== blooming)
+      .map(fadeAway),
     ...[...root.querySelectorAll("[data-slide]")].map(slideAway),
+    ...[...root.querySelectorAll("[data-tuck]")].map(tuckAway),
+    ...[...root.querySelectorAll("[data-shrink]")].map(shrinkAway),
     ...[...root.querySelectorAll("[data-fold]")].map(foldPanel),
   ];
 

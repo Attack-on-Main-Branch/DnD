@@ -85,11 +85,15 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
     };
   }, []);
 
-  /** A die is in the air somewhere at this table. */
+  /**
+   * A die is in the air somewhere at this table. The die itself travels with
+   * it so the pill beside that chair can say which one is being thrown; a kept
+   * roll names none, and nobody but the roller is told what is on the way.
+   */
   const begin = useCallback(
-    (key, secret) => {
+    (key, secret, die) => {
       answered.current.delete(key);
-      setFlying((current) => ({ ...current, [key]: { secret } }));
+      setFlying((current) => ({ ...current, [key]: { secret, die } }));
       after(`flight:${key}`, STRANDED_MS, () =>
         setFlying((current) => without(current, key)),
       );
@@ -179,7 +183,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
       const die = isDie(payload.die) ? payload.die : null;
 
       if (payload.phase === "start") {
-        begin(key, Boolean(payload.secret));
+        begin(key, Boolean(payload.secret), die);
 
         // No seed, no shared throw: whoever rolled could not run one either, so
         // this board waits for the number rather than inventing a roll of its
@@ -262,7 +266,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
   /** This browser's roll, on its own board and on everybody else's. */
   const start = useCallback(
     (key, { die, secret, seed }) => {
-      begin(key, secret);
+      begin(key, secret, die);
       share.current?.(
         secret
           ? { phase: "start", key, secret: true }
@@ -310,6 +314,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
       secret: inTheAir.some((roll) => roll.secret),
     },
     veiled,
+    flying,
     results,
     latest,
     start,

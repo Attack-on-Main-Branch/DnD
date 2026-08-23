@@ -7,13 +7,15 @@
  * `60vh` is what the map wants and what a tall screen gives it. Everything
  * around it is measured in pixels and does not shrink with the viewport, so the
  * middle term takes over below 1190px: whatever height is left after 29.75rem
- * has been set aside for the bar, the title, the marks, the health band and the
- * page's own padding.
+ * has been set aside for the bar, the title, the marks and the page's own
+ * padding.
  *
- * The band's stepper is counted in whether anybody is editing or not, so a tray
- * opens downward into space already reserved and nothing above it moves. Leave
- * it out and the row grows past the page — `main` cannot shrink under its own
- * content — raising a scrollbar down a page built to be one screenful.
+ * THE NUMBER HAS NOT MOVED, AND THAT IS DELIBERATE. It used to count a health
+ * band under the board; those bars are inside the party cards now, so the height
+ * has crossed from below the map to beside it. Handing the reserve back to the
+ * map would make the row TALLER for a full party, not shorter — the row is as
+ * tall as the tallest of the log, the board and the rail, and only the rail
+ * grows with the party.
  *
  * The `16rem` floor is for the window nobody browses in: under 476px of
  * viewport the middle term goes negative, and a height cannot be.

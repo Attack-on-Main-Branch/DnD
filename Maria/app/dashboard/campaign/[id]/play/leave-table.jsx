@@ -16,7 +16,7 @@ export default function LeaveTable({ href, className }) {
   const { leave } = useTableWire();
 
   return (
-    <Link href={href} onClick={leave} className={className}>
+    <Link data-fade href={href} onClick={leave} className={className}>
       ← Leave the table
     </Link>
   );

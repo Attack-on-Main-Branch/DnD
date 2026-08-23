@@ -16,6 +16,7 @@ import PackItemCard from "@/app/dashboard/pack-item-card";
 import ItemSearch from "./item-search";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
 import { POPOVER_BODY_CLASSES } from "./table-popover";
+import { useActivityLog } from "./use-activity";
 
 /**
  * The Dungeon Master's side of the pack: what the party is carrying, and what
@@ -41,6 +42,8 @@ export default function DmPackDrawer({
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const [isPending, startTransition] = useTransition();
+
+  const record = useActivityLog(campaignId);
 
   const selected = members.find((member) => member.id === target) ?? null;
   const targets = selected ? [selected.id] : members.map((member) => member.id);
@@ -68,12 +71,25 @@ export default function DmPackDrawer({
     startTransition(async () => {
       const result = await grantPackItems(campaignId, targets, item, quantity);
 
-      answer(
+      const landed = answer(
         result,
         selected
           ? `${quantity} × ${item.name} to ${selected.name}.`
           : `${quantity} × ${item.name} to each of ${targets.length}.`,
       );
+
+      /* One entry, whether it went to one pack or to six. `null` is the head
+         of the table filing it, and a null recipient is what
+         `record_campaign_activity` turns into "the party" — the recipient's
+         name is never a string this drawer chose. */
+      if (landed) {
+        record(null, {
+          action: "item_granted",
+          itemName: item.name,
+          quantity,
+          targetCharacterId: selected?.id ?? null,
+        });
+      }
     });
   }
 
@@ -200,6 +216,8 @@ export default function DmPackDrawer({
 function RevokeCard({ campaignId, character, row, index, onWritten, onError }) {
   const [isPending, startTransition] = useTransition();
 
+  const record = useActivityLog(campaignId);
+
   const [quantity, adjust] = useOptimistic(row.quantity, (base, delta) =>
     Math.min(MAX_ITEM_QUANTITY, Math.max(0, base + delta)),
   );
@@ -230,6 +248,16 @@ function RevokeCard({ campaignId, character, row, index, onWritten, onError }) {
 
       onError(null);
       onWritten(character.id);
+
+      /* The stepper is the same two deeds the search field above does, one at
+         a time: up is a grant, down is taking it back. `null` is the head of
+         the table filing it — this drawer only ever renders for that seat. */
+      record(null, {
+        action: delta > 0 ? "item_granted" : "item_revoked",
+        itemName: item.name,
+        quantity: Math.abs(delta),
+        targetCharacterId: character.id,
+      });
     });
   }
 

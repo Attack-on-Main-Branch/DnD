@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 
-import {
-  FADED_RULE_CLASSES,
-  surfaceClasses,
-} from "@/app/components/ui/surface";
+import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
+
+import { useTableMarks } from "./table-marks";
 
 /**
  * How tall a panel's contents stand, the same for the scroll and the pack —
- * they sit side by side, and one half the height of the other read as two
- * different kinds of thing. Fixing the body also stops a panel resizing as a
- * note is written or an item used.
+ * they open into the same box, and one half the height of the other would have
+ * that box resize every time the pointer moved between two marks. Fixing the
+ * body also stops a panel resizing as a note is written or an item used.
  *
  * A literal, or Tailwind's scanner never sees it. `60vh` is the guard: the
  * panel hangs off the marks above the board.
@@ -23,18 +23,19 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * The marks that hang above the map, and the panels behind them. One component
- * for all three, so the lore, the notes and the pack cannot drift apart: the
- * same ink, the same shake when something lands, the same unfold downward out
- * of the same arrow — `mail-arriving` for the shake and the notification
- * dropdown's fold.
+ * One mark, and the panel it opens. Both halves of the same thing, in two
+ * places: the drawing stays in the strip where its component put it, and the
+ * body goes through a portal into the shared box — see table-marks.jsx for why
+ * there is only one of those.
  *
- * No halo behind the drawing any more. It was a box tucked INSIDE an outline,
- * which is where it had to go for the light to fall under the strokes rather
- * than through the gaps between them; these marks are solid, so there is no
- * inside to tuck it into and it came out as a smudge.
+ * The shell around the body is the character sheet's own tab panel, class for
+ * class, which is what makes one panel give way to the next as a single box
+ * changing shape rather than two boxes crossing.
  *
- * The panel's width is the `w-[min(…)]` below, and both controls follow it.
+ * No halo behind the drawing. It was a box tucked INSIDE an outline, which is
+ * where it had to go for the light to fall under the strokes rather than
+ * through the gaps between them; these marks are solid, so there is no inside
+ * to tuck it into and it came out as a smudge.
  */
 export default function TablePopover({
   icon: Icon,
@@ -45,52 +46,33 @@ export default function TablePopover({
   onShortcut,
   children,
 }) {
-  const panelId = useId();
+  const value = useId();
+  const panelId = `${value}-panel`;
+
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
 
-  const [open, setOpen] = useState(false);
+  const { body, open, hold, toggle, close } = useTableMarks();
+  const isOpen = open === value;
 
-  const close = useCallback(({ restoreFocus = true } = {}) => {
-    setOpen(false);
-
-    if (restoreFocus) {
-      triggerRef.current?.focus();
-    }
-  }, []);
-
-  // Focus moves in with the panel, or Escape has nothing to catch and the mark
-  // opens somewhere a keyboard cannot reach.
+  /*
+   * Focus moves in with the panel, or Escape has nothing to catch and the mark
+   * opens somewhere a keyboard cannot reach.
+   *
+   * `preventScroll`, because the row it is unfolding out of has barely any
+   * height yet: the browser read a control halfway down a panel still opening
+   * as being outside its clip and scrolled the whole page to reveal it, leaving
+   * the table sitting a third of a screen down.
+   */
   useEffect(() => {
-    if (!open) {
+    if (!isOpen) {
       return;
     }
 
     const panel = panelRef.current;
 
-    (panel?.querySelector(FOCUSABLE) ?? panel)?.focus();
-  }, [open]);
-
-  // Anywhere outside closes, and pointerdown rather than click so a drag that
-  // starts outside does not leave it open behind the pointer.
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    function onPointerDown(event) {
-      if (
-        !panelRef.current?.contains(event.target) &&
-        !triggerRef.current?.contains(event.target)
-      ) {
-        close({ restoreFocus: false });
-      }
-    }
-
-    document.addEventListener("pointerdown", onPointerDown);
-
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open, close]);
+    (panel?.querySelector(FOCUSABLE) ?? panel)?.focus({ preventScroll: true });
+  }, [isOpen]);
 
   /**
    * Escape closes; Tab stays inside; Ctrl+Enter is whatever the panel says it
@@ -101,7 +83,8 @@ export default function TablePopover({
   function onKeyDown(event) {
     if (event.key === "Escape") {
       event.stopPropagation();
-      close({ restoreFocus: true });
+      close();
+      triggerRef.current?.focus();
       return;
     }
 
@@ -140,13 +123,16 @@ export default function TablePopover({
   }
 
   return (
-    <div className="relative">
+    <>
       <button
-        ref={triggerRef}
+        ref={(node) => {
+          triggerRef.current = node;
+          hold(value, node);
+        }}
         type="button"
-        onClick={() => (open ? close({ restoreFocus: false }) : setOpen(true))}
+        onClick={() => toggle(value)}
         aria-haspopup="dialog"
-        aria-expanded={open}
+        aria-expanded={isOpen}
         aria-controls={panelId}
         aria-label={label}
         className="relative grid size-12 cursor-pointer place-items-center rounded-full text-ink/60 transition-colors duration-300 hover:text-gold focus-visible:text-gold"
@@ -159,63 +145,48 @@ export default function TablePopover({
         />
       </button>
 
-      {/* Always mounted, so it can fold away rather than vanish. */}
-      <div
-        ref={panelRef}
-        id={panelId}
-        role="dialog"
-        aria-label={title}
-        tabIndex={-1}
-        inert={!open || undefined}
-        onKeyDown={onKeyDown}
-        className={surfaceClasses({
-          variant: "solid",
-          glow: true,
-          className: [
-            "absolute top-full left-1/2 z-40 mt-4 -translate-x-1/2",
-            // A closed panel keeps filtering its backdrop — `opacity: 0` and
-            // a folded `scale` do not stop it — which over the board's plume
-            // showed as a dark slab under the mark.
-            "glass-unfiltered",
-            // ↓ THE PANEL'S SIZE. See the note at the top of this file.
-            "w-[min(50rem,calc(100vw-2rem))] rounded-2xl text-left outline-none",
-            // The unfold. `scale` is its own property in Tailwind v4, so it
-            // composes with the `translate` above instead of overwriting it.
-            // `border-color` and `box-shadow` are in the list because
-            // `.glow-gold` declares its own `transition`, and a `transition-*`
-            // utility replaces that property wholesale.
-            "group origin-top transition-[scale,opacity,border-color,box-shadow] duration-300",
-            open
-              ? "ease-tray scale-y-100 opacity-100"
-              : "pointer-events-none ease-tray-in scale-y-0 opacity-0",
-            "motion-reduce:transition-none",
-          ].join(" "),
-        })}
-      >
-        {/* The pointer up at the mark — the notification panel's own arrow.
-            Only the two borders that fall on its outer edges. */}
-        <span
-          aria-hidden="true"
-          className="absolute -top-1.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-t border-l border-gold/25 bg-[var(--surface-96)] transition-colors duration-300 group-focus-within:border-gold/60 group-hover:border-gold/60"
-        />
+      {/* Always mounted once the box exists, so it can collapse rather than
+          vanish — a row that is merely removed has no second height to travel
+          towards. */}
+      {body &&
+        createPortal(
+          <div className="tab-shell" data-state={isOpen ? "open" : "collapsed"}>
+            <div className="tab-clip">
+              <div
+                ref={panelRef}
+                id={panelId}
+                role="dialog"
+                aria-label={title}
+                tabIndex={-1}
+                inert={!isOpen || undefined}
+                onKeyDown={onKeyDown}
+                className={`tab-panel outline-none ${
+                  isOpen
+                    ? "motion-safe:animate-[tab-panel-in_380ms_var(--ease-tray)]"
+                    : ""
+                }`}
+              >
+                <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3">
+                  <h2 className="min-w-0 truncate font-display text-sm font-semibold tracking-wide text-gold">
+                    {title}
+                  </h2>
 
-        <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3">
-          <h2 className="min-w-0 truncate font-display text-sm font-semibold tracking-wide text-gold">
-            {title}
-          </h2>
+                  {count !== undefined && (
+                    <p className="shrink-0 font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
+                      {count}
+                    </p>
+                  )}
+                </div>
 
-          {count !== undefined && (
-            <p className="shrink-0 font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
-              {count}
-            </p>
-          )}
-        </div>
+                {/* The hairline the header and the changelog drawer carry. */}
+                <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
-        {/* The hairline the header and the changelog drawer both carry. */}
-        <div aria-hidden="true" className={FADED_RULE_CLASSES} />
-
-        {children}
-      </div>
-    </div>
+                {children}
+              </div>
+            </div>
+          </div>,
+          body,
+        )}
+    </>
   );
 }

@@ -16,6 +16,21 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.10.3",
+    date: "2026-08-23",
+    title: "What the table remembers",
+    changes: [
+      "A log down the left of the board, opposite the dice: the last ten things this table has seen, newest at the top. Who rolled what, who was hurt or healed, what came out of whose pack — written as each of them happens, on every screen at once.",
+      "Using something no longer writes a line into your character's notes. It goes to the table's log instead, where the rest of the session already is and where everybody can read it.",
+      "The Dungeon Master can level the party from the board. Rest on a character's ring and an arrow rises out from under it, above and below; press one and the number rolls over — the old one out through the floor, the new one down through the ceiling. The log says who went to what, gold for a level gained and brown for one taken back.",
+      "Health has moved off the foot of the board and onto the party cards, under the name it belongs to. You see your own; a Dungeon Master sees the whole party's, one under each.",
+      "The bar is the button. Click it and the card opens underneath: an amount, then Damage or Heal, and it closes again behind the press. The pencil that used to sit beside it is gone.",
+      "A roll announces itself as it leaves the hand. The pill beside the roller's card comes out with the die already on it rather than waiting for the number, so the table knows whose throw is in the air — and a kept roll says one is happening without saying what it is.",
+      "The globe, the scroll and the pack share one panel now. It stands in the middle of the board whichever you press, the arrow slides across to the mark you chose, and the contents grow into one another instead of one box closing while another opens.",
+      "Leaving the table is the arrival run backwards: the marks step back behind the board, and the board shrinks away after them. Pressing the gold star to come in grows it past the page while the table opens behind it.",
+    ],
+  },
+  {
     version: "0.10.2",
     date: "2026-08-22",
     title: "What the party carries",

@@ -45,6 +45,7 @@ export default function DiceRail({ canKeepSecrets }) {
          and one that lights onto nothing. */
       onPointerEnter={warm}
       onFocusCapture={warm}
+      data-tuck="left"
       style={{ ...cast.style, ...railEntrance() }}
       className={`flex w-14 shrink-0 flex-col items-center gap-1 ${RAIL_CLASSES}`}
     >

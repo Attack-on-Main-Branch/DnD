@@ -22,6 +22,13 @@ const UNDEFINED_FUNCTION = "42883";
 const FOREIGN_KEY_VIOLATION = "23503";
 const INVALID_TEXT_REPRESENTATION = "22P02";
 
+/**
+ * Not a SQLSTATE: PostgREST's own code for a function it has no entry for. The
+ * call never reaches Postgres, which is why `42883` alone never fired for an
+ * unpushed migration. `data/activity.js` says the same about a missing TABLE.
+ */
+const FUNCTION_CACHE_MISS = "PGRST202";
+
 function classify(error) {
   if (error.code === UNIQUE_VIOLATION) {
     return "handle_taken";
@@ -44,7 +51,7 @@ function classify(error) {
 
   // A migration written but never pushed, which is what `npm run db:list` is
   // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION) {
+  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
     return "missing_function";
   }
 
@@ -183,6 +190,35 @@ export async function updateCharacterHealth(
   }
 
   return { data: { currentHp: data }, error: null };
+}
+
+/**
+ * The level, through a definer function for the same reason hit points go
+ * through one: RLS grants rows and never columns.
+ *
+ * The head of the table alone, unlike health — damage is called out by whoever
+ * runs the session, but a level is theirs to award. Everybody else gets null,
+ * which is what a deleted character gives too.
+ */
+export async function updateCharacterLevel(
+  supabase,
+  { id, level, campaignId },
+) {
+  const { data, error } = await supabase.rpc("set_character_level", {
+    target_character: id,
+    new_level: level,
+    target_campaign: campaignId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (data === null) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: { level: data }, error: null };
 }
 
 /** Newest first: the table shows the last thing written at the top. */

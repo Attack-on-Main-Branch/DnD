@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { diceCast, rollSentence } from "./dice-presentation";
+import { useActivityLog } from "./use-activity";
 import { useDiceRoll } from "./use-dice-roll";
 import { useTableRolls } from "./use-table-rolls";
 
@@ -40,6 +41,7 @@ const RESTING = {
   warm: () => {},
   board: { lit: false, secret: false },
   veiled: false,
+  flying: {},
   results: {},
   latest: null,
 };
@@ -91,8 +93,32 @@ export default function DiceTable({
 
   const { start, finish, announceVeil } = table;
 
+  const record = useActivityLog(campaignId);
+
   const onStart = useCallback((thrown) => start(mine, thrown), [mine, start]);
-  const onFinish = useCallback((entry) => finish(mine, entry), [finish, mine]);
+
+  /* The log is written from the chair that THREW, and only from there. Every
+     other board joins the same throw and reads the same number off its own
+     dice — see use-table-rolls.js — so filing it on landing would file one roll
+     six times.
+
+     `characterId` and not `mine`: the log is asked which SEAT this was, and the
+     head of the table has no character. A kept roll is written down as a kept
+     roll and the number stays on this screen; there is no branch in
+     `record_campaign_activity` that could store it. */
+  const onFinish = useCallback(
+    (entry) => {
+      finish(mine, entry);
+
+      record(
+        characterId,
+        entry.secret
+          ? { action: "secret_dice_roll", die: entry.die }
+          : { action: "dice_roll", die: entry.die, value: entry.value },
+      );
+    },
+    [characterId, finish, mine, record],
+  );
 
   const local = useDiceRoll({ onStart, onFinish });
 
@@ -127,6 +153,7 @@ export default function DiceTable({
         ...local,
         board: table.board,
         veiled: table.veiled,
+        flying: table.flying,
         results: table.results,
         latest: table.latest,
       }}

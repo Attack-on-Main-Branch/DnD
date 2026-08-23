@@ -96,7 +96,9 @@ export default function NavTransition({ className, children }) {
         startNavigating(() => router.push(href));
         leaving.current = false;
       },
-      closeOut(root, { leavingRoute }),
+      // The anchor, not the event's target: the star is a drawing inside one,
+      // and what leaves differently is the whole control.
+      closeOut(root, { leavingRoute, pressed: link }),
     );
   }
 

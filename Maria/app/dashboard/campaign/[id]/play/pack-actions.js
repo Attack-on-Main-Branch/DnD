@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { insertCharacterNote } from "sina/data/characters";
 import {
   grantInventoryItem,
   spendInventoryItem,
@@ -190,14 +189,12 @@ export async function adjustPackItem(campaignId, characterId, item, delta) {
 }
 
 /**
- * Something used up, and the line about it in the character's own notebook.
- *
- * The note is best-effort: an item that has been drunk has been drunk, and a
- * failed write to `character_notes` is not a reason to tell the player
- * otherwise.
+ * Something used up. No note: the notebook is written in by hand, and a line
+ * nobody chose to write is noise in the one place a player keeps their own
+ * account of the session.
  */
 export async function consumePackItem(campaignId, characterId, item, quantity) {
-  const spent = await spendPack(
+  return spendPack(
     "consumePackItem",
     campaignId,
     characterId,
@@ -205,26 +202,11 @@ export async function consumePackItem(campaignId, characterId, item, quantity) {
     quantity,
     "Could not use that.",
   );
-
-  if (spent.kind !== "success") {
-    return spent;
-  }
-
-  const { error } = await insertCharacterNote(spent.supabase, {
-    characterId,
-    body: `Used ${spent.item.name}${spent.count > 1 ? ` ×${spent.count}` : ""}`,
-  });
-
-  if (error) {
-    logFailure("consumePackItem/note", error);
-  }
-
-  return { kind: "success" };
 }
 
-/** Something thrown away. No note: what a party drops is not worth a line. */
+/** Something thrown away. */
 export async function dropPackItem(campaignId, characterId, item, quantity) {
-  const spent = await spendPack(
+  return spendPack(
     "dropPackItem",
     campaignId,
     characterId,
@@ -232,14 +214,9 @@ export async function dropPackItem(campaignId, characterId, item, quantity) {
     quantity,
     "Could not drop that.",
   );
-
-  return spent.kind === "success" ? { kind: "success" } : spent;
 }
 
-/**
- * What Use and Drop have in common, which is everything but the note. Not
- * exported: the client it hands back must not cross the Action boundary.
- */
+/** What Use and Drop have in common, which is now everything. */
 async function spendPack(
   action,
   campaignId,
@@ -271,7 +248,7 @@ async function spendPack(
   }
 
   revalidatePacks(campaignId, [characterId]);
-  return { kind: "success", supabase, item: values, count };
+  return { kind: "success" };
 }
 
 /**

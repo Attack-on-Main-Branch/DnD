@@ -91,10 +91,10 @@ export default async function CharacterPage({ params }) {
         ← Back to dashboard
       </Link>
 
-      <header
-        data-fade
-        className="float-in flex flex-wrap items-center justify-between gap-6"
-      >
+      {/* `data-fade` sits on the words rather than on the row: the star beside
+          them leaves on its own, and a fading ancestor would take it with it
+          however it was animating. */}
+      <header className="float-in flex flex-wrap items-center justify-between gap-6">
         {/*
           `min-w-0` here as well as on the column inside it. Truncation only
           happens if every flex item along the chain is allowed to shrink, and
@@ -102,7 +102,7 @@ export default async function CharacterPage({ params }) {
           its content width and the name runs off the right edge instead of
           ending in an ellipsis.
         */}
-        <div className="flex min-w-0 items-center gap-4">
+        <div data-fade className="flex min-w-0 items-center gap-4">
           <Avatar
             initials={characterInitials(character.name)}
             colorClass={avatarColorClass(character.color_theme)}

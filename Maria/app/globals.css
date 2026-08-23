@@ -49,6 +49,7 @@
   --gold-22: color-mix(in srgb, var(--color-gold) 22%, transparent);
   --gold-25: color-mix(in srgb, var(--color-gold) 25%, transparent);
   --gold-35: color-mix(in srgb, var(--color-gold) 35%, transparent);
+  --gold-40: color-mix(in srgb, var(--color-gold) 40%, transparent);
   --gold-55: color-mix(in srgb, var(--color-gold) 55%, transparent);
   --gold-60: color-mix(in srgb, var(--color-gold) 60%, transparent);
   --gold-70: color-mix(in srgb, var(--color-gold) 70%, transparent);
@@ -563,10 +564,19 @@ body {
       --hp-glow 500ms ease-in-out;
   }
 
-  /* Scaled off one inherited breath, so the two layers cannot drift apart. */
+  /*
+   * Scaled off one inherited breath, so the two layers cannot drift apart.
+   *
+   * The near aura is sized to the fill from an inline width, so it travels on
+   * the fill's own curve — without this it arrived at the new number in one
+   * frame and the light sat detached from the bar it is supposed to be coming
+   * off for the rest of the 700ms. The wide one has no width of its own to
+   * move; the declaration reaches it and finds nothing to do.
+   */
   .hp-aura {
     background: var(--hp-glow);
     opacity: calc(var(--hp-breath) * var(--hp-aura-strength, 1));
+    transition: width 700ms ease-out;
   }
 
   .hp-aura-wide {
@@ -624,6 +634,46 @@ body {
   .panel-in > *,
   .panel-content-in {
     animation: panel-content 200ms ease-out 470ms backwards;
+  }
+
+  /*
+   * The activity log, opening the way a panel does but on the table's own beat
+   * rather than the page's first paint — hence the offset arriving as a custom
+   * property from play/entrance.js instead of the fixed delays above. The
+   * closing half is panel-fold.js's `data-fold`, which is that unfold reversed.
+   */
+  .log-in {
+    animation:
+      panel-slit 150ms ease-out var(--enter-delay, 0ms) backwards,
+      panel-unfold 320ms var(--ease-tray) calc(var(--enter-delay, 0ms) + 150ms)
+        backwards;
+  }
+
+  /*
+   * A line arriving at the top of that log, in two halves on two elements: the
+   * row opens its own height so everything below it slides down rather than
+   * jumps, and the line inside glides in from off the panel's left edge.
+   *
+   * `0fr` to `1fr` and not a height, because a height cannot interpolate from
+   * `auto` and an entry is one line or two depending on the name in it — the
+   * same mechanism `.tray-fold` uses for the health stepper.
+   *
+   * `overflow: visible clip` is load-bearing. `clip` is the one value that may
+   * stand beside `visible` without promoting it to `auto`, so the row clips the
+   * unfold vertically while letting the line start outside its own left edge.
+   * With `hidden` the glide would have been clipped to this box and wiped in
+   * rather than travelled.
+   */
+  .log-entry-in {
+    display: grid;
+    grid-template-rows: 1fr;
+    overflow: visible clip;
+    animation: log-open 250ms var(--ease-glide) backwards;
+  }
+
+  .log-entry-in > * {
+    min-height: 0;
+    animation: log-glide 250ms var(--ease-glide) backwards;
   }
 
   /* The application bar dropping into place. It lives in the layout and so
@@ -973,6 +1023,79 @@ body {
   }
 }
 
+/* The dice rail, coming out from behind the map's right edge. Far enough to
+   start clear of the 1.5rem mat as well as the gap, so nothing is seen sitting
+   beside the picture before it sets off. */
+@keyframes rail-out {
+  from {
+    opacity: 0;
+    translate: -5rem 0;
+  }
+}
+
+/* A log entry making room for itself. The rows below it are pushed down by the
+   interpolation rather than by a reflow, which is what keeps them from jumping
+   the moment somebody else's roll lands. */
+@keyframes log-open {
+  from {
+    grid-template-rows: 0fr;
+  }
+}
+
+/* And the line itself, in from off the panel's left edge — the whole of its own
+   width, so it is clear of the glass before it sets off. */
+@keyframes log-glide {
+  from {
+    translate: -100% 0;
+  }
+}
+
+/*
+ * The level ring's elevator: one number leaves the way the other arrives. Four
+ * keyframes and not two — the direction decides which end each half travels
+ * through, and the pair have to agree or the numbers cross.
+ *
+ * Applied through `motion-safe:`, so reduced motion drops them entirely; the
+ * leaving digit carries `opacity-0` as a declaration for that case.
+ */
+@keyframes level-in-above {
+  from {
+    opacity: 0;
+    translate: 0 -100%;
+  }
+}
+
+@keyframes level-out-below {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  to {
+    opacity: 0;
+    translate: 0 100%;
+  }
+}
+
+@keyframes level-in-below {
+  from {
+    opacity: 0;
+    translate: 0 100%;
+  }
+}
+
+@keyframes level-out-above {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  to {
+    opacity: 0;
+    translate: 0 -100%;
+  }
+}
+
 /*
  * `inset` rather than a scale: the frame is a rim, and scaling one about its
  * centre thins the rim on the way out instead of pushing it away from the map.
@@ -1252,6 +1375,9 @@ body {
   .panel-in,
   .panel-in > *,
   .panel-content-in,
+  .log-in,
+  .log-entry-in,
+  .log-entry-in > *,
   .float-in,
   .bar-in,
   .mail-arriving,
@@ -1279,6 +1405,7 @@ body {
   }
 
   .glow-gold,
+  .hp-aura,
   .hp-bar,
   .hp-fill,
   .tab-shell,

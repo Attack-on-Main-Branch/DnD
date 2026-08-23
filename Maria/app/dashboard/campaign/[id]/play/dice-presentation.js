@@ -79,6 +79,9 @@ export function dieNotation(id) {
   return `1${id}`;
 }
 
+/** What the pill says while the die is still on its way to a number. */
+export const ROLLING_LABEL = "Rolling…";
+
 /**
  * What the banner and the ledger say. The wording is Maria's, as always: Sina
  * knows a die has twenty faces and nothing about how to announce one.

@@ -25,9 +25,8 @@ const CARDS_AT = FRAME_AT + FRAME_MS;
 /** One card behind the last, all the way down the column. */
 const CARD_STEP_MS = 100;
 
-/** What sits under the map rises as the party arrives, the scroll a beat later. */
-const HEALTH_AT = CARDS_AT;
-const NOTES_AT = HEALTH_AT + 160;
+/** The scroll of marks rises a beat after the party has finished arriving. */
+const NOTES_AT = CARDS_AT + 160;
 
 /** Asked for reduced motion, every beat becomes the app's plain opacity ramp. */
 const STILL = "motion-reduce:animate-[view-fade_200ms_ease-out]";
@@ -50,11 +49,16 @@ export const FRAME_CLASSES = `motion-safe:animate-[frame-bloom_0.22s_var(--ease-
 export const CARD_CLASSES = `motion-safe:animate-[glide-in-right_0.7s_var(--ease-glide)_var(--enter-delay)_backwards] ${STILL}`;
 
 /**
- * The dice rail beside the board. `map-rise` rather than `frame-bloom`, which
- * interpolates `inset` and so only moves something out of flow; on the frame's
- * beat, because the rail is the board's furniture rather than the party's.
+ * The dice rail beside the board, sliding out from behind the map's own edge.
+ * The marks above the board arrive on this beat and over this distance in time,
+ * and the two are the same furniture — the only difference is which way each
+ * comes from, since there is nothing above the marks to come out of.
+ *
+ * The map is a positioned box and the rail is not, so the picture and its mat
+ * paint over the rail for the whole of the journey and it genuinely emerges
+ * from under them.
  */
-export const RAIL_CLASSES = `motion-safe:animate-[map-rise_0.3s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
+export const RAIL_CLASSES = `motion-safe:animate-[rail-out_0.5s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
 
 export const MAP_DELAY = { "--enter-delay": `${MAP_AT}ms` };
 export const FRAME_DELAY = { "--enter-delay": `${FRAME_AT}ms` };
@@ -75,21 +79,29 @@ export function cardEntrance(index, count) {
 /** `float-up` is the dashboard's heading entrance: 50px of travel and a fade. */
 const UNDER_MAP = `motion-safe:animate-[float-up_0.5s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
 
-export const HEALTH_CLASSES = UNDER_MAP;
 export const NOTES_CLASSES = UNDER_MAP;
 
-/**
- * Both leave the way they came: `data-slide="down"` at the call site sends them
- * back below the fold, which panel-fold.js plays on the way out.
- */
-export function healthEntrance() {
-  return { "--enter-delay": `${HEALTH_AT}ms` };
-}
-
+/** It leaves the way it came — `data-tuck="down"` at the call site. */
 export function notesEntrance() {
   return { "--enter-delay": `${NOTES_AT}ms` };
 }
 
 export function railEntrance() {
-  return { "--enter-delay": `${FRAME_AT}ms` };
+  return { "--enter-delay": `${NOTES_AT}ms` };
+}
+
+/**
+ * The activity log, opposite the party rail and arriving on the rail's beat —
+ * the two straddle the board and should not land one after the other.
+ *
+ * `.log-in` in globals.css rather than a `motion-safe:animate-[…]` like the
+ * rest of this file: it is two animations whose delays are the same offset
+ * `calc()`ed apart, and an arbitrary utility carrying a `calc()` is a class
+ * Tailwind's scanner cannot read. Reduced motion is answered where `.panel-in`
+ * answers it, in the same block of globals.css.
+ */
+export const LOG_CLASSES = "log-in";
+
+export function logEntrance() {
+  return { "--enter-delay": `${NOTES_AT}ms` };
 }

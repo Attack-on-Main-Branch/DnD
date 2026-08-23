@@ -84,11 +84,11 @@ export default async function CampaignPage({ params }) {
         ← Back to dashboard
       </Link>
 
-      <header
-        data-fade
-        className="float-in flex flex-wrap items-center justify-between gap-6"
-      >
-        <div className="min-w-0">
+      {/* `data-fade` sits on the words rather than on the row: the star beside
+          them leaves on its own, and a fading ancestor would take it with it
+          however it was animating. */}
+      <header className="float-in flex flex-wrap items-center justify-between gap-6">
+        <div data-fade className="min-w-0">
           <h1 className="truncate font-display text-3xl font-semibold tracking-wide text-ink">
             {campaign.title}
           </h1>

@@ -5,18 +5,49 @@ import { useState } from "react";
 import { controlClasses } from "./field-styles";
 
 /**
- * The two halves of a stepper, lifted out of play/health-strip.jsx — which is
- * where these classes were written and which still uses them, so the pack's
- * steppers and the hit-point one cannot drift apart.
+ * The two halves of a stepper. These classes were written for the health band
+ * that used to run across the foot of the board; that band is gone and its bars
+ * are inside the party cards now, but play/card-health.jsx still presses the
+ * same two buttons — so the pack's steppers and the hit-point ones cannot drift
+ * apart.
  */
-export function StepButton({ onClick, disabled, label, children }) {
+/**
+ * What the hover says. `danger` is the red the Retire button on a character card
+ * wears, and it is here for the same reason: a warning at the moment it is one.
+ *
+ * Literal strings — a class built from a template is one the scanner never sees.
+ */
+const TONES = {
+  gold: "hover:border-gold/45 hover:text-gold",
+  danger: "hover:border-red-500 hover:text-red-500",
+};
+
+export function StepButton({
+  onClick,
+  disabled,
+  label,
+  wide = false,
+  tone = "gold",
+  children,
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border border-gold/20 bg-surface/30 text-lg leading-none text-ink/70 transition-colors duration-300 hover:border-gold/45 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+      /* `wide` carries a word rather than a sign, so it takes its width from
+         the text. Both halves written out for the scanner's sake. */
+      className={
+        `grid shrink-0 cursor-pointer place-items-center rounded-lg border ` +
+        `border-gold/20 bg-surface/30 leading-none text-ink/70 ` +
+        `transition-colors duration-300 ` +
+        `${TONES[tone] ?? TONES.gold} ` +
+        `disabled:cursor-not-allowed disabled:opacity-40 ` +
+        (wide
+          ? "h-9 px-3 font-display text-xs font-semibold tracking-wide"
+          : "size-9 text-lg")
+      }
     >
       {children}
     </button>

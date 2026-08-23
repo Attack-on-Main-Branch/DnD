@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { readActivityLog } from "sina/rules/activity";
 import { classLabel } from "sina/rules/character";
 
 import {
@@ -7,10 +8,10 @@ import {
 } from "@/app/dashboard/character-presentation";
 import { campaignSheetPath, characterSheetPath } from "@/lib/routes";
 
+import ActivityLog from "./activity-log";
 import DiceBoard from "./dice-board";
 import DiceRail from "./dice-rail";
 import DiceTable from "./dice-table";
-import HealthStrip from "./health-strip";
 import { loadTable } from "./load-table";
 import LeaveTable from "./leave-table";
 import MapStage from "./map-stage";
@@ -18,6 +19,7 @@ import { NOTES_CLASSES, notesEntrance } from "./entrance";
 import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
 import PartyRail from "./party-rail";
+import TableMarks from "./table-marks";
 import TableWire from "./table-wire";
 import TableTitle from "./table-title";
 import WorldLore from "./world-lore";
@@ -121,6 +123,11 @@ export default async function CampaignTablePage({ params, searchParams }) {
     ...members.map((member) => markFace(member.id, members)),
   ].filter(Boolean);
 
+  /* Read here rather than in the browser: the payload is jsonb, and putting it
+     through the rules layer on the server is what keeps a row written by an
+     older migration from reaching the panel as "undefined × undefined". */
+  const activity = readActivityLog(loaded.activity);
+
   // Resolved on the server: `classLabel` reaches through the whole ARCHETYPES
   // catalogue, and the rail only ever prints one word of it.
   const roster = members.map((member) => ({
@@ -143,7 +150,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
     : campaignSheetPath(campaign.id);
 
   return (
-    <main className="grid flex-1 grid-rows-[auto_auto_auto_1fr] gap-4 overflow-clip px-4 py-6 sm:px-6">
+    <main className="grid flex-1 grid-rows-[auto_auto_1fr] gap-4 overflow-clip px-4 py-6 sm:px-6">
       {/* One socket for everything this table tells itself: who is sitting
           down, a bar moved, a token put down. Outside the dice provider and the
           grid both, because the way out and the health band are neither. */}
@@ -174,17 +181,18 @@ export default async function CampaignTablePage({ params, searchParams }) {
         `pb-6` on top of the row gap, because the map's glass mat stands 1.5rem
         proud of the picture — less and the frame sits over the scroll.
 
-        The arrival and departure ride here rather than inside either control:
-        both are TablePopover, and a shared shell has no business knowing where
-        on a page it was put.
+        The arrival and departure ride here rather than inside any of the three:
+        all are TablePopover, and a shared shell has no business knowing where
+        on a page it was put. `data-tuck` is the departure — behind the board
+        rather than off the page, which is where they came from.
       */}
         <div
-          className={`flex justify-center gap-3 ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
+          className={`flex justify-center ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
           style={notesEntrance()}
-          data-slide="down"
+          data-tuck="down"
         >
           {seat && (
-            <>
+            <TableMarks>
               <WorldLore
                 title={campaign.title}
                 lore={campaign.world_description}
@@ -199,7 +207,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 rows={inventory}
                 isDungeonMaster={isDungeonMaster}
               />
-            </>
+            </TableMarks>
           )}
         </div>
 
@@ -220,8 +228,24 @@ export default async function CampaignTablePage({ params, searchParams }) {
           characterId={seat?.characterId ?? null}
           canKeepSecrets={isDungeonMaster}
         >
-          <div className="grid items-center justify-items-center gap-6 lg:grid-cols-[20rem_minmax(0,1fr)_20rem] lg:gap-8">
-            <div aria-hidden="true" className="hidden lg:block" />
+          {/* `content-start` is load-bearing: this row is the grid's `1fr`, so
+            it takes every pixel the rows above do not, and a track with nothing
+            told to it stretches — which centred the board, the log and the rail
+            in that leftover instead of putting them under the marks. The health
+            band used to spend it, so the bug had nowhere to show.
+
+            `items-center` beside it is what makes the three columns straddle. */}
+          <div className="grid content-start items-center justify-items-center gap-6 lg:grid-cols-[20rem_minmax(0,1fr)_20rem] lg:gap-8">
+            {/* The column that used to be empty. It was there to balance the
+                party rail so the board stayed on the viewport's centre line,
+                and the log is what it now holds — the same width, so the board
+                has not moved. Only for somebody with a chair: a viewer with no
+                seat reads nothing else at this table either. */}
+            {seat ? (
+              <ActivityLog campaignId={campaign.id} entries={activity} />
+            ) : (
+              <div aria-hidden="true" className="hidden lg:block" />
+            )}
 
             {/* The dice stand immediately to the right of the board, and the
               empty box on the left is what keeps the board itself on the
@@ -233,10 +257,9 @@ export default async function CampaignTablePage({ params, searchParams }) {
               stands 1.5rem proud of the picture on every side, so the gap has
               to clear that before it is a gap at all. At 2.5rem the marks sit
               1rem off the frame; at anything under 1.5rem they sit on it. */}
-            <div
-              data-fade
-              className="flex w-full min-w-0 items-center justify-center gap-10"
-            >
+            {/* No `data-fade` on the row: the board and the rail beside it
+              leave on their own beats — see panel-fold.js. */}
+            <div className="flex w-full min-w-0 items-center justify-center gap-10">
               {seat && <div aria-hidden="true" className="w-14 shrink-0" />}
 
               <MapStage
@@ -260,28 +283,15 @@ export default async function CampaignTablePage({ params, searchParams }) {
 
             {/* Not `data-fade`: the cards carry `data-slide` instead and leave
               the way they arrived. See play/entrance.js. */}
-            <PartyRail campaignId={campaign.id} members={roster} />
+            {/* The seat, not the deed, decides who may award a level. */}
+            <PartyRail
+              campaignId={campaign.id}
+              members={roster}
+              isDungeonMaster={isDungeonMaster}
+              seatCharacterId={seat?.characterId ?? null}
+            />
           </div>
         </DiceTable>
-
-        {/*
-        The health band, outside the grid and the full width of the page: inside
-        the map's column it was pinned to the board's width and the bars came
-        out unreadably small.
-
-        It hangs from the top of its row on a fixed padding rather than sitting
-        in the middle of one, so the board and the first bar are the same
-        distance apart on every screen and unfolding an editor cannot change it.
-        The room the stepper needs is set aside in map-height.js instead.
-      */}
-        <div className="flex min-h-0 items-start pt-10">
-          <HealthStrip
-            campaignId={campaign.id}
-            members={members}
-            isDungeonMaster={isDungeonMaster}
-            seatCharacterId={seat?.characterId ?? null}
-          />
-        </div>
       </TableWire>
     </main>
   );

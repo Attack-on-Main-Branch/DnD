@@ -39,6 +39,7 @@ export default function MapStage({
   if (!url) {
     return (
       <div
+        data-shrink
         className={`grid ${MAP_HEIGHT_CLASS} w-full max-w-xl place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${MAP_CLASSES}`}
         style={MAP_DELAY}
       >
@@ -50,7 +51,9 @@ export default function MapStage({
   }
 
   return (
-    <div className="relative w-fit">
+    /* `data-shrink` takes the mat, the marks and the dice board with it, which
+       is the whole reason the frame is a child here rather than a sibling. */
+    <div data-shrink className="relative w-fit">
       {/* No `glow`: the rim would light under the pointer, which promises a
           control where there is only a picture. */}
       <span

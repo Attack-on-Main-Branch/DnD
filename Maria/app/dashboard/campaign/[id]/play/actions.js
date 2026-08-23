@@ -9,10 +9,12 @@ import {
 import {
   insertCharacterNote,
   updateCharacterHealth,
+  updateCharacterLevel,
 } from "sina/data/characters";
 import { parseMarkPoint } from "sina/rules/campaign";
 import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
 import { parseHitPoints } from "sina/rules/health";
+import { parseLevel } from "sina/rules/level";
 
 import { logFailure, logUncovered } from "@/lib/errors";
 import { campaignTablePath, characterSheetPath } from "@/lib/routes";
@@ -92,6 +94,52 @@ export async function setCharacterHealth(campaignId, characterId, value) {
 
   revalidateBoth(campaignId, characterId);
   return { kind: "success", hitPoints };
+}
+
+/** A level is awarded, so a refusal is "not yours to give", not "that is gone". */
+const LEVEL_COPY = {
+  not_found: "That level is not yours to award.",
+  invalid_value: "That is outside what a character sheet can hold.",
+  missing_function: "That part of the app is not ready yet.",
+  missing_table: "That part of the app is not ready yet.",
+  bad_id: "That character is no longer at this table.",
+};
+
+/**
+ * One step of the ring on a party card. Bounded here for speed and by
+ * `set_character_level` for real, which answers anybody who is not this
+ * campaign's Dungeon Master with null.
+ */
+export async function setCharacterLevel(campaignId, characterId, value) {
+  const level = parseLevel(value);
+
+  if (level === null) {
+    return rejected("A level has to be a number.");
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("setCharacterLevel", authError);
+  }
+
+  const { data, error } = await updateCharacterLevel(supabase, {
+    id: characterId,
+    level,
+    campaignId,
+  });
+
+  if (error) {
+    const copy = LEVEL_COPY[error.reason];
+
+    logUncovered("setCharacterLevel", error, copy);
+    return rejected(copy ?? "Could not set that. Try again.");
+  }
+
+  // The sheet prints it too.
+  revalidateBoth(campaignId, characterId);
+  return { kind: "success", level: data.level };
 }
 
 /**

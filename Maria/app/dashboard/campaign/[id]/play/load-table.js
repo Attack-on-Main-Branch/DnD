@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { listCampaignActivity } from "sina/data/activity";
 import {
   getCampaignTable,
   listCampaignMarks,
@@ -7,6 +8,7 @@ import {
 } from "sina/data/campaigns";
 import { listCharacterNotes } from "sina/data/characters";
 import { listPartyInventory } from "sina/data/inventory";
+import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 
 import { logFailure } from "@/lib/errors";
 import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
@@ -51,6 +53,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       members: [],
       marks: [],
       inventory: [],
+      activity: [],
       seat: null,
       error: realFailure,
     };
@@ -60,9 +63,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
      Not only the first paint: every doorbell here is answered by re-rendering
      the whole route. The seat still waits for the party, being chosen out of
      it. */
-  const [party, tokens] = await Promise.all([
+  const [party, tokens, log] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignMarks(supabase, id),
+    listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
   ]);
 
   if (party.error) {
@@ -71,6 +75,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
 
   if (tokens.error) {
     logFailure("listCampaignMarks", tokens.error);
+  }
+
+  if (log.error) {
+    logFailure("listCampaignActivity", log.error);
   }
 
   const members = party.error ? [] : party.data;
@@ -97,6 +105,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     members,
     marks: tokens.error ? [] : tokens.data,
     inventory: packs.error ? [] : packs.data,
+    activity: log.error ? [] : log.data,
     seat,
     error: null,
   };

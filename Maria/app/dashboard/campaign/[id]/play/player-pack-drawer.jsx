@@ -13,6 +13,7 @@ import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 
 import { consumePackItem, dropPackItem, handPackItem } from "./pack-actions";
 import { POPOVER_BODY_CLASSES } from "./table-popover";
+import { useActivityLog } from "./use-activity";
 
 /**
  * A player's own pack, and the three things that can happen to what is in it.
@@ -76,6 +77,8 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
   const [error, setError] = useState(null);
   const [isPending, startTransition] = useTransition();
 
+  const record = useActivityLog(campaignId);
+
   const item = rowItem(row);
 
   /* Clamped on the way out rather than on the way in: somebody else spending
@@ -87,7 +90,9 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
     setAsking((open) => (open === question ? null : question));
   }
 
-  function run(work, whoElse) {
+  /* `entry` is what the table is told happened, written down only once the
+     server has taken the deed it describes. */
+  function run(work, entry, whoElse) {
     setError(null);
 
     startTransition(async () => {
@@ -105,6 +110,8 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
       if (whoElse) {
         onWritten(whoElse);
       }
+
+      record(characterId, entry);
     });
   }
 
@@ -161,7 +168,14 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
 
             <Action
               onClick={() =>
-                run(() => consumePackItem(campaignId, characterId, item, count))
+                run(
+                  () => consumePackItem(campaignId, characterId, item, count),
+                  {
+                    action: "item_used",
+                    itemName: item.name,
+                    quantity: count,
+                  },
+                )
               }
               disabled={isPending}
               tone="gold"
@@ -180,7 +194,11 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
 
             <Action
               onClick={() =>
-                run(() => dropPackItem(campaignId, characterId, item, count))
+                run(() => dropPackItem(campaignId, characterId, item, count), {
+                  action: "item_dropped",
+                  itemName: item.name,
+                  quantity: count,
+                })
               }
               disabled={isPending}
               tone="danger"
@@ -237,6 +255,12 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
                         item,
                         count,
                       ),
+                    {
+                      action: "item_transferred",
+                      itemName: item.name,
+                      quantity: count,
+                      targetCharacterId: receiver,
+                    },
                     receiver,
                   )
                 }
