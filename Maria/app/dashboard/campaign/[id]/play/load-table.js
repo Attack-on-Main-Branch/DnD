@@ -7,6 +7,7 @@ import {
   listPartyMembers,
 } from "sina/data/campaigns";
 import { listCharacterNotes } from "sina/data/characters";
+import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 
@@ -53,6 +54,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       members: [],
       marks: [],
       inventory: [],
+      purses: [],
       activity: [],
       seat: null,
       error: realFailure,
@@ -63,14 +65,22 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
      Not only the first paint: every doorbell here is answered by re-rendering
      the whole route. The seat still waits for the party, being chosen out of
      it. */
-  const [party, tokens, log] = await Promise.all([
+  const [party, tokens, log, purses] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignMarks(supabase, id),
     listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
+    /* Beside the party rather than after it: `campaign_purses` is asked about
+       the campaign, and it decides for itself whose purses the caller may
+       read — the whole party's for a Dungeon Master, their own for a player. */
+    listPartyPurses(supabase, id),
   ]);
 
   if (party.error) {
     logFailure("listPartyMembers", party.error);
+  }
+
+  if (purses.error) {
+    logFailure("listPartyPurses", purses.error);
   }
 
   if (tokens.error) {
@@ -105,6 +115,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     members,
     marks: tokens.error ? [] : tokens.data,
     inventory: packs.error ? [] : packs.data,
+    purses: purses.error ? [] : purses.data,
     activity: log.error ? [] : log.data,
     seat,
     error: null,

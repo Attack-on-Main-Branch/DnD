@@ -16,6 +16,24 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.10.4",
+    date: "2026-08-24",
+    title: "Coin on the table",
+    changes: [
+      "Every character has a purse now, and it sits above the pack: copper, silver, electrum, gold and platinum, each in a capsule the colour of its own metal, so you find the gold before you have read a word.",
+      "A player sees exactly what they are carrying. Press a coin and it opens underneath — say how much, then use it or hand it to somebody across the table. It is the same question the pack already asks, with the same answer on the right of it.",
+      "The Dungeon Master types into the capsules instead. The number resting in each one is what that purse holds; type over it and that is what will move, then Grant or Take. Pick a name to aim at one character, or leave it on the whole party and pay everybody at once.",
+      "Paying the party is one movement, not six. Either every purse at the table is credited or none is, so a hoard divided at the table cannot half-arrive.",
+      "Taking more than somebody has takes what they have. Ask for 9999 gold from a purse holding three and it takes the three — and the log says three, because that is what happened.",
+      "Coins move on every screen as they are moved. Hand fifty gold across the table and it leaves your purse and arrives in theirs in front of everybody, with nobody reloading anything.",
+      "The log reads money by its colour. Coin arriving is the pale blue of a hand-over, coin crossing the table is a deeper blue, and coin that is gone — spent, or taken back by the Dungeon Master — is darker still.",
+      "The amount box on a character card asks for HP rather than showing a 10, which read as a number already typed there.",
+    ],
+    fixes: [
+      "Spending, giving, granting and taking now wait for the table to be told before they can be pressed again — the same way awarding a level already does. A quick second press could otherwise land before the first was written down, and one of them would go missing from a log that only keeps ten.",
+    ],
+  },
+  {
     version: "0.10.3",
     date: "2026-08-23",
     title: "What the table remembers",

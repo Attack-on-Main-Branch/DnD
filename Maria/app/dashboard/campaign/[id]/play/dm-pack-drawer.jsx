@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { readPurse } from "sina/rules/currency";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
 
 import Avatar from "@/app/components/ui/avatar";
@@ -10,9 +11,11 @@ import {
   avatarColorClass,
   characterInitials,
 } from "@/app/dashboard/character-presentation";
+import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 import PackItemCard from "@/app/dashboard/pack-item-card";
 
+import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
 import { POPOVER_BODY_CLASSES } from "./table-popover";
@@ -26,6 +29,11 @@ import { useActivityLog } from "./use-activity";
  * packs at once is more than this panel can show — so choosing it puts the
  * inspection grid away and leaves the giving.
  *
+ * The purse is aimed by the same pill and is otherwise the SAME control either
+ * way — see dm-purse.jsx. With a name chosen it stands over that character's
+ * pack, where their balances are; with "all party" it stands alone at the top,
+ * because there is no single set of balances to show and nothing to stand over.
+ *
  * Nothing is invented here: homebrew is written down on the campaign page and
  * found from the search below, beside the SRD's own.
  */
@@ -36,7 +44,9 @@ export default function DmPackDrawer({
   campaignId,
   members,
   packs,
+  purses,
   onWritten,
+  onCoinsWritten,
 }) {
   const [target, setTarget] = useState(EVERYONE);
   const [error, setError] = useState(null);
@@ -49,6 +59,12 @@ export default function DmPackDrawer({
   const targets = selected ? [selected.id] : members.map((member) => member.id);
 
   const pack = selected ? (packs.get(selected.id) ?? []) : [];
+
+  /* An empty purse for a character `campaign_purses` returned no row for, which
+     at this seat means the party changed under an open panel. Null for "all
+     party": there is no one balance, so the capsules have nothing to hold up as
+     a placeholder and show a plain zero. */
+  const purse = selected ? readPurse(purses.get(selected.id)) : null;
 
   function answer(result, said) {
     if (result?.kind === "rejected") {
@@ -142,6 +158,29 @@ export default function DmPackDrawer({
         </p>
       ) : (
         <>
+          {/* Above the search rather than beside it: paying the party is one
+              press and finding an item is a paragraph of typing, so the shorter
+              deed goes first. Only while "all party" is the target — a single
+              character's coins live over their own pack, below. */}
+          {!selected && (
+            <section
+              aria-label="The party’s coin"
+              className={`mt-5 ${COIN_PANEL_CLASSES}`}
+            >
+              <h3 className="mb-3 font-display text-xs font-semibold tracking-[0.16em] text-ink/60 uppercase">
+                The party’s coin
+              </h3>
+
+              <DmPurse
+                campaignId={campaignId}
+                character={null}
+                members={members}
+                purse={null}
+                onWritten={onCoinsWritten}
+              />
+            </section>
+          )}
+
           {/* Search first: handing something out is why this drawer is
               open, and a full pack pushed the field off the panel. */}
           <div className="mt-5">
@@ -166,6 +205,24 @@ export default function DmPackDrawer({
                 <h3 className="font-display text-xs font-semibold tracking-[0.16em] text-ink/60 uppercase">
                   Carrying
                 </h3>
+
+                {/* Above the grid, because coins are what a party checks first
+                    and because a full pack would otherwise push them off the
+                    panel. */}
+                {/* A `section` and not a `div`: `aria-label` names an element
+                    that has a role to be named, and a bare div has none. */}
+                <section
+                  aria-label={`${selected.name}’s purse`}
+                  className={`mt-3 ${COIN_PANEL_CLASSES}`}
+                >
+                  <DmPurse
+                    campaignId={campaignId}
+                    character={selected}
+                    members={members}
+                    purse={purse}
+                    onWritten={onCoinsWritten}
+                  />
+                </section>
 
                 {pack.length === 0 ? (
                   <p className="mt-3 text-center text-sm text-ink/50 italic">

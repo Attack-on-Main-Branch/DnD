@@ -27,6 +27,7 @@ export function StepButton({
   disabled,
   label,
   wide = false,
+  pill = false,
   tone = "gold",
   children,
 }) {
@@ -37,9 +38,12 @@ export function StepButton({
       disabled={disabled}
       aria-label={label}
       /* `wide` carries a word rather than a sign, so it takes its width from
-         the text. Both halves written out for the scanner's sake. */
+         the text; `pill` rounds it all the way, for the purse's Take and Grant,
+         which stand among capsules and would be the only square thing there.
+         Every half is written out for the scanner's sake. */
       className={
-        `grid shrink-0 cursor-pointer place-items-center rounded-lg border ` +
+        `grid shrink-0 cursor-pointer place-items-center border ` +
+        `${pill ? "rounded-full" : "rounded-lg"} ` +
         `border-gold/20 bg-surface/30 leading-none text-ink/70 ` +
         `transition-colors duration-300 ` +
         `${TONES[tone] ?? TONES.gold} ` +

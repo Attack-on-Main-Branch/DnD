@@ -101,7 +101,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
     notFound();
   }
 
-  const { campaign, members, seat, inventory } = loaded;
+  const { campaign, members, seat, inventory, purses } = loaded;
 
   // The seat, not the deed: owning this campaign offers the chair, sitting in
   // it is what makes the party's health and the whole board yours.
@@ -205,6 +205,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 seat={{ characterId: seat.characterId, title: seat.title }}
                 members={carriers}
                 rows={inventory}
+                purses={purses}
                 isDungeonMaster={isDungeonMaster}
               />
             </TableMarks>

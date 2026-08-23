@@ -98,6 +98,30 @@
    */
   --color-arcane: #a78bfa;
 
+  /*
+   * The four coins gold is not. A purse is read at a glance — "have we enough
+   * silver" — and five capsules in one row are told apart by their metal
+   * before any of them is read, so these carry meaning and are not decoration.
+   *
+   * `--color-gold` above is the fifth, unchanged: the app's own gold IS the
+   * gold piece, and a second one beside it would be two golds.
+   *
+   * Copper is lifted off its true metal (#b87333 → 6.85:1 against
+   * `--color-surface`, from 5.15:1) because it is the darkest of the five and
+   * carries the smallest text in the row; the rest are near their real values
+   * and clear 10:1 without help. All five are measured against the surface, not
+   * against the capsule's own 12% tint, which sits under the text rather than
+   * behind it.
+   *
+   * Silver and platinum are separated by TEMPERATURE rather than by lightness —
+   * a cool grey against a blue-white — because at this size a lightness
+   * difference alone read as one colour printed twice.
+   */
+  --color-copper: #d2884f;
+  --color-silver: #b8c0c8;
+  --color-electrum: #e8dc8a;
+  --color-platinum: #e6edf3;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-cinzel);
@@ -517,6 +541,47 @@ body {
   .no-spin::-webkit-outer-spin-button,
   .no-spin::-webkit-inner-spin-button {
     appearance: none;
+    margin: 0;
+  }
+
+  /*
+   * A field with NO BOX -- the purse's capsules, where the only thing that may
+   * appear is the caret.
+   *
+   * `background-color: transparent` is not enough on its own and that is the
+   * whole reason this rule exists. A form control still carrying a native
+   * `appearance` is painted by the platform theme on some builds, which draws
+   * the field's own fill and inset edge and ignores what the author asked for;
+   * `color-scheme: dark` on the root is what picks the near-black version of
+   * it. So the control is stripped of its nativeness (`appearance: none`), of
+   * every paintable surface, AND opted out of the dark form palette, rather
+   * than being asked politely for a transparent background.
+   *
+   * `color-scheme: normal` here does not lighten anything visible: it governs
+   * UA-painted chrome, and every colour on this input is inherited from the
+   * capsule around it. The caret is named explicitly for the same reason --
+   * left alone it follows the UA's scheme rather than the metal.
+   */
+  .bare-input {
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+    background-color: transparent;
+    background-image: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+    padding: 0;
+    color-scheme: normal;
+    caret-color: currentColor;
+  }
+
+  .bare-input::-webkit-outer-spin-button,
+  .bare-input::-webkit-inner-spin-button,
+  .bare-input::-webkit-textfield-decoration-container {
+    appearance: none;
+    display: none;
     margin: 0;
   }
 

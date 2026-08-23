@@ -1,3 +1,5 @@
+import { coinName } from "@/app/dashboard/currency-presentation";
+
 import DieGlyph from "./dice-glyphs";
 
 /**
@@ -33,6 +35,22 @@ const ACCENTS = {
   item_transferred: "border-l-sky-400",
   item_granted: "border-l-sky-400",
   item_revoked: "border-l-zinc-500",
+
+  /*
+   * The purse has a ramp of its own rather than borrowing the pack's, and it
+   * runs one way: the darker the blue, the further the coin is from you.
+   *
+   *   light — it arrived, and the table is richer for it
+   *   mid   — it moved across the table, from one of us to another
+   *   dark  — it is gone: spent on something, or taken back by the table
+   *
+   * So a player can read their own history down the stripe without reading a
+   * word of it, which is what a colour in this panel is for.
+   */
+  coin_granted: "border-l-sky-400",
+  coin_transferred: "border-l-blue-500",
+  coin_spent: "border-l-blue-800",
+  coin_revoked: "border-l-blue-800",
 };
 
 /**
@@ -65,6 +83,14 @@ const ITEM_PHRASES = {
   item_transferred: { verb: "transferred", into: "to" },
   item_granted: { verb: "granted", into: "to" },
   item_revoked: { verb: "took", into: "from" },
+};
+
+/** The same four shapes for a purse. "Spent" rather than "used" is the coin. */
+const COIN_PHRASES = {
+  coin_spent: { verb: "spent", into: null },
+  coin_transferred: { verb: "transferred", into: "to" },
+  coin_granted: { verb: "granted", into: "to" },
+  coin_revoked: { verb: "took", into: "from" },
 };
 
 /** A name other than the actor's: the same secondary gold the actor wears. */
@@ -119,6 +145,20 @@ function Stack({ quantity, item }) {
   return (
     <span className={EMPHASIS_CLASSES}>
       <span className="tabular-nums">{quantity}×</span> {item}
+    </span>
+  );
+}
+
+/**
+ * The coins that moved: "120 Gold". The metal's full name, exactly as the
+ * capsules in the drawer carry it — nobody at a table says "see pea", and a
+ * screen reader saying it was the reason this panel used to need an `sr-only`
+ * twin beside the abbreviation.
+ */
+function Coins({ amount, coin }) {
+  return (
+    <span className={EMPHASIS_CLASSES}>
+      <span className="tabular-nums">{amount}</span> {coinName(coin)}
     </span>
   );
 }
@@ -197,17 +237,39 @@ function Body({ entry }) {
     );
   }
 
+  /* The purse and the pack say the same four things in the same order, so the
+     only difference between the two branches is what moved. */
+  if (COIN_PHRASES[entry.action]) {
+    const { verb, into } = COIN_PHRASES[entry.action];
+
+    return (
+      <>
+        {verb} <Coins amount={entry.amount} coin={entry.coin} />
+        <Addressed into={into} target={entry.target} />
+      </>
+    );
+  }
+
   const { verb, into } = ITEM_PHRASES[entry.action] ?? {};
 
   return (
     <>
       {verb} <Stack quantity={entry.quantity} item={entry.item} />
-      {into && entry.target ? (
-        <>
-          {" "}
-          {into} <span className={NAME_CLASSES}>{entry.target}</span>
-        </>
-      ) : null}
+      <Addressed into={into} target={entry.target} />
+    </>
+  );
+}
+
+/** "…to Fern", "…from Fern", or nothing at all for the two that name nobody. */
+function Addressed({ into, target }) {
+  if (!into || !target) {
+    return null;
+  }
+
+  return (
+    <>
+      {" "}
+      {into} <span className={NAME_CLASSES}>{target}</span>
     </>
   );
 }

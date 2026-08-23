@@ -14,6 +14,7 @@
  * 20260823090000_campaign_activity_log.sql. Changing one means changing both.
  */
 
+import { isCoin, MAX_COINS } from "./currency.js";
 import { dieSides, isDie } from "./dice.js";
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
 
@@ -28,6 +29,10 @@ export const ACTION_TYPES = [
   "item_transferred",
   "item_granted",
   "item_revoked",
+  "coin_spent",
+  "coin_transferred",
+  "coin_granted",
+  "coin_revoked",
 ];
 
 /** Mirrors the `actor_type` CHECK. */
@@ -52,8 +57,23 @@ const ITEM_ACTIONS = new Set([
   "item_revoked",
 ]);
 
+/** And everything it counts as a purse moving. */
+const COIN_ACTIONS = new Set([
+  "coin_spent",
+  "coin_transferred",
+  "coin_granted",
+  "coin_revoked",
+]);
+
 /** The ones with somebody at the other end, who must be named. */
-const ADDRESSED = new Set(["item_transferred", "item_granted", "item_revoked"]);
+const ADDRESSED = new Set([
+  "item_transferred",
+  "item_granted",
+  "item_revoked",
+  "coin_transferred",
+  "coin_granted",
+  "coin_revoked",
+]);
 
 function text(value) {
   const trimmed = String(value ?? "").trim();
@@ -145,6 +165,30 @@ export function readActivity(row) {
     return delta === null || delta === 0
       ? null
       : { ...entry, delta, target: text(payload.targetName) };
+  }
+
+  /**
+   * A denomination and an amount. `coin_spent` names nobody, for the reason a
+   * hit point somebody took off their own bar names nobody: "Frieren spent 12
+   * GP" is one event, and the database writes no `targetName` key at all in
+   * that branch.
+   */
+  if (COIN_ACTIONS.has(action)) {
+    const coin = payload.coin;
+    const amount = whole(payload.amount);
+    const target = ADDRESSED.has(action) ? text(payload.targetName) : null;
+
+    if (
+      !isCoin(coin) ||
+      amount === null ||
+      amount < 1 ||
+      amount > MAX_COINS ||
+      (ADDRESSED.has(action) && !target)
+    ) {
+      return null;
+    }
+
+    return { ...entry, coin, amount, target };
   }
 
   if (!ITEM_ACTIONS.has(action)) {

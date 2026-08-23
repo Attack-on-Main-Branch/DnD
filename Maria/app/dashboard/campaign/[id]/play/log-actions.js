@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { recordCampaignActivity } from "sina/data/activity";
 import { ACTION_TYPES } from "sina/rules/activity";
+import { isCoin, parseCoins } from "sina/rules/currency";
 import { isDie, readDieResult } from "sina/rules/dice";
 import { MAX_HP } from "sina/rules/health";
 import { MAX_LEVEL, MIN_LEVEL } from "sina/rules/level";
@@ -35,6 +36,13 @@ const ITEM_ACTIONS = new Set([
   "item_transferred",
   "item_granted",
   "item_revoked",
+]);
+
+const COIN_ACTIONS = new Set([
+  "coin_spent",
+  "coin_transferred",
+  "coin_granted",
+  "coin_revoked",
 ]);
 
 /** Null for anything that is not the shape its action calls for. */
@@ -87,6 +95,27 @@ function readEntry(entry) {
       entry.targetCharacterId
       ? { level, levelDelta: delta, targetCharacterId: entry.targetCharacterId }
       : null;
+  }
+
+  /**
+   * A denomination and an amount, never a balance: the log says what happened,
+   * and the badge beside it already says where that left them. The target is
+   * null for a spend, which names nobody, and for a grant to the whole party —
+   * `record_campaign_activity` is what turns that null into "the party", and it
+   * refuses one from anybody but the head of the table.
+   */
+  if (COIN_ACTIONS.has(action)) {
+    const coinAmount = parseCoins(entry.amount);
+
+    if (!isCoin(entry.coin) || coinAmount === null || coinAmount < 1) {
+      return null;
+    }
+
+    return {
+      coin: entry.coin,
+      coinAmount,
+      targetCharacterId: entry.targetCharacterId ?? null,
+    };
   }
 
   if (!ITEM_ACTIONS.has(action)) {

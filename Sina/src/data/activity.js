@@ -104,6 +104,10 @@ export async function listCampaignActivity(supabase, campaignId, limit) {
  * cannot be re-read from the row inside the function: two presses in quick
  * succession would both find whatever the second one wrote.
  *
+ * A coin carries a denomination and an amount, and never a balance — the log
+ * says what happened, and the badge beside it already says where that left
+ * them. 20260823180000 is the file that DROPS the eleven-argument version.
+ *
  * `false` from the function is a refusal — a seat the caller is not in, a die
  * that has no such face, a target who has left the party — and reads here as
  * `not_found`, which is also what a deleted campaign gives. A caller must not
@@ -124,6 +128,8 @@ export async function recordCampaignActivity(
     delta = null,
     level = null,
     levelDelta = null,
+    coin = null,
+    coinAmount = null,
   },
 ) {
   const { data, error } = await supabase.rpc("record_campaign_activity", {
@@ -138,6 +144,8 @@ export async function recordCampaignActivity(
     hp_delta: delta,
     level_value: level,
     level_delta: levelDelta,
+    coin_type: coin,
+    coin_amount: coinAmount,
   });
 
   if (error) {

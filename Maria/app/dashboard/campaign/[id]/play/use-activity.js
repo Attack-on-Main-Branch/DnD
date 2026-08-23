@@ -22,19 +22,46 @@ import { useTableWire } from "./table-wire";
  * doorbell, never a substitute for it, and a message sent before the row exists
  * is a message answered by re-reading a table that has not changed yet.
  *
- * Its own transition, not the caller's: the drawers dim themselves while their
- * own action is in flight, and a log entry is not something to wait on.
+ * It runs in a transition of its own AND hands the promise back, which are for
+ * two different callers.
+ *
+ * The dice and the health band do not wait: their control has already answered
+ * and a line in the log is not something to hold it open for.
+ *
+ * The purse and the level ring DO wait — they `await` this inside their own
+ * transition, so the control stays shut until the entry exists. That is not
+ * politeness, it is the only thing standing between a quick second press and a
+ * table that reads "granted 50 Gold" once for two grants: the log is capped at
+ * ten entries and written asynchronously, so a press that lands before the
+ * previous entry does can silently lose it.
+ *
+ * The promise NEVER REJECTS. A log entry describes something that has already
+ * happened, so failing to write one must not fail the deed — and must not hang
+ * the control that is waiting on it either. A refusal resolves `false` and goes
+ * to `logFailure` inside `recordActivity`.
  */
 export function useActivityLog(campaignId) {
   const { send } = useTableWire();
 
   return useCallback(
     (actorCharacterId, entry) => {
+      const written = recordActivity(campaignId, actorCharacterId, entry).then(
+        (kept) => {
+          if (kept) {
+            send({ kind: "log" });
+          }
+
+          return kept;
+        },
+        // Nothing above this may throw into a caller's transition.
+        () => false,
+      );
+
       startTransition(async () => {
-        if (await recordActivity(campaignId, actorCharacterId, entry)) {
-          send({ kind: "log" });
-        }
+        await written;
       });
+
+      return written;
     },
     [campaignId, send],
   );

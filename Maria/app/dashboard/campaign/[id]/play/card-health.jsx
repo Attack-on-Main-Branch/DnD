@@ -149,7 +149,10 @@ export default function CardHealth({
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
                   disabled={isPending}
-                  placeholder="10"
+                  /* The unit rather than a number: "10" read as a value already
+                     in the field, and the purse's fields next door name what
+                     they want the same way. */
+                  placeholder="HP"
                   aria-label={`Hit points to take from or give to ${member.name}`}
                   className={controlClasses({
                     className: "no-spin px-1 py-1 text-center tabular-nums",

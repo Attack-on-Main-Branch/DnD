@@ -111,6 +111,8 @@ describe("recordCampaignActivity", () => {
       hp_delta: null,
       level_value: null,
       level_delta: null,
+      coin_type: null,
+      coin_amount: null,
     });
   });
 

@@ -35,6 +35,10 @@ describe("the catalogue", () => {
       "item_transferred",
       "item_granted",
       "item_revoked",
+      "coin_spent",
+      "coin_transferred",
+      "coin_granted",
+      "coin_revoked",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -251,6 +255,86 @@ describe("readActivity, on an item", () => {
         row({
           action_type: "item_dropped",
           payload: { itemName: "Rope", quantity: 0 },
+        }),
+      ),
+      null,
+    );
+  });
+});
+
+describe("readActivity, on a purse", () => {
+  it("reads coins spent, which name nobody", () => {
+    const entry = readActivity(
+      row({
+        action_type: "coin_spent",
+        payload: { coin: "gp", amount: 120 },
+      }),
+    );
+
+    assert.equal(entry.coin, "gp");
+    assert.equal(entry.amount, 120);
+    assert.equal(entry.target, null);
+  });
+
+  it("reads coins handed over, which name the other end", () => {
+    const entry = readActivity(
+      row({
+        action_type: "coin_transferred",
+        payload: { coin: "sp", amount: 40, targetName: "Fern" },
+      }),
+    );
+
+    assert.equal(entry.amount, 40);
+    assert.equal(entry.target, "Fern");
+  });
+
+  it("reads a grant to the whole party, named by the database", () => {
+    const entry = readActivity(
+      row({
+        actor_name: "Dungeon Master",
+        actor_type: "dm",
+        action_type: "coin_granted",
+        payload: { coin: "pp", amount: 1, targetName: "the party" },
+      }),
+    );
+
+    assert.equal(entry.target, "the party");
+  });
+
+  it("refuses a hand-over with nobody at the other end", () => {
+    assert.equal(
+      readActivity(
+        row({
+          action_type: "coin_transferred",
+          payload: { coin: "gp", amount: 5 },
+        }),
+      ),
+      null,
+    );
+  });
+
+  it("refuses a denomination that is not one of the five", () => {
+    assert.equal(
+      readActivity(
+        row({ action_type: "coin_spent", payload: { coin: "zp", amount: 5 } }),
+      ),
+      null,
+    );
+  });
+
+  it("refuses an amount outside what a purse can hold", () => {
+    assert.equal(
+      readActivity(
+        row({ action_type: "coin_spent", payload: { coin: "gp", amount: 0 } }),
+      ),
+      null,
+    );
+
+    assert.equal(
+      readActivity(
+        row({
+          action_type: "coin_spent",
+          payload: { coin: "gp", amount: 10000000 },
         }),
       ),
       null,

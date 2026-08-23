@@ -2,49 +2,44 @@
 
 import { useState, useTransition } from "react";
 
-import Avatar from "@/app/components/ui/avatar";
 import QuantityStepper from "@/app/components/ui/quantity-stepper";
-import {
-  avatarColorClass,
-  characterInitials,
-} from "@/app/dashboard/character-presentation";
+import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 
+import { Action, Confirm, PartyChoice } from "./pack-controls";
 import { consumePackItem, dropPackItem, handPackItem } from "./pack-actions";
+import PlayerPurse from "./player-purse";
 import { POPOVER_BODY_CLASSES } from "./table-popover";
 import { useActivityLog } from "./use-activity";
 
 /**
- * A player's own pack, and the three things that can happen to what is in it.
+ * A player's own purse and their own pack, and everything that can happen to
+ * what is in either.
  *
  * Every card carries an amount of its own: "use two potions and hand three
  * arrows over" is one sentence at a table, and a shared field would make it two.
+ * The purse works the other way round — one panel, opened by whichever capsule
+ * was pressed — because five number fields asking the same question is five
+ * ways to answer it and only one of them can be in flight. See player-purse.jsx.
  *
- * All three ask first — using something is as irreversible as dropping it — and
- * in each question the deed sits on the right and the way out on the left.
+ * The pack's three deeds ask first: using something is as irreversible as
+ * dropping it, and these controls sit in the open on the card. In each question
+ * the deed sits on the right and the way out on the left.
  *
  * The confirmations are inline and not a `<dialog>`: a modal opens in the top
  * layer, so the pointerdown that dismisses it lands outside this panel, and
- * TablePopover closes on exactly that.
+ * TablePopover closes on exactly that. See pack-controls.jsx.
  */
 export default function PlayerPackDrawer({
   campaignId,
   characterId,
   pack,
+  purse,
   party,
   onWritten,
+  onCoinsWritten,
 }) {
-  if (pack.length === 0) {
-    return (
-      <div
-        className={`flex items-center justify-center px-5 pb-5 ${POPOVER_BODY_CLASSES}`}
-      >
-        <EmptyPack description="What you pick up, are given, or are handed at the table will be here." />
-      </div>
-    );
-  }
-
   /* The scroll is on the wrapper, not the grid: `auto-rows-fr` on a box with
      a definite height divides that height between the rows instead of
      equalising them, and two items came out 300px tall each. */
@@ -52,20 +47,38 @@ export default function PlayerPackDrawer({
     <div
       className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
     >
-      <ul className="grid auto-rows-fr gap-2.5 sm:grid-cols-2">
-        {pack.map((row, index) => (
-          <li key={row.id} className="flex">
-            <PackRow
-              campaignId={campaignId}
-              characterId={characterId}
-              row={row}
-              index={index}
-              party={party}
-              onWritten={onWritten}
-            />
-          </li>
-        ))}
-      </ul>
+      {/* Above the cards, and drawn whether or not there are any: an empty
+          pack is not an empty purse. */}
+      <div className={COIN_PANEL_CLASSES}>
+        <PlayerPurse
+          campaignId={campaignId}
+          characterId={characterId}
+          purse={purse}
+          party={party}
+          onWritten={onCoinsWritten}
+        />
+      </div>
+
+      {pack.length === 0 ? (
+        <div className="mt-4">
+          <EmptyPack description="What you pick up, are given, or are handed at the table will be here." />
+        </div>
+      ) : (
+        <ul className="mt-4 grid auto-rows-fr gap-2.5 sm:grid-cols-2">
+          {pack.map((row, index) => (
+            <li key={row.id} className="flex">
+              <PackRow
+                campaignId={campaignId}
+                characterId={characterId}
+                row={row}
+                index={index}
+                party={party}
+                onWritten={onWritten}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -162,7 +175,7 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
 
         {asking === "use" && (
           <Confirm question={`Use ${count} ${item.name}?`}>
-            <Action onClick={() => setAsking(null)} label="Keep it">
+            <Action onClick={() => ask("use")} label="Keep it">
               Keep
             </Action>
 
@@ -188,7 +201,7 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
 
         {asking === "drop" && (
           <Confirm question={`Drop ${count} ${item.name}?`}>
-            <Action onClick={() => setAsking(null)} label="Keep it">
+            <Action onClick={() => ask("drop")} label="Keep it">
               Keep
             </Action>
 
@@ -210,68 +223,29 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
         )}
 
         {asking === "transfer" && (
-          <div className="mt-2.5 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2">
-            {/* Buttons rather than a <select>: at most five names, each
-                carrying the face the rail already shows. */}
-            <ul className="flex flex-col gap-1">
-              {party.map((member) => (
-                <li key={member.id}>
-                  <button
-                    type="button"
-                    onClick={() => setReceiver(member.id)}
-                    aria-pressed={receiver === member.id}
-                    className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-300 ${
-                      receiver === member.id
-                        ? "bg-gold/15 text-gold"
-                        : "text-ink/70 hover:bg-gold/10 hover:text-gold"
-                    }`}
-                  >
-                    <Avatar
-                      initials={characterInitials(member.name)}
-                      colorClass={avatarColorClass(member.color_theme)}
-                      size="xs"
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      {member.name}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Action onClick={() => setAsking(null)} label="Keep it">
-                Cancel
-              </Action>
-
-              <Action
-                onClick={() =>
-                  run(
-                    () =>
-                      handPackItem(
-                        campaignId,
-                        characterId,
-                        receiver,
-                        item,
-                        count,
-                      ),
-                    {
-                      action: "item_transferred",
-                      itemName: item.name,
-                      quantity: count,
-                      targetCharacterId: receiver,
-                    },
-                    receiver,
-                  )
-                }
-                disabled={isPending || !receiver}
-                tone="gold"
-                label={`Hand ${count} ${item.name} over`}
-              >
-                Hand it over
-              </Action>
-            </div>
-          </div>
+          <PartyChoice
+            party={party}
+            receiver={receiver}
+            onChoose={setReceiver}
+            onCancel={() => ask("transfer")}
+            onConfirm={() =>
+              run(
+                () =>
+                  handPackItem(campaignId, characterId, receiver, item, count),
+                {
+                  action: "item_transferred",
+                  itemName: item.name,
+                  quantity: count,
+                  targetCharacterId: receiver,
+                },
+                receiver,
+              )
+            }
+            disabled={isPending}
+            confirmLabel={`Hand ${count} ${item.name} over`}
+          >
+            Hand it over
+          </PartyChoice>
         )}
 
         {error && (
@@ -281,45 +255,5 @@ function PackRow({ campaignId, characterId, row, index, party, onWritten }) {
         )}
       </PackItemCard>
     </div>
-  );
-}
-
-/** The question on the left, the way out, then the deed at the far right. */
-function Confirm({ question, children }) {
-  return (
-    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2">
-      <p className="text-xs text-ink/70">{question}</p>
-
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  );
-}
-
-/**
- * Not `buttonClasses`: those are pills with their own padding, and three across
- * a card 300px wide would wrap onto three lines.
- */
-function Action({ onClick, disabled, label, pressed, tone, children }) {
-  // `danger` is the dashboard's Retire and Delete: ink at rest, red under the
-  // pointer, so the warning arrives when the click is about to happen.
-  const colour =
-    {
-      danger: "text-ink/60 hover:text-red-500",
-      gold: "text-gold hover:text-ink",
-    }[tone] ?? "text-ink/65 hover:text-gold";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={pressed}
-      className={`shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 disabled:cursor-not-allowed disabled:text-ink/25 ${
-        pressed ? "bg-gold/15 text-gold" : colour
-      }`}
-    >
-      {children}
-    </button>
   );
 }
