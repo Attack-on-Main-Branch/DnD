@@ -5,8 +5,9 @@ import {
   listCampaignMarks,
   listCampaignNotes,
   listPartyMembers,
+  listPartySheets,
 } from "sina/data/campaigns";
-import { listCharacterNotes } from "sina/data/characters";
+import { getCharacter, listCharacterNotes } from "sina/data/characters";
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
@@ -56,6 +57,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       inventory: [],
       purses: [],
       activity: [],
+      sheets: [],
       seat: null,
       error: realFailure,
     };
@@ -93,19 +95,31 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
 
   const members = party.error ? [] : party.data;
 
-  /* Both wait on the party and neither on the other. RLS decides what comes
+  /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs] = await Promise.all([
-    readSeat(supabase, campaign, members, requestedSeat),
+  const [seat, packs, sheets] = await Promise.all([
+    readSeat(supabase, campaign, members, requestedSeat, user.id),
     listPartyInventory(
       supabase,
       members.map((member) => member.id),
     ),
+    /* The party's scores and skills. `campaign_sheets` answers the owner
+       alone, so this is asked on the deed rather than on the chair — which
+       chair they are in is settled a step below, and an owner sitting as a
+       character reads their own sheet through readSeat. One stable RPC over
+       six rows at most, rather than a second round trip after the seat. */
+    campaign.is_owner
+      ? listPartySheets(supabase, id)
+      : { data: [], error: null },
   ]);
 
   if (packs.error) {
     logFailure("listPartyInventory", packs.error);
+  }
+
+  if (sheets.error) {
+    logFailure("listPartySheets", sheets.error);
   }
 
   // Logged rather than thrown on: the map is the page, and neither a party nor
@@ -117,6 +131,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     inventory: packs.error ? [] : packs.data,
     purses: purses.error ? [] : purses.data,
     activity: log.error ? [] : log.data,
+    sheets: sheets.error ? [] : sheets.data,
     seat,
     error: null,
   };
@@ -153,7 +168,8 @@ function seatsAt(campaign, members) {
 }
 
 /**
- * The chair the viewer is actually in, and the notes that come with it.
+ * The chair the viewer is actually in, and the notes and the sheet that come
+ * with it.
  *
  * `requestedSeat` comes from the query string, so the chair survives a reload
  * and can be linked. Anything that is not one of theirs falls back to the
@@ -163,8 +179,13 @@ function seatsAt(campaign, members) {
  * The notes follow the chair rather than the account — a Dungeon Master writes
  * on the campaign, the only note in the app that belongs to no sheet. A failure
  * comes back empty rather than taking the board down.
+ *
+ * The sheet is what the ability mark opens, read as the viewer's own character
+ * — being theirs is what put this seat in the list. `campaign_party` cannot
+ * answer for it: its return type is the display subset, and the ability columns
+ * are not in it. A Dungeon Master's chair has no character and so no sheet.
  */
-async function readSeat(supabase, campaign, members, requestedSeat) {
+async function readSeat(supabase, campaign, members, requestedSeat, userId) {
   const seats = seatsAt(campaign, members);
   const seat = seats.find((one) => one.id === requestedSeat) ?? seats[0];
 
@@ -172,16 +193,29 @@ async function readSeat(supabase, campaign, members, requestedSeat) {
     return null;
   }
 
-  const { data, error } = seat.characterId
-    ? await listCharacterNotes(supabase, seat.characterId)
-    : await listCampaignNotes(supabase, campaign.id);
+  const [notes, sheet] = await Promise.all([
+    seat.characterId
+      ? listCharacterNotes(supabase, seat.characterId)
+      : listCampaignNotes(supabase, campaign.id),
+    seat.characterId
+      ? getCharacter(supabase, { id: seat.characterId, userId })
+      : { data: null, error: null },
+  ]);
 
-  if (error) {
+  if (notes.error) {
     logFailure(
       seat.characterId ? "listCharacterNotes" : "listCampaignNotes",
-      error,
+      notes.error,
     );
   }
 
-  return { ...seat, notes: error ? [] : data };
+  if (sheet.error) {
+    logFailure("table/getCharacter", sheet.error);
+  }
+
+  return {
+    ...seat,
+    notes: notes.error ? [] : notes.data,
+    sheet: sheet.error ? null : sheet.data,
+  };
 }

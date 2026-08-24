@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { parseHitPoints } from "sina/rules/health";
+import { MAX_HP, parseHitPoints } from "sina/rules/health";
 import { parseLevel } from "sina/rules/level";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
@@ -43,8 +43,8 @@ import { useTableWire, useWireMessage } from "./table-wire";
  *
  * A roll comes out from under the card of whoever made it, whichever browser
  * that was — every card carries a pill and each answers for its own character.
- * The Dungeon Master's chair has no card, so theirs comes out beside the party
- * as a whole.
+ * The Dungeon Master's chair has no card; theirs comes out from under the board
+ * instead — see map-stage.jsx.
  *
  * The cards carry the party's hit points now — see card-health.jsx.
  *
@@ -165,27 +165,28 @@ export default function PartyRail({
 
   if (members.length === 0) {
     return (
-      <div className="relative w-full">
+      <div className="w-full">
         <p className="text-center text-sm text-ink/50 italic lg:text-left">
           Nobody has joined this party yet.
         </p>
-
-        <DiceCapsule />
       </div>
     );
   }
 
   return (
-    <div className="relative w-full">
+    <div className="w-full">
       <ul className="flex w-full flex-col gap-3">
         {members.map((member, index) => {
           const here = seated.has(member.id);
 
           const level = laidOver(heardLevel, member.id, member.level);
-          const current_hp = laidOver(
-            heardHealth,
-            member.id,
-            member.current_hp,
+
+          // Clamped to this character's own maximum. `parseHitPoints` bounds a
+          // heard number by the app's ceiling, which is as much as a rule with
+          // no row in front of it can know; the row is here.
+          const current_hp = Math.min(
+            laidOver(heardHealth, member.id, member.current_hp),
+            member.max_hp ?? MAX_HP,
           );
 
           // The head of the table reads the whole party's bars, a player
@@ -257,9 +258,6 @@ export default function PartyRail({
           );
         })}
       </ul>
-
-      {/* The head of the table's own, which belongs to no card. */}
-      <DiceCapsule />
     </div>
   );
 }

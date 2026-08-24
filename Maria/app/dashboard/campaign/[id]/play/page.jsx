@@ -6,10 +6,13 @@ import {
   avatarColorClass,
   characterInitials,
 } from "@/app/dashboard/character-presentation";
+import { CharacterStats } from "@/app/dashboard/character-stats";
 import { campaignSheetPath, characterSheetPath } from "@/lib/routes";
 
+import AbilitySheet from "./ability-sheet";
 import ActivityLog from "./activity-log";
 import DiceBoard from "./dice-board";
+import DiceCapsule from "./dice-capsule";
 import DiceRail from "./dice-rail";
 import DiceTable from "./dice-table";
 import { loadTable } from "./load-table";
@@ -143,6 +146,24 @@ export default async function CampaignTablePage({ params, searchParams }) {
     color_theme,
   }));
 
+  /* Whose numbers this viewer may read, and the panel each opens — the head of
+     the table gets the party's, a player their own. Built here and handed over
+     rendered: the picker needs the browser, the arithmetic does not. */
+  const scorePanels = Object.fromEntries(
+    (isDungeonMaster ? loaded.sheets : [seat?.sheet].filter(Boolean)).map(
+      (sheet) => [
+        sheet.id,
+        <div key={sheet.id} className="flex flex-col gap-6">
+          <CharacterStats character={sheet} />
+        </div>,
+      ],
+    ),
+  );
+
+  // In party order, and only those a sheet came back for: a failed read leaves
+  // the mark off rather than opening it on nothing.
+  const readable = carriers.filter((one) => scorePanels[one.id]);
+
   // Out by the door you came in: the seat says which Play button was pressed,
   // and both of those pages are ones this viewer can certainly open.
   const wayOut = seat?.characterId
@@ -208,6 +229,17 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 purses={purses}
                 isDungeonMaster={isDungeonMaster}
               />
+              {readable.length > 0 && (
+                <AbilitySheet
+                  label={
+                    isDungeonMaster
+                      ? "The party’s scores and skills"
+                      : `Scores and skills as ${seat.title}`
+                  }
+                  members={readable}
+                  panels={scorePanels}
+                />
+              )}
             </TableMarks>
           )}
         </div>
@@ -269,6 +301,8 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 campaignId={campaign.id}
                 marks={marks}
                 faces={faces}
+                // Every other chair's comes out from under its own card.
+                cast={seat && <DiceCapsule under />}
                 // The token this viewer puts down, drawn before the write so it
                 // appears under the pointer at once.
                 seat={seat && markFace(seat.characterId, members)}

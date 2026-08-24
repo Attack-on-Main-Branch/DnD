@@ -13,7 +13,7 @@ import { countCharacters, readProse } from "./text.js";
  */
 export const MAX_CAMPAIGNS = 3;
 
-export const MIN_TITLE_LENGTH = 2;
+const MIN_TITLE_LENGTH = 2;
 export const MAX_TITLE_LENGTH = 80;
 export const MAX_LORE_LENGTH = 2000;
 
@@ -21,7 +21,7 @@ export const MAX_LORE_LENGTH = 2000;
  * The browser sends WebP, but this also runs against requests not built with
  * our form, so the other three stay accepted.
  */
-export const ACCEPTED_MAP_TYPES = [
+const ACCEPTED_MAP_TYPES = [
   "image/webp",
   "image/png",
   "image/jpeg",
@@ -47,6 +47,11 @@ export function readCampaignValues(formData) {
 
     // An empty file input still submits a zero-byte File with no name.
     map: isUploadedFile(map) ? map : null,
+
+    /* Only the edit sheet posts this, and only while a map is still on it:
+       "leave the map alone" and "take it away" both arrive as no file, and
+       this is the whole of what tells them apart. Creation never sends it. */
+    keepMap: formData.get("keepMap") === "1",
   };
 }
 
@@ -135,8 +140,13 @@ function round(value, places) {
  * storage policy checks exactly that, so this shape is load-bearing — change it
  * and the RLS policy in 20260817120000_campaigns.sql changes with it.
  */
-export function mapObjectPath({ userId, campaignId, type }) {
-  return `${userId}/${campaignId}.${extensionFor(type)}`;
+export function mapObjectPath({ userId, campaignId, type, revision = null }) {
+  // A replacement gets its own name rather than overwriting. Either reason
+  // alone would do it: `upsert: false` refuses a path already taken, and the
+  // upload sets a year of `max-age`, so the old URL would keep serving.
+  const name = revision ? `${campaignId}-${revision}` : campaignId;
+
+  return `${userId}/${name}.${extensionFor(type)}`;
 }
 
 /**

@@ -1,9 +1,6 @@
 import {
-  ABILITIES,
-  abilityModifier,
   alignmentLabel,
   classLabel,
-  formatModifier,
   healthFraction,
   healthTier,
   MAX_HP,
@@ -11,19 +8,18 @@ import {
 
 import HealthBar from "@/app/components/ui/health-bar";
 import NoteList from "@/app/components/ui/note-list";
-import {
-  abilityEmblem,
-  withAlpha,
-} from "@/app/dashboard/character-presentation";
+import { CharacterStats } from "@/app/dashboard/character-stats";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
 
 /**
  * The four tab panels, as Server Components — none needs the browser. Inside
- * the client component all four shipped so one could be visible, and they took
- * `sina/rules/character` with them: a 400-line catalogue sent to render a
- * handful of short strings. The tabstrip receives them already rendered.
+ * the client component all four shipped so one could be visible, and took
+ * `sina/rules/character` with them; the tabstrip receives them rendered.
+ *
+ * The scores and the skills live in character-stats.jsx, because the table
+ * reads the same two sections — see play/ability-sheet.jsx.
  */
 export function OverviewPanel({ character, createdLabel }) {
   return (
@@ -41,9 +37,14 @@ export function OverviewPanel({ character, createdLabel }) {
         <Fact label="Created" value={createdLabel} />
       </dl>
 
-      <Health current={character.current_hp ?? MAX_HP} max={MAX_HP} />
+      {/* The character's own maximum, falling back to the global ceiling only
+          for a row written before the column existed. */}
+      <Health
+        current={character.current_hp ?? character.max_hp ?? MAX_HP}
+        max={character.max_hp ?? MAX_HP}
+      />
 
-      <AbilityScores character={character} />
+      <CharacterStats character={character} />
     </div>
   );
 }
@@ -57,80 +58,6 @@ function Health({ current, max }) {
       fraction={healthFraction(current, max)}
       tierClass={healthBarClass(healthTier(current, max))}
     />
-  );
-}
-
-/**
- * Read straight off the row, totals included — those are generated columns, so
- * this prints what the database holds rather than recomputing from the racial
- * table. The bonus is the difference between the two for the same reason: a
- * sheet that recomputed would hide a disagreement between the two tables.
- */
-function AbilityScores({ character }) {
-  const scores = ABILITIES.map((ability) => {
-    const base = character[`ability_${ability.id}`];
-    const total = character[`ability_${ability.id}_total`];
-
-    return { ...ability, base, total, bonus: total - base };
-  });
-
-  // Nothing to print for a row that predates the columns.
-  if (scores.some((score) => typeof score.total !== "number")) {
-    return null;
-  }
-
-  return (
-    <section>
-      <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-        Skills
-      </h3>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {scores.map((score) => {
-          const { accent, clip } = abilityEmblem(score.id);
-
-          return (
-            <div
-              key={score.id}
-              className="flex items-center gap-3 rounded-lg border border-gold/15 bg-surface/25 px-3.5 py-3"
-            >
-              <span
-                aria-hidden="true"
-                className="grid size-10 shrink-0 place-items-center rounded-full border border-gold/15 bg-white/5"
-              >
-                <span
-                  className="size-5"
-                  style={{
-                    background: accent,
-                    clipPath: clip,
-                    filter: `drop-shadow(0 0 6px ${withAlpha(accent, 0.35)})`,
-                  }}
-                />
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <p className="font-display text-xs font-semibold tracking-wide text-ink/85 uppercase">
-                  {score.name}
-                </p>
-                <p className="mt-0.5 font-mono text-[0.65rem] text-ink/45">
-                  Base {score.base}
-                  {score.bonus > 0 ? ` · Race +${score.bonus}` : ""}
-                </p>
-              </div>
-
-              <p className="shrink-0 text-right">
-                <span className="font-display text-xl font-semibold text-ink tabular-nums">
-                  {score.total}
-                </span>{" "}
-                <span className="font-mono text-xs text-gold/80 tabular-nums">
-                  {formatModifier(abilityModifier(score.total))}
-                </span>
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 

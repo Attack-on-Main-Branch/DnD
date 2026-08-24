@@ -1,6 +1,6 @@
 {
   "name": "maria",
-  "version": "0.10.4",
+  "version": "0.11.0",
   "private": true,
   "description": "Frontend: the Next.js application.",
   "scripts": {

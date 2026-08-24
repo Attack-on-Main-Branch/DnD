@@ -16,27 +16,9 @@ import {
   validateUsername,
 } from "sina/rules/account";
 
-import { logFailure, logUncovered } from "@/lib/errors";
+import { logUncovered } from "@/lib/errors";
+import { rejected, sessionRejection } from "@/lib/rejection";
 import { createClient, getCurrentUser } from "@/lib/supabase";
-
-function rejected(message, field = null) {
-  return { kind: "rejected", field, message };
-}
-
-/**
- * No error means auth said no and signing in again fixes it; an error means it
- * could not answer. Local to each actions file, as `rejected` is.
- */
-function sessionRejection(action, error) {
-  if (!error) {
-    return rejected("Your session has expired. Sign in again.");
-  }
-
-  logFailure(`${action}/auth`, error);
-  return rejected(
-    "Could not reach the sign-in service. Try again in a moment.",
-  );
-}
 
 function success(message) {
   return { kind: "success", message };

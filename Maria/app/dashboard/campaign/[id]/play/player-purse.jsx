@@ -59,10 +59,11 @@ export default function PlayerPurse({
               disabled={purse[coin] < 1 || isPending}
               aria-expanded={open === coin}
               aria-label={`${purse[coin]} ${coinName(coin)}, spend or hand over`}
-              className={`${capsuleClasses(coin, {
+              className={capsuleClasses(coin, {
                 open: open === coin,
                 pressable: true,
-              })} disabled:cursor-not-allowed disabled:opacity-45`}
+                disabled: purse[coin] < 1 || isPending,
+              })}
             >
               <span aria-hidden="true" className={COIN_NAME_CLASSES}>
                 {coinName(coin)}:

@@ -106,7 +106,7 @@ export default function DmPurse({
             {/* A label rather than a capsule with a field beside it: the whole
                 capsule is then the field's hit area, which at this size is the
                 difference between a control and a decoration. */}
-            <label className={capsuleClasses(coin)}>
+            <label className={capsuleClasses(coin, { disabled: isPending })}>
               <span className={COIN_NAME_CLASSES}>{coinName(coin)}:</span>
 
               {/*
@@ -139,7 +139,9 @@ export default function DmPurse({
                 aria-label={`How much ${coinName(coin)} to move ${
                   character ? `for ${character.name}` : "for the whole party"
                 }`}
-                className={`${COIN_AMOUNT_CLASSES} bare-input w-14 text-right text-inherit placeholder:text-inherit placeholder:opacity-45 disabled:opacity-60`}
+                // No `disabled:opacity-*` of its own: the capsule around it
+                // already dims, and a second fade compounds with the first.
+                className={`${COIN_AMOUNT_CLASSES} bare-input w-14 text-right text-inherit placeholder:text-inherit disabled:cursor-not-allowed placeholder:opacity-45`}
               />
             </label>
           </li>

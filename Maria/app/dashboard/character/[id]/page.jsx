@@ -24,6 +24,7 @@ import {
   OverviewPanel,
   StoryPanel,
 } from "./character-panels";
+import EditCharacterPencil from "./edit-character-pencil";
 import TabStrip from "@/app/components/ui/tab-strip";
 
 /**
@@ -198,6 +199,10 @@ export default async function CharacterPage({ params }) {
         <TabStrip
           tabs={SHEET_TABS}
           label="Character sheet sections"
+          // The pen at the far end of the tab row. A Client Component handed
+          // over already built, the same as the panels below it — and the row
+          // it edits is the one already read for this page.
+          action={<EditCharacterPencil character={character} />}
           panels={{
             overview: (
               <OverviewPanel

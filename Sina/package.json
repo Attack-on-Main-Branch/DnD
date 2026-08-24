@@ -1,6 +1,6 @@
 {
   "name": "sina",
-  "version": "0.10.4",
+  "version": "0.11.0",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
@@ -14,6 +14,7 @@
     "./rules/activity": "./src/rules/activity.js",
     "./rules/health": "./src/rules/health.js",
     "./rules/level": "./src/rules/level.js",
+    "./rules/skills": "./src/rules/skills.js",
     "./rules/text": "./src/rules/text.js",
     "./rules/campaign": "./src/rules/campaign.js",
     "./rules/currency": "./src/rules/currency.js",

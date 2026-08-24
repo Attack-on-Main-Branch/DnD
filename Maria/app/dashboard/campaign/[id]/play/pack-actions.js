@@ -13,7 +13,8 @@ import {
   validateItem,
 } from "sina/rules/inventory";
 
-import { logFailure, logUncovered } from "@/lib/errors";
+import { logUncovered } from "@/lib/errors";
+import { rejected, sessionRejection } from "@/lib/rejection";
 import { campaignTablePath, characterSheetPath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
@@ -25,25 +26,6 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * `sina/rules/inventory` functions in the browser for speed, and nothing that
  * arrives at these functions is believed.
  */
-
-function rejected(message) {
-  return { kind: "rejected", message };
-}
-
-/**
- * No error means auth said no and signing in again fixes it; an error means it
- * could not answer, and a login form only repeats the failure.
- */
-function sessionRejection(action, error) {
-  if (!error) {
-    return rejected("Your session has expired. Sign in again.");
-  }
-
-  logFailure(`${action}/auth`, error);
-  return rejected(
-    "Could not reach the sign-in service. Try again in a moment.",
-  );
-}
 
 /** Sina reports why; the wording lives here, where the user can see it. */
 const PACK_COPY = {

@@ -16,8 +16,13 @@ const CHECK_VIOLATION = "23514";
 const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
 const UNDEFINED_TABLE = "42P01";
+const UNDEFINED_COLUMN = "42703";
 const UNDEFINED_FUNCTION = "42883";
 const INVALID_TEXT_REPRESENTATION = "22P02";
+
+/** Not a SQLSTATE: PostgREST's own code for a function it has no entry for,
+    so the call never reaches Postgres and `42883` alone never fires. */
+const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   if (error.code === CHECK_VIOLATION) {
@@ -50,7 +55,12 @@ function classify(error) {
     return "missing_table";
   }
 
-  if (error.code === UNDEFINED_FUNCTION) {
+  // A migration written but never pushed.
+  if (error.code === UNDEFINED_COLUMN) {
+    return "missing_column";
+  }
+
+  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
     return "missing_function";
   }
 
@@ -112,6 +122,42 @@ export async function insertCampaign(supabase, { id, userId, values, mapUrl }) {
   });
 
   return error ? failure(error) : { data: { id }, error: null };
+}
+
+/**
+ * A campaign as its Dungeon Master rewrote it. A definer function rather than
+ * an UPDATE policy: RLS grants rows and never columns, so a policy wide enough
+ * to change the title would let its holder rewrite `user_id` too. The
+ * parameter list is the edit.
+ *
+ * `changeMap` separates "no new map" from "the map was removed" — both arrive
+ * as a null `mapUrl`, and only one should clear the column. The previous URL
+ * comes back so the caller can delete the object it pointed at.
+ */
+export async function updateCampaign(
+  supabase,
+  { id, values, mapUrl = null, changeMap = false },
+) {
+  const { data, error } = await supabase.rpc("update_campaign", {
+    target_campaign: id,
+    new_title: values.title,
+    new_world_description: values.worldDescription || null,
+    new_map_url: mapUrl,
+    change_map: changeMap,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  // `returns table` is a set: a refusal and a miss both come back as no row.
+  const row = data?.[0];
+
+  if (!row?.updated) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: { previousMapUrl: row.previous_map_url }, error: null };
 }
 
 /**
@@ -261,6 +307,24 @@ export async function listPartyMembers(supabase, campaignId) {
   }));
 
   return { data: members, error: null };
+}
+
+/**
+ * The party's ability scores and skills, in party order. The Dungeon Master's
+ * read alone — `campaign_sheets` answers the campaign's owner and hands
+ * everybody else no rows, which is why it is a second RPC rather than more
+ * columns on `campaign_party`. A player reads their own via `getCharacter`.
+ */
+export async function listPartySheets(supabase, campaignId) {
+  const { data, error } = await supabase.rpc("campaign_sheets", {
+    target_campaign: campaignId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return { data: data ?? [], error: null };
 }
 
 /**

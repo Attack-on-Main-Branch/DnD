@@ -3,6 +3,7 @@ import { listCampaigns } from "sina/data/campaigns";
 import { listCharacters } from "sina/data/characters";
 
 import FormAlert from "@/app/components/ui/form-alert";
+import { SHEET_WIDTH_CLASS } from "@/app/components/ui/surface";
 import TypingText from "@/app/components/ui/typing-text";
 import { logFailure } from "@/lib/errors";
 import { createClient, currentUser } from "@/lib/supabase";
@@ -73,7 +74,9 @@ export default async function DashboardPage({ searchParams }) {
   // page's scrollable area. Not `hidden`: that computes `overflow-y` to `auto`
   // and puts a second scroll container around the page.
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-clip px-4 py-10 sm:px-6 sm:py-14">
+    <main
+      className={`mx-auto w-full ${SHEET_WIDTH_CLASS} flex-1 overflow-x-clip px-4 py-10 sm:px-6 sm:py-14`}
+    >
       {/* `route`: `?new` swaps the panel below without changing the page
           around it, so this stays where it is. See panel-fold.js. */}
       <div

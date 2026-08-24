@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Avatar from "@/app/components/ui/avatar";
 import Link from "next/link";
@@ -23,8 +23,10 @@ import TextField from "@/app/components/ui/text-field";
 import { useFormAction } from "@/app/components/use-form-action";
 
 import {
+  abilityScoresOf,
   ALIGNMENTS,
   countCharacters,
+  DEFAULT_MAX_HP,
   MAX_PROSE_LENGTH,
   RACES,
   alignmentDetails,
@@ -33,6 +35,9 @@ import {
   readCharacterValues,
   validateCharacter,
 } from "sina/rules/character";
+import { MIN_LEVEL } from "sina/rules/level";
+
+import { updateCharacter } from "@/app/actions/characters";
 
 import AbilityPicker from "./ability-picker";
 import { createPlayerCharacter } from "./actions";
@@ -43,24 +48,53 @@ import {
   suggestedAvatarColor,
 } from "./character-presentation";
 import ClassPicker from "./class-picker";
+import SkillPicker, { skillFormState } from "./skill-picker";
 
 const FEEDBACK_ID = "character-feedback";
 
 const RACE_OPTIONS = RACES.map((race) => ({ value: race, label: race }));
 
-export default function PlayerCharacterForm({ onCreated }) {
+/**
+ * The character sheet, whether it is being written for the first time or read
+ * back and changed. One component and not two: the edit modal holds THIS form,
+ * so the likeness is identity rather than a resemblance two files keep up.
+ *
+ * `character` is the row being edited, or null to make a new one, and
+ * everything downstream reads off it — the action posted to, what the fields
+ * start as, what the buttons say. `onCancel` is the modal's way out; without
+ * one the footer falls back to the link a page-level sheet has. `onPending`
+ * tells the modal a save is in flight, so it stops shutting mid-write.
+ */
+export default function PlayerCharacterForm({
+  character = null,
+  onDone,
+  onCancel = null,
+  onPending = null,
+}) {
+  const editing = Boolean(character);
+
   // Controlled throughout: a rejected handle must not cost the user the
   // backstory they just wrote.
-  const [name, setName] = useState("");
-  const [discriminator, setDiscriminator] = useState("");
-  const [race, setRace] = useState(RACES[0]);
-  const [archetype, setArchetype] = useState("");
-  const [classId, setClassId] = useState("");
-  const [alignment, setAlignment] = useState("");
-  const [abilities, setAbilities] = useState(defaultAbilityScores);
-  const [colorTheme, setColorTheme] = useState(null);
-  const [backstory, setBackstory] = useState("");
-  const [personality, setPersonality] = useState("");
+  const [name, setName] = useState(character?.name ?? "");
+  const [discriminator, setDiscriminator] = useState(
+    character?.discriminator ?? "",
+  );
+  const [race, setRace] = useState(character?.race ?? RACES[0]);
+  // A string, not a number: this is what is in the box, and an empty box is
+  // the placeholder taken at its word rather than a zero.
+  const [maxHp, setMaxHp] = useState(
+    character ? String(character.max_hp ?? DEFAULT_MAX_HP) : "",
+  );
+  const [archetype, setArchetype] = useState(character?.archetype ?? "");
+  const [classId, setClassId] = useState(character?.class_id ?? "");
+  const [alignment, setAlignment] = useState(character?.alignment ?? "");
+  const [abilities, setAbilities] = useState(() =>
+    character ? abilityScoresOf(character) : defaultAbilityScores(),
+  );
+  const [skills, setSkills] = useState(() => skillFormState(character));
+  const [colorTheme, setColorTheme] = useState(character?.color_theme ?? null);
+  const [backstory, setBackstory] = useState(character?.backstory ?? "");
+  const [personality, setPersonality] = useState(character?.personality ?? "");
 
   const nameRef = useRef(null);
 
@@ -72,16 +106,27 @@ export default function PlayerCharacterForm({ onCreated }) {
   const chosenAlignment = alignmentDetails(alignment);
 
   const { state, formAction, isPending } = useFormAction({
-    action: createPlayerCharacter,
+    // Bound rather than posted as a hidden input: a hidden field is the
+    // caller's to set, and this is the one value they must not choose.
+    // `update_character` checks it against the session regardless.
+    action: editing
+      ? (_previous, formData) => updateCharacter(character.id, formData)
+      : createPlayerCharacter,
     read: readCharacterValues,
     validate: validateCharacter,
     onResult: (result) => {
       if (result?.kind === "success") {
-        onCreated();
+        onDone();
       }
     },
     refocusRef: nameRef,
   });
+
+  // The same fact the fields disable themselves from, passed up to whatever is
+  // holding the form.
+  useEffect(() => {
+    onPending?.(isPending);
+  }, [isPending, onPending]);
 
   const describedBy = state?.message ? FEEDBACK_ID : undefined;
 
@@ -95,7 +140,7 @@ export default function PlayerCharacterForm({ onCreated }) {
         />
         <div className="min-w-0">
           <p className="truncate font-display text-lg font-semibold tracking-wide">
-            {name || "New character"}
+            {name || (editing ? "Character" : "New character")}
           </p>
           <p className="font-mono text-xs text-ink/50">
             {name || "Name"}#{discriminator || "0000"}
@@ -175,16 +220,44 @@ export default function PlayerCharacterForm({ onCreated }) {
         party, so it has to be unique.
       </p>
 
-      <SelectMenu
-        label="Race"
-        name="race"
-        options={RACE_OPTIONS}
-        value={race}
-        onChange={setRace}
-        disabled={isPending}
-        invalid={state?.field === "race"}
-        describedBy={describedBy}
-      />
+      {/* The Name and Tag proportions above, repeated: the race is the long
+          half of the row and the maximum is the short one, so the two rows
+          line up down the sheet rather than each finding their own edge. */}
+      <div className="grid gap-4 sm:grid-cols-[1fr_7rem]">
+        <SelectMenu
+          label="Race"
+          name="race"
+          options={RACE_OPTIONS}
+          value={race}
+          onChange={setRace}
+          disabled={isPending}
+          invalid={state?.field === "race"}
+          describedBy={describedBy}
+        />
+
+        <TextField
+          label="Max HP"
+          name="maxHp"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder={`${DEFAULT_MAX_HP}`}
+          maxLength={3}
+          value={maxHp}
+          // Digits only, like the tag above, so the field cannot hold what
+          // the rule will refuse. Empty is allowed: `readMaxHitPoints` reads
+          // an empty box as the placeholder.
+          onChange={(event) =>
+            setMaxHp(event.target.value.replace(/\D/g, "").slice(0, 3))
+          }
+          disabled={isPending}
+          invalid={state?.field === "maxHp"}
+          // Left, not centred: it sits under the tag in the same narrow
+          // column, and the two read as one column only if they agree.
+          className="tabular-nums"
+          aria-describedby={describedBy}
+        />
+      </div>
 
       <ClassPicker
         archetype={archetype}
@@ -210,6 +283,18 @@ export default function PlayerCharacterForm({ onCreated }) {
         race={race}
         scores={abilities}
         onChange={setAbilities}
+        disabled={isPending}
+        invalidField={state?.field}
+      />
+
+      {/* Under the scores, because a skill is an ability plus training. The
+          totals are printed on the character's own page; this asks what they
+          are trained in. The level carries the proficiency bonus and is the
+          Dungeon Master's to award, so it is read rather than asked for. */}
+      <SkillPicker
+        level={character?.level ?? MIN_LEVEL}
+        skills={skills}
+        onChange={setSkills}
         disabled={isPending}
         invalidField={state?.field}
       />
@@ -267,24 +352,38 @@ export default function PlayerCharacterForm({ onCreated }) {
 
       <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
         {/*
-          Cancel, not Back, and a link rather than a button — there is nothing
-          behind this sheet to go back to any more. The empty slot that opened
-          it named the role in the URL, so the only way out is the dashboard,
-          and an anchor gets middle-click and open-in-new-tab for free.
+          Cancel, not Back. Inside the modal it is a button, because there is a
+          sheet to shut and nowhere to go; on the page it is a link, because
+          there is nothing behind that sheet to go back to any more — the empty
+          slot that opened it named the role in the URL, so the only way out is
+          the dashboard, and an anchor gets middle-click and open-in-new-tab for
+          free.
 
           `prefetch={false}`: Next prefetches links on viewport entry, so merely
           opening this sheet would start fetching the page you just left.
           `/dashboard` is dynamic, so that payload could never be reused.
         */}
-        <Link
-          href="/dashboard"
-          prefetch={false}
-          className={buttonClasses({ variant: "secondary" })}
-        >
-          Cancel
-        </Link>
+        {onCancel ? (
+          <Button variant="secondary" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+        ) : (
+          <Link
+            href="/dashboard"
+            prefetch={false}
+            className={buttonClasses({ variant: "secondary" })}
+          >
+            Cancel
+          </Link>
+        )}
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Creating…" : "Create character"}
+          {editing
+            ? isPending
+              ? "Saving…"
+              : "Save changes"
+            : isPending
+              ? "Creating…"
+              : "Create character"}
         </Button>
       </div>
     </form>

@@ -702,6 +702,45 @@ body {
   }
 
   /*
+   * The edit sheet, opening exactly the way the creation sheet does — same
+   * three stages, same milliseconds. It holds the creation form itself, so a
+   * different entrance would say it was a different sheet.
+   *
+   * The closing half is here rather than in panel-fold.js: that one animates a
+   * page on its way elsewhere, while a <dialog> is closed by script that has to
+   * wait for the fold. CLOSE_MS in ui/edit-modal.jsx mirrors the duration.
+   */
+  .edit-dialog {
+    animation:
+      panel-slit 150ms ease-out backwards,
+      panel-unfold 320ms var(--ease-tray) 150ms backwards;
+  }
+
+  .edit-dialog > * {
+    animation: panel-content 200ms ease-out 470ms backwards;
+  }
+
+  .edit-dialog::backdrop {
+    animation: map-backdrop 300ms ease-out both;
+  }
+
+  /* The fold, on `--ease-tray` played backwards: run forwards it eased OUT, so
+     the last few percent crawled and the fold read as unfinished. */
+  .edit-dialog[data-closing] {
+    animation:
+      panel-refold 240ms var(--ease-tray-in) both,
+      panel-fade-out 100ms ease-out 240ms both;
+  }
+
+  .edit-dialog[data-closing] > * {
+    animation: panel-fade-out 140ms ease-out both;
+  }
+
+  .edit-dialog[data-closing]::backdrop {
+    animation: panel-fade-out 300ms ease-out both;
+  }
+
+  /*
    * The activity log, opening the way a panel does but on the table's own beat
    * rather than the page's first paint — hence the offset arriving as a custom
    * property from play/entrance.js instead of the fixed delays above. The
@@ -906,6 +945,12 @@ body {
     clip-path: inset(-3rem 0 -3rem -3rem);
   }
 
+  /* The head of the table's, under the board: the clipped edge is the top
+     rather than the right, because this one tucks upward. */
+  .dice-slot-under {
+    clip-path: inset(0 -3rem -3rem -3rem);
+  }
+
   .dice-capsule {
     margin-right: 0.75rem;
     /* Spelled out rather than left at `none`, which is what `translate`
@@ -919,6 +964,17 @@ body {
   .dice-capsule[data-away] {
     translate: calc(100% + 0.75rem) 0;
     transition: translate 300ms var(--ease-tray-in);
+  }
+
+  /* 2.25rem, not 0.75: the map's glass mat stands 1.5rem proud of the picture,
+     so the gap has to clear that before it is a gap at all. */
+  .dice-capsule-under {
+    margin-right: 0;
+    margin-top: 2.25rem;
+  }
+
+  .dice-capsule-under[data-away] {
+    translate: 0 calc(-100% - 2.25rem);
   }
 
   .hp-solar {
@@ -1028,6 +1084,31 @@ body {
   from {
     opacity: 0;
     translate: 0 6px;
+  }
+}
+
+/*
+ * The unfold run backwards, and the fade after it. Written out at BOTH ends
+ * rather than as `reverse` on the two above: those name only a `from`, so the
+ * other end is the element's own value — which, under `fill: both`, the
+ * animation is itself producing. Reversed, each resolved to its `from` on the
+ * first frame and the sheet snapped shut instead of folding.
+ */
+@keyframes panel-refold {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0.02);
+  }
+}
+
+@keyframes panel-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
@@ -1433,7 +1514,13 @@ body {
   }
 
   .map-dialog::backdrop,
-  .map-dialog[data-closing]::backdrop {
+  .map-dialog[data-closing]::backdrop,
+  .edit-dialog,
+  .edit-dialog > *,
+  .edit-dialog[data-closing],
+  .edit-dialog[data-closing] > *,
+  .edit-dialog::backdrop,
+  .edit-dialog[data-closing]::backdrop {
     animation: none;
   }
 

@@ -25,6 +25,10 @@ import TableMap from "./table-map";
  * it because that is the only place a `-inset-6` means the same 1.5rem the mat
  * above does. A table with no map has nowhere to throw onto, so the branch
  * below takes none — the roll still happens, see dice-engine.js.
+ *
+ * `cast` is what the head of the table just threw. Its own slot rather than
+ * more `children`, because a roll with no board to land on still has a number
+ * to say — so it is drawn in both branches.
  */
 export default function MapStage({
   url,
@@ -34,18 +38,21 @@ export default function MapStage({
   faces,
   seat,
   canSweep,
+  cast = null,
   children,
 }) {
   if (!url) {
     return (
       <div
         data-shrink
-        className={`grid ${MAP_HEIGHT_CLASS} w-full max-w-xl place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${MAP_CLASSES}`}
+        className={`relative grid ${MAP_HEIGHT_CLASS} w-full max-w-xl place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${MAP_CLASSES}`}
         style={MAP_DELAY}
       >
         <p className="font-display text-base font-medium tracking-wide text-ink/60">
           No map for this campaign.
         </p>
+
+        {cast}
       </div>
     );
   }
@@ -79,6 +86,8 @@ export default function MapStage({
       />
 
       {children}
+
+      {cast}
     </div>
   );
 }

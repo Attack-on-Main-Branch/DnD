@@ -9,15 +9,16 @@
  * the base ones, so the sheet prints the number Postgres would sort by.
  */
 const COLUMNS =
-  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, current_hp, " +
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, current_hp, max_hp, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
-  "backstory, personality, created_at";
+  "skills, backstory, personality, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
 const UNDEFINED_TABLE = "42P01";
+const UNDEFINED_COLUMN = "42703";
 const UNDEFINED_FUNCTION = "42883";
 const FOREIGN_KEY_VIOLATION = "23503";
 const INVALID_TEXT_REPRESENTATION = "22P02";
@@ -47,6 +48,12 @@ function classify(error) {
 
   if (error.code === UNDEFINED_TABLE) {
     return "missing_table";
+  }
+
+  // The table is there and a column of it is not: a migration written but
+  // never pushed. Its own reason, because the fix is a specific one.
+  if (error.code === UNDEFINED_COLUMN) {
+    return "missing_column";
   }
 
   // A migration written but never pushed, which is what `npm run db:list` is
@@ -115,6 +122,9 @@ export async function insertCharacter(supabase, { userId, values }) {
     class_id: values.classId,
     alignment: values.alignment,
     color_theme: values.colorTheme,
+    // A character starts the day whole.
+    max_hp: values.maxHp,
+    current_hp: values.maxHp,
     // Only the bought values are written. The six `_total` columns are
     // generated, and Postgres refuses an INSERT that names one.
     ability_str: values.abilities.str,
@@ -123,11 +133,55 @@ export async function insertCharacter(supabase, { userId, values }) {
     ability_int: values.abilities.int,
     ability_wis: values.abilities.wis,
     ability_cha: values.abilities.cha,
+    // Only the skills somebody touched; `{}` is the column's default.
+    skills: values.skills,
     backstory: values.backstory,
     personality: values.personality,
   });
 
   return error ? failure(error) : { data: true, error: null };
+}
+
+/**
+ * The sheet as its owner rewrote it, through a definer function for the reason
+ * `set_character_health` is one: RLS grants rows and never columns, so the
+ * narrowest UPDATE policy here would hand its holder the level a Dungeon Master
+ * awards and the hit points a table calls out. The parameter list is the edit.
+ *
+ * `false` is a refusal or a miss, deliberately the same answer. A handle
+ * somebody else holds arrives as a unique violation — `handle_taken`.
+ */
+export async function updateCharacter(supabase, { id, values }) {
+  const { data, error } = await supabase.rpc("update_character", {
+    target_character: id,
+    new_name: values.name,
+    new_discriminator: values.discriminator,
+    new_race: values.race,
+    new_archetype: values.archetype,
+    new_class_id: values.classId,
+    new_alignment: values.alignment,
+    new_color_theme: values.colorTheme,
+    new_max_hp: values.maxHp,
+    new_ability_str: values.abilities.str,
+    new_ability_dex: values.abilities.dex,
+    new_ability_con: values.abilities.con,
+    new_ability_int: values.abilities.int,
+    new_ability_wis: values.abilities.wis,
+    new_ability_cha: values.abilities.cha,
+    new_skills: values.skills,
+    new_backstory: values.backstory,
+    new_personality: values.personality,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: true, error: null };
 }
 
 /**

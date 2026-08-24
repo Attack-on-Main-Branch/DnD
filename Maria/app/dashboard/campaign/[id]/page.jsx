@@ -9,6 +9,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import { campaignTablePath, DUNGEON_MASTER_SEAT } from "@/lib/routes";
 
 import CampaignMap from "./campaign-map";
+import EditCampaignPencil from "./edit-campaign-pencil";
 import ItemsPanel from "./items-panel";
 import { loadCampaign } from "./load-campaign";
 import PartyPanel from "./party-panel";
@@ -124,6 +125,8 @@ export default async function CampaignPage({ params }) {
         <TabStrip
           tabs={CAMPAIGN_TABS}
           label="Campaign sections"
+          // The pen at the far end of the tab row. See the character sheet's.
+          action={<EditCampaignPencil campaign={campaign} />}
           panels={{
             overview: <OverviewPanel campaign={campaign} />,
             party: <PartyPanel campaignId={campaign.id} members={roster} />,

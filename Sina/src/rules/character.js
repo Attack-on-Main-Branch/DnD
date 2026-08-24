@@ -7,23 +7,58 @@
  */
 
 import {
+  DEFAULT_MAX_HP,
   healthFraction,
   healthTier,
   HEALTH_TIERS,
   MAX_HP,
+  MIN_MAX_HP,
   parseHitPoints,
+  readMaxHitPoints,
+  validateMaxHitPoints,
 } from "./health.js";
+import {
+  defaultSkills,
+  proficiencyBonus,
+  readSkills,
+  SKILLS,
+  skillState,
+  skillTotal,
+  skillsOf,
+  validateSkills,
+} from "./skills.js";
 import { countCharacters, readProse } from "./text.js";
 
 export { countCharacters };
 
+/** The skills sit in their own module for the reason hit points do; what the
+    sheet reads is re-exported here, where the rest of a character is. */
+export {
+  defaultSkills,
+  proficiencyBonus,
+  SKILLS,
+  skillState,
+  skillTotal,
+  skillsOf,
+};
+
 /** Hit points live in health.js so the browser can import them without the
     catalogues below; re-exported where callers already look for them. */
-export { healthFraction, healthTier, HEALTH_TIERS, MAX_HP, parseHitPoints };
+export {
+  DEFAULT_MAX_HP,
+  healthFraction,
+  healthTier,
+  HEALTH_TIERS,
+  MAX_HP,
+  MIN_MAX_HP,
+  parseHitPoints,
+  readMaxHitPoints,
+  validateMaxHitPoints,
+};
 
 export const MAX_CHARACTERS = 3;
 
-export const MIN_NAME_LENGTH = 2;
+const MIN_NAME_LENGTH = 2;
 export const MAX_NAME_LENGTH = 40;
 export const MAX_PROSE_LENGTH = 2000;
 
@@ -372,10 +407,6 @@ export function raceAbilityBonus(race, abilityId) {
   return RACE_ABILITY_BONUSES[race]?.[abilityId] ?? 0;
 }
 
-export function abilityTotal(race, abilityId, score) {
-  return (score ?? ABILITY_BASELINE) + raceAbilityBonus(race, abilityId);
-}
-
 /** The D&D modifier: every two points above 10 is worth one. */
 export function abilityModifier(total) {
   return Math.floor((total - 10) / 2);
@@ -402,6 +433,20 @@ export function abilityBreakdown(race, scores) {
   });
 }
 
+/**
+ * The six scores as the picker holds them, read off a stored row rather than a
+ * form — the edit sheet's way in. The column names are this module's to know,
+ * the way `readAbilityScores` knows the field names.
+ */
+export function abilityScoresOf(row) {
+  return Object.fromEntries(
+    ABILITIES.map((ability) => [
+      ability.id,
+      row?.[`ability_${ability.id}`] ?? ABILITY_BASELINE,
+    ]),
+  );
+}
+
 export function readAbilityScores(formData) {
   return Object.fromEntries(
     ABILITIES.map((ability) => [
@@ -414,7 +459,7 @@ export function readAbilityScores(formData) {
 }
 
 /** Leftover points are allowed; the stepper lets you stop early. */
-export function validateAbilityScores(scores) {
+function validateAbilityScores(scores) {
   for (const ability of ABILITIES) {
     const score = scores?.[ability.id];
 
@@ -465,11 +510,13 @@ export function readCharacterValues(formData) {
     name: String(formData.get("name") ?? "").trim(),
     discriminator: String(formData.get("discriminator") ?? "").trim(),
     race: String(formData.get("race") ?? ""),
+    maxHp: readMaxHitPoints(formData.get("maxHp")),
     archetype: String(formData.get("archetype") ?? ""),
     classId: String(formData.get("classId") ?? ""),
     alignment: String(formData.get("alignment") ?? ""),
     colorTheme: String(formData.get("colorTheme") ?? ""),
     abilities: readAbilityScores(formData),
+    skills: readSkills(formData),
     backstory: readProse(formData.get("backstory")),
     personality: readProse(formData.get("personality")),
   };
@@ -483,11 +530,13 @@ export function validateCharacter({
   name,
   discriminator,
   race,
+  maxHp,
   archetype,
   classId,
   alignment,
   colorTheme,
   abilities,
+  skills,
   backstory,
   personality,
 }) {
@@ -520,6 +569,13 @@ export function validateCharacter({
     return { field: "race", message: "Choose a race." };
   }
 
+  // Beside the race, which is where the sheet asks for it.
+  const badMaximum = validateMaxHitPoints(maxHp);
+
+  if (badMaximum) {
+    return badMaximum;
+  }
+
   const chosenArchetype = archetypeDetails(archetype);
 
   if (!chosenArchetype) {
@@ -539,6 +595,13 @@ export function validateCharacter({
 
   if (abilityProblem) {
     return abilityProblem;
+  }
+
+  // Optional, all of it: an empty map is a sheet nobody filled this part of.
+  const skillProblem = validateSkills(skills);
+
+  if (skillProblem) {
+    return skillProblem;
   }
 
   if (!ALIGNMENTS.some((entry) => entry.value === alignment)) {

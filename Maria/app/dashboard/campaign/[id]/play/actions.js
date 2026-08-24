@@ -16,28 +16,10 @@ import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
 import { parseHitPoints } from "sina/rules/health";
 import { parseLevel } from "sina/rules/level";
 
-import { logFailure, logUncovered } from "@/lib/errors";
+import { logUncovered } from "@/lib/errors";
+import { rejected, sessionRejection } from "@/lib/rejection";
 import { campaignTablePath, characterSheetPath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
-
-function rejected(message) {
-  return { kind: "rejected", message };
-}
-
-/**
- * No error means auth said no and signing in again fixes it; an error means it
- * could not answer, and a login form only repeats the failure.
- */
-function sessionRejection(action, error) {
-  if (!error) {
-    return rejected("Your session has expired. Sign in again.");
-  }
-
-  logFailure(`${action}/auth`, error);
-  return rejected(
-    "Could not reach the sign-in service. Try again in a moment.",
-  );
-}
 
 /** Sina reports why; the wording lives here, where the user can see it. */
 const TABLE_COPY = {

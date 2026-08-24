@@ -4,13 +4,8 @@ import { useOptimistic, useState, useTransition } from "react";
 import { readPurse } from "sina/rules/currency";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
 
-import Avatar from "@/app/components/ui/avatar";
 import QuantityStepper from "@/app/components/ui/quantity-stepper";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
-import {
-  avatarColorClass,
-  characterInitials,
-} from "@/app/dashboard/character-presentation";
 import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 import PackItemCard from "@/app/dashboard/pack-item-card";
@@ -18,6 +13,7 @@ import PackItemCard from "@/app/dashboard/pack-item-card";
 import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
+import PartyPills, { Pill } from "./party-pills";
 import { POPOVER_BODY_CLASSES } from "./table-popover";
 import { useActivityLog } from "./use-activity";
 
@@ -113,12 +109,11 @@ export default function DmPackDrawer({
     <div
       className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
     >
-      {/* `role="group"` rather than a tablist: these control no panel of
-          their own, they aim the one below. */}
-      <div
-        role="group"
-        aria-label="Who receives it"
-        className="flex flex-wrap gap-2"
+      <PartyPills
+        members={members}
+        chosen={target}
+        onChoose={setTarget}
+        label="Who receives it"
       >
         <Pill
           active={target === EVERYONE}
@@ -132,25 +127,7 @@ export default function DmPackDrawer({
             </span>
           )}
         </Pill>
-
-        {members.map((member) => (
-          <Pill
-            key={member.id}
-            active={target === member.id}
-            onClick={() => setTarget(member.id)}
-            // Named outright: the avatar is `aria-hidden`, so the only
-            // text is inside a span.
-            label={member.name}
-          >
-            <Avatar
-              initials={characterInitials(member.name)}
-              colorClass={avatarColorClass(member.color_theme)}
-              size="xs"
-            />
-            <span className="max-w-32 truncate">{member.name}</span>
-          </Pill>
-        ))}
-      </div>
+      </PartyPills>
 
       {members.length === 0 ? (
         <p className="mt-6 text-center text-sm text-ink/50 italic">
@@ -333,24 +310,5 @@ function RevokeCard({ campaignId, character, row, index, onWritten, onError }) {
         />
       </PackItemCard>
     </div>
-  );
-}
-
-function Pill({ active, onClick, disabled, label, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={active}
-      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
-        active
-          ? "border-gold/55 bg-gold/15 text-gold"
-          : "border-gold/20 bg-surface/40 text-ink/70 hover:border-gold/45 hover:text-gold"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

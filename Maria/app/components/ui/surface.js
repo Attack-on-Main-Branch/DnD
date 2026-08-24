@@ -48,6 +48,10 @@ export function surfaceClasses({
  */
 export const PANEL_CLASSES = "rounded-2xl p-6 sm:p-8";
 
+/** How wide a sheet stands: the dashboard's `<main>`, where the creation panel
+    is, and the edit modal that opens over it. Changing it moves both. */
+export const SHEET_WIDTH_CLASS = "max-w-7xl";
+
 /**
  * The darkening around a map, shared by the dashboard card and the campaign
  * page so the two cannot drift. Not used on the full-resolution view, where

@@ -9,7 +9,14 @@
  * `rules/character.js` re-exports everything here.
  */
 
+/** The ceiling a character's own maximum may be set to. */
 export const MAX_HP = 100;
+
+/** What a new character is worth before anybody has fought anything. */
+export const DEFAULT_MAX_HP = 20;
+
+/** A character with no hit points at all is a body, not a character. */
+export const MIN_MAX_HP = 1;
 
 /** Worst first, so a reader sees the thresholds in the order they are tested. */
 export const HEALTH_TIERS = ["critical", "wounded", "healthy"];
@@ -51,4 +58,36 @@ export function parseHitPoints(value, max = MAX_HP) {
   }
 
   return Math.min(max, Math.max(0, Math.round(number)));
+}
+
+/**
+ * The maximum typed into the sheet. An empty field is the placeholder taken at
+ * its word; anything that is not a plain run of digits stays NaN, so validation
+ * refuses it rather than inventing a number nobody chose.
+ */
+const MAX_HP_PATTERN = /^[0-9]{1,4}$/;
+
+export function readMaxHitPoints(value) {
+  const typed = String(value ?? "").trim();
+
+  if (typed === "") {
+    return DEFAULT_MAX_HP;
+  }
+
+  return MAX_HP_PATTERN.test(typed) ? Number.parseInt(typed, 10) : Number.NaN;
+}
+
+/**
+ * `null` when it is a maximum the database will also accept. Mirrors the
+ * `characters_max_hp_check` constraint, which is the check that counts.
+ */
+export function validateMaxHitPoints(maxHp) {
+  if (!Number.isInteger(maxHp) || maxHp < MIN_MAX_HP || maxHp > MAX_HP) {
+    return {
+      field: "maxHp",
+      message: `Max HP must be a whole number between ${MIN_MAX_HP} and ${MAX_HP}.`,
+    };
+  }
+
+  return null;
 }

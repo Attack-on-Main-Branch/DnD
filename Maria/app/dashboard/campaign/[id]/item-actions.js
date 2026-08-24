@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { insertCampaignItem, removeCampaignItem } from "sina/data/inventory";
 import { MAX_CAMPAIGN_ITEMS, validateItem } from "sina/rules/inventory";
 
-import { logFailure, logUncovered } from "@/lib/errors";
+import { logUncovered } from "@/lib/errors";
+import { rejected, sessionRejection } from "@/lib/rejection";
 import { campaignSheetPath, campaignTablePath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
@@ -14,25 +15,6 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * Separate from play/pack-actions.js: those move things between packs, these
  * decide what exists. Nothing here touches what anybody is carrying.
  */
-
-function rejected(message) {
-  return { kind: "rejected", message };
-}
-
-/**
- * No error means auth said no and signing in again fixes it; an error means it
- * could not answer, and a login form only repeats the failure.
- */
-function sessionRejection(action, error) {
-  if (!error) {
-    return rejected("Your session has expired. Sign in again.");
-  }
-
-  logFailure(`${action}/auth`, error);
-  return rejected(
-    "Could not reach the sign-in service. Try again in a moment.",
-  );
-}
 
 /**
  * `already_carried` is the data layer's name for a unique violation, which on

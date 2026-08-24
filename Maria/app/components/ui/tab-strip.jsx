@@ -17,8 +17,12 @@ const SLIDE_MS = 320;
  * drag every panel's imports into the browser so one could show. The trade is
  * that every panel renders on the server each request; a panel that ever needs
  * its own query wants Suspense, not a move back across the boundary.
+ *
+ * `action` is whatever belongs at the far end of the row — the editing pen.
+ * Passed through like the panels, and outside the `tablist` so the role stays
+ * honest.
  */
-export default function TabStrip({ tabs, label, panels }) {
+export default function TabStrip({ tabs, label, panels, action = null }) {
   const [active, setActive] = useState(tabs[0].value);
   const baseId = useId();
   const tabRefs = useRef({});
@@ -100,54 +104,63 @@ export default function TabStrip({ tabs, label, panels }) {
   return (
     <div>
       {/*
-        Three nested elements, each doing one job. The outer scrolls, because
-        four tabs in a serif overflow a phone. The middle is the positioning
-        context and sits INSIDE that scroller, so the sliding bar travels with
-        the tabs instead of staying pinned to the viewport edge. The inner is
-        the tablist proper, holding nothing but tabs — the bar is a sibling, not
-        a child, so the ARIA role stays honest.
+        Four nested elements, each doing one job. The outer is the row and
+        carries the rule, so the line runs full width whether or not anything
+        sits at the far end. The next scrolls, because four tabs in a serif
+        overflow a phone. The third is the positioning context and sits INSIDE
+        the scroller, so the sliding bar travels with the tabs. The innermost is
+        the tablist proper, holding nothing but tabs — the bar is a sibling, so
+        the ARIA role stays honest.
       */}
-      <div className="scroll-gold overflow-x-auto border-b border-gold/15">
-        <div className="relative w-max min-w-full">
-          <div
-            ref={stripRef}
-            role="tablist"
-            aria-label={label}
-            onKeyDown={handleKeyDown}
-            className="flex gap-1"
-          >
-            {tabs.map((tab) => {
-              const isActive = tab.value === active;
+      <div className="flex items-stretch gap-2 border-b border-gold/15">
+        <div className="scroll-gold min-w-0 flex-1 overflow-x-auto">
+          <div className="relative w-max min-w-full">
+            <div
+              ref={stripRef}
+              role="tablist"
+              aria-label={label}
+              onKeyDown={handleKeyDown}
+              className="flex gap-1"
+            >
+              {tabs.map((tab) => {
+                const isActive = tab.value === active;
 
-              return (
-                <button
-                  key={tab.value}
-                  ref={(node) => {
-                    tabRefs.current[tab.value] = node;
-                  }}
-                  type="button"
-                  role="tab"
-                  id={`${baseId}-tab-${tab.value}`}
-                  aria-selected={isActive}
-                  aria-controls={`${baseId}-panel-${tab.value}`}
-                  tabIndex={isActive ? 0 : -1}
-                  onClick={() => setActive(tab.value)}
-                  className={`shrink-0 px-4 py-3 font-display text-sm font-medium tracking-wide transition-colors duration-300 ${
-                    isActive ? "text-gold" : "text-ink/60 hover:text-ink"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={tab.value}
+                    ref={(node) => {
+                      tabRefs.current[tab.value] = node;
+                    }}
+                    type="button"
+                    role="tab"
+                    id={`${baseId}-tab-${tab.value}`}
+                    aria-selected={isActive}
+                    aria-controls={`${baseId}-panel-${tab.value}`}
+                    tabIndex={isActive ? 0 : -1}
+                    onClick={() => setActive(tab.value)}
+                    className={`shrink-0 px-4 py-3 font-display text-sm font-medium tracking-wide transition-colors duration-300 ${
+                      isActive ? "text-gold" : "text-ink/60 hover:text-ink"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <span
+              ref={indicatorRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 left-0 h-0.5 w-0 rounded-full bg-gold shadow-[0_0_12px] shadow-gold/70"
+            />
           </div>
-
-          <span
-            ref={indicatorRef}
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 left-0 h-0.5 w-0 rounded-full bg-gold shadow-[0_0_12px] shadow-gold/70"
-          />
         </div>
+
+        {/* Centred against the tabs rather than stretched: a button as tall as
+            the row would sit low. */}
+        {action && (
+          <div className="flex shrink-0 items-center pb-1">{action}</div>
+        )}
       </div>
 
       {/*

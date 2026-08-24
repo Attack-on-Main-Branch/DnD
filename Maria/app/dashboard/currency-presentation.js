@@ -80,12 +80,24 @@ const CAPSULE_HOVER_TINTS = {
   pp: "cursor-pointer hover:border-platinum/65 hover:bg-platinum/20",
 };
 
-export function capsuleClasses(coin, { open = false, pressable = false } = {}) {
+/**
+ * What a capsule wears when it cannot be pressed — the server has it, or there
+ * is nothing in it to spend. Written on rather than left to `:disabled`: the
+ * Dungeon Master's capsule is a `<label>`, and a label is never disabled.
+ */
+const CAPSULE_DISABLED = "cursor-not-allowed opacity-45";
+
+export function capsuleClasses(
+  coin,
+  { open = false, pressable = false, disabled = false } = {},
+) {
   return [
     CAPSULE_BASE,
     open ? CAPSULE_OPEN_TINTS[coin] : CAPSULE_TINTS[coin],
-    pressable && !open ? CAPSULE_HOVER_TINTS[coin] : "",
-    pressable && open ? "cursor-pointer" : "",
+    // No hover promise on a capsule that cannot answer it.
+    pressable && !open && !disabled ? CAPSULE_HOVER_TINTS[coin] : "",
+    pressable && open && !disabled ? "cursor-pointer" : "",
+    disabled ? CAPSULE_DISABLED : "",
   ]
     .filter(Boolean)
     .join(" ");

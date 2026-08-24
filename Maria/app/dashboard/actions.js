@@ -28,26 +28,8 @@ import {
 } from "sina/rules/character";
 
 import { logFailure, logUncovered } from "@/lib/errors";
+import { rejected, sessionRejection } from "@/lib/rejection";
 import { createClient, getCurrentUser } from "@/lib/supabase";
-
-function rejected(message, field = null) {
-  return { kind: "rejected", field, message };
-}
-
-/**
- * No error means auth said no and signing in again fixes it; an error means it
- * could not answer, and a login form only repeats the failure.
- */
-function sessionRejection(action, error) {
-  if (!error) {
-    return rejected("Your session has expired. Sign in again.");
-  }
-
-  logFailure(`${action}/auth`, error);
-  return rejected(
-    "Could not reach the sign-in service. Try again in a moment.",
-  );
-}
 
 /** Sina reports why; the wording lives here, where the user can see it. */
 const SAVE_COPY = {
@@ -68,6 +50,11 @@ const SAVE_COPY = {
   missing_table: {
     message:
       "The characters table does not exist yet. Run the migrations in Sina/supabase/migrations.",
+    field: null,
+  },
+  missing_column: {
+    message:
+      "The characters table is missing a column this needs. Run the migrations in Sina/supabase/migrations.",
     field: null,
   },
 };
@@ -137,6 +124,11 @@ const CAMPAIGN_COPY = {
   missing_table: {
     message:
       "The campaigns table does not exist yet. Run the migrations in Sina/supabase/migrations.",
+    field: null,
+  },
+  missing_column: {
+    message:
+      "The campaigns table is missing a column this needs. Run the migrations in Sina/supabase/migrations.",
     field: null,
   },
   missing_bucket: {

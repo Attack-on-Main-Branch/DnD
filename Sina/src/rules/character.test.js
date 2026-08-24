@@ -17,13 +17,18 @@ import {
   AVATAR_COLOR_VALUES,
   canLowerAbility,
   canRaiseAbility,
+  abilityScoresOf,
   characterHandle,
+  DEFAULT_MAX_HP,
   healthFraction,
   healthTier,
   HEALTH_TIERS,
+  MAX_HP,
+  MIN_MAX_HP,
   classDetails,
   classLabel,
   defaultAbilityScores,
+  defaultSkills,
   formatModifier,
   MAX_ABILITY,
   MAX_NAME_LENGTH,
@@ -33,7 +38,9 @@ import {
   RACES,
   raceAbilityBonus,
   readCharacterValues,
+  readMaxHitPoints,
   validateCharacter,
+  validateMaxHitPoints,
 } from "./character.js";
 
 /** A set of values that must always pass, so each test can spoil exactly one. */
@@ -46,7 +53,9 @@ function validValues(overrides = {}) {
     classId: "fighter",
     alignment: "lawful_good",
     colorTheme: "violet",
+    maxHp: DEFAULT_MAX_HP,
     abilities: defaultAbilityScores(),
+    skills: defaultSkills(),
     backstory: "",
     personality: "",
     ...overrides,
@@ -614,5 +623,139 @@ describe("hit points", () => {
         assert.ok(HEALTH_TIERS.includes(healthTier(current, 100)));
       }
     });
+  });
+});
+
+describe("the maximum a character is worth", () => {
+  describe("readMaxHitPoints", () => {
+    it("reads a typed figure", () => {
+      assert.equal(readMaxHitPoints("35"), 35);
+      assert.equal(readMaxHitPoints(" 35 "), 35);
+    });
+
+    it("reads an empty field as the placeholder it shows", () => {
+      // The box is allowed to be left alone, and the column's default is the
+      // same number the placeholder prints.
+      assert.equal(readMaxHitPoints(""), DEFAULT_MAX_HP);
+      assert.equal(readMaxHitPoints(null), DEFAULT_MAX_HP);
+      assert.equal(readMaxHitPoints(undefined), DEFAULT_MAX_HP);
+    });
+
+    it("leaves anything that is not a run of digits as NaN", () => {
+      // Not defaulted, for the reason the ability scores are not: a mangled
+      // field must reach validation and be refused, rather than quietly
+      // becoming a number nobody chose.
+      assert.ok(Number.isNaN(readMaxHitPoints("2o")));
+      assert.ok(Number.isNaN(readMaxHitPoints("-5")));
+      assert.ok(Number.isNaN(readMaxHitPoints("2.5")));
+    });
+  });
+
+  describe("validateMaxHitPoints", () => {
+    it("accepts both ends of the range the CHECK constraint holds", () => {
+      assert.equal(validateMaxHitPoints(MIN_MAX_HP), null);
+      assert.equal(validateMaxHitPoints(MAX_HP), null);
+    });
+
+    it("refuses a character worth nothing, or worth more than the ceiling", () => {
+      assert.equal(validateMaxHitPoints(MIN_MAX_HP - 1)?.field, "maxHp");
+      assert.equal(validateMaxHitPoints(MAX_HP + 1)?.field, "maxHp");
+    });
+
+    it("refuses what is not a whole number at all", () => {
+      assert.equal(validateMaxHitPoints(Number.NaN)?.field, "maxHp");
+      assert.equal(validateMaxHitPoints(20.5)?.field, "maxHp");
+    });
+  });
+
+  it("is part of what makes a character valid", () => {
+    assert.equal(validateCharacter(validValues({ maxHp: 42 })), null);
+    assert.equal(validateCharacter(validValues({ maxHp: 0 }))?.field, "maxHp");
+  });
+
+  it("comes off the form under its own field name", () => {
+    const data = new FormData();
+    data.set("maxHp", "42");
+
+    assert.equal(readCharacterValues(data).maxHp, 42);
+  });
+});
+
+describe("abilityScoresOf", () => {
+  it("reads a stored row back into the shape the picker holds", () => {
+    const scores = abilityScoresOf({
+      ability_str: 15,
+      ability_dex: 12,
+      ability_con: 11,
+      ability_int: 10,
+      ability_wis: 9,
+      ability_cha: 8,
+    });
+
+    assert.deepEqual(scores, {
+      str: 15,
+      dex: 12,
+      con: 11,
+      int: 10,
+      wis: 9,
+      cha: 8,
+    });
+  });
+
+  it("falls back to the baseline for a row written before the columns", () => {
+    assert.deepEqual(abilityScoresOf({}), defaultAbilityScores());
+    assert.deepEqual(abilityScoresOf(null), defaultAbilityScores());
+  });
+});
+
+describe("the skills on the sheet", () => {
+  function formData(entries) {
+    const data = new FormData();
+    for (const [key, value] of Object.entries(entries)) data.append(key, value);
+    return data;
+  }
+
+  it("is optional throughout: a sheet nobody touched still saves", () => {
+    const values = readCharacterValues(formData({}));
+
+    assert.deepEqual(values.skills, {});
+    assert.equal(
+      validateCharacter(validValues({ skills: values.skills })),
+      null,
+    );
+  });
+
+  it("carries a proficiency and a typed bonus off the form", () => {
+    const values = readCharacterValues(
+      formData({ skill_stealth: "on", skill_athletics_bonus: "-2" }),
+    );
+
+    assert.deepEqual(values.skills, {
+      stealth: { proficient: true, custom_bonus: null },
+      athletics: { proficient: false, custom_bonus: -2 },
+    });
+  });
+
+  it("refuses a bonus the database would refuse too", () => {
+    const problem = validateCharacter(
+      validValues({
+        skills: { stealth: { proficient: true, custom_bonus: 99 } },
+      }),
+    );
+
+    assert.equal(problem.field, "skills");
+  });
+
+  it("refuses before it reads the alignment, so one message is the sheet's", () => {
+    // Ordered where the section is on the sheet: under the ability scores it
+    // is calculated from, above the temperament questions.
+    const problem = validateCharacter(
+      validValues({
+        skills: { juggling: { proficient: true, custom_bonus: null } },
+        alignment: "nonsense",
+      }),
+    );
+
+    assert.equal(problem.field, "skills");
   });
 });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 
+import { updateCampaign } from "@/app/actions/campaigns";
 import Button, { buttonClasses } from "@/app/components/ui/button";
 import {
   CHOICE_CARD_FOCUS_CLASSES,
@@ -32,39 +33,64 @@ import { createCampaign } from "./actions";
 const FEEDBACK_ID = "campaign-feedback";
 
 /**
- * The Dungeon Master's half of the creation flow. The map is re-encoded in the
- * browser first (`lib/image-compression`) — not only for bandwidth: the file
- * travels inside the Server Action's body, so it is bounded by
- * `serverActions.bodySizeLimit`, and an oversized export is refused by the
- * framework before our code can say why.
+ * The Dungeon Master's sheet, written for the first time or read back and
+ * changed — one component, for the reason player-character-form.jsx gives.
+ *
+ * The map is re-encoded in the browser first (`lib/image-compression`), and not
+ * only for bandwidth: the file travels inside the Server Action's body, so an
+ * oversized export is refused by `serverActions.bodySizeLimit` before our code
+ * can say why.
  *
  * Controlled throughout, so a rejected title does not cost the lore or the map.
  */
-export default function CreateCampaignPanel({ onCreated }) {
-  const [title, setTitle] = useState("");
-  const [worldDescription, setWorldDescription] = useState("");
+export default function CampaignForm({
+  campaign = null,
+  onDone,
+  onCancel = null,
+  onPending = null,
+}) {
+  const editing = Boolean(campaign);
+
+  const [title, setTitle] = useState(campaign?.title ?? "");
+  const [worldDescription, setWorldDescription] = useState(
+    campaign?.world_description ?? "",
+  );
   const [map, setMap] = useState(null);
 
-  /*
-   * Up here rather than in MapField because the submit button has to know: the
-   * input still holds the original until compression finishes, so pressing
-   * Create in that window uploads the megabytes this panel exists to avoid.
-   */
+  /* The map already in storage, until it is taken away. Separate from `map`
+     above: that one is a file to upload, this a URL to leave alone — and
+     "leave it" and "take it away" both look like no file to the server, which
+     is what the hidden `keepMap` field is for. */
+  const [keptMapUrl, setKeptMapUrl] = useState(campaign?.map_url ?? null);
+
+  /* Up here rather than in MapField because the submit button has to know:
+     the input holds the original until compression finishes, so a press in
+     that window uploads the megabytes this panel exists to avoid. */
   const [mapBusy, setMapBusy] = useState(false);
 
   const titleRef = useRef(null);
 
   const { state, formAction, isPending } = useFormAction({
-    action: createCampaign,
+    // Bound rather than posted as a hidden input — see the note on the
+    // character sheet's copy of this. `update_campaign` checks it regardless.
+    action: editing
+      ? (_previous, formData) => updateCampaign(campaign.id, formData)
+      : createCampaign,
     read: readCampaignValues,
     validate: validateCampaign,
     onResult: (result) => {
       if (result?.kind === "success") {
-        onCreated();
+        onDone();
       }
     },
     refocusRef: titleRef,
   });
+
+  // Passed up so the modal holding this can refuse to shut mid-save — see the
+  // note on the character sheet's copy.
+  useEffect(() => {
+    onPending?.(isPending);
+  }, [isPending, onPending]);
 
   const describedBy = state?.message ? FEEDBACK_ID : undefined;
 
@@ -75,7 +101,9 @@ export default function CreateCampaignPanel({ onCreated }) {
           Dungeon Master
         </h3>
         <p className="mt-1 text-sm text-ink/60">
-          Name the campaign and set the scene. The map can come later.
+          {editing
+            ? "Change what the party knows, or hang a new map on the wall."
+            : "Name the campaign and set the scene. The map can come later."}
         </p>
       </div>
 
@@ -116,7 +144,9 @@ export default function CreateCampaignPanel({ onCreated }) {
 
       <MapField
         map={map}
+        keptUrl={keptMapUrl}
         onChange={setMap}
+        onDropKept={() => setKeptMapUrl(null)}
         onBusyChange={setMapBusy}
         disabled={isPending}
         invalid={state?.field === "map"}
@@ -125,17 +155,29 @@ export default function CreateCampaignPanel({ onCreated }) {
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
       <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
-        {/* Cancel rather than Back, and a link — see the note on the character
-            sheet's copy of this row. */}
-        <Link
-          href="/dashboard"
-          prefetch={false}
-          className={buttonClasses({ variant: "secondary" })}
-        >
-          Cancel
-        </Link>
+        {/* Cancel rather than Back — see the note on the character sheet's
+            copy of this row for why one is a button and the other a link. */}
+        {onCancel ? (
+          <Button variant="secondary" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+        ) : (
+          <Link
+            href="/dashboard"
+            prefetch={false}
+            className={buttonClasses({ variant: "secondary" })}
+          >
+            Cancel
+          </Link>
+        )}
         <Button type="submit" disabled={isPending || mapBusy}>
-          {isPending ? "Creating…" : "Create campaign"}
+          {editing
+            ? isPending
+              ? "Saving…"
+              : "Save changes"
+            : isPending
+              ? "Creating…"
+              : "Create campaign"}
         </Button>
       </div>
     </form>
@@ -146,8 +188,20 @@ export default function CreateCampaignPanel({ onCreated }) {
  * Drop a map on it, or pick one. Compression runs the moment a file is chosen
  * rather than on submit, so the wait happens while the form is still being
  * filled in and the DM sees what will actually be uploaded.
+ *
+ * `keptUrl` is the map already in storage. A newly picked file wins the preview
+ * while it is there, and Remove clears both — which is what turns the hidden
+ * `keepMap` field off and tells the server the column should be emptied.
  */
-function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
+function MapField({
+  map,
+  keptUrl,
+  onChange,
+  onDropKept,
+  onBusyChange,
+  disabled,
+  invalid,
+}) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -265,12 +319,23 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
       ? `${INVALID_BORDER_CLASSES} bg-surface/60 hover:border-red-400`
       : NESTED_CARD_CLASSES;
 
+  // A newly picked file wins: it is what the submit will actually upload.
+  const preview = map?.preview ?? keptUrl;
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className={LABEL_CLASSES}>World map</span>
         <span className="text-xs text-ink/50">Optional</span>
       </div>
+
+      {/*
+        The stored map's fate, in one field. Present while there is a map to
+        keep, absent once Remove has been pressed — see `readCampaignValues`,
+        which reads it as the difference between leaving the column alone and
+        emptying it. Creation never has one to keep and never sends it.
+      */}
+      {keptUrl && <input type="hidden" name="keepMap" value="1" />}
 
       {/*
         A label wrapping a file input, not a div with a click handler. The
@@ -305,32 +370,39 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
           className="sr-only"
         />
 
-        {map ? (
+        {preview ? (
           <>
             {/*
               A plain <img>, not next/image, and the rule is disabled rather
-              than worked around: this is a `blob:` URL for a file the visitor
-              picked a moment ago. The optimiser would have nothing to fetch —
-              it cannot reach a URL that exists only in this tab — and the
+              than worked around. For a picked file this is a `blob:` URL the
+              optimiser cannot reach — it exists only in this tab — and the
               bandwidth the rule exists to save was already spent by the
-              browser that decoded the file.
+              browser that decoded it. The stored map takes the same element on
+              purpose: these two previews are one box, and a map that changed
+              size when it was replaced would read as a different control.
             */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={map.preview}
+              src={preview}
               alt=""
               className="max-h-52 w-auto rounded-md border border-gold/15 object-contain"
             />
 
-            <span className="font-mono text-xs text-ink/60">
-              {map.width}×{map.height} · {formatBytes(map.bytes)}
-              {map.changed && (
-                <span className="text-gold/70">
-                  {" "}
-                  · compressed from {formatBytes(map.originalBytes)}
-                </span>
-              )}
-            </span>
+            {map ? (
+              <span className="font-mono text-xs text-ink/60">
+                {map.width}×{map.height} · {formatBytes(map.bytes)}
+                {map.changed && (
+                  <span className="text-gold/70">
+                    {" "}
+                    · compressed from {formatBytes(map.originalBytes)}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="font-mono text-xs text-ink/60">
+                The map this campaign is using
+              </span>
+            )}
 
             <span className="text-xs text-ink/50">
               Drop another to replace it
@@ -356,13 +428,14 @@ function MapField({ map, onChange, onBusyChange, disabled, invalid }) {
         </p>
       )}
 
-      {map && (
+      {preview && (
         <div className="flex justify-end">
           <Button
             variant="link"
             onClick={() => {
               setProblem(null);
               onChange(null);
+              onDropKept();
             }}
             disabled={disabled}
           >

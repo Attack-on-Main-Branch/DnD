@@ -12,6 +12,10 @@ import { HEAD_OF_TABLE, useDiceTable } from "./dice-table";
  * that card to the left and slips back under when it is done; see
  * `.dice-capsule` in globals.css for both halves.
  *
+ * `under` turns that quarter round for the ONE chair with no card: the head of
+ * the table's comes out from under the board they threw onto. Same mechanism
+ * either way — a slot that clips, and a pill that travels out of it.
+ *
  * It comes out as the die leaves the hand rather than as it lands: a table
  * watching a board light up with nothing beside it could not tell whose roll it
  * was. The same pill then takes the number, so the announcement and the answer
@@ -31,7 +35,7 @@ import { HEAD_OF_TABLE, useDiceTable } from "./dice-table";
  * `variant: "solid"` and not glass: this comes out over the board, and a
  * translucent pill had the map reading straight through the number.
  */
-export default function DiceCapsule({ characterId = null }) {
+export default function DiceCapsule({ characterId = null, under = false }) {
   const { flying, results } = useDiceTable();
 
   const key = characterId ?? HEAD_OF_TABLE;
@@ -46,7 +50,11 @@ export default function DiceCapsule({ characterId = null }) {
   return (
     <span
       aria-hidden="true"
-      className="dice-slot pointer-events-none absolute top-1/2 right-full z-10 -translate-y-1/2"
+      className={
+        under
+          ? "dice-slot-under pointer-events-none absolute top-full left-1/2 z-10 -translate-x-1/2"
+          : "dice-slot pointer-events-none absolute top-1/2 right-full z-10 -translate-y-1/2"
+      }
     >
       <span
         style={diceCast(flight ? flight.secret : result?.secret).style}
@@ -55,6 +63,7 @@ export default function DiceCapsule({ characterId = null }) {
           variant: "solid",
           className:
             "dice-capsule glass-unfiltered block rounded-full px-5 py-2 " +
+            (under ? "dice-capsule-under " : "") +
             "border-(--cast-line) " +
             "shadow-[inset_0_1px_0_var(--cast-wash),0_0_32px_-8px_var(--cast-bloom),0_18px_44px_-20px_rgba(0,0,0,0.95)]",
         })}

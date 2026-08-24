@@ -16,6 +16,25 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.11.0",
+    date: "2026-08-24",
+    title: "A pen for the sheet",
+    changes: [
+      "A pen at the end of the tabs on your character sheet. Press it and the sheet you filled in to make them opens back over the page with everything already in it — the name, the race, the class, the alignment, the scores — and folds shut again behind the save.",
+      "The campaign page has the same pen, on the same sheet: the title, the world you wrote, and the map. Swap the map and the old picture is deleted once the new one is safely in.",
+      "Hit points belong to the character now. Say how many they have when you make them, in the box beside the race, and every bar at the table is drawn against that number instead of a flat hundred.",
+      "The eighteen skills are on the sheet. Tick what your character is trained in and the proficiency bonus is worked out for you from their level; type a number beside one only when a piece of gear or a class feature is worth something on top.",
+      "The character page prints all eighteen with what each is worth, trained ones lit in gold, and the proficiency bonus over the top of them. The scores above read what you bought and what it is worth — Base 12 · Mod +1.",
+      "A fourth mark above the board, beside the pack: the scores and the skills, the same two sections the character page prints. A player opens their own. The Dungeon Master picks a name along the top and reads any of the party's, the way they already pick a pack.",
+      "The Dungeon Master's roll comes out from under the board it was thrown onto, instead of appearing beside the party cards where nobody had rolled it.",
+    ],
+    fixes: [
+      "A card's health bar is drawn against that character's own maximum. It used to be a flat hundred for everybody, so a character with twenty hit points looked nearly dead at full health.",
+      "The Dungeon Master's coin capsules dim and turn the pointer away while a grant or a take is with the server, the way a player's already did. They used to sit bright and pressable through the whole wait.",
+      "The Max HP box lines its number up with the tag above it rather than centring it in a column of its own.",
+    ],
+  },
+  {
     version: "0.10.4",
     date: "2026-08-24",
     title: "Coin on the table",

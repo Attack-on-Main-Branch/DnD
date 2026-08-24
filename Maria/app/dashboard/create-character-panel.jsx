@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 
 import { PANEL_CLASSES, surfaceClasses } from "@/app/components/ui/surface";
 
-import CreateCampaignPanel from "./create-campaign-panel";
+import CampaignForm from "./campaign-form";
 import PlayerCharacterForm from "./player-character-form";
 
 /**
@@ -30,9 +30,9 @@ export default function CreateCharacterPanel({ role }) {
       })}
     >
       {role === "dm" ? (
-        <CreateCampaignPanel onCreated={done} />
+        <CampaignForm onDone={done} />
       ) : (
-        <PlayerCharacterForm onCreated={done} />
+        <PlayerCharacterForm onDone={done} />
       )}
     </div>
   );

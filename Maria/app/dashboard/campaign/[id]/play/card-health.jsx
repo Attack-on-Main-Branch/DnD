@@ -35,6 +35,10 @@ export default function CardHealth({
 
   const record = useActivityLog(campaignId);
 
+  // This character's own ceiling, not the app's. MAX_HP covers a party list
+  // read before `campaign_party` carried the column.
+  const ceiling = member.max_hp ?? MAX_HP;
+
   // An amount rather than a target — seven damage, four healed. Both words
   // wait until there is one.
   const [amount, setAmount] = useState("");
@@ -47,11 +51,11 @@ export default function CardHealth({
    * both aim at the same number instead of stacking.
    */
   const [current, adjust] = useOptimistic(member.current_hp, (base, delta) =>
-    Math.min(MAX_HP, Math.max(0, base + delta)),
+    Math.min(ceiling, Math.max(0, base + delta)),
   );
 
   function apply(delta) {
-    const next = Math.min(MAX_HP, Math.max(0, current + delta));
+    const next = Math.min(ceiling, Math.max(0, current + delta));
 
     // Already at the floor or the ceiling: the press did not happen.
     if (next === current) {
@@ -100,9 +104,9 @@ export default function CardHealth({
         <HealthBar
           compact
           current={current}
-          max={MAX_HP}
-          fraction={healthFraction(current, MAX_HP)}
-          tierClass={healthBarClass(healthTier(current, MAX_HP))}
+          max={ceiling}
+          fraction={healthFraction(current, ceiling)}
+          tierClass={healthBarClass(healthTier(current, ceiling))}
           label={`${member.name} health`}
         />
 
@@ -145,7 +149,7 @@ export default function CardHealth({
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  max={MAX_HP}
+                  max={ceiling}
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
                   disabled={isPending}
@@ -173,7 +177,7 @@ export default function CardHealth({
               <StepButton
                 wide
                 onClick={() => apply(step)}
-                disabled={isPending || !typed || current === MAX_HP}
+                disabled={isPending || !typed || current === ceiling}
                 label={`Give hit points to ${member.name}`}
               >
                 Heal

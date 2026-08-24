@@ -7,6 +7,7 @@ import {
   insertCharacter,
   listCharacters,
   removeCharacter,
+  updateCharacter,
 } from "./characters.js";
 
 const ARGS = { id: "6f1c3d2e-0000-4000-8000-000000000000", userId: "user-1" };
@@ -16,6 +17,7 @@ const SQLSTATES = [
   ["23505", "handle_taken", "a name and tag already taken"],
   ["23514", "invalid_value", "a row that got past validateCharacter"],
   ["42P01", "missing_table", "migrations not applied"],
+  ["42703", "missing_column", "a migration written but never pushed"],
   ["22P02", "bad_id", "a junk id against a uuid column"],
 ];
 
@@ -246,6 +248,7 @@ describe("the query shape itself", () => {
         "alignment",
         "color_theme",
         "level",
+        "skills",
         "backstory",
         "personality",
         "created_at",
@@ -270,7 +273,9 @@ describe("the query shape itself", () => {
       classId: "fighter",
       alignment: "lawful_good",
       colorTheme: "violet",
+      maxHp: 42,
       abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
+      skills: { stealth: { proficient: true, custom_bonus: null } },
       backstory: "a tale",
       personality: "grumpy",
     };
@@ -289,12 +294,16 @@ describe("the query shape itself", () => {
         class_id: "fighter",
         alignment: "lawful_good",
         color_theme: "violet",
+        // Both, from the one value: a character starts the day whole.
+        max_hp: 42,
+        current_hp: 42,
         ability_str: 15,
         ability_dex: 14,
         ability_con: 13,
         ability_int: 12,
         ability_wis: 11,
         ability_cha: 7,
+        skills: { stealth: { proficient: true, custom_bonus: null } },
         backstory: "a tale",
         personality: "grumpy",
       });
@@ -341,5 +350,73 @@ describe("the query shape itself", () => {
         .map(([k]) => k);
       assert.deepEqual(undefinedColumns, []);
     });
+  });
+});
+
+describe("updateCharacter's parameter map", () => {
+  const VALUES = {
+    name: "Gandalf",
+    discriminator: "0451",
+    race: "Human",
+    archetype: "warrior",
+    classId: "fighter",
+    alignment: "lawful_good",
+    colorTheme: "violet",
+    maxHp: 42,
+    abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
+    skills: { stealth: { proficient: true, custom_bonus: null } },
+    backstory: "a tale",
+    personality: "grumpy",
+  };
+
+  it("sends every editable value to the definer function", async () => {
+    const q = stubQuery({ data: true, error: null });
+    await updateCharacter(q, { id: ARGS.id, values: VALUES });
+
+    assert.equal(q.lastRpc.name, "update_character");
+    assert.deepEqual(q.lastRpc.params, {
+      target_character: ARGS.id,
+      new_name: "Gandalf",
+      new_discriminator: "0451",
+      new_race: "Human",
+      new_archetype: "warrior",
+      new_class_id: "fighter",
+      new_alignment: "lawful_good",
+      new_color_theme: "violet",
+      new_max_hp: 42,
+      new_ability_str: 15,
+      new_ability_dex: 14,
+      new_ability_con: 13,
+      new_ability_int: 12,
+      new_ability_wis: 11,
+      new_ability_cha: 7,
+      new_skills: { stealth: { proficient: true, custom_bonus: null } },
+      new_backstory: "a tale",
+      new_personality: "grumpy",
+    });
+  });
+
+  it("never names a column the function has no parameter for", async () => {
+    // A parameter list PostgREST cannot match is a PGRST202, which classify()
+    // reads as a migration written but never pushed — a long way from the
+    // typo that caused it.
+    const q = stubQuery({ data: true, error: null });
+    await updateCharacter(q, { id: ARGS.id, values: VALUES });
+
+    const undefinedParams = Object.entries(q.lastRpc.params)
+      .filter(([, v]) => v === undefined)
+      .map(([k]) => k);
+
+    assert.deepEqual(undefinedParams, []);
+  });
+
+  it("reads a false answer as a refusal or a miss, never as a save", async () => {
+    const { data, error } = await updateCharacter(
+      stubQuery({ data: false, error: null }),
+      { id: ARGS.id, values: VALUES },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
   });
 });
