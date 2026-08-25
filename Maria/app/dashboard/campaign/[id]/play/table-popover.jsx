@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { createContext, useContext, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
@@ -17,6 +17,35 @@ import { useTableMarks } from "./table-marks";
  * panel hangs off the marks above the board.
  */
 export const POPOVER_BODY_CLASSES = "h-[min(34rem,60vh)]";
+
+/**
+ * And how tall it stands with a SECOND panel under it: the pair hangs off the
+ * marks together and has to clear the bottom of the window. A literal again.
+ */
+export const POPOVER_BODY_SHORT_CLASSES = "h-[min(24rem,42vh)]";
+
+/** One node is shared by every mark, so only the open one may render into it. */
+const AsideContext = createContext({ node: null, open: false });
+
+/**
+ * A panel of its own, under the one this is rendered inside — a list to choose
+ * from, and the thing chosen. It draws its own surface, so a mark with nothing
+ * open leaves no empty box behind.
+ */
+export function PopoverAside({ children }) {
+  const { node, open } = useContext(AsideContext);
+
+  return node && open ? createPortal(children, node) : null;
+}
+
+/**
+ * Whether the panel this is called inside is open. A drawer that remembers what
+ * somebody had open needs to forget it when the mark shuts, or the same spell
+ * is standing under the book the next time it is pressed.
+ */
+export function usePopoverOpen() {
+  return useContext(AsideContext).open;
+}
 
 /** Everything a Tab can reach, for the keyboard loop below. */
 const FOCUSABLE =
@@ -42,6 +71,7 @@ export default function TablePopover({
   label,
   title,
   count,
+  meta,
   arrival = 0,
   onShortcut,
   children,
@@ -52,7 +82,7 @@ export default function TablePopover({
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
 
-  const { body, open, hold, toggle, close } = useTableMarks();
+  const { body, under, open, hold, toggle, close } = useTableMarks();
   const isOpen = open === value;
 
   /*
@@ -171,17 +201,24 @@ export default function TablePopover({
                     {title}
                   </h2>
 
-                  {count !== undefined && (
-                    <p className="shrink-0 font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
-                      {count}
-                    </p>
-                  )}
+                  {/* Whatever the panel wants beside its name, then the count. */}
+                  <div className="flex shrink-0 items-baseline gap-3">
+                    {meta}
+
+                    {count !== undefined && (
+                      <p className="font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
+                        {count}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* The hairline the header and the changelog drawer carry. */}
                 <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
-                {children}
+                <AsideContext.Provider value={{ node: under, open: isOpen }}>
+                  {children}
+                </AsideContext.Provider>
               </div>
             </div>
           </div>,

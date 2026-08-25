@@ -39,6 +39,7 @@ describe("the catalogue", () => {
       "coin_transferred",
       "coin_granted",
       "coin_revoked",
+      "spell_cast",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -339,6 +340,55 @@ describe("readActivity, on a purse", () => {
       ),
       null,
     );
+  });
+});
+
+describe("readActivity, on a spell", () => {
+  const cast = (payload) => row({ action_type: "spell_cast", payload });
+
+  it("reads the name and the shelf it came off", () => {
+    assert.deepEqual(
+      readActivity(cast({ spellName: "Fireball", spellLevel: 3 })),
+      {
+        id: ROW.id,
+        action: "spell_cast",
+        actor: "Fern",
+        spell: "Fireball",
+        level: 3,
+        damage: null,
+        save: null,
+      },
+    );
+  });
+
+  it("keeps a cantrip, whose level is zero and not nothing", () => {
+    const entry = readActivity(cast({ spellName: "Fire Bolt", spellLevel: 0 }));
+
+    assert.equal(entry.level, 0);
+  });
+
+  it("names nobody: a spell is cast at the table", () => {
+    const entry = readActivity(
+      cast({ spellName: "Fireball", spellLevel: 3, targetName: "Fern" }),
+    );
+
+    assert.equal(entry.target, undefined);
+  });
+
+  it("refuses a shelf that is not one", () => {
+    assert.equal(
+      readActivity(cast({ spellName: "Wish", spellLevel: 10 })),
+      null,
+    );
+    assert.equal(
+      readActivity(cast({ spellName: "Wish", spellLevel: -1 })),
+      null,
+    );
+    assert.equal(readActivity(cast({ spellName: "Wish" })), null);
+  });
+
+  it("refuses a spell with no name", () => {
+    assert.equal(readActivity(cast({ spellName: "  ", spellLevel: 1 })), null);
   });
 });
 

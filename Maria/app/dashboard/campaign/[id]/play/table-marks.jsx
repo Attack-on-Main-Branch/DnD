@@ -58,9 +58,14 @@ export default function TableMarks({ children }) {
   /** Every mark's button, by the id TablePopover made for itself. */
   const triggers = useRef(new Map());
 
-  /* The portal's landing place. State rather than a ref: it is null on the
-     render that creates it, and the panels have to be told once it is not. */
+  /* The portals' landing places. State rather than refs: both are null on the
+     render that creates them, and the panels have to be told once they are not.
+
+     `under` is the SECOND panel, a box of its own rather than more height on
+     the first — pushing a list down every time a row is read moves the row out
+     from under the pointer. */
   const [body, setBody] = useState(null);
+  const [under, setUnder] = useState(null);
   const [open, setOpen] = useState(null);
 
   const hold = useCallback((value, node) => {
@@ -137,45 +142,59 @@ export default function TableMarks({ children }) {
   }, [open]);
 
   return (
-    <MarksContext.Provider value={{ body, open, hold, toggle, close }}>
+    <MarksContext.Provider value={{ body, under, open, hold, toggle, close }}>
       <div ref={stripRef} className="relative flex gap-3">
         {children}
 
+        {/* One positioned column, so the second panel is always the first's
+            width and below it. The fade is here so the two leave together. */}
         <div
-          ref={boxRef}
-          className={surfaceClasses({
-            variant: "solid",
-            glow: true,
-            className: [
-              "absolute top-full left-1/2 z-40 mt-4 -translate-x-1/2",
-              // A closed panel keeps filtering its backdrop — `opacity: 0` does
-              // not stop it — which over the board's plume showed as a dark
-              // slab under the marks.
-              "glass-unfiltered",
-              // ↓ THE PANEL'S WIDTH. Its height is whatever is open in it.
-              "w-[min(50rem,calc(100vw-2rem))] rounded-2xl text-left",
-              // `border-color` and `box-shadow` are in the list because
-              // `.glow-gold` declares its own `transition`, and a `transition-*`
-              // utility replaces that property wholesale.
-              "group transition-[opacity,border-color,box-shadow] duration-300",
-              open
-                ? "ease-tray opacity-100"
-                : "pointer-events-none ease-tray-in opacity-0",
-              "motion-reduce:transition-none",
-            ].join(" "),
-          })}
+          className={[
+            "absolute top-full left-1/2 z-40 mt-4 flex -translate-x-1/2 flex-col gap-3",
+            // ↓ THE PANELS' WIDTH. Their height is whatever is open in them.
+            "w-[min(50rem,calc(100vw-2rem))]",
+            "transition-opacity duration-300",
+            open
+              ? "ease-tray opacity-100"
+              : "pointer-events-none ease-tray-in opacity-0",
+            "motion-reduce:transition-none",
+          ].join(" ")}
         >
-          {/* The pointer up at whichever mark is open — the notification
+          <div
+            ref={boxRef}
+            className={surfaceClasses({
+              variant: "solid",
+              glow: true,
+              className: [
+                "relative",
+                // A closed panel keeps filtering its backdrop — `opacity: 0` does
+                // not stop it — which over the board's plume showed as a dark
+                // slab under the marks.
+                "glass-unfiltered",
+                "rounded-2xl text-left",
+                // `.glow-gold` declares its own `transition` and a
+                // `transition-*` utility replaces it wholesale, so only these
+                // two are named here. Opacity is the column's, above.
+                "group transition-[border-color,box-shadow] duration-300",
+                "motion-reduce:transition-none",
+              ].join(" "),
+            })}
+          >
+            {/* The pointer up at whichever mark is open — the notification
               panel's own arrow. Only the two borders that fall on its outer
               edges. Its `translate` is set from script, so the centring is in
               there too rather than in a utility that would overwrite it. */}
-          <span
-            ref={arrowRef}
-            aria-hidden="true"
-            className="absolute top-0 left-0 size-2.5 rotate-45 border-t border-l border-gold/25 bg-[var(--surface-96)] transition-[translate,border-color] duration-300 ease-tray group-focus-within:border-gold/60 group-hover:border-gold/60 motion-reduce:transition-none"
-          />
+            <span
+              ref={arrowRef}
+              aria-hidden="true"
+              className="absolute top-0 left-0 size-2.5 rotate-45 border-t border-l border-gold/25 bg-[var(--surface-96)] transition-[translate,border-color] duration-300 ease-tray group-focus-within:border-gold/60 group-hover:border-gold/60 motion-reduce:transition-none"
+            />
 
-          <div ref={setBody} />
+            <div ref={setBody} />
+          </div>
+
+          {/* PopoverAside draws its own surface, so an empty one is nothing. */}
+          <div ref={setUnder} />
         </div>
       </div>
     </MarksContext.Provider>

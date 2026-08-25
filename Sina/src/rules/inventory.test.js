@@ -5,13 +5,18 @@ import {
   CUSTOM_SLUG_PREFIX,
   customItemSlug,
   DEFAULT_ITEM_CATEGORY,
+  isCostUnit,
   itemSlug,
+  MAX_ITEM_FACT_LENGTH,
+  MAX_ITEM_ARMOR_CLASS,
+  MAX_ITEM_COST,
   MAX_ITEM_DESCRIPTION_LENGTH,
   MAX_ITEM_NAME_LENGTH,
   MAX_ITEM_QUANTITY,
   MAX_ITEM_SLUG_LENGTH,
   parseQuantity,
   readCatalogueItem,
+  readItemFacts,
   validateItem,
 } from "./inventory.js";
 
@@ -154,5 +159,133 @@ describe("readCatalogueItem", () => {
     });
 
     assert.equal(item.description.length, MAX_ITEM_DESCRIPTION_LENGTH);
+  });
+});
+
+describe("validateItem, on what the SRD would have said", () => {
+  const SWORD = {
+    name: "Flame Nichirin",
+    category: "Sword",
+    quantity: 1,
+    cost: "150",
+    costUnit: "gp",
+    weight: "6.5",
+    damageDice: "1d8",
+    damageType: "Slashing",
+    armorClass: "",
+    properties: "Versatile",
+  };
+
+  it("keeps a price, a weight and a die", () => {
+    const { values } = validateItem(SWORD);
+
+    assert.equal(values.cost, 150);
+    assert.equal(values.costUnit, "gp");
+    assert.equal(values.weight, 6.5);
+    assert.equal(values.damageDice, "1d8");
+    assert.equal(values.damageType, "Slashing");
+    assert.equal(values.properties, "Versatile");
+  });
+
+  it("reads an empty box as zero rather than refusing it", () => {
+    // A rusted key has no price, no weight and no dice, and is still an item.
+    const { values, errors } = validateItem({
+      name: "Rusted key",
+      quantity: 1,
+    });
+
+    assert.equal(errors, null);
+    assert.equal(values.cost, 0);
+    assert.equal(values.costUnit, "");
+    assert.equal(values.weight, 0);
+    assert.equal(values.armorClass, 0);
+    assert.equal(values.damageDice, "");
+  });
+
+  it("clamps a figure outside the box the form offers", () => {
+    const { values } = validateItem({
+      ...SWORD,
+      cost: 99999999,
+      weight: -4,
+      armorClass: 500,
+    });
+
+    assert.equal(values.cost, MAX_ITEM_COST);
+    assert.equal(values.weight, 0);
+    assert.equal(values.armorClass, MAX_ITEM_ARMOR_CLASS);
+  });
+
+  it("keeps only a coin the SRD writes a price in", () => {
+    assert.equal(
+      validateItem({ ...SWORD, costUnit: "GP" }).values.costUnit,
+      "gp",
+    );
+    assert.equal(
+      validateItem({ ...SWORD, costUnit: "zorkmid" }).values.costUnit,
+      "",
+    );
+    assert.equal(isCostUnit("pp"), true);
+    assert.equal(isCostUnit("xp"), false);
+  });
+});
+
+describe("readItemFacts", () => {
+  it("keeps what the panel prints, in whatever order it arrived", () => {
+    const facts = readItemFacts({
+      weight: "3 lb",
+      damage: "1d8 Slashing",
+      versatile: "1d10 Slashing",
+      cost: "15 gp",
+    });
+
+    assert.deepEqual(facts, {
+      damage: "1d8 Slashing",
+      versatile: "1d10 Slashing",
+      cost: "15 gp",
+      weight: "3 lb",
+    });
+  });
+
+  it("drops a key this list has never heard of", () => {
+    // The facts come from an external index; nothing it invents may reach the
+    // column, and the panel has a fixed order to draw in.
+    const facts = readItemFacts({ damage: "1d6", sharpness: "very" });
+
+    assert.deepEqual(facts, { damage: "1d6" });
+  });
+
+  it("keeps attunement as the one boolean", () => {
+    assert.equal(readItemFacts({ attunement: true }).attunement, true);
+    assert.equal(readItemFacts({ attunement: false }).attunement, undefined);
+  });
+
+  it("holds a fact to the column's bound", () => {
+    const facts = readItemFacts({ properties: "x".repeat(200) });
+
+    assert.equal(facts.properties.length, MAX_ITEM_FACT_LENGTH);
+  });
+
+  it("answers junk with an empty object rather than throwing", () => {
+    for (const held of [null, undefined, "nonsense", 4, []]) {
+      assert.deepEqual(readItemFacts(held), {});
+    }
+  });
+
+  it("rides through both readers", () => {
+    const carried = { damage: "1d8 Slashing" };
+
+    assert.deepEqual(
+      readCatalogueItem({
+        slug: "longsword",
+        name: "Longsword",
+        facts: carried,
+      }).facts,
+      carried,
+    );
+    assert.deepEqual(
+      validateItem({ name: "Longsword", quantity: 1, facts: carried }).values
+        .facts,
+      carried,
+    );
   });
 });

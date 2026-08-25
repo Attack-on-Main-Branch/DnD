@@ -1,6 +1,7 @@
 import { listCampaignItems } from "sina/data/inventory";
 import { MAX_ITEM_DESCRIPTION_LENGTH } from "sina/rules/inventory";
 
+import { catalogueFacts } from "@/app/dashboard/inventory-presentation";
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
@@ -58,6 +59,45 @@ let loading = null;
 
 const details = new Map();
 
+/**
+ * The eleven weapon properties and what each one MEANS, by name.
+ *
+ * Most equipment carries no `desc` at all — the rulebook writes nothing about a
+ * longsword beyond its numbers — so the only prose 5e attaches to a weapon is
+ * the rule behind Versatile, Thrown, Ammunition and the rest. That is what an
+ * item's panel prints where a spell prints its own text, and it is the answer a
+ * player actually wants when they see the tag.
+ *
+ * Eleven entries, fetched once and kept: the same per-instance memory the
+ * catalogue lives in.
+ */
+let rules = null;
+
+async function propertyRules() {
+  if (!rules) {
+    rules = upstream("weapon-properties")
+      .then(async (list) => {
+        const named = await Promise.all(
+          (list?.results ?? []).map(async (one) => {
+            const rule = await upstream(`weapon-properties/${one.index}`);
+
+            return [one.name, (rule?.desc ?? []).join(" ").trim()];
+          }),
+        );
+
+        return new Map(named.filter(([, desc]) => desc));
+      })
+      // A failed fetch must not be remembered as an empty map for the life of
+      // the instance: the next caller tries again.
+      .catch(() => {
+        rules = null;
+        return new Map();
+      });
+  }
+
+  return rules;
+}
+
 async function upstream(path) {
   const response = await fetch(`${API}/${path}`, {
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
@@ -110,25 +150,115 @@ async function catalogue() {
 }
 
 /**
- * Ordinary equipment usually has no `desc` at all, so the cost, weight and
- * damage the API does carry are made into one.
+ * The prose, and only the prose. What the SRD says in figures — the dice, the
+ * price, the weight — used to be composed onto the end of this, because a card
+ * had one line for all of it. It has its own field now (`factsOf`), and a
+ * description that repeated it would print every weapon's stats twice.
+ *
+ * Empty for the many entries that carry no prose at all, which is honest: a
+ * longsword has nothing written about it beyond its numbers.
  */
 function describe(item) {
   const prose = (item?.desc ?? []).join(" ").replace(/\s+/g, " ").trim();
 
-  if (prose) {
-    return clip(prose);
+  return prose ? clip(prose) : "";
+}
+
+/**
+ * What the rulebook says about a thing besides its name: the dice, the armour,
+ * the price, the weight. Composed here because the shapes are the SRD's own —
+ * `damage.damage_dice` with a type beside it, an `armor_class` of three parts,
+ * a range that means reach on a melee weapon and distance on a bow.
+ *
+ * Only what is there. A rope has a price and a weight and nothing else, and a
+ * panel that printed "Damage —" for it would be answering a question nobody
+ * asked.
+ */
+function factsOf(item) {
+  const facts = {};
+
+  const kind =
+    item?.category_range ??
+    item?.armor_category ??
+    item?.gear_category?.name ??
+    item?.tool_category ??
+    item?.vehicle_category;
+
+  if (kind) {
+    facts.kind = String(kind);
   }
 
-  const facts = [
-    item?.damage?.damage_dice &&
-      `${item.damage.damage_dice} ${item.damage.damage_type?.name ?? ""}`.trim(),
-    item?.armor_class?.base && `AC ${item.armor_class.base}`,
-    item?.cost && `${item.cost.quantity} ${item.cost.unit}`,
-    item?.weight && `${item.weight} lb`,
-  ].filter(Boolean);
+  if (item?.rarity?.name) {
+    facts.rarity = item.rarity.name;
+  }
 
-  return facts.join(" · ");
+  if (item?.damage?.damage_dice) {
+    facts.damage =
+      `${item.damage.damage_dice} ${item.damage.damage_type?.name ?? ""}`.trim();
+  }
+
+  if (item?.two_handed_damage?.damage_dice) {
+    facts.versatile =
+      `${item.two_handed_damage.damage_dice} ${item.two_handed_damage.damage_type?.name ?? ""}`.trim();
+  }
+
+  if (item?.armor_class?.base) {
+    const dex = item.armor_class.dex_bonus
+      ? ` + DEX${item.armor_class.max_bonus ? ` (max ${item.armor_class.max_bonus})` : ""}`
+      : "";
+
+    facts.armorClass = `${item.armor_class.base}${dex}`;
+  }
+
+  /* A melee weapon's `range.normal` is its reach, which is 5 for almost all of
+     them and worth nothing on a card. A distance is only a distance when the
+     weapon is ranged or the range has a long end. */
+  if (
+    item?.range?.normal &&
+    (item.weapon_range === "Ranged" || item.range.long)
+  ) {
+    facts.range = span(item.range);
+  }
+
+  if (item?.throw_range?.normal) {
+    facts.thrown = span(item.throw_range);
+  }
+
+  const properties = (item?.properties ?? [])
+    .map((one) => one?.name)
+    .filter(Boolean);
+
+  if (properties.length > 0) {
+    facts.properties = properties.join(", ");
+  }
+
+  if (item?.str_minimum) {
+    facts.strength = `Str ${item.str_minimum}`;
+  }
+
+  if (item?.stealth_disadvantage) {
+    facts.stealth = "Disadvantage";
+  }
+
+  if (item?.cost) {
+    facts.cost = `${item.cost.quantity} ${item.cost.unit}`;
+  }
+
+  if (item?.weight) {
+    facts.weight = `${item.weight} lb`;
+  }
+
+  // 5e writes attunement into the prose rather than into a field of its own,
+  // and a chip is what a table wants rather than a sentence to find it in.
+  if (/requires attunement/i.test((item?.desc ?? []).join(" "))) {
+    facts.attunement = true;
+  }
+
+  return facts;
+}
+
+function span(range) {
+  return range.long ? `${range.normal}/${range.long} ft` : `${range.normal} ft`;
 }
 
 /**
@@ -151,6 +281,22 @@ function clip(text) {
   }…`;
 }
 
+/**
+ * What the rulebook says about a weapon that has nothing written about it: the
+ * rule behind each property it carries, named and then quoted.
+ *
+ * Empty for armour and gear, which have neither prose nor properties — an
+ * honest nothing rather than a sentence this app made up.
+ */
+function propertyText(item, known) {
+  const written = (item?.properties ?? [])
+    .map((one) => one?.name)
+    .filter((name) => known.has(name))
+    .map((name) => `${name}. ${known.get(name)}`);
+
+  return written.length > 0 ? clip(written.join("\n\n")) : "";
+}
+
 /** What the index alone already knows: enough to show and enough to hand out. */
 function outline(entry) {
   return {
@@ -158,6 +304,7 @@ function outline(entry) {
     name: entry.name,
     category: entry.fallback,
     description: "",
+    facts: {},
   };
 }
 
@@ -169,14 +316,18 @@ async function detail(entry) {
     return held;
   }
 
-  const item = await upstream(entry.path);
+  const [item, known] = await Promise.all([
+    upstream(entry.path),
+    propertyRules(),
+  ]);
 
   const card = {
     slug: entry.slug,
     name: item?.name ?? entry.name,
     category:
       item?.equipment_category?.name ?? item?.rarity?.name ?? entry.fallback,
-    description: describe(item),
+    description: describe(item) || propertyText(item, known),
+    facts: factsOf(item),
   };
 
   details.set(entry.slug, card);
@@ -298,7 +449,8 @@ async function campaignItems(supabase, campaignId, query) {
       slug: item.item_slug,
       name: item.name,
       category: item.category,
-      description: item.description,
+      description: String(item.description ?? "").trim(),
+      facts: catalogueFacts(item),
       isCustom: true,
     }));
 }

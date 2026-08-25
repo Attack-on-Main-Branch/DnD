@@ -1,4 +1,5 @@
 import { coinName } from "@/app/dashboard/currency-presentation";
+import { spellLevelLabel } from "@/app/dashboard/spell-presentation";
 
 import DieGlyph from "./dice-glyphs";
 
@@ -51,6 +52,9 @@ const ACCENTS = {
   coin_transferred: "border-l-blue-500",
   coin_spent: "border-l-blue-800",
   coin_revoked: "border-l-blue-800",
+
+  /* The arcane violet the kept roll wears, held back a step. */
+  spell_cast: "border-l-arcane/70",
 };
 
 /**
@@ -237,6 +241,19 @@ function Body({ entry }) {
     );
   }
 
+  /* No second half: a spell is cast at the table, not at a character. "at 5th
+     Level" is the SLOT it came out of — a Magic Missile at third is a different
+     event from one at first — and a cantrip comes out of none. */
+  if (entry.action === "spell_cast") {
+    return (
+      <>
+        cast <span className={EMPHASIS_CLASSES}>{entry.spell}</span>
+        {entry.level > 0 && <> at {spellLevelLabel(entry.level)}</>}
+        <Effect damage={entry.damage} save={entry.save} />
+      </>
+    );
+  }
+
   /* The purse and the pack say the same four things in the same order, so the
      only difference between the two branches is what moved. */
   if (COIN_PHRASES[entry.action]) {
@@ -257,6 +274,23 @@ function Body({ entry }) {
       {verb} <Stack quantity={entry.quantity} item={entry.item} />
       <Addressed into={into} target={entry.target} />
     </>
+  );
+}
+
+/** "10d6 Fire ➔ 34 · DC 15 DEX save" — either, both, or neither. */
+function Effect({ damage, save }) {
+  if (!damage && !save) {
+    return null;
+  }
+
+  return (
+    <span className="text-ink/45">
+      {" ("}
+      {damage}
+      {damage && save ? " · " : ""}
+      {save}
+      {")"}
+    </span>
   );
 }
 

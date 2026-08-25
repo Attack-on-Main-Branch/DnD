@@ -1,59 +1,47 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { MAX_PARTY, parseCharacterQuery } from "sina/rules/campaign";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
-import FormAlert from "@/app/components/ui/form-alert";
+import {
+  controlClasses,
+  LABEL_CLASSES,
+} from "@/app/components/ui/field-styles";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
-import TextField from "@/app/components/ui/text-field";
-import { useFormAction } from "@/app/components/use-form-action";
 import {
   avatarColorClass,
   characterInitials,
 } from "@/app/dashboard/character-presentation";
 
 import {
-  findPartyCandidate,
   inviteCharacterToParty,
   removeCharacterFromParty,
 } from "../../actions";
 
-const FEEDBACK_ID = "party-feedback";
-
-function readQuery(formData) {
-  return { query: String(formData.get("query") ?? "") };
-}
-
-function validateQuery({ query }) {
-  return parseCharacterQuery(query)
-    ? null
-    : {
-        field: "query",
-        message: "Search by name or id.",
-        // The only path that never reaches the action, so the echoed query has
-        // to come from here instead.
-        query,
-      };
-}
-
 /**
- * The party: who is in it, and how to ask somebody to join. The search takes a
- * fragment rather than a whole handle, since a DM usually has a name someone
- * said out loud. It returns a list to pick from — two characters can differ
- * only in their four digits and belong to different people.
+ * The party: who is in it, and how to ask somebody to join.
+ *
+ * The search answers as it is typed, the way the pack's and the spellbook's do:
+ * debounced rather than fired per keystroke, the in-flight request aborted when
+ * a newer one starts, and the answer remembering WHICH TERM it belongs to so one
+ * that landed first is never shown against a query it did not answer.
+ *
+ * A fragment rather than a whole handle, since a Dungeon Master usually has a
+ * name somebody said out loud — and a list to pick from, because two characters
+ * can differ only in their four digits and belong to different people.
  *
  * Picking one sends an invitation rather than adding the character. The row
  * appears below when its player accepts, which is a moment this page cannot
- * predict — hence the subscription: the party arrives on its own rather than on
- * a reload.
- *
- * The echoed query reaches the box through `key` and `defaultValue`, which is
- * what makes an uncontrolled input adopt it after each search.
+ * predict — hence the subscription.
  */
+
+const DEBOUNCE_MS = 250;
+
+const NOTHING = { term: null, characters: [] };
 export default function PartyPanel({ campaignId, members }) {
   const router = useRouter();
   const [error, setError] = useState(null);
@@ -71,17 +59,54 @@ export default function PartyPanel({ campaignId, members }) {
     onChange: refresh,
   });
 
-  const {
-    state,
-    formAction,
-    isPending: isSearching,
-  } = useFormAction({
-    action: findPartyCandidate,
-    read: readQuery,
-    validate: validateQuery,
-  });
+  const [query, setQuery] = useState("");
+  const [answer, setAnswer] = useState(NOTHING);
+  const inFlight = useRef(null);
 
-  const results = state?.kind === "success" ? state.results : null;
+  const term = query.trim();
+
+  /* The rules layer decides what counts as a query — "fern#04", "fern", "0451"
+     — and anything it refuses is somebody mid-type rather than a mistake to
+     complain about. */
+  const searchable = Boolean(parseCharacterQuery(term));
+
+  useEffect(() => {
+    const wanted = query.trim();
+
+    if (!parseCharacterQuery(wanted)) {
+      inFlight.current?.abort();
+      inFlight.current = null;
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      inFlight.current?.abort();
+
+      const controller = new AbortController();
+      inFlight.current = controller;
+
+      fetch(`/api/characters/search?q=${encodeURIComponent(wanted)}`, {
+        signal: controller.signal,
+      })
+        .then((response) =>
+          response.ok ? response.json() : { characters: [] },
+        )
+        .then((body) =>
+          setAnswer({ term: wanted, characters: body.characters ?? [] }),
+        )
+        // An aborted fetch rejects, and a superseded search has nothing to
+        // report: whatever replaced it will set the state.
+        .catch(() => {});
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => () => inFlight.current?.abort(), []);
+
+  const shown = answer.term === term ? answer : NOTHING;
+  const searching = searchable && answer.term !== term;
+
   const full = members.length >= MAX_PARTY;
   const inParty = new Set(members.map((member) => member.id));
 
@@ -100,7 +125,7 @@ export default function PartyPanel({ campaignId, members }) {
     });
   }
 
-  const busy = isPending || isSearching;
+  const busy = isPending;
 
   return (
     <div className="flex flex-col gap-6">
@@ -114,28 +139,22 @@ export default function PartyPanel({ campaignId, members }) {
         </p>
       </div>
 
-      <form action={formAction} noValidate className="flex flex-wrap gap-3">
-        <div className="min-w-0 flex-1">
-          <TextField
-            key={state?.query ?? ""}
-            label="Search"
-            name="query"
-            type="text"
-            autoComplete="off"
-            placeholder="Name or id"
-            defaultValue={state?.query ?? ""}
-            disabled={busy || full}
-            invalid={state?.field === "query"}
-            aria-describedby={state?.message ? FEEDBACK_ID : undefined}
-          />
-        </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="party-search" className={LABEL_CLASSES}>
+          Search
+        </label>
 
-        <div className="flex items-end">
-          <Button type="submit" disabled={busy || full}>
-            {isSearching ? "Searching…" : "Search"}
-          </Button>
-        </div>
-      </form>
+        <input
+          id="party-search"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Name or id"
+          autoComplete="off"
+          disabled={full}
+          className={controlClasses({ className: "search-clear" })}
+        />
+      </div>
 
       {full && (
         <p className="text-xs text-ink/50">
@@ -149,24 +168,15 @@ export default function PartyPanel({ campaignId, members }) {
         </p>
       )}
 
-      {/*
-        Anything that is not a success, not only a rejection. The client-side
-        check returns `kind: "invalid"` rather than `"rejected"` — that is the
-        distinction `useFormAction` draws between "never went over the wire" and
-        "the server said no" — so testing for `rejected` alone left a typed
-        query with no message at all.
-      */}
-      <FormAlert id={FEEDBACK_ID}>
-        {state && state.kind !== "success" ? state.message : null}
-      </FormAlert>
-
-      {results !== null && results.length === 0 && (
-        <p className="text-sm text-ink/50 italic">No characters match that.</p>
+      {searchable && shown.characters.length === 0 && (
+        <p className="text-sm text-ink/50 italic">
+          {searching ? "Looking…" : "No characters match that."}
+        </p>
       )}
 
-      {results !== null && results.length > 0 && (
+      {shown.characters.length > 0 && (
         <ul className="flex flex-col gap-3">
-          {results.map((character) => (
+          {shown.characters.map((character) => (
             <li
               key={character.id}
               className={`flex flex-wrap items-center gap-4 rounded-lg border p-4 ${NESTED_CARD_CLASSES}`}

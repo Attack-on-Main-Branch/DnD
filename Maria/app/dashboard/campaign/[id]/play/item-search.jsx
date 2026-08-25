@@ -1,25 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MAX_ITEM_QUANTITY, parseQuantity } from "sina/rules/inventory";
 
-import { buttonClasses } from "@/app/components/ui/button";
 import { controlClasses } from "@/app/components/ui/field-styles";
-import QuantityStepper from "@/app/components/ui/quantity-stepper";
-import PackItemCard from "@/app/dashboard/pack-item-card";
+import ItemRow from "@/app/dashboard/item-row";
 
 /**
  * The campaign's own items and the SRD's, searched together.
  *
  * Debounced rather than fired per keystroke: a warm query answers out of the
  * route's memory, but its first sighting of an item costs an upstream fetch.
+ * Two guards against showing the wrong answer — the in-flight request is
+ * aborted when a newer one starts, and the answer remembers WHICH TERM it
+ * belongs to.
  *
  * The campaign travels with the query so the route can search its catalogue.
  * Which items that yields is RLS's to decide, not this parameter's.
  *
- * Two guards against showing the wrong answer: the in-flight request is aborted
- * when a newer one starts, and the answer remembers WHICH TERM it belongs to,
- * so one that landed first is never shown against a query it did not answer.
+ * Which row is open is the DRAWER's, not this component's: there is one panel
+ * under the pack, and a search hit and a carried item must not both claim it.
  */
 
 const DEBOUNCE_MS = 250;
@@ -29,16 +28,9 @@ const MIN_QUERY = 2;
 
 const NOTHING = { term: null, items: [], reachedOut: false };
 
-export default function ItemSearch({
-  campaignId,
-  onGive,
-  disabled,
-  giveLabel,
-}) {
+export default function ItemSearch({ campaignId, openSlug, onOpen }) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState(NOTHING);
-  const [chosenSlug, setChosenSlug] = useState(null);
-  const [amount, setAmount] = useState(1);
 
   const inFlight = useRef(null);
 
@@ -82,20 +74,8 @@ export default function ItemSearch({
 
   useEffect(() => () => inFlight.current?.abort(), []);
 
-  /* The choice is held as a slug and resolved against what is on screen, so a
-     typist who narrows the search cannot hand out what they clicked three
-     letters ago. */
   const shown = answer.term === term ? answer : NOTHING;
-  const chosen = shown.items.find((item) => item.slug === chosenSlug) ?? null;
   const searching = searchable && answer.term !== term;
-
-  function give() {
-    if (!chosen || disabled) {
-      return;
-    }
-
-    onGive(chosen, parseQuantity(amount) ?? 1);
-  }
 
   return (
     <section aria-label="Find an item">
@@ -116,17 +96,13 @@ export default function ItemSearch({
 
       {searchable && (
         <>
-          {/* `auto-rows-fr` makes every card the same size and not merely
-              every card in a row: a grid otherwise sizes each row to its own
-              tallest card. One column on a phone, where two are unreadable. */}
-          <ul className="mt-3 grid auto-rows-fr gap-2.5 sm:grid-cols-2">
-            {shown.items.map((item, index) => (
+          <ul className="mt-3 grid grid-cols-3 gap-2">
+            {shown.items.map((item) => (
               <li key={item.slug} className="flex">
-                <PackItemCard
+                <ItemRow
                   item={item}
-                  index={index}
-                  selected={item.slug === chosenSlug}
-                  onSelect={() => setChosenSlug(item.slug)}
+                  open={openSlug === item.slug}
+                  onOpen={() => onOpen(item)}
                 />
               </li>
             ))}
@@ -138,34 +114,6 @@ export default function ItemSearch({
             </p>
           )}
         </>
-      )}
-
-      {chosen && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/20 bg-surface/40 px-3.5 py-3">
-          <p className="min-w-0 flex-1 truncate font-display text-sm tracking-wide text-ink/85">
-            {chosen.name}
-          </p>
-
-          <QuantityStepper
-            value={amount}
-            min={1}
-            max={MAX_ITEM_QUANTITY}
-            onChange={setAmount}
-            label={`How many ${chosen.name} to hand out`}
-            decreaseLabel="One fewer"
-            increaseLabel="One more"
-            disabled={disabled}
-          />
-
-          <button
-            type="button"
-            onClick={give}
-            disabled={disabled}
-            className={buttonClasses({ variant: "primary" })}
-          >
-            {giveLabel}
-          </button>
-        </div>
       )}
     </section>
   );

@@ -13,6 +13,15 @@
 
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
 
+/** The D&D modifier: every two points above 10 is worth one. */
+export function abilityModifier(total) {
+  return Math.floor((total - 10) / 2);
+}
+
+export function formatModifier(modifier) {
+  return `${modifier >= 0 ? "+" : ""}${modifier}`;
+}
+
 /** Levels 1–4 are worth +2, and every four levels after that one more. */
 export const BASE_PROFICIENCY_BONUS = 2;
 const LEVELS_PER_STEP = 4;

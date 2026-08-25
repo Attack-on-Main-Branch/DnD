@@ -18,7 +18,9 @@ import {
   validateMaxHitPoints,
 } from "./health.js";
 import {
+  abilityModifier,
   defaultSkills,
+  formatModifier,
   proficiencyBonus,
   readSkills,
   SKILLS,
@@ -34,7 +36,9 @@ export { countCharacters };
 /** The skills sit in their own module for the reason hit points do; what the
     sheet reads is re-exported here, where the rest of a character is. */
 export {
+  abilityModifier,
   defaultSkills,
+  formatModifier,
   proficiencyBonus,
   SKILLS,
   skillState,
@@ -405,15 +409,6 @@ export const RACE_ABILITY_BONUSES = {
 
 export function raceAbilityBonus(race, abilityId) {
   return RACE_ABILITY_BONUSES[race]?.[abilityId] ?? 0;
-}
-
-/** The D&D modifier: every two points above 10 is worth one. */
-export function abilityModifier(total) {
-  return Math.floor((total - 10) / 2);
-}
-
-export function formatModifier(modifier) {
-  return `${modifier >= 0 ? "+" : ""}${modifier}`;
 }
 
 /** Base, racial bonus, total and modifier, in printing order. */

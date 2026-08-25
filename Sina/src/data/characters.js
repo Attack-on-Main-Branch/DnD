@@ -12,7 +12,7 @@ const COLUMNS =
   "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, current_hp, max_hp, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
-  "skills, backstory, personality, created_at";
+  "skills, spell_slots, backstory, personality, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";

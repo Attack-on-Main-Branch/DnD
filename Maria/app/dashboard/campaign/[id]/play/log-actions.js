@@ -8,6 +8,11 @@ import { isDie, readDieResult } from "sina/rules/dice";
 import { MAX_HP } from "sina/rules/health";
 import { MAX_LEVEL, MIN_LEVEL } from "sina/rules/level";
 import { MAX_ITEM_NAME_LENGTH, parseQuantity } from "sina/rules/inventory";
+import {
+  MAX_SPELL_EFFECT_LENGTH,
+  MAX_SPELL_NAME_LENGTH,
+  parseSpellLevel,
+} from "sina/rules/spells";
 
 import { logFailure } from "@/lib/errors";
 import { campaignTablePath } from "@/lib/routes";
@@ -115,6 +120,35 @@ function readEntry(entry) {
       coin: entry.coin,
       coinAmount,
       targetCharacterId: entry.targetCharacterId ?? null,
+    };
+  }
+
+  /**
+   * A name, the slot it was cast FROM — not the level it is written at — and
+   * what it threw. Nobody at the other end: a spell is cast at the table.
+   */
+  if (action === "spell_cast") {
+    const spellName = String(entry.spellName ?? "")
+      .trim()
+      .slice(0, MAX_SPELL_NAME_LENGTH);
+    const spellLevel = parseSpellLevel(entry.spellLevel);
+
+    if (!spellName || spellLevel === null) {
+      return null;
+    }
+
+    /* Empty is a spell that rolls nothing and asks nothing; the database
+       writes no key at all for those. */
+    const effect = (value) =>
+      String(value ?? "")
+        .trim()
+        .slice(0, MAX_SPELL_EFFECT_LENGTH) || null;
+
+    return {
+      spellName,
+      spellLevel,
+      spellDamage: effect(entry.spellDamage),
+      spellSave: effect(entry.spellSave),
     };
   }
 

@@ -16,6 +16,28 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.12.0",
+    date: "2026-08-25",
+    title: "Spells, and what they cost",
+    changes: [
+      "A fifth mark above the board, beside the scores: the spellbook. Search the rulebook by name and write what you find into a character’s book, where it shelves itself by level — cantrips first, then first through ninth, three names to a row.",
+      "Press a spell and it opens in a panel of its own under the book: casting time, range and duration across the top, the dice and the saving throw under them, then the rule as written and what a bigger slot buys. The list stays where it is while you read.",
+      "Cast from that panel. A cantrip goes at once; a levelled spell lays its slots out beside the button and you choose which one it comes out of. The book closes, the dice for that slot land on the map, and the table’s log says who cast what, at what level, and what it came to.",
+      "Spell slots at the foot of the book, worked out from the class and the level rather than typed in. Every progression the rulebook has: full casters, paladins and rangers, the arcane archer, and a warlock’s pact magic, which is all one level at a time.",
+      "Slots are spent by casting and come back from the head of the table. A player reads their own and cannot move them, the same line hit points and coin are already drawn on.",
+      "The save DC and the attack bonus stand at the top of the book, worked out from the class’s own ability, the proficiency bonus and the score on the sheet.",
+      "The campaign’s Items tab is now Create. Choose what you are making first, then write it down with every field the rulebook gives it — a spell’s school, components and duration, an item’s price, weight, damage and properties. The table finds both from its own searches.",
+      "The pack reads like the spellbook now: a page of names, three across, and the one you press opens underneath. Damage, armour class, range, properties, price and weight all in their own place, and the rule behind Versatile or Thrown written out where a spell writes its own.",
+      "How many is a box you type in. The plus and minus buttons are gone from the pack, and Grant and Take in the purse are words rather than slabs.",
+      "Searching for a character to invite answers as you type, the way the pack and the spellbook already do. The Search button is gone.",
+    ],
+    fixes: [
+      "The level buttons beside Cast no longer nudge the row down when they appear. They were two pixels taller than the button they sat next to, which moved every control in the row — including the one just pressed.",
+      "Closing a mark forgets what was open under it. A spell or an item left standing there used to be waiting the next time the book was opened.",
+      "An item’s figures no longer read as its description. The price, the weight and the dice used to be run together into the sentence under its name; they have their own place now, and the sentence is the rulebook’s own words.",
+    ],
+  },
+  {
     version: "0.11.0",
     date: "2026-08-24",
     title: "A pen for the sheet",

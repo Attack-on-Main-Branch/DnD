@@ -4,15 +4,16 @@ import {
   listPartyMembers,
 } from "sina/data/campaigns";
 import { listCampaignItems } from "sina/data/inventory";
+import { listCampaignSpells } from "sina/data/spells";
 import { cache } from "react";
 
 import { logFailure } from "@/lib/errors";
 import { createClient, currentUser } from "@/lib/supabase";
 
 /**
- * One load for a campaign, its party, its notes and its items. `cache` deduplicates within
- * a request: Next calls `generateMetadata` and the component separately, which
- * would otherwise fetch all three twice per view.
+ * One load for a campaign, its party, its notes and both halves of its
+ * catalogue. `cache` deduplicates within a request: Next calls
+ * `generateMetadata` and the component separately.
  *
  * Returns a sentinel rather than redirecting — `generateMetadata` is not the
  * place for that, so the page decides.
@@ -49,15 +50,17 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       members: [],
       notes: [],
       items: [],
+      spells: [],
       error: realFailure,
     };
   }
 
-  // Together rather than one after the other: three round trips, one wait.
-  const [party, notes, items] = await Promise.all([
+  // Together rather than one after the other: four round trips, one wait.
+  const [party, notes, items, spells] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignNotes(supabase, id),
     listCampaignItems(supabase, id),
+    listCampaignSpells(supabase, id),
   ]);
 
   if (party.error) {
@@ -72,6 +75,10 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     logFailure("listCampaignItems", items.error);
   }
 
+  if (spells.error) {
+    logFailure("listCampaignSpells", spells.error);
+  }
+
   // Logged rather than thrown on: the campaign is the page, and a party or a
   // notes tab that could not load is no reason to replace it with an error.
   return {
@@ -79,6 +86,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     members: party.error ? [] : party.data,
     notes: notes.error ? [] : notes.data,
     items: items.error ? [] : items.data,
+    spells: spells.error ? [] : spells.data,
     error: null,
   };
 });

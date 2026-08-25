@@ -1,37 +1,39 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { readPurse } from "sina/rules/currency";
-import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
+import { parseQuantity } from "sina/rules/inventory";
 
-import QuantityStepper from "@/app/components/ui/quantity-stepper";
-import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
+import { controlClasses } from "@/app/components/ui/field-styles";
 import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
+import ItemDetail from "@/app/dashboard/item-detail";
+import ItemRow from "@/app/dashboard/item-row";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
-import PackItemCard from "@/app/dashboard/pack-item-card";
 
 import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
+import { Action } from "./pack-controls";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
 import PartyPills, { Pill } from "./party-pills";
-import { POPOVER_BODY_CLASSES } from "./table-popover";
+import {
+  PopoverAside,
+  POPOVER_BODY_CLASSES,
+  POPOVER_BODY_SHORT_CLASSES,
+  usePopoverOpen,
+} from "./table-popover";
 import { useActivityLog } from "./use-activity";
 
 /**
  * The Dungeon Master's side of the pack: what the party is carrying, and what
- * they are about to be carrying.
+ * they are about to be carrying. Built the way the spellbook's drawer is — a
+ * page of names, and the one pressed read out underneath.
  *
  * The pill bar aims both halves. "All party" is a TARGET and not a view — six
  * packs at once is more than this panel can show — so choosing it puts the
- * inspection grid away and leaves the giving.
- *
- * The purse is aimed by the same pill and is otherwise the SAME control either
- * way — see dm-purse.jsx. With a name chosen it stands over that character's
- * pack, where their balances are; with "all party" it stands alone at the top,
- * because there is no single set of balances to show and nothing to stand over.
+ * carried list away and leaves the giving.
  *
  * Nothing is invented here: homebrew is written down on the campaign page and
- * found from the search below, beside the SRD's own.
+ * found from the search, beside the SRD's own.
  */
 
 const EVERYONE = "all";
@@ -45,6 +47,8 @@ export default function DmPackDrawer({
   onCoinsWritten,
 }) {
   const [target, setTarget] = useState(EVERYONE);
+  const [reading, setReading] = useState(null);
+  const [typed, setTyped] = useState("");
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const [isPending, startTransition] = useTransition();
@@ -56,11 +60,33 @@ export default function DmPackDrawer({
 
   const pack = selected ? (packs.get(selected.id) ?? []) : [];
 
-  /* An empty purse for a character `campaign_purses` returned no row for, which
-     at this seat means the party changed under an open panel. Null for "all
-     party": there is no one balance, so the capsules have nothing to hold up as
-     a placeholder and show a plain zero. */
+  /* An empty purse for a character `campaign_purses` returned no row for. Null
+     for "all party": there is no one balance to hold up as a placeholder. */
   const purse = selected ? readPurse(purses.get(selected.id)) : null;
+
+  const held = pack.find((row) => row.item_slug === reading?.slug) ?? null;
+  const open = held ? rowItem(held) : reading;
+
+  const count = parseQuantity(typed) ?? 0;
+  const usable = count >= 1;
+
+  /* Closing the mark forgets what was open under it: the panel goes either way,
+     and a item still standing there when the book is next pressed is one
+     nobody asked for. Adjusted during render rather than in an effect — React's
+     own answer for state that has to follow something else. */
+  const panelOpen = usePopoverOpen();
+  const [wasOpen, setWasOpen] = useState(panelOpen);
+
+  if (wasOpen !== panelOpen) {
+    setWasOpen(panelOpen);
+    setReading(null);
+  }
+
+  function show(item) {
+    setTyped("");
+    setError(null);
+    setReading((standing) => (standing?.slug === item.slug ? null : item));
+  }
 
   function answer(result, said) {
     if (result?.kind === "rejected") {
@@ -79,27 +105,54 @@ export default function DmPackDrawer({
     return true;
   }
 
-  function give(item, quantity) {
+  function give() {
     startTransition(async () => {
-      const result = await grantPackItems(campaignId, targets, item, quantity);
+      const result = await grantPackItems(campaignId, targets, open, count);
 
       const landed = answer(
         result,
         selected
-          ? `${quantity} × ${item.name} to ${selected.name}.`
-          : `${quantity} × ${item.name} to each of ${targets.length}.`,
+          ? `${count} × ${open.name} to ${selected.name}.`
+          : `${count} × ${open.name} to each of ${targets.length}.`,
       );
 
-      /* One entry, whether it went to one pack or to six. `null` is the head
-         of the table filing it, and a null recipient is what
-         `record_campaign_activity` turns into "the party" — the recipient's
-         name is never a string this drawer chose. */
+      /* One entry, whether it went to one pack or to six. `null` is the head of
+         the table filing it, which `record_campaign_activity` turns into "the
+         party" — the recipient's name is never a string this drawer chose. */
       if (landed) {
+        setTyped("");
+        setReading(null);
         record(null, {
           action: "item_granted",
-          itemName: item.name,
-          quantity,
+          itemName: open.name,
+          quantity: count,
           targetCharacterId: selected?.id ?? null,
+        });
+      }
+    });
+  }
+
+  /* A CHANGE and not a total, for the reason the health band's reducer takes
+     one: a total is computed against a row that may have moved since the panel
+     was drawn. */
+  function take() {
+    startTransition(async () => {
+      const taking = Math.min(count, held.quantity);
+      const result = await adjustPackItem(
+        campaignId,
+        selected.id,
+        open,
+        -taking,
+      );
+
+      if (answer(result, `${taking} × ${open.name} from ${selected.name}.`)) {
+        setTyped("");
+        setReading(null);
+        record(null, {
+          action: "item_revoked",
+          itemName: open.name,
+          quantity: taking,
+          targetCharacterId: selected.id,
         });
       }
     });
@@ -107,7 +160,9 @@ export default function DmPackDrawer({
 
   return (
     <div
-      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
+      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${
+        open ? POPOVER_BODY_SHORT_CLASSES : POPOVER_BODY_CLASSES
+      }`}
     >
       <PartyPills
         members={members}
@@ -135,10 +190,9 @@ export default function DmPackDrawer({
         </p>
       ) : (
         <>
-          {/* Above the search rather than beside it: paying the party is one
-              press and finding an item is a paragraph of typing, so the shorter
-              deed goes first. Only while "all party" is the target — a single
-              character's coins live over their own pack, below. */}
+          {/* Paying the party is one press and finding an item is a paragraph
+              of typing, so the shorter deed goes first. Only while "all party"
+              is aimed — a single character's coins live over their own pack. */}
           {!selected && (
             <section
               aria-label="The party’s coin"
@@ -158,79 +212,55 @@ export default function DmPackDrawer({
             </section>
           )}
 
-          {/* Search first: handing something out is why this drawer is
-              open, and a full pack pushed the field off the panel. */}
-          <div className="mt-5">
+          {selected && (
+            <section
+              aria-label={`${selected.name}’s purse`}
+              className={`mt-5 ${COIN_PANEL_CLASSES}`}
+            >
+              <DmPurse
+                campaignId={campaignId}
+                character={selected}
+                members={members}
+                purse={purse}
+                onWritten={onCoinsWritten}
+              />
+            </section>
+          )}
+
+          <div className="mt-4">
             <ItemSearch
               campaignId={campaignId}
-              disabled={isPending}
-              giveLabel={
-                selected ? `Give to ${selected.name}` : "Give to everyone"
-              }
-              onGive={give}
+              openSlug={open?.slug ?? null}
+              onOpen={show}
             />
           </div>
 
-          {selected && (
-            <>
-              <div
-                aria-hidden="true"
-                className={`my-5 ${FADED_RULE_CLASSES}`}
-              />
+          {selected &&
+            (pack.length === 0 ? (
+              <p className="mt-5 text-center text-sm text-ink/50 italic">
+                {selected.name} is carrying nothing.
+              </p>
+            ) : (
+              <>
+                <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+                  {selected.name} · {pack.length} carried
+                </p>
 
-              <section aria-label={`${selected.name}’s pack`}>
-                <h3 className="font-display text-xs font-semibold tracking-[0.16em] text-ink/60 uppercase">
-                  Carrying
-                </h3>
-
-                {/* Above the grid, because coins are what a party checks first
-                    and because a full pack would otherwise push them off the
-                    panel. */}
-                {/* A `section` and not a `div`: `aria-label` names an element
-                    that has a role to be named, and a bare div has none. */}
-                <section
-                  aria-label={`${selected.name}’s purse`}
-                  className={`mt-3 ${COIN_PANEL_CLASSES}`}
-                >
-                  <DmPurse
-                    campaignId={campaignId}
-                    character={selected}
-                    members={members}
-                    purse={purse}
-                    onWritten={onCoinsWritten}
-                  />
-                </section>
-
-                {pack.length === 0 ? (
-                  <p className="mt-3 text-center text-sm text-ink/50 italic">
-                    {selected.name} is carrying nothing.
-                  </p>
-                ) : (
-                  <ul className="mt-3 grid auto-rows-fr gap-2.5 sm:grid-cols-2">
-                    {pack.map((row, index) => (
-                      <li key={row.id} className="flex">
-                        <RevokeCard
-                          campaignId={campaignId}
-                          character={selected}
-                          row={row}
-                          index={index}
-                          onWritten={onWritten}
-                          onError={setError}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </>
-          )}
+                <ul className="mt-2.5 grid grid-cols-3 gap-2">
+                  {pack.map((row) => (
+                    <li key={row.id} className="flex">
+                      <ItemRow
+                        item={rowItem(row)}
+                        quantity={row.quantity}
+                        open={open?.slug === row.item_slug}
+                        onOpen={() => show(rowItem(row))}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ))}
         </>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 text-xs text-red-300">
-          {error}
-        </p>
       )}
 
       {note && !error && (
@@ -238,77 +268,66 @@ export default function DmPackDrawer({
           {note}
         </p>
       )}
-    </div>
-  );
-}
 
-/**
- * `useOptimistic` over the CHANGE rather than the result, which is the health
- * band's reducer exactly: a finished total would be computed against a row that
- * has not moved yet, so two quick presses would both aim at the same number.
- */
-function RevokeCard({ campaignId, character, row, index, onWritten, onError }) {
-  const [isPending, startTransition] = useTransition();
+      {open && members.length > 0 && (
+        <PopoverAside>
+          <ItemDetail item={open} quantity={held?.quantity}>
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+              <div className="w-20 shrink-0">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={typed}
+                  placeholder="Qty"
+                  onChange={(event) => setTyped(event.target.value)}
+                  disabled={isPending}
+                  aria-label={`How many ${open.name}`}
+                  className={controlClasses({
+                    className: "px-2 py-1 text-center tabular-nums",
+                  })}
+                />
+              </div>
 
-  const record = useActivityLog(campaignId);
+              {held && (
+                <p className="mr-auto text-xs text-ink/45">
+                  of {held.quantity}
+                </p>
+              )}
 
-  const [quantity, adjust] = useOptimistic(row.quantity, (base, delta) =>
-    Math.min(MAX_ITEM_QUANTITY, Math.max(0, base + delta)),
-  );
+              {held && selected && (
+                <Action
+                  onClick={take}
+                  disabled={isPending || !usable}
+                  tone="danger"
+                  label={`Take ${count} ${open.name} from ${selected.name}`}
+                >
+                  Take it back
+                </Action>
+              )}
 
-  const item = rowItem(row);
+              <Action
+                onClick={give}
+                disabled={isPending || !usable}
+                tone="gold"
+                label={
+                  selected
+                    ? `Give ${count} ${open.name} to ${selected.name}`
+                    : `Give ${count} ${open.name} to everyone`
+                }
+              >
+                {selected ? `Give to ${selected.name}` : "Give to everyone"}
+              </Action>
+            </div>
 
-  function move(next) {
-    const delta = next - quantity;
-
-    if (delta === 0) {
-      return;
-    }
-
-    startTransition(async () => {
-      adjust(delta);
-
-      const result = await adjustPackItem(
-        campaignId,
-        character.id,
-        item,
-        delta,
-      );
-
-      if (result?.kind === "rejected") {
-        onError(result.message);
-        return;
-      }
-
-      onError(null);
-      onWritten(character.id);
-
-      /* The stepper is the same two deeds the search field above does, one at
-         a time: up is a grant, down is taking it back. `null` is the head of
-         the table filing it — this drawer only ever renders for that seat. */
-      record(null, {
-        action: delta > 0 ? "item_granted" : "item_revoked",
-        itemName: item.name,
-        quantity: Math.abs(delta),
-        targetCharacterId: character.id,
-      });
-    });
-  }
-
-  return (
-    <div className={`flex w-full ${isPending ? "opacity-60" : ""}`}>
-      <PackItemCard item={item} index={index} quantity={quantity}>
-        <QuantityStepper
-          value={quantity}
-          min={0}
-          max={MAX_ITEM_QUANTITY}
-          onChange={move}
-          disabled={isPending}
-          label={`How many ${item.name} ${character.name} carries`}
-          decreaseLabel={`Take a ${item.name} from ${character.name}`}
-          increaseLabel={`Give ${character.name} another ${item.name}`}
-        />
-      </PackItemCard>
+            {error && (
+              <p role="alert" className="mt-2 text-xs text-red-300">
+                {error}
+              </p>
+            )}
+          </ItemDetail>
+        </PopoverAside>
+      )}
     </div>
   );
 }

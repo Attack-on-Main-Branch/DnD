@@ -1,15 +1,13 @@
 "use client";
 
-import { useState } from "react";
-
-import { controlClasses } from "./field-styles";
-
 /**
- * The two halves of a stepper. These classes were written for the health band
- * that used to run across the foot of the board; that band is gone and its bars
- * are inside the party cards now, but play/card-health.jsx still presses the
- * same two buttons — so the pack's steppers and the hit-point ones cannot drift
- * apart.
+ * One half of a stepper. Written for the health band that used to run across the
+ * foot of the board; the band is gone and its bars are inside the party cards
+ * now, and play/card-health.jsx still presses these two.
+ *
+ * The stepper they were named for is gone with it: the pack and the purse ask
+ * "how many" with a field, which is what an amount somebody has just named
+ * wants.
  */
 /**
  * What the hover says. `danger` is the red the Retire button on a character card
@@ -55,110 +53,5 @@ export function StepButton({
     >
       {children}
     </button>
-  );
-}
-
-/**
- * A whole number between `min` and `max`, with a button at either end.
- *
- * Controlled from outside but with a draft of its own: a field that wrote
- * straight through could not be emptied to retype, since the empty string
- * clamps to `min` and puts the old digit back under the cursor. `onChange` is
- * only ever handed a clamped number.
- *
- * The buttons commit at once — this is the control a Dungeon Master takes an
- * item away with, and a press that waited for a blur would read as broken.
- */
-export default function QuantityStepper({
-  value,
-  min = 0,
-  max,
-  onChange,
-  label,
-  decreaseLabel,
-  increaseLabel,
-  disabled = false,
-}) {
-  const [draft, setDraft] = useState(String(value));
-  const [agreed, setAgreed] = useState(value);
-
-  /* Adjusted DURING the render rather than in an effect: React re-runs this
-     before touching the DOM, so the field never paints the old digit. `agreed`
-     is what makes it a comparison rather than a loop — the draft is left alone
-     on every render where `value` has not moved, which is every render while
-     somebody is typing into it. */
-  if (agreed !== value) {
-    setAgreed(value);
-    setDraft(String(value));
-  }
-
-  function clamp(number) {
-    return Math.min(max, Math.max(min, Math.round(number)));
-  }
-
-  function commit(typed) {
-    const number = Number(String(typed).trim());
-    const next =
-      Number.isFinite(number) && typed !== "" ? clamp(number) : value;
-
-    setDraft(String(next));
-
-    if (next !== value) {
-      onChange(next);
-    }
-  }
-
-  function nudge(by) {
-    const next = clamp(value + by);
-
-    if (next !== value) {
-      onChange(next);
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <StepButton
-        onClick={() => nudge(-1)}
-        disabled={disabled || value <= min}
-        label={decreaseLabel}
-      >
-        −
-      </StepButton>
-
-      {/* The width is on the wrapper, not the input: `controlClasses` already
-          carries `w-full`, and two width utilities on one element are settled
-          by the order Tailwind emits them rather than the order written. */}
-      <div className="w-16 shrink-0">
-        <input
-          type="number"
-          inputMode="numeric"
-          min={min}
-          max={max}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={(event) => commit(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit(event.currentTarget.value);
-            }
-          }}
-          disabled={disabled}
-          aria-label={label}
-          className={controlClasses({
-            className: "no-spin px-2 py-1.5 text-center tabular-nums",
-          })}
-        />
-      </div>
-
-      <StepButton
-        onClick={() => nudge(1)}
-        disabled={disabled || value >= max}
-        label={increaseLabel}
-      >
-        +
-      </StepButton>
-    </div>
   );
 }

@@ -16,10 +16,12 @@
  * whose each row is.
  */
 const COLUMNS =
-  "id, character_id, item_slug, name, category, description, quantity, is_custom, created_at";
+  "id, character_id, item_slug, name, category, description, quantity, " +
+  "is_custom, facts, created_at";
 
 const CATALOGUE_COLUMNS =
-  "id, item_slug, name, category, description, created_at";
+  "id, item_slug, name, category, description, cost_quantity, cost_unit, " +
+  "weight, damage_dice, damage_type, armor_class, properties, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
@@ -140,6 +142,13 @@ export async function insertCampaignItem(supabase, { campaignId, item }) {
       name: item.name,
       category: item.category,
       description: item.description ?? "",
+      cost_quantity: item.cost ?? 0,
+      cost_unit: item.costUnit ?? "",
+      weight: item.weight ?? 0,
+      damage_dice: item.damageDice ?? "",
+      damage_type: item.damageType ?? "",
+      armor_class: item.armorClass ?? 0,
+      properties: item.properties ?? "",
     })
     .select(CATALOGUE_COLUMNS)
     .maybeSingle();
@@ -199,6 +208,7 @@ export async function grantInventoryItem(
     p_category: item.category,
     p_quantity: quantity,
     p_is_custom: item.isCustom ?? false,
+    p_facts: item.facts ?? {},
   });
 
   if (error) {
@@ -257,6 +267,7 @@ export async function transferInventoryItem(
     p_desc: item.description ?? "",
     p_category: item.category,
     p_quantity: quantity,
+    p_facts: item.facts ?? {},
   });
 
   if (error) {

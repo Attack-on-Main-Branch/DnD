@@ -75,3 +75,63 @@ export function readDieResult(id, value) {
 
   return face;
 }
+
+/** As many dice as a spell throws at once — a Meteor Swarm is 40. */
+const MAX_NOTATION_DICE = 60;
+
+/**
+ * Dice notation as a list of throws: "8d6" is one, "2d8 + 4d6" is two. Only what
+ * a spell's scaling table writes — a flat bonus is not read here, and a die this
+ * app does not carry is one it cannot draw. Null for anything else.
+ */
+function readNotation(notation) {
+  const groups = String(notation ?? "").match(/\d+\s*d\s*\d+/gi);
+
+  if (!groups) {
+    return null;
+  }
+
+  const throws = [];
+  let counted = 0;
+
+  for (const group of groups) {
+    const [count, sides] = group.toLowerCase().split("d").map(Number);
+    const die = `d${sides}`;
+
+    if (!isDie(die) || !Number.isInteger(count) || count < 1) {
+      return null;
+    }
+
+    counted += count;
+
+    if (counted > MAX_NOTATION_DICE) {
+      return null;
+    }
+
+    throws.push({ count, die });
+  }
+
+  return throws;
+}
+
+/**
+ * Every die in a notation, rolled here rather than by the physics: the answer
+ * for a screen that asked for stillness. Null when there is nothing to roll.
+ */
+export function rollNotation(notation) {
+  const throws = readNotation(notation);
+
+  if (!throws) {
+    return null;
+  }
+
+  let total = 0;
+
+  for (const group of throws) {
+    for (let index = 0; index < group.count; index += 1) {
+      total += rollDie(group.die);
+    }
+  }
+
+  return total;
+}

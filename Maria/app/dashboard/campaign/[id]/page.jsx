@@ -10,7 +10,7 @@ import { campaignTablePath, DUNGEON_MASTER_SEAT } from "@/lib/routes";
 
 import CampaignMap from "./campaign-map";
 import EditCampaignPencil from "./edit-campaign-pencil";
-import ItemsPanel from "./items-panel";
+import CreatePanel from "./create-panel";
 import { loadCampaign } from "./load-campaign";
 import PartyPanel from "./party-panel";
 
@@ -21,10 +21,9 @@ const CAMPAIGN_TABS = [
   // the panel itself only puts an empty step in front of it.
   { value: "party", label: "Party", focusable: false },
   { value: "notes", label: "Notes" },
-  // `focusable: false` for the same reason the party tab has it — the panel
-  // opens with a text field, so a stop on the panel itself is an empty step in
-  // front of it.
-  { value: "items", label: "Items", focusable: false },
+  // `focusable: false` for the reason the party tab has it: the panel opens
+  // with a choice and a text field, so a stop on it is an empty step.
+  { value: "create", label: "Create", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -64,12 +63,12 @@ export default async function CampaignPage({ params }) {
     notFound();
   }
 
-  const { campaign, members, notes, items } = loaded;
+  const { campaign, members, notes, items, spells } = loaded;
 
   // Resolved here rather than in PartyPanel: `classLabel` reaches through
   // `classDetails` into the whole ARCHETYPES catalogue, and importing it into a
   // Client Component retains all of it in this route's bundle to print one
-  // word. The search results get the same treatment in `findPartyCandidate`.
+  // word. The search results are labelled the same way in api/characters/search.
   const roster = members.map((member) => ({
     ...member,
     pathLabel: classLabel(member.class_id),
@@ -140,7 +139,13 @@ export default async function CampaignPage({ params }) {
               />
             ),
             // Where homebrew is invented. The table only finds it.
-            items: <ItemsPanel campaignId={campaign.id} items={items} />,
+            create: (
+              <CreatePanel
+                campaignId={campaign.id}
+                items={items}
+                spells={spells}
+              />
+            ),
           }}
         />
       </div>

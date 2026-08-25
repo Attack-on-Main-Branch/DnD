@@ -108,6 +108,10 @@ export async function listCampaignActivity(supabase, campaignId, limit) {
  * says what happened, and the badge beside it already says where that left
  * them. 20260823180000 is the file that DROPS the eleven-argument version.
  *
+ * A spell carries its name, the slot it was cast FROM and what it threw, and
+ * names nobody. 20260825120000 DROPS the thirteen-argument version, and
+ * 20260826120000 the fifteen.
+ *
  * `false` from the function is a refusal — a seat the caller is not in, a die
  * that has no such face, a target who has left the party — and reads here as
  * `not_found`, which is also what a deleted campaign gives. A caller must not
@@ -130,6 +134,10 @@ export async function recordCampaignActivity(
     levelDelta = null,
     coin = null,
     coinAmount = null,
+    spellName = null,
+    spellLevel = null,
+    spellDamage = null,
+    spellSave = null,
   },
 ) {
   const { data, error } = await supabase.rpc("record_campaign_activity", {
@@ -146,6 +154,10 @@ export async function recordCampaignActivity(
     level_delta: levelDelta,
     coin_type: coin,
     coin_amount: coinAmount,
+    spell_name: spellName,
+    spell_level: spellLevel,
+    spell_damage: spellDamage,
+    spell_save: spellSave,
   });
 
   if (error) {

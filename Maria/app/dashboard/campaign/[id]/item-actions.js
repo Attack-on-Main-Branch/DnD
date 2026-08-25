@@ -47,8 +47,7 @@ function refused(action, error, fallback) {
 /**
  * `validateItem` wants a quantity because the table's grants do; a catalogue
  * entry is a description rather than an amount, so one is supplied and dropped.
- * The slug it derives is the point — it is the key a stack is kept under, which
- * is what makes "Rusted Key" handed out twice land on one stack.
+ * The slug it derives is the key a stack is kept under.
  */
 export async function writeCampaignItem(campaignId, values) {
   const { values: item, errors } = validateItem({ ...values, quantity: 1 });

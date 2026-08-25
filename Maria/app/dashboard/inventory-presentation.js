@@ -40,6 +40,11 @@ export function categoryTagClasses(category) {
   return `${TAG_BASE} ${ARCANE_WORDS.test(category ?? "") ? TAG_ARCANE : TAG_GOLD}`;
 }
 
+/** The count on a row and on the panel it opens, the spell's level tag's twin. */
+export const STACK_TAG_CLASSES =
+  "inline-flex items-center rounded-full border border-gold/30 bg-gold/15 " +
+  "px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-gold tabular-nums";
+
 /** Null for a catalogue entry, which is a description of a thing, not an amount. */
 export function stackLabel(quantity) {
   return Number.isFinite(quantity) ? `×${quantity}` : null;
@@ -53,6 +58,7 @@ export function rowItem(row) {
     category: row.category,
     description: row.description,
     isCustom: row.is_custom,
+    facts: row.facts ?? {},
   };
 }
 
@@ -65,4 +71,66 @@ export function packsByCharacter(members, rows) {
   }
 
   return packs;
+}
+
+/**
+ * What each fact is called, in the order a table asks for them. A list rather
+ * than a map, because the order IS the design: the dice first, the price and
+ * the weight last.
+ */
+const FACT_LABELS = [
+  ["damage", "Damage"],
+  ["versatile", "Versatile"],
+  ["armorClass", "Armour class"],
+  ["range", "Range"],
+  ["thrown", "Thrown"],
+  ["properties", "Properties"],
+  ["strength", "Strength"],
+  ["stealth", "Stealth"],
+  ["cost", "Cost"],
+  ["weight", "Weight"],
+];
+
+/** Only the facts an item has. A rope prints two cells, a longsword five. */
+export function itemFactList(facts) {
+  if (!facts) {
+    return [];
+  }
+
+  return FACT_LABELS.filter(([name]) => facts[name]).map(([name, label]) => ({
+    name,
+    label,
+    value: facts[name],
+  }));
+}
+
+/**
+ * A `campaign_items` row as the same facts an SRD entry arrives with. The
+ * Create form writes these one to a box, which is where an item is WRITTEN;
+ * this is the shape it is read in, at the table and back on the campaign page.
+ */
+export function catalogueFacts(row) {
+  const facts = {};
+
+  if (row.damage_dice) {
+    facts.damage = `${row.damage_dice} ${row.damage_type ?? ""}`.trim();
+  }
+
+  if (row.armor_class > 0) {
+    facts.armorClass = String(row.armor_class);
+  }
+
+  if (row.properties) {
+    facts.properties = row.properties;
+  }
+
+  if (row.cost_quantity > 0) {
+    facts.cost = `${row.cost_quantity} ${row.cost_unit || "gp"}`;
+  }
+
+  if (Number(row.weight) > 0) {
+    facts.weight = `${row.weight} lb`;
+  }
+
+  return facts;
 }

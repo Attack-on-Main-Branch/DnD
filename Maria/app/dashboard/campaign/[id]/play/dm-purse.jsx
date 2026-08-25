@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { COIN_TYPES, MAX_COINS, parseCoins } from "sina/rules/currency";
 
-import { StepButton } from "@/app/components/ui/quantity-stepper";
 import {
   capsuleClasses,
   COIN_AMOUNT_CLASSES,
@@ -13,6 +12,7 @@ import {
 } from "@/app/dashboard/currency-presentation";
 
 import { moveTableCoins } from "./currency-actions";
+import { Action } from "./pack-controls";
 import { useActivityLog } from "./use-activity";
 
 /**
@@ -148,31 +148,27 @@ export default function DmPurse({
         ))}
       </ul>
 
-      {/* The health band's Damage and Heal, in a capsule: same component, same
-          two tones, so the pair that takes something away and the pair that
-          gives it back cannot drift apart. `pill` is the only difference, and
-          it is there because these stand in a row of capsules. */}
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <StepButton
-          wide
-          pill
+      {/* Text rather than slabs, the words the spellbook's Teach and Take it
+          back are: this panel is already five bordered capsules, and two more
+          bordered boxes under them read as a second row of fields. */}
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-1">
+        <Action
           tone="danger"
           onClick={() => move(true)}
           disabled={isPending || total === 0 || members.length === 0}
           label={`Take coin from ${whom}`}
         >
           Take from {whom}
-        </StepButton>
+        </Action>
 
-        <StepButton
-          wide
-          pill
+        <Action
+          tone="gold"
           onClick={() => move(false)}
           disabled={isPending || total === 0 || members.length === 0}
           label={`Grant coin to ${whom}`}
         >
           Grant to {whom}
-        </StepButton>
+        </Action>
       </div>
 
       {error && (

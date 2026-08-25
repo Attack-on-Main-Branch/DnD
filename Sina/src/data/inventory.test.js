@@ -130,6 +130,8 @@ describe("grantInventoryItem", () => {
     assert.equal(query.lastRpc.params.p_item_slug, ITEM.slug);
     assert.equal(query.lastRpc.params.p_quantity, 3);
     assert.equal(query.lastRpc.params.p_is_custom, false);
+    // What the rulebook says about it rides with it — see 20260829090000.
+    assert.deepEqual(query.lastRpc.params.p_facts, {});
     assert.equal(data.quantity, 4);
   });
 

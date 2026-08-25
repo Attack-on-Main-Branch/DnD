@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { readActivityLog } from "sina/rules/activity";
+import { readSpellcasting } from "sina/rules/spellcasting";
 import { classLabel } from "sina/rules/character";
 
 import {
@@ -22,6 +23,7 @@ import { NOTES_CLASSES, notesEntrance } from "./entrance";
 import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
 import PartyRail from "./party-rail";
+import SpellBook from "./spell-book";
 import TableMarks from "./table-marks";
 import TableWire from "./table-wire";
 import TableTitle from "./table-title";
@@ -104,7 +106,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
     notFound();
   }
 
-  const { campaign, members, seat, inventory, purses } = loaded;
+  const { campaign, members, seat, inventory, spells, purses } = loaded;
 
   // The seat, not the deed: owning this campaign offers the chair, sitting in
   // it is what makes the party's health and the whole board yours.
@@ -160,6 +162,23 @@ export default async function CampaignTablePage({ params, searchParams }) {
     ),
   );
 
+  /* What a caster needs above the map, resolved here for the reason
+     `scorePanels` is: the arithmetic wants the whole row and the bar wants four
+     fields of it. Same audience as the sheets, so RLS has already decided it. */
+  const spellcasters = Object.fromEntries(
+    (isDungeonMaster ? loaded.sheets : [seat?.sheet].filter(Boolean)).map(
+      (sheet) => [
+        sheet.id,
+        {
+          classId: sheet.class_id,
+          level: sheet.level,
+          slots: sheet.spell_slots ?? {},
+          casting: readSpellcasting(sheet),
+        },
+      ],
+    ),
+  );
+
   // In party order, and only those a sheet came back for: a failed read leaves
   // the mark off rather than opening it on nothing.
   const readable = carriers.filter((one) => scorePanels[one.id]);
@@ -195,7 +214,16 @@ export default async function CampaignTablePage({ params, searchParams }) {
           </div>
         </div>
 
-        {/*
+        {/* Renders no element of its own, so the two rows below are still the
+          grid's. It reaches up over the marks because the spellbook casts from
+          in there and the arena it throws into is down here. */}
+        <DiceTable
+          campaignId={campaign.id}
+          seatId={seat?.id ?? null}
+          characterId={seat?.characterId ?? null}
+          canKeepSecrets={isDungeonMaster}
+        >
+          {/*
         A row of their own above the board: sharing the map's column pulled the
         party cards up, since they centre against whatever sits beside them.
 
@@ -207,60 +235,63 @@ export default async function CampaignTablePage({ params, searchParams }) {
         on a page it was put. `data-tuck` is the departure — behind the board
         rather than off the page, which is where they came from.
       */}
-        <div
-          className={`flex justify-center ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
-          style={notesEntrance()}
-          data-tuck="down"
-        >
-          {seat && (
-            <TableMarks>
-              <WorldLore
-                title={campaign.title}
-                lore={campaign.world_description}
-              />
-              <NotesScroll campaignId={campaign.id} seat={seat} />
-              {/* Split up in the browser; RLS has already decided which
-                  packs this viewer was handed. */}
-              <InventoryPack
-                campaignId={campaign.id}
-                seat={{ characterId: seat.characterId, title: seat.title }}
-                members={carriers}
-                rows={inventory}
-                purses={purses}
-                isDungeonMaster={isDungeonMaster}
-              />
-              {readable.length > 0 && (
-                <AbilitySheet
-                  label={
-                    isDungeonMaster
-                      ? "The party’s scores and skills"
-                      : `Scores and skills as ${seat.title}`
-                  }
-                  members={readable}
-                  panels={scorePanels}
+          <div
+            className={`flex justify-center ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
+            style={notesEntrance()}
+            data-tuck="down"
+          >
+            {seat && (
+              <TableMarks>
+                <WorldLore
+                  title={campaign.title}
+                  lore={campaign.world_description}
                 />
-              )}
-            </TableMarks>
-          )}
-        </div>
+                <NotesScroll campaignId={campaign.id} seat={seat} />
+                {/* Split up in the browser; RLS has already decided which
+                  packs this viewer was handed. */}
+                <InventoryPack
+                  campaignId={campaign.id}
+                  seat={{ characterId: seat.characterId, title: seat.title }}
+                  members={carriers}
+                  rows={inventory}
+                  purses={purses}
+                  isDungeonMaster={isDungeonMaster}
+                />
+                {readable.length > 0 && (
+                  <AbilitySheet
+                    label={
+                      isDungeonMaster
+                        ? "The party’s scores and skills"
+                        : `Scores and skills as ${seat.title}`
+                    }
+                    members={readable}
+                    panels={scorePanels}
+                  />
+                )}
+                {/* Split up in the browser; RLS has already decided which books
+                  this viewer was handed. */}
+                <SpellBook
+                  campaignId={campaign.id}
+                  seat={{ characterId: seat.characterId, title: seat.title }}
+                  members={carriers}
+                  rows={spells}
+                  casters={spellcasters}
+                  isDungeonMaster={isDungeonMaster}
+                />
+              </TableMarks>
+            )}
+          </div>
 
-        {/*
+          {/*
         A grid, and the empty first column is the reason: matching side columns
         straddle the map on the viewport's centre line whether the party is full
         or empty, and the rail keeps its 20rem instead of being squeezed by a
         wide map. 20rem and not 18: the level ring takes 56px out of the name's
         line, and at 18rem a fourteen-letter name no longer fit.
       */}
-        {/* The provider renders no element of its own, so the grid below is
-          still this row — and it has to stand outside all three columns: the
-          rail is pressed in one, the dice land in another, and the result comes
-          out from under a card in the third. */}
-        <DiceTable
-          campaignId={campaign.id}
-          seatId={seat?.id ?? null}
-          characterId={seat?.characterId ?? null}
-          canKeepSecrets={isDungeonMaster}
-        >
+          {/* The grid stands inside the provider and outside all three of its
+          own columns: the rail is pressed in one, the dice land in another, and
+          the result comes out from under a card in the third. */}
           {/* `content-start` is load-bearing: this row is the grid's `1fr`, so
             it takes every pixel the rows above do not, and a track with nothing
             told to it stretches — which centred the board, the log and the rail

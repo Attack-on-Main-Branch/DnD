@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readDieResult, rollDie } from "sina/rules/dice";
+import { readDieResult, rollDie, rollNotation } from "sina/rules/dice";
 
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 
@@ -167,5 +167,62 @@ export function useDiceRoll({ onStart, onFinish }) {
     [present, sweep],
   );
 
-  return { stage, secret, setSecret, roll, mirror, warm };
+  /**
+   * A handful of dice for THIS screen alone — the damage a spell deals, which
+   * the arena draws and the spell's log entry records.
+   *
+   * Outside the table's shared-roll protocol on purpose: a roll announced at
+   * the table is ONE die with one seed, so every chair simulates the same throw.
+   * Eight d6 have no such wire, and the log carries the number instead.
+   *
+   * Takes the same `rolling` latch as the roll above — one engine, one arena —
+   * and falls back to `rollNotation` where the engine never arrived or the
+   * reader asked for stillness.
+   */
+  const cast = useCallback(
+    async (notation) => {
+      const rolled = rollNotation(notation);
+
+      if (rolled === null) {
+        return null;
+      }
+
+      if (rolling.current || prefersReducedMotion()) {
+        return rolled;
+      }
+
+      rolling.current = true;
+      setStage("rolling");
+
+      const seed = await diceEngine().then(newSeed, () => null);
+
+      if (!alive.current) {
+        return rolled;
+      }
+
+      if (seed === null) {
+        rolling.current = false;
+        setStage("idle");
+        return rolled;
+      }
+
+      const settled = await throwDie({
+        notation,
+        theme: diceCast(false).theme,
+        seed,
+      }).catch(() => null);
+
+      if (!alive.current) {
+        return settled ?? rolled;
+      }
+
+      await wait(settled === null ? 0 : READ_MS);
+      await sweep();
+
+      return settled ?? rolled;
+    },
+    [sweep],
+  );
+
+  return { stage, secret, setSecret, roll, mirror, warm, cast };
 }

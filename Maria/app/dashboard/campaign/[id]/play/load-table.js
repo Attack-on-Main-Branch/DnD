@@ -10,6 +10,7 @@ import {
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
+import { listPartySpells } from "sina/data/spells";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 
 import { logFailure } from "@/lib/errors";
@@ -55,6 +56,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       members: [],
       marks: [],
       inventory: [],
+      spells: [],
       purses: [],
       activity: [],
       sheets: [],
@@ -98,9 +100,15 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
   /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs, sheets] = await Promise.all([
+  const [seat, packs, books, sheets] = await Promise.all([
     readSeat(supabase, campaign, members, requestedSeat, user.id),
     listPartyInventory(
+      supabase,
+      members.map((member) => member.id),
+    ),
+    /* The same boundary over `character_spells`: the head of the table reads
+       the party's books, a player their own. */
+    listPartySpells(
       supabase,
       members.map((member) => member.id),
     ),
@@ -118,6 +126,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listPartyInventory", packs.error);
   }
 
+  if (books.error) {
+    logFailure("listPartySpells", books.error);
+  }
+
   if (sheets.error) {
     logFailure("listPartySheets", sheets.error);
   }
@@ -129,6 +141,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     members,
     marks: tokens.error ? [] : tokens.data,
     inventory: packs.error ? [] : packs.data,
+    spells: books.error ? [] : books.data,
     purses: purses.error ? [] : purses.data,
     activity: log.error ? [] : log.data,
     sheets: sheets.error ? [] : sheets.data,

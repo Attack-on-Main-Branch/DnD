@@ -17,6 +17,7 @@
 import { isCoin, MAX_COINS } from "./currency.js";
 import { dieSides, isDie } from "./dice.js";
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
+import { isSpellLevel } from "./spells.js";
 
 /** Mirrors the `action_type` CHECK. In the order the migration lists them. */
 export const ACTION_TYPES = [
@@ -33,6 +34,7 @@ export const ACTION_TYPES = [
   "coin_transferred",
   "coin_granted",
   "coin_revoked",
+  "spell_cast",
 ];
 
 /** Mirrors the `actor_type` CHECK. */
@@ -189,6 +191,25 @@ export function readActivity(row) {
     }
 
     return { ...entry, coin, amount, target };
+  }
+
+  /**
+   * A name and the slot it was CAST FROM, which for an upcast is not the level
+   * the spell is written at. The dice and the save ride along when the spell has
+   * them, and no key at all when it does not.
+   */
+  if (action === "spell_cast") {
+    const spell = text(payload.spellName);
+
+    return spell && isSpellLevel(payload.spellLevel)
+      ? {
+          ...entry,
+          spell,
+          level: Number(payload.spellLevel),
+          damage: text(payload.spellDamage),
+          save: text(payload.spellSave),
+        }
+      : null;
   }
 
   if (!ITEM_ACTIONS.has(action)) {

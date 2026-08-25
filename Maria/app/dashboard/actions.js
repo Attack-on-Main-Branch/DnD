@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  searchCharacters,
   insertCampaign,
   removeCampaign,
   removeCampaignMap,
@@ -16,12 +15,10 @@ import {
   mapPathFromUrl,
   MAX_CAMPAIGNS,
   MAX_PARTY,
-  parseCharacterQuery,
   readCampaignValues,
   validateCampaign,
 } from "sina/rules/campaign";
 import {
-  classLabel,
   MAX_CHARACTERS,
   readCharacterValues,
   validateCharacter,
@@ -349,55 +346,6 @@ const PARTY_COPY = {
   // Neutral: an invitation carries two ids, so either could be the malformed one.
   bad_id: "That campaign or character could not be found.",
 };
-
-/**
- * A search rather than a direct add: two characters can differ only in their
- * four digits and belong to different people, so the DM confirms who they found
- * first. Requires a session but not a campaign — the RPC returns display fields
- * only and bounds itself.
- */
-export async function findPartyCandidate(_prevState, formData) {
-  // Echoed back on every outcome, so a typo does not mean retyping.
-  const query = String(formData.get("query") ?? "");
-  const parsed = parseCharacterQuery(query);
-
-  if (!parsed) {
-    return {
-      ...rejected("Search by name or id.", "query"),
-      query,
-    };
-  }
-
-  const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
-
-  if (authError || !user) {
-    return { ...sessionRejection("findPartyCandidate", authError), query };
-  }
-
-  const { data, error } = await searchCharacters(supabase, parsed);
-
-  if (error) {
-    const copy = PARTY_COPY[error.reason];
-    logUncovered("findPartyCandidate", error, copy);
-
-    return {
-      ...rejected(copy ?? "Could not search for characters.", "query"),
-      query,
-    };
-  }
-
-  // Labelled here for the same reason the roster is: PartyPanel renders both
-  // lists, and neither should drag the class catalogue into the browser.
-  return {
-    kind: "success",
-    query,
-    results: data.map((character) => ({
-      ...character,
-      pathLabel: classLabel(character.class_id),
-    })),
-  };
-}
 
 /**
  * Asks a character's player to join one of the DM's campaigns.

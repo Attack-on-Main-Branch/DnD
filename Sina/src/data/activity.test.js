@@ -113,6 +113,10 @@ describe("recordCampaignActivity", () => {
       level_delta: null,
       coin_type: null,
       coin_amount: null,
+      spell_name: null,
+      spell_level: null,
+      spell_damage: null,
+      spell_save: null,
     });
   });
 

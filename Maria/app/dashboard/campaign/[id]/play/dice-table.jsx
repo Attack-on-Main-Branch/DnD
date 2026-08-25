@@ -39,6 +39,7 @@ const RESTING = {
   setSecret: () => {},
   roll: () => {},
   warm: () => {},
+  cast: async () => null,
   board: { lit: false, secret: false },
   veiled: false,
   flying: {},
