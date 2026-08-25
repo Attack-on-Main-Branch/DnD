@@ -1,43 +1,47 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
-import { healthFraction, healthTier, MAX_HP } from "sina/rules/health";
+import { useState } from "react";
+import { healthFraction, healthTier } from "sina/rules/health";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
 import HealthBar from "@/app/components/ui/health-bar";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
 
-import { setCharacterHealth } from "./actions";
-import { useActivityLog } from "./use-activity";
+import { changeCharacterHealth } from "./actions";
+import { useHitPoints, useMaxHitPoints, useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
- * One party member's hit points, inside their own card on the rail — the health
- * band that used to run across the foot of the board.
+ * One party member's hit points, inside their own card on the rail.
  *
  * The seat decides which CARDS carry a bar: the Dungeon Master's every card, a
- * player's own alone. Who may WRITE is `set_character_health`'s to say, and it
- * says the same thing.
+ * player's own alone. Who may WRITE is `change_character_health`'s to say, and
+ * it says the same thing.
  *
  * `sina/rules/health` rather than `sina/rules/character`: this runs in the
  * browser, and that neighbour would bring the catalogues with it.
+ *
+ * NOTHING WAITS FOR THE WRITE, and the controls are not disabled while one is in
+ * flight: a table calls out four damage and then six, and the second press must
+ * not queue behind the first one's round trip. Two presses stack because the
+ * store takes a change rather than a total.
  */
 export default function CardHealth({
   campaignId,
-  member,
+  characterId,
+  name,
   seatCharacterId,
+  actorName,
   canEdit,
-  onWritten,
 }) {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState(null);
-  const [isPending, startTransition] = useTransition();
 
-  const record = useActivityLog(campaignId);
+  const current = useHitPoints(characterId);
+  const ceiling = useMaxHitPoints(characterId);
 
-  // This character's own ceiling, not the app's. MAX_HP covers a party list
-  // read before `campaign_party` carried the column.
-  const ceiling = member.max_hp ?? MAX_HP;
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
 
   // An amount rather than a target — seven damage, four healed. Both words
   // wait until there is one.
@@ -45,61 +49,62 @@ export default function CardHealth({
   const step = Number(amount);
   const typed = amount.trim() !== "" && Number.isFinite(step) && step > 0;
 
-  /**
-   * The reducer takes the CHANGE, not the result: a finished total would be
-   * computed against a row that has not moved yet, so two quick presses would
-   * both aim at the same number instead of stacking.
-   */
-  const [current, adjust] = useOptimistic(member.current_hp, (base, delta) =>
-    Math.min(ceiling, Math.max(0, base + delta)),
-  );
-
   function apply(delta) {
-    const next = Math.min(ceiling, Math.max(0, current + delta));
-
-    // Already at the floor or the ceiling: the press did not happen.
-    if (next === current) {
-      return;
-    }
-
-    // What the bar actually moved by, which is not always what was typed: ten
-    // damage against seven hit points is a change of seven.
-    const moved = next - current;
-
-    setError(null);
-
     // Shut on the press: the bar behind it has already moved, which is the
     // answer to "did that land".
     setOpen(false);
 
-    startTransition(async () => {
-      adjust(delta);
+    const moved = store.moveHealth(characterId, delta);
 
-      const result = await setCharacterHealth(campaignId, member.id, next);
+    // Already at the floor or the ceiling: the press did not happen.
+    if (!moved) {
+      return;
+    }
 
-      if (result?.kind === "rejected") {
-        // Back open: a card this narrow has nowhere else to say it.
-        setError(result.message);
-        setOpen(true);
-        return;
-      }
+    run({
+      /* Shown to whoever pressed, until the real list lands. The entry that is
+         KEPT is written by a trigger on the bar, and its names come from rows. */
+      note: [
+        {
+          action: "hp_change",
+          actor: actorName,
+          // Moving your own bar names nobody, as `write_table_log` decides it.
+          target: seatCharacterId === characterId ? null : name,
+          delta: moved.moved,
+        },
+      ],
 
-      // Only once it is written: a number told to the table before the database
-      // has taken it is a number that might yet be refused.
-      onWritten(member.id, result.hitPoints);
+      /* THE CHANGE, not where it landed. A total posted a round trip later
+         undoes whatever else moved the bar in between — another chair's damage,
+         this browser's own second press. */
+      work: () =>
+        changeCharacterHealth(
+          campaignId,
+          characterId,
+          moved.moved,
+          seatCharacterId,
+        ),
 
-      // The seat that moved it and the bar that moved, both:
-      // `record_campaign_activity` drops the second name when they are one.
-      record(seatCharacterId, {
-        action: "hp_change",
-        delta: moved,
-        targetCharacterId: member.id,
-      });
+      tell: (result) => {
+        // Only while this press is still the last word: an older answer laid
+        // down here would rewind the bar on every screen at the table.
+        const settled = store.reconcileHealth(
+          characterId,
+          moved.hitPoints,
+          result.hitPoints,
+        );
+
+        if (settled) {
+          send({ kind: "health", characterId, hitPoints: result.hitPoints });
+        }
+      },
+
+      want: { party: true, activity: true },
     });
   }
 
   return (
-    <div className={`mt-2.5 ${isPending ? "opacity-60" : ""}`}>
+    <div className="mt-2.5">
       <div className="relative">
         <HealthBar
           compact
@@ -107,7 +112,7 @@ export default function CardHealth({
           max={ceiling}
           fraction={healthFraction(current, ceiling)}
           tierClass={healthBarClass(healthTier(current, ceiling))}
-          label={`${member.name} health`}
+          label={`${name} health`}
         />
 
         {canEdit && (
@@ -123,8 +128,8 @@ export default function CardHealth({
             aria-expanded={open}
             aria-label={
               open
-                ? `Stop editing ${member.name} hit points`
-                : `Edit ${member.name} hit points`
+                ? `Stop editing ${name} hit points`
+                : `Edit ${name} hit points`
             }
             className="absolute -inset-x-1 -inset-y-0.5 cursor-pointer rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70"
           />
@@ -152,24 +157,25 @@ export default function CardHealth({
                   max={ceiling}
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
-                  disabled={isPending}
                   /* The unit rather than a number: "10" read as a value already
                      in the field, and the purse's fields next door name what
                      they want the same way. */
                   placeholder="HP"
-                  aria-label={`Hit points to take from or give to ${member.name}`}
+                  aria-label={`Hit points to take from or give to ${name}`}
                   className={controlClasses({
                     className: "no-spin px-1 py-1 text-center tabular-nums",
                   })}
                 />
               </div>
 
+              {/* Not disabled for a write in flight, only for a press that
+                  could not move the bar. See the note at the head of the file. */}
               <StepButton
                 wide
                 tone="danger"
                 onClick={() => apply(-step)}
-                disabled={isPending || !typed || current === 0}
-                label={`Take hit points from ${member.name}`}
+                disabled={!typed || current === 0}
+                label={`Take hit points from ${name}`}
               >
                 Damage
               </StepButton>
@@ -177,18 +183,12 @@ export default function CardHealth({
               <StepButton
                 wide
                 onClick={() => apply(step)}
-                disabled={isPending || !typed || current === ceiling}
-                label={`Give hit points to ${member.name}`}
+                disabled={!typed || current === ceiling}
+                label={`Give hit points to ${name}`}
               >
                 Heal
               </StepButton>
             </div>
-
-            {error && (
-              <p role="alert" className="mt-2 text-xs text-red-300">
-                {error}
-              </p>
-            )}
           </div>
         </div>
       )}

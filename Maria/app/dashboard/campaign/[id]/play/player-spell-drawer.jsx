@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { CANTRIP_LEVEL, spellDiceAt } from "sina/rules/spells";
 
 import SpellDetail, { EmptySpellbook } from "@/app/dashboard/spell-detail";
@@ -25,7 +25,9 @@ import {
   usePopoverOpen,
 } from "./table-popover";
 import { useTableMarks } from "./table-marks";
+import { useTableStore } from "./table-state";
 import { useActivityLog } from "./use-activity";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * A player's own spellbook: a page of names, the one chosen read out underneath,
@@ -39,21 +41,24 @@ import { useActivityLog } from "./use-activity";
  * and a refused cast must not reach the dice or the log; the book closes because
  * the arena is the map and the map is behind this panel; the log goes last so
  * the line carries the number. A cantrip skips the first step and only that one.
+ *
+ * A CAST IS THE ONE DEED HERE THAT STILL WAITS: the pip goes out on the press,
+ * but the round trip confirming it is awaited before the dice are thrown,
+ * because a refused slot must not become a roll everybody watched.
  */
 export default function PlayerSpellDrawer({
   campaignId,
   characterId,
+  actorName,
   book,
   caster,
-  onWritten,
-  onSlotsWritten,
 }) {
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(false);
-  const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
-  const [isPending, startTransition] = useTransition();
 
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
   const record = useActivityLog(campaignId);
   const { cast: throwDice } = useDiceTable();
   const { close } = useTableMarks();
@@ -87,80 +92,110 @@ export default function PlayerSpellDrawer({
     setReading((standing) => (standing?.slug === spell.slug ? null : spell));
   }
 
-  /** `tell` is which bell it rings: the book changed, or the slots did. */
-  function answer(result, said, tell = onWritten) {
-    if (result?.kind === "rejected") {
-      setError(result.message);
-      setNote(null);
-      return false;
-    }
+  /** Whatever a refusal here has to go and re-read: this seat's own book. */
+  const want = { spells: true, characterIds: [characterId] };
 
-    setError(null);
-    setNote(said);
-    tell(characterId);
-    return true;
+  /**
+   * The status line goes up on the press. A refusal takes it back down: the line
+   * outlives the toast, and the two would answer one press differently.
+   */
+  function said(result) {
+    if (!result) {
+      setNote(null);
+    }
   }
 
   function learn(spell) {
-    startTransition(async () => {
-      const result = await teachSpell(campaignId, [characterId], spell);
+    setNote(`${spell.name} written into the book.`);
+    setReading(null);
 
-      if (answer(result, `${spell.name} written into the book.`)) {
-        setReading(null);
-      }
-    });
+    run({
+      // Nothing to paint: a learned spell is a row carrying the whole of what
+      // the SRD says about it, so it arrives with the answer instead.
+      work: () => teachSpell(campaignId, [characterId], spell),
+
+      tell: (result) => {
+        store.sync(result);
+        send({ kind: "spell", characterId });
+      },
+
+      want,
+    }).then(said);
   }
 
   /** `slotLevel` is the slot it is cast FROM, and zero for a cantrip. */
-  function cast(spell, slotLevel) {
-    startTransition(async () => {
-      if (slotLevel > CANTRIP_LEVEL) {
-        const paid = await moveSpellSlot(campaignId, characterId, slotLevel, 1);
+  async function cast(spell, slotLevel) {
+    if (slotLevel > CANTRIP_LEVEL) {
+      const paid = await run({
+        paint: () => store.moveSlot(characterId, slotLevel, 1),
 
-        if (!answer(paid, null, onSlotsWritten)) {
-          return;
-        }
-      } else {
-        setError(null);
+        work: () => moveSpellSlot(campaignId, characterId, slotLevel, 1),
+        tell: () => send({ kind: "slots", characterId }),
+        want: { seatCharacterId: characterId },
+      });
+
+      // Refused: the toast has said so and the pip has gone back. A cast that
+      // was not paid for must not reach the dice or the log.
+      if (!paid) {
+        return;
       }
+    }
 
-      close();
+    close();
 
-      // A cantrip scales with its caster and a levelled spell with its slot.
-      const at = slotLevel > CANTRIP_LEVEL ? slotLevel : caster.level;
-      const dice = spellDiceAt(spell, at);
-      const thrown = dice ? await throwDice(dice) : null;
+    // A cantrip scales with its caster and a levelled spell with its slot.
+    const at = slotLevel > CANTRIP_LEVEL ? slotLevel : caster.level;
+    const dice = spellDiceAt(spell, at);
+    const thrown = dice ? await throwDice(dice) : null;
 
-      const damage = castDamageLine(spell, at);
+    const damage = castDamageLine(spell, at);
+    const spellDamage =
+      damage && thrown !== null ? `${damage} ➔ ${thrown}` : damage;
+    const spellSave = castSaveLine(spell, caster.casting);
 
-      setNote(
-        thrown === null
-          ? `${spell.name} cast.`
-          : `${spell.name} cast — ${thrown}.`,
-      );
+    setNote(
+      thrown === null
+        ? `${spell.name} cast.`
+        : `${spell.name} cast — ${thrown}.`,
+    );
 
-      record(characterId, {
+    record(
+      characterId,
+      {
         action: "spell_cast",
         spellName: spell.name,
         spellLevel: slotLevel,
         // The dice AND what they came to: this throw is not mirrored at the
         // other chairs, so the log is where the table learns the number.
-        spellDamage:
-          damage && thrown !== null ? `${damage} ➔ ${thrown}` : damage,
-        spellSave: castSaveLine(spell, caster.casting),
-      });
-    });
+        spellDamage,
+        spellSave,
+      },
+      /* The line to stand in the panel until the real one lands. A cast is one
+         of the few things no row change can be read back from, so it is still
+         written by a call of its own — see log-actions.js. */
+      {
+        action: "spell_cast",
+        actor: actorName,
+        spell: spell.name,
+        level: slotLevel,
+        damage: spellDamage,
+        save: spellSave,
+      },
+    );
   }
 
   function forget(spell) {
-    startTransition(async () => {
-      const result = await unlearnSpell(campaignId, characterId, spell.slug);
+    setAsking(false);
+    setReading(null);
+    setNote(`${spell.name} struck out.`);
 
-      if (answer(result, `${spell.name} struck out.`)) {
-        setAsking(false);
-        setReading(null);
-      }
-    });
+    run({
+      paint: () => store.forgetSpell(characterId, spell.slug),
+
+      work: () => unlearnSpell(campaignId, characterId, spell.slug),
+      tell: () => send({ kind: "spell", characterId }),
+      want,
+    }).then(said);
   }
 
   return (
@@ -212,13 +247,7 @@ export default function PlayerSpellDrawer({
           </>
         )}
 
-        {error && (
-          <p role="alert" className="mt-3 text-xs text-red-300">
-            {error}
-          </p>
-        )}
-
-        {note && !error && (
+        {note && (
           <p role="status" className="mt-3 text-xs text-gold/75">
             {note}
           </p>
@@ -242,7 +271,6 @@ export default function PlayerSpellDrawer({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Action
                     onClick={() => setAsking(!asking)}
-                    disabled={isPending}
                     pressed={asking}
                     tone="danger"
                     label={`Forget ${open.name}`}
@@ -255,7 +283,6 @@ export default function PlayerSpellDrawer({
                     slots={caster.slots}
                     classId={caster.classId}
                     level={caster.level}
-                    disabled={isPending}
                     onCast={(slotLevel) => cast(open, slotLevel)}
                   />
                 </div>
@@ -268,7 +295,6 @@ export default function PlayerSpellDrawer({
 
                     <Action
                       onClick={() => forget(open)}
-                      disabled={isPending}
                       tone="danger"
                       label={`Confirm forgetting ${open.name}`}
                     >
@@ -281,7 +307,7 @@ export default function PlayerSpellDrawer({
               <div className="flex items-center justify-end">
                 <Action
                   onClick={() => learn(open)}
-                  disabled={isPending || open.level === null}
+                  disabled={open.level === null}
                   tone="gold"
                   label={`Learn ${open.name}`}
                 >

@@ -8,9 +8,13 @@ import {
   listCharacters,
   removeCharacter,
   updateCharacter,
+  updateCharacterHealth,
+  updateCharacterLevel,
 } from "./characters.js";
 
 const ARGS = { id: "6f1c3d2e-0000-4000-8000-000000000000", userId: "user-1" };
+const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
+const SEAT = "6f1c3d2e-0000-4000-8000-00000000005e";
 
 /** Every SQLSTATE this layer promises to say something specific about. */
 const SQLSTATES = [
@@ -414,6 +418,60 @@ describe("updateCharacter's parameter map", () => {
     const { data, error } = await updateCharacter(
       stubQuery({ data: false, error: null }),
       { id: ARGS.id, values: VALUES },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
+  });
+});
+
+/**
+ * The seat is what the log entry gets filed under, and since 20260830090000
+ * that entry is written by a trigger on the column these two move — so the
+ * chair has to reach the RPC or the line is filed under the wrong name, or not
+ * written at all.
+ */
+describe("the chair that acted travels with the write", () => {
+  it("sends a CHANGE to a bar, and the seat that moved it", async () => {
+    // A total computed in the browser and posted a round trip later undoes
+    // whatever else moved the bar in between — see 20260830090000.
+    const q = stubQuery({ data: 34, error: null });
+    const { data } = await updateCharacterHealth(q, {
+      id: ARGS.id,
+      delta: -7,
+      campaignId: CAMPAIGN,
+      seatCharacterId: SEAT,
+    });
+
+    assert.equal(q.lastRpc.name, "change_character_health");
+    assert.equal(q.lastRpc.params.hp_delta, -7);
+    assert.equal(q.lastRpc.params.target_campaign, CAMPAIGN);
+    assert.equal(q.lastRpc.params.acting_seat, SEAT);
+    // What the row came to, which is not the change and not what was asked for:
+    // ten damage against seven hit points ends at zero.
+    assert.equal(data.currentHp, 34);
+  });
+
+  it("sends a null seat rather than omitting it, which is the head of the table", async () => {
+    // Omitted is not the same thing: PostgREST resolves an overload by the
+    // exact set of keys it is handed, and a missing one would leave the
+    // four-argument function unmatched.
+    const q = stubQuery({ data: 5, error: null });
+    await updateCharacterLevel(q, {
+      id: ARGS.id,
+      level: 5,
+      campaignId: CAMPAIGN,
+    });
+
+    assert.equal(q.lastRpc.name, "set_character_level");
+    assert.ok("acting_seat" in q.lastRpc.params);
+    assert.equal(q.lastRpc.params.acting_seat, null);
+  });
+
+  it("still reads a refusal as a miss, seat or no seat", async () => {
+    const { data, error } = await updateCharacterHealth(
+      stubQuery({ data: null, error: null }),
+      { id: ARGS.id, delta: 1, campaignId: CAMPAIGN, seatCharacterId: null },
     );
 
     assert.equal(data, null);

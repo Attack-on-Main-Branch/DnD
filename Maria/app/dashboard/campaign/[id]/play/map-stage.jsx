@@ -29,12 +29,15 @@ import TableMap from "./table-map";
  * `cast` is what the head of the table just threw. Its own slot rather than
  * more `children`, because a roll with no board to land on still has a number
  * to say — so it is drawn in both branches.
+ *
+ * No `marks` prop any more: the tokens are held in the browser now, in
+ * table-state.jsx, and `faces` is what turns one of them into something to
+ * draw. See use-table-marks.js.
  */
 export default function MapStage({
   url,
   title,
   campaignId,
-  marks,
   faces,
   seat,
   canSweep,
@@ -77,7 +80,6 @@ export default function MapStage({
         url={url}
         title={title}
         campaignId={campaignId}
-        marks={marks}
         faces={faces}
         seat={seat}
         canSweep={canSweep}

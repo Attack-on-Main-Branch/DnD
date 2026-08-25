@@ -195,10 +195,23 @@ export async function removeCampaignItem(supabase, { campaignId, id }) {
  * Null from the function is a refusal — an out-of-range quantity, or policies
  * that matched no row — and reads here as `not_found`, which is also what a
  * deleted character gives. A caller must not be able to tell them apart.
+ *
+ * THE LAST THREE ARE THE LOG: the trigger on `character_inventory` writes the
+ * entry inside this same transaction, and those are the three things it cannot
+ * read off the row — which table, which chair, and which of the five deeds a
+ * quantity going up was. Passing no `deed` writes the stack and no line, which
+ * is what a grant to the WHOLE party wants: six transactions, one sentence.
  */
 export async function grantInventoryItem(
   supabase,
-  { characterId, item, quantity },
+  {
+    characterId,
+    item,
+    quantity,
+    campaignId = null,
+    seatCharacterId = null,
+    deed = null,
+  },
 ) {
   const { data, error } = await supabase.rpc("grant_inventory_item", {
     target_character: characterId,
@@ -209,6 +222,9 @@ export async function grantInventoryItem(
     p_quantity: quantity,
     p_is_custom: item.isCustom ?? false,
     p_facts: item.facts ?? {},
+    p_campaign: campaignId,
+    p_seat: seatCharacterId,
+    p_deed: deed,
   });
 
   if (error) {
@@ -228,15 +244,28 @@ export async function grantInventoryItem(
  *
  * `remaining` is zero when the stack is gone; null is nothing there, or nothing
  * granted.
+ *
+ * `deed` is which of the three this was: the row change is identical for all of
+ * them. See `grantInventoryItem` above for the rest.
  */
 export async function spendInventoryItem(
   supabase,
-  { characterId, slug, quantity },
+  {
+    characterId,
+    slug,
+    quantity,
+    campaignId = null,
+    seatCharacterId = null,
+    deed = null,
+  },
 ) {
   const { data, error } = await supabase.rpc("spend_inventory_item", {
     target_character: characterId,
     p_item_slug: slug,
     p_quantity: quantity,
+    p_campaign: campaignId,
+    p_seat: seatCharacterId,
+    p_deed: deed,
   });
 
   if (error) {
@@ -254,10 +283,21 @@ export async function spendInventoryItem(
  * One pack to another, in one transaction. `false` is a refusal — not enough of
  * it, not at the same table, or not the caller's to move — and comes back as
  * `not_found` because the three must not be distinguishable from outside.
+ *
+ * No `deed`: a transfer is the only thing this function does. Two rows move and
+ * the sentence is one, so the trigger files the giver's and stays quiet for the
+ * receiver's.
  */
 export async function transferInventoryItem(
   supabase,
-  { fromCharacterId, toCharacterId, item, quantity },
+  {
+    fromCharacterId,
+    toCharacterId,
+    item,
+    quantity,
+    campaignId = null,
+    seatCharacterId = null,
+  },
 ) {
   const { data, error } = await supabase.rpc("transfer_inventory_item", {
     p_from_char_id: fromCharacterId,
@@ -268,6 +308,8 @@ export async function transferInventoryItem(
     p_category: item.category,
     p_quantity: quantity,
     p_facts: item.facts ?? {},
+    p_campaign: campaignId,
+    p_seat: seatCharacterId,
   });
 
   if (error) {

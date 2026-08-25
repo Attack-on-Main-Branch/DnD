@@ -1,6 +1,5 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
 import { readSpellSlots } from "sina/rules/spellcasting";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
@@ -11,6 +10,8 @@ import {
 } from "@/app/dashboard/spell-presentation";
 
 import { moveSpellSlot } from "./spell-actions";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * The slot bar: ruled off from the shelves and standing in the purse's own box
@@ -40,62 +41,44 @@ export default function SpellSlotTracker({
   classId,
   level,
   editable = false,
-  onWritten,
-  onRefused,
 }) {
-  const [isPending, startTransition] = useTransition();
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
 
   /* The stored column, read against what this class and level actually grant —
-     the maximum is derived here and the one in the column is a snapshot. */
+     the maximum is derived here and the one in the column is a snapshot.
+     `slots` comes out of table-state.jsx now, so a pip moved here or by the
+     caster's own cast is the same number in the same place. */
   const shelves = readSpellSlots(slots, classId, level);
-
-  /* Over the CHANGE and not the result, the health band's reducer exactly: a
-     finished total would be computed against a row that may have moved. */
-  const [spent, spend] = useOptimistic(
-    Object.fromEntries(shelves.map((shelf) => [shelf.level, shelf.used])),
-    (base, { level: slot, by, max }) => ({
-      ...base,
-      [slot]: Math.min(max, Math.max(0, (base[slot] ?? 0) + by)),
-    }),
-  );
 
   if (shelves.length === 0) {
     return null;
   }
 
-  const left = shelves.reduce(
-    (total, shelf) =>
-      total + Math.max(0, shelf.max - (spent[shelf.level] ?? 0)),
-    0,
-  );
+  const left = shelves.reduce((total, shelf) => total + shelf.remaining, 0);
 
-  /** Which way it goes is which pip it was, so the bar has no mode to be in. */
+  /**
+   * Which way it goes is which pip it was, so the bar has no mode to be in.
+   *
+   * Only the head of the table ever reaches this — `restore_spell_slot` refuses
+   * a character's own owner outright — so a refusal is re-read from
+   * `campaign_sheets`, which is the only thing that hands a Dungeon Master
+   * somebody else's slots.
+   */
   function toggle(shelf, index) {
-    const used = spent[shelf.level] ?? 0;
-    const by = index < shelf.max - used ? 1 : -1;
+    const by = index < shelf.remaining ? 1 : -1;
 
-    startTransition(async () => {
-      spend({ level: shelf.level, by, max: shelf.max });
+    run({
+      paint: () => store.moveSlot(characterId, shelf.level, by),
 
-      const result = await moveSpellSlot(
-        campaignId,
-        characterId,
-        shelf.level,
-        by,
-      );
-
-      if (result?.kind === "rejected") {
-        onRefused?.(result.message);
-        return;
-      }
-
-      onRefused?.(null);
-      onWritten?.(characterId);
+      work: () => moveSpellSlot(campaignId, characterId, shelf.level, by),
+      tell: () => send({ kind: "slots", characterId }),
+      want: { sheets: true },
     });
   }
 
   return (
-    <div className={isPending ? "opacity-70" : ""}>
+    <div>
       {/* The line that makes this the foot of the book. */}
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
@@ -109,36 +92,30 @@ export default function SpellSlotTracker({
         </h3>
 
         <ul className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2.5">
-          {shelves.map((shelf) => {
-            const used = Math.min(shelf.max, spent[shelf.level] ?? 0);
-            const open = shelf.max - used;
+          {shelves.map((shelf) => (
+            <li key={shelf.level} className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] tracking-[0.12em] text-ink/50 tabular-nums">
+                {slotClusterLabel(shelf.level)}
+              </span>
 
-            return (
-              <li key={shelf.level} className="flex items-center gap-1.5">
-                <span className="font-mono text-[10px] tracking-[0.12em] text-ink/50 tabular-nums">
-                  {slotClusterLabel(shelf.level)}
-                </span>
+              <span className="flex items-center gap-1">
+                {Array.from({ length: shelf.max }, (_, index) => (
+                  <Pip
+                    key={index}
+                    // Full-first, so the row empties from the right.
+                    available={index < shelf.remaining}
+                    editable={editable}
+                    level={shelf.level}
+                    onToggle={() => toggle(shelf, index)}
+                  />
+                ))}
+              </span>
 
-                <span className="flex items-center gap-1">
-                  {Array.from({ length: shelf.max }, (_, index) => (
-                    <Pip
-                      key={index}
-                      // Full-first, so the row empties from the right.
-                      available={index < open}
-                      editable={editable}
-                      disabled={isPending}
-                      level={shelf.level}
-                      onToggle={() => toggle(shelf, index)}
-                    />
-                  ))}
-                </span>
-
-                <span className="sr-only">
-                  {open} of {shelf.max} remaining
-                </span>
-              </li>
-            );
-          })}
+              <span className="sr-only">
+                {shelf.remaining} of {shelf.max} remaining
+              </span>
+            </li>
+          ))}
         </ul>
       </section>
     </div>
@@ -149,7 +126,7 @@ export default function SpellSlotTracker({
  * A real `<button>` only where it can be pressed: a disabled one still takes a
  * tab stop, which on thirty pips is thirty promises a player cannot keep.
  */
-function Pip({ available, editable, disabled, level, onToggle }) {
+function Pip({ available, editable, level, onToggle }) {
   if (!editable) {
     return <span aria-hidden="true" className={slotPipClasses(available)} />;
   }
@@ -158,7 +135,6 @@ function Pip({ available, editable, disabled, level, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      disabled={disabled}
       aria-pressed={!available}
       className={`cursor-pointer ${slotPipClasses(available, true)}`}
       aria-label={

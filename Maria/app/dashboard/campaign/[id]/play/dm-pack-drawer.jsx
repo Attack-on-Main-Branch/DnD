@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { readPurse } from "sina/rules/currency";
+import { useState } from "react";
 import { parseQuantity } from "sina/rules/inventory";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
@@ -21,7 +20,8 @@ import {
   POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
-import { useActivityLog } from "./use-activity";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * The Dungeon Master's side of the pack: what the party is carrying, and what
@@ -34,6 +34,10 @@ import { useActivityLog } from "./use-activity";
  *
  * Nothing is invented here: homebrew is written down on the campaign page and
  * found from the search, beside the SRD's own.
+ *
+ * Both deeds paint into every pack they touch before the write goes out, and the
+ * write is one round trip. Why a grant to one pack and a grant to the party are
+ * logged by different mechanisms is in pack-actions.js.
  */
 
 const EVERYONE = "all";
@@ -43,17 +47,15 @@ export default function DmPackDrawer({
   members,
   packs,
   purses,
-  onWritten,
-  onCoinsWritten,
+  actorName,
 }) {
   const [target, setTarget] = useState(EVERYONE);
   const [reading, setReading] = useState(null);
   const [typed, setTyped] = useState("");
-  const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
-  const [isPending, startTransition] = useTransition();
 
-  const record = useActivityLog(campaignId);
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
 
   const selected = members.find((member) => member.id === target) ?? null;
   const targets = selected ? [selected.id] : members.map((member) => member.id);
@@ -62,7 +64,7 @@ export default function DmPackDrawer({
 
   /* An empty purse for a character `campaign_purses` returned no row for. Null
      for "all party": there is no one balance to hold up as a placeholder. */
-  const purse = selected ? readPurse(purses.get(selected.id)) : null;
+  const purse = selected ? (purses.get(selected.id) ?? null) : null;
 
   const held = pack.find((row) => row.item_slug === reading?.slug) ?? null;
   const open = held ? rowItem(held) : reading;
@@ -84,78 +86,92 @@ export default function DmPackDrawer({
 
   function show(item) {
     setTyped("");
-    setError(null);
+    setNote(null);
     setReading((standing) => (standing?.slug === item.slug ? null : item));
   }
 
-  function answer(result, said) {
-    if (result?.kind === "rejected") {
-      setError(result.message);
+  /** Every pack this deed reaches, told once the server has taken it. */
+  function toldPacks(ids) {
+    for (const id of ids) {
+      send({ kind: "pack", characterId: id });
+    }
+  }
+
+  /**
+   * The status line goes up on the press, because that is when the packs move. A
+   * refusal takes it back down: the line outlives the toast, and the two would
+   * be answering one press with different words.
+   */
+  function said(result) {
+    if (!result) {
       setNote(null);
-      return false;
     }
-
-    setError(null);
-    setNote(said);
-
-    for (const id of targets) {
-      onWritten(id);
-    }
-
-    return true;
   }
 
   function give() {
-    startTransition(async () => {
-      const result = await grantPackItems(campaignId, targets, open, count);
+    const item = open;
+    const giving = count;
+    const said = selected
+      ? `${giving} × ${item.name} to ${selected.name}.`
+      : `${giving} × ${item.name} to each of ${targets.length}.`;
 
-      const landed = answer(
-        result,
-        selected
-          ? `${count} × ${open.name} to ${selected.name}.`
-          : `${count} × ${open.name} to each of ${targets.length}.`,
-      );
+    setTyped("");
+    setReading(null);
+    setNote(said);
 
-      /* One entry, whether it went to one pack or to six. `null` is the head of
-         the table filing it, which `record_campaign_activity` turns into "the
-         party" — the recipient's name is never a string this drawer chose. */
-      if (landed) {
-        setTyped("");
-        setReading(null);
-        record(null, {
+    run({
+      // One line, whether it went to one pack or to six.
+      note: [
+        {
           action: "item_granted",
-          itemName: open.name,
-          quantity: count,
-          targetCharacterId: selected?.id ?? null,
-        });
-      }
-    });
+          actor: actorName,
+          item: item.name,
+          quantity: giving,
+          target: selected ? selected.name : "the party",
+        },
+      ],
+
+      paint: () => {
+        for (const id of targets) {
+          store.movePack(id, item, giving);
+        }
+      },
+
+      work: () => grantPackItems(campaignId, targets, item, giving),
+      tell: () => toldPacks(targets),
+      want: { inventory: true, activity: true, characterIds: targets },
+    }).then(said);
   }
 
   /* A CHANGE and not a total, for the reason the health band's reducer takes
      one: a total is computed against a row that may have moved since the panel
      was drawn. */
   function take() {
-    startTransition(async () => {
-      const taking = Math.min(count, held.quantity);
-      const result = await adjustPackItem(
-        campaignId,
-        selected.id,
-        open,
-        -taking,
-      );
+    const item = open;
+    const who = selected;
+    const taking = Math.min(count, held.quantity);
 
-      if (answer(result, `${taking} × ${open.name} from ${selected.name}.`)) {
-        setTyped("");
-        setReading(null);
-        record(null, {
+    setTyped("");
+    setReading(null);
+    setNote(`${taking} × ${item.name} from ${who.name}.`);
+
+    run({
+      note: [
+        {
           action: "item_revoked",
-          itemName: open.name,
+          actor: actorName,
+          item: item.name,
           quantity: taking,
-          targetCharacterId: selected.id,
-        });
-      }
-    });
+          target: who.name,
+        },
+      ],
+
+      paint: () => store.movePack(who.id, item, -taking),
+
+      work: () => adjustPackItem(campaignId, who.id, item, -taking),
+      tell: () => toldPacks([who.id]),
+      want: { inventory: true, activity: true, characterIds: [who.id] },
+    }).then(said);
   }
 
   return (
@@ -206,8 +222,8 @@ export default function DmPackDrawer({
                 campaignId={campaignId}
                 character={null}
                 members={members}
+                actorName={actorName}
                 purse={null}
-                onWritten={onCoinsWritten}
               />
             </section>
           )}
@@ -221,8 +237,8 @@ export default function DmPackDrawer({
                 campaignId={campaignId}
                 character={selected}
                 members={members}
+                actorName={actorName}
                 purse={purse}
-                onWritten={onCoinsWritten}
               />
             </section>
           )}
@@ -263,7 +279,7 @@ export default function DmPackDrawer({
         </>
       )}
 
-      {note && !error && (
+      {note && (
         <p role="status" className="mt-3 text-xs text-gold/75">
           {note}
         </p>
@@ -281,7 +297,6 @@ export default function DmPackDrawer({
                   value={typed}
                   placeholder="Qty"
                   onChange={(event) => setTyped(event.target.value)}
-                  disabled={isPending}
                   aria-label={`How many ${open.name}`}
                   className={controlClasses({
                     className: "px-2 py-1 text-center tabular-nums",
@@ -298,7 +313,7 @@ export default function DmPackDrawer({
               {held && selected && (
                 <Action
                   onClick={take}
-                  disabled={isPending || !usable}
+                  disabled={!usable}
                   tone="danger"
                   label={`Take ${count} ${open.name} from ${selected.name}`}
                 >
@@ -308,7 +323,7 @@ export default function DmPackDrawer({
 
               <Action
                 onClick={give}
-                disabled={isPending || !usable}
+                disabled={!usable}
                 tone="gold"
                 label={
                   selected
@@ -319,12 +334,6 @@ export default function DmPackDrawer({
                 {selected ? `Give to ${selected.name}` : "Give to everyone"}
               </Action>
             </div>
-
-            {error && (
-              <p role="alert" className="mt-2 text-xs text-red-300">
-                {error}
-              </p>
-            )}
           </ItemDetail>
         </PopoverAside>
       )}

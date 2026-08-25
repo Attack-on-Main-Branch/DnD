@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import SpellDetail from "@/app/dashboard/spell-detail";
 import SpellRow from "@/app/dashboard/spell-row";
@@ -18,6 +18,8 @@ import {
   POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * The Dungeon Master's side of the spellbook. The pill bar aims both halves:
@@ -27,24 +29,21 @@ import {
  * Casting is not offered here — it is the caster's own turn. The SLOTS are,
  * because nobody else's chair can give one back: `restore_spell_slot` refuses a
  * character's own owner outright.
+ *
+ * Teaching and taking back both paint before they write, and a refusal is said
+ * in a toast: by then the spell that was open has been put away.
  */
 
 const EVERYONE = "all";
 
-export default function DmSpellDrawer({
-  campaignId,
-  members,
-  books,
-  casters,
-  onWritten,
-  onSlotsWritten,
-}) {
+export default function DmSpellDrawer({ campaignId, members, books, casters }) {
   const [target, setTarget] = useState(EVERYONE);
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(false);
-  const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
-  const [isPending, startTransition] = useTransition();
+
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
 
   const selected = members.find((member) => member.id === target) ?? null;
   const targets = selected ? [selected.id] : members.map((member) => member.id);
@@ -83,49 +82,61 @@ export default function DmSpellDrawer({
     setReading((standing) => (standing?.slug === spell.slug ? null : spell));
   }
 
-  function answer(result, said) {
-    if (result?.kind === "rejected") {
-      setError(result.message);
+  /** Every book this deed reaches, told once the server has taken it. */
+  function toldBooks(ids) {
+    for (const id of ids) {
+      send({ kind: "spell", characterId: id });
+    }
+  }
+
+  /**
+   * The status line goes up on the press. A refusal takes it back down: the line
+   * outlives the toast, and the two would answer one press differently.
+   */
+  function said(result) {
+    if (!result) {
       setNote(null);
-      return false;
     }
-
-    setError(null);
-    setNote(said);
-
-    for (const id of targets) {
-      onWritten(id);
-    }
-
-    return true;
   }
 
   function teach(spell) {
-    startTransition(async () => {
-      const result = await teachSpell(campaignId, targets, spell);
+    const taught = targets;
 
-      const landed = answer(
-        result,
-        selected
-          ? `${spell.name} taught to ${selected.name}.`
-          : `${spell.name} taught to ${targets.length}.`,
-      );
+    setReading(null);
+    setNote(
+      selected
+        ? `${spell.name} taught to ${selected.name}.`
+        : `${spell.name} taught to ${taught.length}.`,
+    );
 
-      if (landed) {
-        setReading(null);
-      }
-    });
+    run({
+      /* Nothing to paint: a learned spell is a row carrying the whole of what
+         the SRD says about it, so it arrives with the answer instead. */
+      work: () => teachSpell(campaignId, taught, spell),
+
+      tell: (result) => {
+        store.sync(result);
+        toldBooks(taught);
+      },
+
+      want: { spells: true, characterIds: taught },
+    }).then(said);
   }
 
   function take(spell) {
-    startTransition(async () => {
-      const result = await unlearnSpell(campaignId, selected.id, spell.slug);
+    const who = selected;
 
-      if (answer(result, `${spell.name} taken from ${selected.name}.`)) {
-        setAsking(false);
-        setReading(null);
-      }
-    });
+    setAsking(false);
+    setReading(null);
+    setNote(`${spell.name} taken from ${who.name}.`);
+
+    run({
+      paint: () => store.forgetSpell(who.id, spell.slug),
+
+      work: () => unlearnSpell(campaignId, who.id, spell.slug),
+      tell: () => toldBooks([who.id]),
+      want: { spells: true, characterIds: [who.id] },
+    }).then(said);
   }
 
   return (
@@ -209,13 +220,7 @@ export default function DmSpellDrawer({
           </>
         )}
 
-        {error && (
-          <p role="alert" className="mt-3 text-xs text-red-300">
-            {error}
-          </p>
-        )}
-
-        {note && !error && (
+        {note && (
           <p role="status" className="mt-3 text-xs text-gold/75">
             {note}
           </p>
@@ -230,8 +235,6 @@ export default function DmSpellDrawer({
           classId={caster.classId}
           level={caster.level}
           editable
-          onWritten={onSlotsWritten}
-          onRefused={setError}
         />
       )}
 
@@ -242,7 +245,6 @@ export default function DmSpellDrawer({
               {selected && known.has(open.slug) ? (
                 <Action
                   onClick={() => setAsking(!asking)}
-                  disabled={isPending}
                   pressed={asking}
                   tone="danger"
                   label={`Take ${open.name} from ${selected.name}`}
@@ -256,9 +258,7 @@ export default function DmSpellDrawer({
               {!known.has(open.slug) && (
                 <Action
                   onClick={() => teach(open)}
-                  disabled={
-                    isPending || open.level === null || members.length === 0
-                  }
+                  disabled={open.level === null || members.length === 0}
                   tone="gold"
                   label={
                     selected
@@ -279,7 +279,6 @@ export default function DmSpellDrawer({
 
                 <Action
                   onClick={() => take(open)}
-                  disabled={isPending}
                   tone="danger"
                   label={`Confirm taking ${open.name} back`}
                 >

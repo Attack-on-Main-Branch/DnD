@@ -1,11 +1,15 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import {
+  listCampaignActivity,
+  recordCampaignActivity,
+} from "sina/data/activity";
 import {
   moveCampaignCurrency,
   spendCurrency,
   transferCurrency,
 } from "sina/data/currency";
+import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import {
   COIN_TYPES,
   emptyPurse,
@@ -15,9 +19,8 @@ import {
   parsePurse,
 } from "sina/rules/currency";
 
-import { logUncovered } from "@/lib/errors";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
-import { campaignTablePath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 /**
@@ -35,9 +38,13 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * Master emptying a purse by typing 9999 into it gets "took 3 Gold" and not a
  * sentence about 9999.
  *
- * No sheet is revalidated beside the table, unlike the pack: a purse is only
- * read at the table, and the Inventory tab on a character sheet does not print
- * one. If it ever does, this is the line that has to grow.
+ * THE LOG IS WRITTEN HERE, not by a trigger: a purse is five columns on
+ * `characters` and a grant to the party is five columns across six rows, so
+ * there is no single row change one sentence could be read back from. Writing it
+ * on this side of the wire is what takes the second round trip out of it — the
+ * amounts the entry needs are the ones the database just handed back.
+ *
+ * Nothing is revalidated; the purse and the log are held in table-state.jsx.
  */
 
 async function signedIn(action) {
@@ -85,9 +92,35 @@ function refused(action, copy, error, fallback) {
   return rejected(said ?? fallback);
 }
 
-/** A purse is only ever read at the table. */
-function revalidateTable(campaignId) {
-  revalidatePath(campaignTablePath(campaignId));
+async function freshLog(supabase, campaignId) {
+  const { data, error } = await listCampaignActivity(
+    supabase,
+    campaignId,
+    MAX_ACTIVITY_ENTRIES,
+  );
+
+  if (error) {
+    logFailure("listCampaignActivity", error);
+    return undefined;
+  }
+
+  return readActivityLog(data);
+}
+
+/**
+ * One entry, and never a failed deed: a log that has quietly stopped recording
+ * looks exactly like a table where nothing has happened, so a refusal goes to
+ * the console and the coins stay moved.
+ */
+async function note(supabase, action, values) {
+  const { error } = await recordCampaignActivity(supabase, {
+    ...values,
+    action,
+  });
+
+  if (error) {
+    logFailure(`${action}/record`, error);
+  }
 }
 
 /**
@@ -125,10 +158,10 @@ function movedCoins(rows) {
  * this table and nobody else, and re-checks the membership itself, so a
  * character id arriving from a row of pills is not a permission.
  *
- * What comes back is what to write down, and it is always a difference the
- * database actually applied rather than the figure that was typed — see
- * `movedCoins` for how five purses are reduced to the one number a sentence can
- * carry.
+ * One entry per denomination that actually moved — five at once would fill half
+ * a log that keeps ten — and one after another rather than together, because the
+ * purge trigger keeps the newest ten and two entries written in one instant tie
+ * on `now()`.
  */
 export async function moveTableCoins(campaignId, characterId, input, take) {
   const { coins, total } = parsePurse(input);
@@ -166,9 +199,29 @@ export async function moveTableCoins(campaignId, characterId, input, take) {
     return rejected(MOVE_COPY.not_found);
   }
 
-  revalidateTable(campaignId);
+  const found = movedCoins(moved);
 
-  return { kind: "success", purses: moved.length, coins: movedCoins(moved) };
+  for (const coin of COIN_TYPES.filter((one) => found[one] > 0)) {
+    await note(supabase, take ? "coin_revoked" : "coin_granted", {
+      campaignId,
+      // Coins move from the head of the table's chair alone, and
+      // `record_campaign_activity` refuses anybody else outright.
+      actorCharacterId: null,
+      targetCharacterId: characterId ?? null,
+      coin,
+      coinAmount: found[coin],
+    });
+  }
+
+  return {
+    kind: "success",
+    purses: moved.length,
+    coins: found,
+    // What each purse actually moved by, which is not always what was asked for:
+    // a take is clamped at zero per character.
+    moved,
+    activity: await freshLog(supabase, campaignId),
+  };
 }
 
 /**
@@ -178,7 +231,7 @@ export async function moveTableCoins(campaignId, characterId, input, take) {
  * gives.
  *
  * `taken` is what actually left, which is the whole amount unless the page was
- * stale.
+ * stale — and it is what the log is written from.
  */
 export async function spendCharacterCoins(
   campaignId,
@@ -217,8 +270,20 @@ export async function spendCharacterCoins(
     return rejected("There is none of that left to spend.");
   }
 
-  revalidateTable(campaignId);
-  return { kind: "success", taken: data.taken };
+  // Filed under the purse's own chair and naming nobody: "Frieren spent 12 GP"
+  // is one event.
+  await note(supabase, "coin_spent", {
+    campaignId,
+    actorCharacterId: characterId,
+    coin,
+    coinAmount: data.taken,
+  });
+
+  return {
+    kind: "success",
+    taken: data.taken,
+    activity: await freshLog(supabase, campaignId),
+  };
 }
 
 /**
@@ -269,8 +334,19 @@ export async function handCharacterCoins(
     );
   }
 
-  revalidateTable(campaignId);
-  return { kind: "success", taken: count };
+  await note(supabase, "coin_transferred", {
+    campaignId,
+    actorCharacterId: fromCharacterId,
+    targetCharacterId: toCharacterId,
+    coin,
+    coinAmount: count,
+  });
+
+  return {
+    kind: "success",
+    taken: count,
+    activity: await freshLog(supabase, campaignId),
+  };
 }
 
 /** A denomination and an amount, both put back through the rules. */

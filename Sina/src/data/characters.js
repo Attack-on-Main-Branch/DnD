@@ -144,7 +144,7 @@ export async function insertCharacter(supabase, { userId, values }) {
 
 /**
  * The sheet as its owner rewrote it, through a definer function for the reason
- * `set_character_health` is one: RLS grants rows and never columns, so the
+ * `change_character_health` is one: RLS grants rows and never columns, so the
  * narrowest UPDATE policy here would hand its holder the level a Dungeon Master
  * awards and the hit points a table calls out. The parameter list is the edit.
  *
@@ -218,21 +218,27 @@ export async function removeCharacter(supabase, { id, userId }) {
  * 20260821140000_health_and_notes.sql. The function writes one column of one
  * row, for a character the caller owns or one sitting in a campaign they run.
  *
- * `campaignId` scopes the second of those: a character can play at more than
- * one table, so the question is "is this the Dungeon Master of the campaign
- * that character is in", and the function re-checks the membership itself.
+ * A CHANGE AND NOT A TOTAL: the database adds `delta` to the row it has locked,
+ * because a total posted a round trip later undoes anything that landed in
+ * between — and the bar is the one number here two people move at once.
  *
- * Anybody else gets null, which is what a deleted character gives too — a
- * caller must not be able to tell a refusal from a miss.
+ * `campaignId` scopes the second half of the permission: a character can play at
+ * more than one table, and the function re-checks the membership itself.
+ * Anybody else gets null, which is what a deleted character gives too.
+ *
+ * `seatCharacterId` is the CHAIR that acted, null for the head of the table. It
+ * is what the log entry is filed under — the trigger on this column cannot read
+ * that off the row — and omitting it moves the bar and writes no line.
  */
 export async function updateCharacterHealth(
   supabase,
-  { id, hitPoints, campaignId },
+  { id, delta, campaignId, seatCharacterId = null },
 ) {
-  const { data, error } = await supabase.rpc("set_character_health", {
+  const { data, error } = await supabase.rpc("change_character_health", {
     target_character: id,
-    hit_points: hitPoints,
+    hp_delta: delta,
     target_campaign: campaignId,
+    acting_seat: seatCharacterId,
   });
 
   if (error) {
@@ -253,15 +259,20 @@ export async function updateCharacterHealth(
  * The head of the table alone, unlike health — damage is called out by whoever
  * runs the session, but a level is theirs to award. Everybody else gets null,
  * which is what a deleted character gives too.
+ *
+ * `seatCharacterId` is the chair the log entry is filed under. Only ever null
+ * here — the function admits the head of the table alone — but passed rather
+ * than assumed, so the two writes are armed the same way.
  */
 export async function updateCharacterLevel(
   supabase,
-  { id, level, campaignId },
+  { id, level, campaignId, seatCharacterId = null },
 ) {
   const { data, error } = await supabase.rpc("set_character_level", {
     target_character: id,
     new_level: level,
     target_campaign: campaignId,
+    acting_seat: seatCharacterId,
   });
 
   if (error) {

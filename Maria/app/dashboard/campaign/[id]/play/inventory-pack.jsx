@@ -1,59 +1,51 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState } from "react";
 
-import { emptyPurse, readPurse } from "sina/rules/currency";
+import { emptyPurse } from "sina/rules/currency";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import TravellingPack from "@/app/components/ui/travelling-pack";
-import { pursesByCharacter } from "@/app/dashboard/currency-presentation";
-import { packsByCharacter } from "@/app/dashboard/inventory-presentation";
 
 import DmPackDrawer from "./dm-pack-drawer";
 import PlayerPackDrawer from "./player-pack-drawer";
 import TablePopover from "./table-popover";
-import { useTableWire, useWireMessage } from "./table-wire";
+import { useAllPacks, useAllPurses } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
+import { useWireMessage } from "./table-wire";
 
 /**
  * The pack beside the scroll, and what is in it. One control, two drawers —
  * which of them is the SEAT's, not the account's, the same line the health band
  * is drawn on.
  *
- * It keeps itself current two ways: Postgres changes are the honest half, the
- * table's wire the fast one, as the health band already pairs them.
+ * The rows are held in table-state.jsx rather than handed down, so a press
+ * paints on the frame it happens and the write follows.
  *
- * Both are DOORBELLS. Neither payload is read — a row off the socket has not
- * been through the `select()` list in Sina's data layer — so the answer is
- * `router.refresh()` and never a render of what arrived.
+ * Postgres changes are the honest half, the table's wire the fast one, and both
+ * are DOORBELLS: no payload is read, because a row off the socket has not been
+ * through the `select()` list in Sina's data layer. What answers them is
+ * `readTableSlice` — the packs and the purses, not the whole route.
  *
- * The purse rides with the pack, on both halves and for the same reasons — but
- * the two subscriptions are NOT equivalent, and the difference is worth
- * knowing. `character_inventory` has a SELECT policy that admits a Dungeon
- * Master, so Postgres tells them about the whole party's packs; `characters`
- * has only "Users read their own characters", so a purse change reaches its
- * owner and nobody else. The wire is what carries it the rest of the way, which
- * is exactly the arrangement the party rail already makes for hit points.
+ * The two subscriptions are NOT equivalent. `character_inventory` has a SELECT
+ * policy that admits a Dungeon Master, so Postgres tells them about the whole
+ * party's packs; `characters` has only "Users read their own characters", so a
+ * purse change reaches its owner and nobody else, and the wire carries it the
+ * rest of the way.
  */
 export default function InventoryPack({
   campaignId,
   seat,
   members,
-  rows,
-  purses,
   isDungeonMaster,
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
-  const { send } = useTableWire();
+  const packs = useAllPacks();
+  const purses = useAllPurses();
+  const { resync } = useTableDeed(campaignId);
 
   /* A counter, not a flag: TablePopover uses it as a `key`, and changing a key
      is what restarts a CSS animation. */
   const [arrived, setArrived] = useState(0);
-
-  const refresh = useCallback(() => {
-    startTransition(() => router.refresh());
-  }, [router]);
 
   /**
    * Whose packs this browser watches: the party for a Dungeon Master, one
@@ -101,24 +93,32 @@ export default function InventoryPack({
     [watching],
   );
 
+  /** Both halves at once: a hand-over moves a pack and a purse is coin. */
+  const reread = useCallback(
+    () =>
+      resync({
+        inventory: true,
+        purses: true,
+        characterIds: watching ? watching.split(",") : [],
+      }),
+    [resync, watching],
+  );
+
   useLiveRefresh({
     channel: `pack:${campaignId}`,
     table: "character_inventory",
     filter,
-    onChange: refresh,
+    onChange: reread,
   });
 
-  /* This one hears more than it asked for, and knowingly: `postgres_changes`
-     filters by row and never by column, so a hit point or a level written to
-     the same row rings this doorbell too. The answer is a `router.refresh()`
-     that finds the purse unchanged — the same cost the health wire already
-     pays, and cheaper than the alternative, which is a table of its own for
-     five integers. */
+  /* Hears more than it asked for, knowingly: `postgres_changes` filters by row
+     and never by column, so a hit point on the same row rings this too. That is
+     two queries now rather than a whole route render. */
   useLiveRefresh({
     channel: `purse:${campaignId}`,
     table: "characters",
     filter: purseFilter,
-    onChange: refresh,
+    onChange: reread,
   });
 
   /**
@@ -141,41 +141,27 @@ export default function InventoryPack({
         setArrived((count) => count + 1);
       }
 
-      refresh();
+      reread();
     },
-    [refresh, seat.characterId, watched],
+    [reread, seat.characterId, watched],
   );
 
   useWireMessage("pack", heard);
   useWireMessage("purse", heard);
 
-  /* Said only once the server has taken the write, the way a hit point is. */
-  const told = useCallback(
-    (characterId) => send({ kind: "pack", characterId }),
-    [send],
-  );
+  /* Maps rather than the store's own objects, because that is the shape both
+     drawers already read. Six entries at most, so the copy is free. */
+  const packMap = useMemo(() => new Map(Object.entries(packs)), [packs]);
+  const purseMap = useMemo(() => new Map(Object.entries(purses)), [purses]);
 
-  /**
-   * The purse's own, and it carries more than the pack's does: Postgres tells
-   * a Dungeon Master nothing about a player's `characters` row, so for that
-   * direction this message is not a head start but the whole of it.
-   */
-  const toldCoins = useCallback(
-    (characterId) => send({ kind: "purse", characterId }),
-    [send],
-  );
+  const mine = seat.characterId ? (packs[seat.characterId] ?? EMPTY) : EMPTY;
 
-  const packs = useMemo(() => packsByCharacter(members, rows), [members, rows]);
-
-  /* A member with no row is one whose purse this viewer may not read — which is
-     one player looking at another, and never the seat's own. */
-  const wallets = useMemo(() => pursesByCharacter(purses), [purses]);
-
-  const mine = seat.characterId ? (packs.get(seat.characterId) ?? []) : [];
-
+  /* A seat whose purse the seed had no row for — a party that changed under an
+     open panel. Never mutated, so one shared object is safe and keeps the
+     drawer's prop from changing identity on every render. */
   const myPurse = seat.characterId
-    ? readPurse(wallets.get(seat.characterId))
-    : emptyPurse();
+    ? (purses[seat.characterId] ?? NO_PURSE)
+    : NO_PURSE;
 
   /* The database re-checks who is at this table, so this list is a
      convenience and not a permission. */
@@ -184,7 +170,9 @@ export default function InventoryPack({
     [members, seat.characterId],
   );
 
-  const carried = isDungeonMaster ? rows.length : mine.length;
+  const carried = isDungeonMaster
+    ? Object.values(packs).reduce((total, rows) => total + rows.length, 0)
+    : mine.length;
 
   return (
     <TablePopover
@@ -202,10 +190,9 @@ export default function InventoryPack({
         <DmPackDrawer
           campaignId={campaignId}
           members={members}
-          packs={packs}
-          purses={wallets}
-          onWritten={told}
-          onCoinsWritten={toldCoins}
+          packs={packMap}
+          purses={purseMap}
+          actorName={seat.title}
         />
       ) : (
         <PlayerPackDrawer
@@ -214,10 +201,15 @@ export default function InventoryPack({
           pack={mine}
           purse={myPurse}
           party={others}
-          onWritten={told}
-          onCoinsWritten={toldCoins}
+          /* The chair's own name, and only for the line shown while a write is
+             in the air. `readSeat` calls the head of the table's chair "Dungeon
+             Master", which is the same string the database derives. */
+          actorName={seat.title}
         />
       )}
     </TablePopover>
   );
 }
+
+const EMPTY = [];
+const NO_PURSE = emptyPurse();

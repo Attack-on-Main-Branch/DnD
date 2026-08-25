@@ -142,17 +142,6 @@ export function spellsByShelf(rows) {
   );
 }
 
-/** The party's rows split back up by who knows them, in the party's order. */
-export function spellsByCharacter(members, rows) {
-  const books = new Map(members.map((member) => [member.id, []]));
-
-  for (const row of rows) {
-    books.get(row.character_id)?.push(row);
-  }
-
-  return books;
-}
-
 /**
  * What the table is told a spell threw: "10d6 Fire", the dice for the slot it
  * was cast from. The type comes off the card's own line — the scaling table

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MAX_NOTE_LENGTH } from "sina/rules/character";
 import { countCharacters } from "sina/rules/text";
 
+import { useToast } from "@/app/components/ui/toast";
 import { controlClasses } from "@/app/components/ui/field-styles";
 import ParchmentScroll from "@/app/components/ui/parchment-scroll";
 import { NOTE_TIME_FORMAT } from "@/lib/dates";
@@ -20,13 +21,30 @@ import TablePopover, { POPOVER_BODY_CLASSES } from "./table-popover";
  *
  * `sina/rules/text` rather than `sina/rules/character` for the counter: this
  * runs in the browser, and the catalogues in that neighbour would come with it.
+ *
+ * THE LEDGER IS HELD HERE rather than revalidated: a note belongs to its writer
+ * alone, so there is nothing to tell the table and nothing to reconcile with.
+ * The action hands the ledger back and this replaces it.
  */
 export default function NotesScroll({ campaignId, seat }) {
-  const { characterId, title, notes } = seat;
+  const { characterId, title } = seat;
+  const { show } = useToast();
 
   const [draft, setDraft] = useState("");
-  const [error, setError] = useState(null);
-  const [isPending, startTransition] = useTransition();
+  const [notes, setNotes] = useState(seat.notes);
+
+  /* A fresh array on every route render, which is the only time it should
+     replace what this browser is holding. */
+  const adopted = useRef(seat.notes);
+
+  useEffect(() => {
+    if (adopted.current === seat.notes) {
+      return;
+    }
+
+    adopted.current = seat.notes;
+    setNotes(seat.notes);
+  }, [seat.notes]);
 
   /* A counter, not a flag: TablePopover uses it as a `key`, and changing a key
      is what restarts a CSS animation. */
@@ -37,23 +55,37 @@ export default function NotesScroll({ campaignId, seat }) {
   const empty = draft.trim().length === 0;
 
   function save() {
-    if (empty || tooLong || isPending) {
+    if (empty || tooLong) {
       return;
     }
 
-    setError(null);
+    const body = draft;
 
-    startTransition(async () => {
-      const result = await writeTableNote(campaignId, characterId, draft);
+    /* Emptied on the press, but nothing is drawn optimistically: a note carries
+       a timestamp, and one made here would be this browser's clock rather than
+       the transaction's. */
+    setDraft("");
 
-      if (result?.kind === "rejected") {
-        setError(result.message);
-        return;
-      }
+    writeTableNote(campaignId, characterId, body).then(
+      (result) => {
+        if (result?.kind === "rejected") {
+          show(result.message);
+          // Given back rather than lost, unless something has been typed since.
+          setDraft((standing) => (standing === "" ? body : standing));
+          return;
+        }
 
-      setDraft("");
-      setWritten((count) => count + 1);
-    });
+        if (result?.notes) {
+          setNotes(result.notes);
+        }
+
+        setWritten((count) => count + 1);
+      },
+      () => {
+        show("That did not reach the table. Try again.");
+        setDraft((standing) => (standing === "" ? body : standing));
+      },
+    );
   }
 
   return (
@@ -78,7 +110,6 @@ export default function NotesScroll({ campaignId, seat }) {
             rows={6}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            disabled={isPending}
             placeholder="What happened at the table…"
             aria-label="Write a note"
             aria-invalid={tooLong || undefined}
@@ -100,18 +131,12 @@ export default function NotesScroll({ campaignId, seat }) {
             <button
               type="button"
               onClick={save}
-              disabled={isPending || empty || tooLong}
+              disabled={empty || tooLong}
               className="cursor-pointer font-display text-sm tracking-wide text-gold transition-colors duration-300 hover:text-ink disabled:cursor-not-allowed disabled:text-ink/30"
             >
-              {isPending ? "Writing…" : "Write it down"}
+              Write it down
             </button>
           </div>
-
-          {error && (
-            <p role="alert" className="mt-2 text-xs text-red-300">
-              {error}
-            </p>
-          )}
         </div>
 
         {notes.length === 0 ? (

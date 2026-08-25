@@ -1,76 +1,82 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { formatModifier } from "sina/rules/skills";
 import { remainingSlots } from "sina/rules/spellcasting";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import SpellSigil from "@/app/components/ui/spell-sigil";
-import { spellsByCharacter } from "@/app/dashboard/spell-presentation";
 
 import DmSpellDrawer from "./dm-spell-drawer";
 import PlayerSpellDrawer from "./player-spell-drawer";
 import TablePopover from "./table-popover";
-import { useTableWire, useWireMessage } from "./table-wire";
+import { useAllBooks, useAllLevels, useAllSlots } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
+import { useWireMessage } from "./table-wire";
 
 /**
  * The spellbook beside the scores. One control, two drawers — which of them is
  * the SEAT's, not the account's, the line the pack is drawn on too.
  *
+ * The shelves and the slot bar are held in table-state.jsx, so a pip goes out on
+ * the press rather than a round trip later.
+ *
  * Two subscriptions, for the two places a book is written: the spells are rows
  * on `character_spells`, the SLOTS a column on `characters`. The first has a
  * SELECT policy that admits a Dungeon Master; the second has only "Users read
  * their own characters", so a slot spent reaches its owner and nobody else and
- * the wire carries it the rest of the way.
+ * the wire carries it the rest of the way. Both are DOORBELLS, answered by a
+ * scoped re-read rather than a render of the route.
  *
- * Both are DOORBELLS — no payload is read, because a row off the socket has not
- * been through Sina's `select()` list — so the answer is `router.refresh()`.
+ * `casters` arrives as a prop for the parts a press cannot move — the class and
+ * the two numbers at the top of the sheet. The level and the slots come from the
+ * store.
  */
-
-/** PostgREST syntax. A bandwidth measure; the SELECT policy is the boundary. */
-function rowFilter(column, ids) {
-  if (ids.length === 0) {
-    return undefined;
-  }
-
-  return ids.length === 1
-    ? `${column}=eq.${ids[0]}`
-    : `${column}=in.(${ids.join(",")})`;
-}
-
 export default function SpellBook({
   campaignId,
   seat,
   members,
-  rows,
   casters,
   isDungeonMaster,
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
-  const { send } = useTableWire();
+  const books = useAllBooks();
+  const slots = useAllSlots();
+  const levels = useAllLevels();
+  const { resync } = useTableDeed(campaignId);
 
   /* A counter, not a flag: TablePopover uses it as a `key`, and changing a key
      is what restarts a CSS animation. */
   const [arrived, setArrived] = useState(0);
 
-  const refresh = useCallback(() => {
-    startTransition(() => router.refresh());
-  }, [router]);
-
   /** The party for a Dungeon Master, one character for a player. */
-  const watching = isDungeonMaster
-    ? members.map((member) => member.id)
-    : [seat.characterId].filter(Boolean);
+  const watching = useMemo(
+    () =>
+      isDungeonMaster
+        ? members.map((member) => member.id)
+        : [seat.characterId].filter(Boolean),
+    [isDungeonMaster, members, seat.characterId],
+  );
 
-  const watched = new Set(watching);
+  const watched = useMemo(() => new Set(watching), [watching]);
+
+  const reread = useCallback(
+    () =>
+      resync({
+        spells: true,
+        // The slots live on `characters`, which only `campaign_sheets` and a
+        // character's own row will hand back — see readTableSlice.
+        sheets: isDungeonMaster,
+        seatCharacterId: isDungeonMaster ? null : seat.characterId,
+        characterIds: watching,
+      }),
+    [isDungeonMaster, resync, seat.characterId, watching],
+  );
 
   useLiveRefresh({
     channel: `spells:${campaignId}`,
     table: "character_spells",
     filter: rowFilter("character_id", watching),
-    onChange: refresh,
+    onChange: reread,
   });
 
   /* Hears more than it asked for, knowingly: `postgres_changes` filters by row
@@ -79,7 +85,7 @@ export default function SpellBook({
     channel: `slots:${campaignId}`,
     table: "characters",
     filter: rowFilter("id", watching),
-    onChange: refresh,
+    onChange: reread,
   });
 
   /**
@@ -102,7 +108,7 @@ export default function SpellBook({
       setArrived((count) => count + 1);
     }
 
-    refresh();
+    reread();
   }
 
   useWireMessage("spell", heard);
@@ -112,25 +118,40 @@ export default function SpellBook({
      second. */
   useWireMessage("slots", heard);
 
-  /* Said only once the server has taken the write, the way a hit point is. */
-  const told = useCallback(
-    (characterId) => send({ kind: "spell", characterId }),
-    [send],
-  );
+  /* The shape both drawers already read. Six entries at most. */
+  const bookMap = useMemo(() => new Map(Object.entries(books)), [books]);
 
-  const toldSlots = useCallback(
-    (characterId) => send({ kind: "slots", characterId }),
-    [send],
-  );
+  /**
+   * The store's level and slots laid over what page.jsx rendered. The level
+   * matters as much as the slots: how many a class has at all is derived from it.
+   *
+   * `casting` is left as the server computed it — its two numbers come off the
+   * ability scores, so an award leaves them a point behind until the next real
+   * refresh. Recomputing them here would mean shipping every caster's ability
+   * scores to every chair that can open a book.
+   */
+  const casting = useMemo(() => {
+    const merged = {};
 
-  const books = spellsByCharacter(members, rows);
+    for (const [characterId, caster] of Object.entries(casters ?? {})) {
+      merged[characterId] = {
+        ...caster,
+        level: levels[characterId] ?? caster.level,
+        slots: slots[characterId] ?? {},
+      };
+    }
 
-  const mine = seat.characterId ? (books.get(seat.characterId) ?? []) : [];
-  const known = isDungeonMaster ? rows.length : mine.length;
+    return merged;
+  }, [casters, levels, slots]);
+
+  const mine = seat.characterId ? (books[seat.characterId] ?? EMPTY) : EMPTY;
+  const known = isDungeonMaster
+    ? Object.values(books).reduce((total, rows) => total + rows.length, 0)
+    : mine.length;
 
   /* Only ever the seat's: the header prints one caster's numbers, and the head
      of the table is not one. */
-  const seated = seat.characterId ? casters[seat.characterId] : null;
+  const seated = seat.characterId ? casting[seat.characterId] : null;
 
   return (
     <TablePopover
@@ -149,24 +170,36 @@ export default function SpellBook({
         <DmSpellDrawer
           campaignId={campaignId}
           members={members}
-          books={books}
-          casters={casters}
-          onWritten={told}
-          onSlotsWritten={toldSlots}
+          books={bookMap}
+          casters={casting}
         />
       ) : (
         <PlayerSpellDrawer
           campaignId={campaignId}
           characterId={seat.characterId}
+          /* The chair's own name, and only for the line shown while a cast is
+             being written down. The name the log KEEPS comes off a row. */
+          actorName={seat.title}
           book={mine}
           caster={seated ?? EMPTY_CASTER}
-          onWritten={told}
-          onSlotsWritten={toldSlots}
         />
       )}
     </TablePopover>
   );
 }
+
+/** PostgREST syntax. A bandwidth measure; the SELECT policy is the boundary. */
+function rowFilter(column, ids) {
+  if (ids.length === 0) {
+    return undefined;
+  }
+
+  return ids.length === 1
+    ? `${column}=eq.${ids[0]}`
+    : `${column}=in.(${ids.join(",")})`;
+}
+
+const EMPTY = [];
 
 /** A seat whose sheet could not be read. The book opens, the bar draws nothing. */
 const EMPTY_CASTER = { classId: null, level: null, slots: {}, casting: null };

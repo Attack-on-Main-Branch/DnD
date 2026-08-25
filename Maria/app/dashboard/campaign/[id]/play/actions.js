@@ -1,25 +1,42 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { listCampaignActivity } from "sina/data/activity";
 import {
   clearCampaignMark,
   insertCampaignNote,
+  listCampaignNotes,
   placeCampaignMark,
 } from "sina/data/campaigns";
 import {
   insertCharacterNote,
+  listCharacterNotes,
   updateCharacterHealth,
   updateCharacterLevel,
 } from "sina/data/characters";
+import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import { parseMarkPoint } from "sina/rules/campaign";
 import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
-import { parseHitPoints } from "sina/rules/health";
+import { MAX_HP } from "sina/rules/health";
 import { parseLevel } from "sina/rules/level";
 
-import { logUncovered } from "@/lib/errors";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
-import { campaignTablePath, characterSheetPath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
+
+/**
+ * The board's own writes: hit points, levels, notes and the tokens on the map.
+ *
+ * NOTHING HERE CALLS `revalidatePath`. Revalidating the page the caller is
+ * standing on makes the response carry a re-rendered tree for it — `loadTable`'s
+ * nine or ten queries and a render of the whole board, for a press that moved
+ * one integer. The numbers are held in table-state.jsx instead. The character
+ * sheet's path is not revalidated either and does not need to be: it is a
+ * dynamic route, so `staleTimes.dynamic` is zero and a navigation refetches.
+ *
+ * The log entry these leave behind is written by the DATABASE, in the same
+ * transaction as the deed — see 20260830090000 — so each of the two below reads
+ * the fresh list back in the same request.
+ */
 
 /** Sina reports why; the wording lives here, where the user can see it. */
 const TABLE_COPY = {
@@ -31,22 +48,43 @@ const TABLE_COPY = {
 };
 
 /**
- * The board and the sheet both show what these change — a note written at the
- * table is read back under the character's Notes tab. A Dungeon Master's note
- * has no sheet to appear on, hence the guard.
+ * The log after the write that has just landed. Absent rather than failed when
+ * it cannot be read: a panel one beat behind is not worth refusing a deed for.
  */
-function revalidateBoth(campaignId, characterId) {
-  revalidatePath(campaignTablePath(campaignId));
+async function freshLog(supabase, campaignId) {
+  const { data, error } = await listCampaignActivity(
+    supabase,
+    campaignId,
+    MAX_ACTIVITY_ENTRIES,
+  );
 
-  if (characterId) {
-    revalidatePath(characterSheetPath(characterId));
+  if (error) {
+    logFailure("listCampaignActivity", error);
+    return undefined;
   }
+
+  return readActivityLog(data);
 }
 
-export async function setCharacterHealth(campaignId, characterId, value) {
-  const hitPoints = parseHitPoints(value);
+/**
+ * A CHANGE to a bar — seven damage, four healed — and never a total: the
+ * database adds it to the row it has locked, so a second press from another
+ * chair in the same breath is two changes rather than one overwriting the other.
+ *
+ * `seatCharacterId` is the CHAIR that pressed, null for the head of the table,
+ * and it is only what the log entry gets filed under. Who may write is
+ * `change_character_health`'s to decide, and `arm_table_log` puts the seat
+ * itself back through `my_seat_at_table`.
+ */
+export async function changeCharacterHealth(
+  campaignId,
+  characterId,
+  value,
+  seatCharacterId = null,
+) {
+  const delta = parseHealthChange(value);
 
-  if (hitPoints === null) {
+  if (delta === null) {
     return rejected("Hit points have to be a number.");
   }
 
@@ -54,28 +92,43 @@ export async function setCharacterHealth(campaignId, characterId, value) {
   const { user, error: authError } = await getCurrentUser(supabase);
 
   if (!user) {
-    return sessionRejection("setCharacterHealth", authError);
+    return sessionRejection("changeCharacterHealth", authError);
   }
 
-  // Who may write is the database's to decide: `set_character_health` answers
-  // for the character's owner and for the Dungeon Master of the campaign it
-  // names, and returns `not_found` — a deleted character's answer — to anybody
-  // else.
-  const { error } = await updateCharacterHealth(supabase, {
+  const { data, error } = await updateCharacterHealth(supabase, {
     id: characterId,
-    hitPoints,
+    delta,
     campaignId,
+    seatCharacterId,
   });
 
   if (error) {
     const copy = TABLE_COPY[error.reason];
 
-    logUncovered("setCharacterHealth", error, copy);
+    logUncovered("changeCharacterHealth", error, copy);
     return rejected(copy ?? "Could not set that. Try again.");
   }
 
-  revalidateBoth(campaignId, characterId);
-  return { kind: "success", hitPoints };
+  return {
+    kind: "success",
+    // Where the bar ended up, by the row's own arithmetic: ten damage against
+    // seven hit points is a change of seven.
+    hitPoints: data.currentHp,
+    activity: await freshLog(supabase, campaignId),
+  };
+}
+
+/**
+ * `parseHitPoints` is the wrong rule here: it clamps to 0..MAX_HP, which reads a
+ * heal of minus four as a heal of nothing. The sign is kept and the magnitude
+ * bounded instead. Zero is not an event.
+ */
+function parseHealthChange(value) {
+  const delta = Number(value);
+
+  return Number.isInteger(delta) && delta !== 0 && Math.abs(delta) <= MAX_HP
+    ? delta
+    : null;
 }
 
 /** A level is awarded, so a refusal is "not yours to give", not "that is gone". */
@@ -90,7 +143,8 @@ const LEVEL_COPY = {
 /**
  * One step of the ring on a party card. Bounded here for speed and by
  * `set_character_level` for real, which answers anybody who is not this
- * campaign's Dungeon Master with null.
+ * campaign's Dungeon Master with null — so the entry is always filed under the
+ * head of the table.
  */
 export async function setCharacterLevel(campaignId, characterId, value) {
   const level = parseLevel(value);
@@ -110,6 +164,7 @@ export async function setCharacterLevel(campaignId, characterId, value) {
     id: characterId,
     level,
     campaignId,
+    seatCharacterId: null,
   });
 
   if (error) {
@@ -119,9 +174,11 @@ export async function setCharacterLevel(campaignId, characterId, value) {
     return rejected(copy ?? "Could not set that. Try again.");
   }
 
-  // The sheet prints it too.
-  revalidateBoth(campaignId, characterId);
-  return { kind: "success", level: data.level };
+  return {
+    kind: "success",
+    level: data.level,
+    activity: await freshLog(supabase, campaignId),
+  };
 }
 
 /**
@@ -130,6 +187,9 @@ export async function setCharacterLevel(campaignId, characterId, value) {
  * the campaign, the only note that belongs to no sheet. Which of those the
  * caller may do is the two tables' INSERT policies to decide, and a refusal
  * comes back as no row rather than as a failure.
+ *
+ * The ledger comes back with it, for the reason the log does above. A note is
+ * the writer's own, so there is nothing to tell the table about.
  */
 export async function writeTableNote(campaignId, characterId, value) {
   const body = parseNote(value);
@@ -156,8 +216,18 @@ export async function writeTableNote(campaignId, characterId, value) {
     return rejected(copy ?? "Could not write that down. Try again.");
   }
 
-  revalidateBoth(campaignId, characterId);
-  return { kind: "success" };
+  const ledger = characterId
+    ? await listCharacterNotes(supabase, characterId)
+    : await listCampaignNotes(supabase, campaignId);
+
+  if (ledger.error) {
+    logFailure(
+      characterId ? "listCharacterNotes" : "listCampaignNotes",
+      ledger.error,
+    );
+  }
+
+  return { kind: "success", notes: ledger.error ? undefined : ledger.data };
 }
 
 /**
@@ -209,8 +279,8 @@ export async function placeTableMark(campaignId, characterId, point) {
     return rejected(copy ?? "Could not mark the map. Try again.");
   }
 
-  // No sheet to revalidate beside it: a mark belongs to the board alone.
-  revalidatePath(campaignTablePath(campaignId));
+  // The board holds its own tokens — see use-table-marks.js — and the one this
+  // describes was drawn under the pointer before the call was made.
   return { kind: "success" };
 }
 
@@ -235,6 +305,5 @@ export async function clearTableMark(campaignId, characterId) {
     return rejected(copy ?? "Could not clear that mark. Try again.");
   }
 
-  revalidatePath(campaignTablePath(campaignId));
   return { kind: "success" };
 }

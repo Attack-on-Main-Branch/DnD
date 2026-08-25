@@ -1,8 +1,14 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { recordCampaignActivity } from "sina/data/activity";
-import { ACTION_TYPES } from "sina/rules/activity";
+import {
+  listCampaignActivity,
+  recordCampaignActivity,
+} from "sina/data/activity";
+import {
+  ACTION_TYPES,
+  MAX_ACTIVITY_ENTRIES,
+  readActivityLog,
+} from "sina/rules/activity";
 import { isCoin, parseCoins } from "sina/rules/currency";
 import { isDie, readDieResult } from "sina/rules/dice";
 import { MAX_HP } from "sina/rules/health";
@@ -15,12 +21,19 @@ import {
 } from "sina/rules/spells";
 
 import { logFailure } from "@/lib/errors";
-import { campaignTablePath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 /**
- * The one write behind the activity log, and the one Server Action in this
- * directory that never speaks to the user.
+ * The write behind the activity log for everything the database cannot derive
+ * for itself, and the one Server Action in this directory that never speaks to
+ * the user.
+ *
+ * IT IS NO LONGER THE ONLY ONE. Since 20260830090000 a hit point, a level and a
+ * stack moving in one pack each leave an entry written by a trigger. What still
+ * comes through here is everything a single row change cannot be read back from:
+ * the dice, which move no row; the purse, whose five columns are one sentence; a
+ * cast, which is a slot and a name and what it threw; and a grant to the WHOLE
+ * party, which is six transactions and one line.
  *
  * An entry describes something that HAS ALREADY HAPPENED — a die that landed, a
  * bar that moved, a potion that was drunk. Failing to write it down must
@@ -177,19 +190,23 @@ function readEntry(entry) {
  * head of the table — always the SEAT that acted, never the character acted
  * upon. Who was acted upon rides in the entry as `targetCharacterId`, and
  * `record_campaign_activity` resolves the name for it.
+ *
+ * The whole list comes back with the entry rather than a `revalidatePath` that
+ * would make this response carry a re-rendered board. That read is the only
+ * thing a name may come from. Null is a refusal, and refusals here are not shown.
  */
 export async function recordActivity(campaignId, actorCharacterId, entry) {
   const values = readEntry(entry);
 
   if (!values) {
-    return false;
+    return null;
   }
 
   const supabase = await createClient();
   const { user } = await getCurrentUser(supabase);
 
   if (!user) {
-    return false;
+    return null;
   }
 
   const { error } = await recordCampaignActivity(supabase, {
@@ -204,9 +221,21 @@ export async function recordActivity(campaignId, actorCharacterId, entry) {
     // ever hear about: a log that has quietly stopped recording looks exactly
     // like a table where nothing has happened.
     logFailure("recordActivity", error);
-    return false;
+    return null;
   }
 
-  revalidatePath(campaignTablePath(campaignId));
-  return true;
+  const { data, error: unread } = await listCampaignActivity(
+    supabase,
+    campaignId,
+    MAX_ACTIVITY_ENTRIES,
+  );
+
+  if (unread) {
+    logFailure("listCampaignActivity", unread);
+  }
+
+  return {
+    kind: "success",
+    activity: unread ? undefined : readActivityLog(data),
+  };
 }

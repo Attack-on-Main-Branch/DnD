@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { memo, useCallback, useState } from "react";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import {
@@ -11,6 +10,8 @@ import {
 
 import ActivityLine, { accentClass } from "./activity-presentation";
 import { LOG_CLASSES, logEntrance } from "./entrance";
+import { useActivityEntries } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
 
 /**
@@ -30,8 +31,14 @@ const LOG_HEIGHT_CLASS = "h-[518px]";
  * It keeps itself current the two ways the pack next door does: Postgres
  * changes are the honest half, the table's wire the fast one. Both are
  * DOORBELLS — neither payload is read, since a row off the socket has not been
- * through the `select()` list in Sina's data layer — so the answer is
- * `router.refresh()` and never a render of what arrived.
+ * through the `select()` list in Sina's data layer — and both are answered by
+ * `readTableSlice` asking for the log alone, not by a route render.
+ *
+ * A NAME ONLY EVER COMES OFF A ROW, which is why the wire is answered by a read
+ * rather than by rendering what was said; see
+ * 20260823090000_campaign_activity_log.sql. The one line this panel draws from
+ * something the browser composed is the writer's own, on the writer's own screen,
+ * until the real list lands.
  *
  * Real glass, and the budget was counted first: `backdrop-filter` is charged
  * per element — see surface.js — and this is the ninth on a full table, beside
@@ -44,13 +51,11 @@ const LOG_HEIGHT_CLASS = "h-[518px]";
  * for the last of them, where the alternative was cutting the oldest off with
  * nothing to say it had happened.
  */
-export default function ActivityLog({ campaignId, entries }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+function ActivityLog({ campaignId }) {
+  const entries = useActivityEntries();
+  const { resync } = useTableDeed(campaignId);
 
-  const refresh = useCallback(() => {
-    startTransition(() => router.refresh());
-  }, [router]);
+  const reread = useCallback(() => resync({ activity: true }), [resync]);
 
   useLiveRefresh({
     channel: `log:${campaignId}`,
@@ -58,10 +63,10 @@ export default function ActivityLog({ campaignId, entries }) {
     // Bandwidth, not security — the SELECT policy is what decides what may be
     // delivered at all, and it answers for this table's chairs alone.
     filter: `campaign_id=eq.${campaignId}`,
-    onChange: refresh,
+    onChange: reread,
   });
 
-  useWireMessage("log", refresh);
+  useWireMessage("log", reread);
 
   /**
    * What was already here when this panel opened, and therefore what must NOT
@@ -121,7 +126,9 @@ export default function ActivityLog({ campaignId, entries }) {
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className={opened.has(entry.id) ? "" : "log-entry-in"}
+                className={
+                  opened.has(entry.id) || entry.settled ? "" : "log-entry-in"
+                }
               >
                 {/* An outline all the way round, with the accent replacing
                     the left of it. No nested glass: the panel above is already
@@ -141,3 +148,12 @@ export default function ActivityLog({ campaignId, entries }) {
     </section>
   );
 }
+
+/**
+ * Memoised, and its one prop is a string. The panel therefore renders when the
+ * log changes and at no other time — not when a hit point moves on a card, not
+ * when a die lands, not when somebody opens a drawer. That is the whole of what
+ * `React.memo` buys here, and it only holds because the entries arrive through
+ * a subscription rather than as a prop from a parent that re-renders.
+ */
+export default memo(ActivityLog);

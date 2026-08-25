@@ -331,3 +331,77 @@ describe("the campaign's own catalogue", () => {
     assert.equal(error.reason, "not_found");
   });
 });
+
+/**
+ * Since 20260830090000 the entry describing a stack that moved is written by a
+ * trigger on `character_inventory`, inside the same transaction. Three things
+ * cannot be read off the row, so they have to reach the RPC: which table this
+ * happened at, which chair did it, and which of the five deeds a quantity going
+ * down was.
+ */
+describe("the table and the deed travel with the write", () => {
+  it("names the deed on a spend, since the row change cannot", async () => {
+    // Using, dropping and taking back are one row change and three sentences.
+    const q = stubQuery({ data: 2, error: null });
+    await spendInventoryItem(q, {
+      characterId: CHARACTER,
+      slug: ITEM.slug,
+      quantity: 1,
+      campaignId: CAMPAIGN,
+      seatCharacterId: CHARACTER,
+      deed: "item_used",
+    });
+
+    assert.equal(q.lastRpc.params.p_campaign, CAMPAIGN);
+    assert.equal(q.lastRpc.params.p_seat, CHARACTER);
+    assert.equal(q.lastRpc.params.p_deed, "item_used");
+  });
+
+  it("arms nothing when no deed is named, which is a grant to the whole party", async () => {
+    // Six transactions and one sentence: that entry is written by its caller,
+    // and a trigger firing per pack would put six of them in a log of ten.
+    const q = stubQuery({ data: 4, error: null });
+    await grantInventoryItem(q, {
+      characterId: CHARACTER,
+      item: ITEM,
+      quantity: 3,
+      campaignId: CAMPAIGN,
+    });
+
+    assert.equal(q.lastRpc.params.p_campaign, CAMPAIGN);
+    assert.equal(q.lastRpc.params.p_deed, null);
+  });
+
+  it("sends the keys even when nothing was given for them", async () => {
+    // PostgREST resolves an overload by the exact set of keys it is handed, so
+    // an omitted parameter is a different function.
+    const q = stubQuery({ data: 1, error: null });
+    await grantInventoryItem(q, {
+      characterId: CHARACTER,
+      item: ITEM,
+      quantity: 1,
+    });
+
+    for (const key of ["p_campaign", "p_seat", "p_deed"]) {
+      assert.ok(key in q.lastRpc.params, `${key} was not sent`);
+      assert.equal(q.lastRpc.params[key], null);
+    }
+  });
+
+  it("files a hand-over under the giver, who is the sentence", async () => {
+    const q = stubQuery({ data: true, error: null });
+    await transferInventoryItem(q, {
+      fromCharacterId: CHARACTER,
+      toCharacterId: OTHER,
+      item: ITEM,
+      quantity: 2,
+      campaignId: CAMPAIGN,
+      seatCharacterId: CHARACTER,
+    });
+
+    assert.equal(q.lastRpc.params.p_campaign, CAMPAIGN);
+    assert.equal(q.lastRpc.params.p_seat, CHARACTER);
+    // No deed: a transfer is the only thing that function does.
+    assert.equal(q.lastRpc.params.p_deed, undefined);
+  });
+});

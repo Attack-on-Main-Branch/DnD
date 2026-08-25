@@ -62,17 +62,6 @@ export function rowItem(row) {
   };
 }
 
-/** The party's rows split back up by who is carrying them, in the party's order. */
-export function packsByCharacter(members, rows) {
-  const packs = new Map(members.map((member) => [member.id, []]));
-
-  for (const row of rows) {
-    packs.get(row.character_id)?.push(row);
-  }
-
-  return packs;
-}
-
 /**
  * What each fact is called, in the order a table asks for them. A list rather
  * than a map, because the order IS the design: the dice first, the price and

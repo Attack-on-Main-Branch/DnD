@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { COIN_TYPES, MAX_COINS, parseCoins } from "sina/rules/currency";
+import { useState } from "react";
+import { COIN_TYPES, MAX_COINS, parsePurse } from "sina/rules/currency";
 
 import {
   capsuleClasses,
@@ -13,7 +13,8 @@ import {
 
 import { moveTableCoins } from "./currency-actions";
 import { Action } from "./pack-controls";
-import { useActivityLog } from "./use-activity";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * The Dungeon Master's purse control: five amounts, then Grant or Take.
@@ -29,72 +30,78 @@ import { useActivityLog } from "./use-activity";
  * back to the placeholder afterwards, so the next press starts from nothing
  * rather than repeating the last one by accident.
  *
+ * THE PRESS PAINTS THE TYPED AMOUNT, and where the database disagrees the purses
+ * are re-read. A take is clamped at zero per purse — robbing six members of 50
+ * gold takes three from whoever had three — and the paint clamped there too, so
+ * no arithmetic on the way back can recover the overshoot.
+ *
  * The log is written from what the DATABASE moved and not from what was typed:
- * `move_campaign_currency` clamps at zero on the way down, so "take 9999" from
- * a purse holding three is written down as three.
+ * "take 9999" from a purse holding three is written down as three.
  */
 export default function DmPurse({
   campaignId,
   character,
   members,
+  actorName,
   purse,
-  onWritten,
 }) {
   const [typed, setTyped] = useState({});
-  const [error, setError] = useState(null);
-  const [isPending, startTransition] = useTransition();
 
-  const record = useActivityLog(campaignId);
+  const store = useTableStore();
+  const { run, resync, send } = useTableDeed(campaignId);
 
   const whom = character ? character.name : "all members";
 
-  const total = COIN_TYPES.reduce(
-    (sum, coin) => sum + (parseCoins(typed[coin]) ?? 0),
-    0,
-  );
+  const { coins, total } = parsePurse(typed);
+
+  const targets = character ? [character] : members;
 
   function move(take) {
-    startTransition(async () => {
-      const result = await moveTableCoins(
-        campaignId,
-        character?.id ?? null,
-        typed,
-        take,
-      );
+    const sign = take ? -1 : 1;
 
-      if (result?.kind === "rejected") {
-        setError(result.message);
-        return;
-      }
+    setTyped({});
 
-      setError(null);
-      setTyped({});
+    run({
+      /* One line per denomination that was asked for. Five at once would fill
+         half a log that keeps ten, which is why only the ones with something in
+         them are drawn — and the real entries, written server-side from what
+         actually moved, replace all of these together. */
+      note: COIN_TYPES.filter((one) => coins[one] > 0).map((coin) => ({
+        action: take ? "coin_revoked" : "coin_granted",
+        actor: actorName,
+        coin,
+        amount: coins[coin],
+        target: character ? character.name : "the party",
+      })),
 
-      for (const member of character ? [character] : members) {
-        onWritten(member.id);
-      }
+      paint: () => {
+        for (const member of targets) {
+          store.movePurseBy(member.id, coins, sign);
+        }
+      },
 
-      /* One entry per denomination that actually moved, and `null` is the
-         recipient `record_campaign_activity` turns into "the party" — the name
-         is never a string this drawer chose.
+      work: () =>
+        moveTableCoins(campaignId, character?.id ?? null, typed, take),
 
-         Five at once would fill half a log that keeps ten, which is the reason
-         to move what the table found rather than one of everything.
+      tell: (result) => {
+        const moved = result.moved ?? [];
 
-         AWAITED, so this transition — and with it both buttons and all five
-         fields — stays shut until the entries exist. A second press landing
-         before the first is written is how one grant comes to be logged twice
-         or not at all. */
-      await Promise.all(
-        COIN_TYPES.filter((coin) => result.coins[coin] > 0).map((coin) =>
-          record(null, {
-            action: take ? "coin_revoked" : "coin_granted",
-            coin,
-            amount: result.coins[coin],
-            targetCharacterId: character?.id ?? null,
-          }),
-        ),
-      );
+        for (const row of moved) {
+          send({ kind: "purse", characterId: row.character_id });
+        }
+
+        // Where the two disagree, ask: one read settles all five columns across
+        // every purse that moved.
+        const agreed = moved.every((row) =>
+          COIN_TYPES.every((coin) => (row[coin] ?? 0) === coins[coin]),
+        );
+
+        if (!agreed || moved.length !== targets.length) {
+          resync({ purses: true });
+        }
+      },
+
+      want: { purses: true, activity: true },
     });
   }
 
@@ -106,7 +113,7 @@ export default function DmPurse({
             {/* A label rather than a capsule with a field beside it: the whole
                 capsule is then the field's hit area, which at this size is the
                 difference between a control and a decoration. */}
-            <label className={capsuleClasses(coin, { disabled: isPending })}>
+            <label className={capsuleClasses(coin)}>
               <span className={COIN_NAME_CLASSES}>{coinName(coin)}:</span>
 
               {/*
@@ -135,12 +142,9 @@ export default function DmPurse({
                 onChange={(event) =>
                   setTyped((row) => ({ ...row, [coin]: event.target.value }))
                 }
-                disabled={isPending}
                 aria-label={`How much ${coinName(coin)} to move ${
                   character ? `for ${character.name}` : "for the whole party"
                 }`}
-                // No `disabled:opacity-*` of its own: the capsule around it
-                // already dims, and a second fade compounds with the first.
                 className={`${COIN_AMOUNT_CLASSES} bare-input w-14 text-right text-inherit placeholder:text-inherit disabled:cursor-not-allowed placeholder:opacity-45`}
               />
             </label>
@@ -155,7 +159,7 @@ export default function DmPurse({
         <Action
           tone="danger"
           onClick={() => move(true)}
-          disabled={isPending || total === 0 || members.length === 0}
+          disabled={total === 0 || members.length === 0}
           label={`Take coin from ${whom}`}
         >
           Take from {whom}
@@ -164,18 +168,12 @@ export default function DmPurse({
         <Action
           tone="gold"
           onClick={() => move(false)}
-          disabled={isPending || total === 0 || members.length === 0}
+          disabled={total === 0 || members.length === 0}
           label={`Grant coin to ${whom}`}
         >
           Grant to {whom}
         </Action>
       </div>
-
-      {error && (
-        <p role="alert" className="mt-3 text-xs text-red-300">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

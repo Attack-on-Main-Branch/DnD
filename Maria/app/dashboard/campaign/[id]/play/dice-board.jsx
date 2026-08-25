@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import { DICE_STAGE_ID } from "./dice-engine";
 import { useBoardCast, useDiceTable } from "./dice-table";
 
@@ -17,8 +19,13 @@ import { useBoardCast, useDiceTable } from "./dice-table";
  *
  * Nothing here is ever a click target — the map underneath has to keep
  * receiving the click that zooms it and the right-click that marks it.
+ *
+ * IT TAKES NO PROPS, so `memo` at the foot means the arena is never re-rendered
+ * because something around it moved: it renders when the dice do, out of its own
+ * context. The canvas itself lives in module state in dice-engine.js rather than
+ * in React, so nothing here can take it away and rebuild it.
  */
-export default function DiceBoard() {
+function DiceBoard() {
   const { stage, board } = useDiceTable();
   const cast = useBoardCast();
 
@@ -42,3 +49,5 @@ export default function DiceBoard() {
     </div>
   );
 }
+
+export default memo(DiceBoard);

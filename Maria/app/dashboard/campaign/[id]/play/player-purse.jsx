@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { COIN_TYPES, parseCoins } from "sina/rules/currency";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
@@ -14,7 +14,8 @@ import {
 
 import { handCharacterCoins, spendCharacterCoins } from "./currency-actions";
 import { Action, Confirm, PartyChoice } from "./pack-controls";
-import { useActivityLog } from "./use-activity";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * A player's own purse: five capsules in a row, each carrying exactly what they
@@ -32,21 +33,20 @@ import { useActivityLog } from "./use-activity";
  * Use and Give are the pack's own, down to the question they ask and the words
  * on the answer — one gesture for spending an arrow and for spending a coin.
  * See pack-controls.jsx, which both of them are built out of.
+ *
+ * The coins come out of the capsule on the press and the panel shuts behind
+ * them. The Server Action that follows writes the purse AND the line describing
+ * it in one round trip — see currency-actions.js on why a purse is the one thing
+ * here the database cannot write its own log entry for.
  */
 export default function PlayerPurse({
   campaignId,
   characterId,
+  actorName,
   purse,
   party,
-  onWritten,
 }) {
   const [open, setOpen] = useState(null);
-
-  /* The transition lives up here rather than in the panel, so the CAPSULES are
-     shut while a spend is in flight too. Opening another denomination mid-write
-     would unmount the panel holding the transition, and the coin that arrived
-     first would be the one the log never mentioned. */
-  const [isPending, startTransition] = useTransition();
 
   return (
     <section aria-label="Your purse">
@@ -56,13 +56,13 @@ export default function PlayerPurse({
             <button
               type="button"
               onClick={() => setOpen((was) => (was === coin ? null : coin))}
-              disabled={purse[coin] < 1 || isPending}
+              disabled={purse[coin] < 1}
               aria-expanded={open === coin}
               aria-label={`${purse[coin]} ${coinName(coin)}, spend or hand over`}
               className={capsuleClasses(coin, {
                 open: open === coin,
                 pressable: true,
-                disabled: purse[coin] < 1 || isPending,
+                disabled: purse[coin] < 1,
               })}
             >
               <span aria-hidden="true" className={COIN_NAME_CLASSES}>
@@ -83,13 +83,11 @@ export default function PlayerPurse({
           key={open}
           campaignId={campaignId}
           characterId={characterId}
+          actorName={actorName}
           coin={open}
           amount={purse[open]}
           party={party}
-          onWritten={onWritten}
           onDone={() => setOpen(null)}
-          isPending={isPending}
-          startTransition={startTransition}
         />
       )}
     </section>
@@ -111,55 +109,72 @@ export default function PlayerPurse({
 function CoinActions({
   campaignId,
   characterId,
+  actorName,
   coin,
   amount,
   party,
-  onWritten,
   onDone,
-  isPending,
-  startTransition,
 }) {
   const [typed, setTyped] = useState("");
   const [asking, setAsking] = useState(null);
   const [receiver, setReceiver] = useState("");
-  const [error, setError] = useState(null);
 
-  const record = useActivityLog(campaignId);
+  const store = useTableStore();
+  const { run, resync, send } = useTableDeed(campaignId);
 
   const name = coinName(coin);
   const count = Math.min(parseCoins(typed) ?? 0, amount);
   const usable = count >= 1;
 
   function ask(question) {
-    setError(null);
     setAsking((open) => (open === question ? null : question));
   }
 
-  /* `entry` is what the table is told happened, written down only once the
-     server has taken the deed it describes — and with the amount the server
-     says moved, not the one that was typed. */
-  function run(work, entry, whoElse) {
-    setError(null);
+  /**
+   * One deed off this panel, painted before it is written. `whoElse` is the
+   * other end of a hand-over, which is the only one that touches two purses.
+   */
+  function deed(action, work, whoElse) {
+    const target = whoElse
+      ? (party.find((member) => member.id === whoElse)?.name ?? null)
+      : null;
 
-    startTransition(async () => {
-      const result = await work();
+    onDone();
 
-      if (result?.kind === "rejected") {
-        setError(result.message);
-        return;
-      }
+    run({
+      /* Shown to whoever pressed, until the real list lands. The entry that is
+         kept is composed by `record_campaign_activity` out of typed arguments,
+         and its names come from `characters`. */
+      note: [{ action, actor: actorName, coin, amount: count, target }],
 
-      onWritten(characterId);
+      paint: () => {
+        store.movePurse(characterId, coin, -count);
 
-      if (whoElse) {
-        onWritten(whoElse);
-      }
+        if (whoElse) {
+          store.movePurse(whoElse, coin, count);
+        }
+      },
 
-      /* AWAITED, so the capsules and this panel stay shut until the entry
-         exists. A second spend landing before the first is written is how one
-         of them comes to be missing from a log that keeps only ten. */
-      await record(characterId, { ...entry, amount: result.taken });
-      onDone();
+      work,
+
+      tell: (result) => {
+        send({ kind: "purse", characterId });
+
+        if (whoElse) {
+          send({ kind: "purse", characterId: whoElse });
+        }
+
+        /* `count` was already clamped to what this browser believed the purse
+           held, so less leaving than that does not mean the subtraction was
+           wrong — it means the BASE was: somebody spent from this purse between
+           the page being drawn and the press. Adding the difference back would
+           restore the wrong figure, so the balance is re-read instead. */
+        if (result.taken !== count) {
+          resync({ purses: true });
+        }
+      },
+
+      want: { purses: true, activity: true },
     });
   }
 
@@ -179,7 +194,6 @@ function CoinActions({
             value={typed}
             placeholder="Qty"
             onChange={(event) => setTyped(event.target.value)}
-            disabled={isPending}
             aria-label={`How much ${name}`}
             className={controlClasses({
               className: "px-2 py-1 text-center tabular-nums",
@@ -192,7 +206,7 @@ function CoinActions({
         <div className="ml-auto flex items-center gap-1">
           <Action
             onClick={() => ask("use")}
-            disabled={isPending || !usable}
+            disabled={!usable}
             pressed={asking === "use"}
             label={usable ? `Use ${count} ${name}` : `Use ${name}`}
           >
@@ -201,7 +215,7 @@ function CoinActions({
 
           <Action
             onClick={() => ask("transfer")}
-            disabled={isPending || !usable || party.length === 0}
+            disabled={!usable || party.length === 0}
             pressed={asking === "transfer"}
             label={
               usable
@@ -222,12 +236,10 @@ function CoinActions({
 
           <Action
             onClick={() =>
-              run(
-                () => spendCharacterCoins(campaignId, characterId, coin, count),
-                { action: "coin_spent", coin },
+              deed("coin_spent", () =>
+                spendCharacterCoins(campaignId, characterId, coin, count),
               )
             }
-            disabled={isPending}
             tone="gold"
             label={`Confirm using ${count} ${name}`}
           >
@@ -243,7 +255,8 @@ function CoinActions({
           onChoose={setReceiver}
           onCancel={() => ask("transfer")}
           onConfirm={() =>
-            run(
+            deed(
+              "coin_transferred",
               () =>
                 handCharacterCoins(
                   campaignId,
@@ -252,21 +265,13 @@ function CoinActions({
                   coin,
                   count,
                 ),
-              { action: "coin_transferred", coin, targetCharacterId: receiver },
               receiver,
             )
           }
-          disabled={isPending}
           confirmLabel={`Hand ${count} ${name} over`}
         >
           Hand it over
         </PartyChoice>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-2 text-xs text-red-300">
-          {error}
-        </p>
       )}
     </div>
   );

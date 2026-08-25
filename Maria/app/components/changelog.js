@@ -16,6 +16,27 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.13.0",
+    date: "2026-08-25",
+    title: "The table answers at once",
+    changes: [
+      "Everything at the table happens on the press now. Damage and healing, a level awarded, coin spent or handed over, an item used or dropped, a spell cast, a token put down on the map — the number moves as your finger leaves the button, and the writing goes off behind it. There is no pause to sit through any more.",
+      "The line in the activity log arrives with the deed rather than a moment after it, so what you just did is already written where the table reads it.",
+      "Press again without waiting. Call four damage and then six and both land, one on top of the other, instead of the second press being locked out until the first has been to the server and back. Nothing at the table greys itself out mid-session any more.",
+      "A refusal now says so, in a message at the corner of the screen. Every deed here paints before it is written, so by the time the table says no the drawer has usually shut — those answers used to have nowhere to go and were simply lost.",
+      "The board keeps its place while it works. Opening a drawer, rolling dice, or somebody else moving a bar no longer redraws the map, the dice or the cards that had nothing to do with it — so the dice never stutter mid-throw and a panel you are reading stays where you left it.",
+      "Coming back to a tab you left open is quick again. It used to fetch the whole table over and over, once for every part of it that was listening.",
+      "The table’s log is written by the database itself now, in the same breath as the thing it describes. A hit point and the line about it can no longer disagree, and neither can go missing without the other.",
+    ],
+    fixes: [
+      "Damage called out by two people at once no longer loses one of them. Hit points travelled as a total worked out before the round trip, so if the Dungeon Master and a player both moved the same bar in the same moment, whichever arrived second quietly undid the first — and the log recorded the smaller number as though that was what had been called.",
+      "Two quick presses of a level arrow no longer show the whole table a level nobody awarded. The ring used to ride back down to the first press’s answer before climbing again.",
+      "Taking more coin than somebody has leaves the right amount behind. A take of fifty against a purse holding three used to leave the Dungeon Master’s drawer showing forty-seven gold that did not exist.",
+      "A line already in the activity log no longer slides in again every time something else happens at the table.",
+      "The map no longer keeps a stale token after a mark is refused, and the marks re-read themselves rather than the whole board.",
+    ],
+  },
+  {
     version: "0.12.0",
     date: "2026-08-25",
     title: "Spells, and what they cost",

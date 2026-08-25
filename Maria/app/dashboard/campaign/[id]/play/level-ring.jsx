@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { MAX_LEVEL, MIN_LEVEL, steppedLevel } from "sina/rules/level";
 
 import { setCharacterLevel } from "./actions";
-import { useActivityLog } from "./use-activity";
+import { useCharacterLevel, useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * The level ring on a party card, and the two arrows that step it.
@@ -14,6 +15,14 @@ import { useActivityLog } from "./use-activity";
  *
  * `canAward` only decides whether to draw a control. `set_character_level`
  * answers everybody but this campaign's Dungeon Master with null.
+ *
+ * The number is SUBSCRIBED TO rather than handed down, so a press re-renders
+ * this ring and nothing else on the card.
+ *
+ * THE ELEVATOR IS THE ROLLBACK: `car` already follows the number by reconciling
+ * against it during render, so a refusal needs no undo of its own — the deed
+ * re-reads the party and the ring rides back down. Hence no refusal branch here
+ * and no message; the toast says what a 36px circle never could.
  */
 
 /**
@@ -57,14 +66,18 @@ export default function LevelRing({
   campaignId,
   characterId,
   name,
-  level,
+  actorName,
   canAward,
   atTable,
-  onWritten,
+  onAwarded,
 }) {
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState(null);
-  const record = useActivityLog(campaignId);
+  const level = useCharacterLevel(characterId);
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
+
+  /* How many awards are in the air. A counter and not a flag: the arrows are
+     never disabled, so a second press can land while the first is still out. */
+  const [busy, setBusy] = useState(0);
 
   const [car, setCar] = useState(() => ({
     shown: level,
@@ -98,31 +111,38 @@ export default function LevelRing({
       return;
     }
 
-    setError(null);
-    setCar((was) => ride(was, next));
+    setBusy((out) => out + 1);
 
-    startTransition(async () => {
-      const result = await setCharacterLevel(campaignId, characterId, next);
+    run({
+      /* Shown until the real list lands. A level is only ever awarded from the
+         head of the table, so the target is always named. */
+      note: [
+        {
+          action: "level_change",
+          actor: actorName,
+          target: name,
+          level: next,
+          delta: next - from,
+        },
+      ],
 
-      if (result?.kind === "rejected") {
-        setError(result.message);
-        setCar((was) => ride(was, from));
-        return;
-      }
+      paint: () => store.setLevel(characterId, next),
 
-      // Only once it is written: a level told to the table before the database
-      // has taken it is a level that might yet be refused.
-      onWritten(characterId, result.level);
+      work: () => setCharacterLevel(campaignId, characterId, next),
 
-      // Filed under no chair: `record_campaign_activity` refuses `level_change`
-      // from anybody but the head of the table.
-      record(null, {
-        action: "level_change",
-        level: result.level,
-        delta: result.level - from,
-        targetCharacterId: characterId,
-      });
-    });
+      tell: (result) => {
+        // Only while this press is still the last word: an older answer would
+        // ride the elevator back to a level nobody awarded.
+        const settled = store.reconcileLevel(characterId, next, result.level);
+
+        if (settled) {
+          send({ kind: "level", characterId, level: result.level });
+          onAwarded?.();
+        }
+      },
+
+      want: { party: true, activity: true },
+    }).finally(() => setBusy((out) => Math.max(0, out - 1)));
   }
 
   const beat = car.direction < 0 ? RIDE.down : RIDE.up;
@@ -138,14 +158,13 @@ export default function LevelRing({
        than a class, so the three "shown" states below set one identical value
        and never have to out-specify one another. */
     <div
-      data-busy={isPending || undefined}
+      data-busy={busy > 0 || undefined}
       className="group relative flex shrink-0 items-center justify-center"
     >
       {canAward && car.shown < MAX_LEVEL && (
         <CurvedArrow
           direction="up"
           label={`Level ${name} up to ${car.shown + 1}`}
-          disabled={isPending}
           onClick={() => award(1)}
         />
       )}
@@ -178,7 +197,6 @@ export default function LevelRing({
         <CurvedArrow
           direction="down"
           label={`Level ${name} down to ${car.shown - 1}`}
-          disabled={isPending}
           onClick={() => award(-1)}
         />
       )}
@@ -188,16 +206,6 @@ export default function LevelRing({
         Level {car.shown}
         {atTable ? ", at the table" : ""}
       </span>
-
-      {/* Out of flow, so a refusal cannot reflow the card it stands in. */}
-      {error && (
-        <p
-          role="alert"
-          className="absolute top-full right-0 z-20 mt-2 w-44 rounded-md border border-red-400/30 bg-surface/95 px-2 py-1 text-xs text-red-300"
-        >
-          {error}
-        </p>
-      )}
     </div>
   );
 }
@@ -221,7 +229,7 @@ export default function LevelRing({
  * straight: across the drawing's 22px the circle's surface falls at most 3.75px
  * below its crown, so a cut at four is inside the silhouette the whole way.
  */
-function CurvedArrow({ direction, label, disabled, onClick }) {
+function CurvedArrow({ direction, label, onClick }) {
   const up = direction === "up";
 
   return (
@@ -237,7 +245,6 @@ function CurvedArrow({ direction, label, disabled, onClick }) {
       <button
         type="button"
         onClick={onClick}
-        disabled={disabled}
         aria-label={label}
         /* 18px is the drawing's height plus the four the viewport is cut in by:
            exactly enough to put every pixel of it past the edge.

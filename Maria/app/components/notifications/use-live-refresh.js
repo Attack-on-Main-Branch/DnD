@@ -22,6 +22,52 @@ import { realtime } from "@/app/components/realtime";
 const REFOCUS_QUIET_MS = 20000;
 
 /**
+ * The refocus, once for the page rather than once per subscriber. A window kept
+ * per hook could not do the one thing it is for: the campaign table mounts seven
+ * of these beside the header's own, so coming back to the tab fired eight in the
+ * same tick, each with its own untouched twenty seconds.
+ *
+ * Module state and not a context, for the reason navigation-progress-control.js
+ * is: there is one document, and the callers are listeners.
+ */
+const watching = new Set();
+
+let listening = false;
+let lastRefocus = 0;
+
+function refocused() {
+  if (document.visibilityState !== "visible") {
+    return;
+  }
+
+  const now = Date.now();
+
+  if (now - lastRefocus < REFOCUS_QUIET_MS) {
+    return;
+  }
+
+  lastRefocus = now;
+
+  for (const wake of watching) {
+    wake();
+  }
+}
+
+function watchRefocus(wake) {
+  watching.add(wake);
+
+  if (!listening) {
+    listening = true;
+    document.addEventListener("visibilitychange", refocused);
+    window.addEventListener("focus", refocused);
+  }
+
+  // The listeners stay: a page between two routes has no subscribers for an
+  // instant, and rebuilding the pair for that is more work than leaving them.
+  return () => watching.delete(wake);
+}
+
+/**
  * Subscribes to one table and calls `onChange` when a row the viewer is allowed
  * to see moves. `filter` is PostgREST syntax and trims what crosses the wire;
  * RLS is what decides what may cross it at all.
@@ -68,30 +114,5 @@ export function useLiveRefresh({ channel, table, filter, onChange }) {
     };
   }, [channel, table, filter]);
 
-  useEffect(() => {
-    let last = 0;
-
-    function onFocus() {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-
-      const now = Date.now();
-
-      if (now - last < REFOCUS_QUIET_MS) {
-        return;
-      }
-
-      last = now;
-      latest.current();
-    }
-
-    document.addEventListener("visibilitychange", onFocus);
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", onFocus);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, []);
+  useEffect(() => watchRefocus(() => latest.current()), []);
 }

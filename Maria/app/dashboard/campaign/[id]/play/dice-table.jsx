@@ -71,6 +71,7 @@ export default function DiceTable({
   campaignId,
   seatId,
   characterId,
+  seatTitle,
   canKeepSecrets,
   children,
 }) {
@@ -111,14 +112,33 @@ export default function DiceTable({
     (entry) => {
       finish(mine, entry);
 
+      /* The third argument is the line the panel shows until the database's own
+         comes back — drawn on the roller's screen alone and never sent. A kept
+         roll has no branch in `record_campaign_activity` that could store a
+         number even if one were. */
       record(
         characterId,
         entry.secret
           ? { action: "secret_dice_roll", die: entry.die }
           : { action: "dice_roll", die: entry.die, value: entry.value },
+        entry.secret
+          ? {
+              action: "secret_dice_roll",
+              actor: seatTitle,
+              die: entry.die,
+              secret: true,
+              value: null,
+            }
+          : {
+              action: "dice_roll",
+              actor: seatTitle,
+              die: entry.die,
+              secret: false,
+              value: entry.value,
+            },
       );
     },
-    [characterId, finish, mine, record],
+    [characterId, finish, mine, record, seatTitle],
   );
 
   const local = useDiceRoll({ onStart, onFinish });

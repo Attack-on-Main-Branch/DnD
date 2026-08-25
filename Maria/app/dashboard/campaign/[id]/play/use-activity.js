@@ -1,68 +1,69 @@
 "use client";
 
-import { startTransition, useCallback } from "react";
+import { useCallback } from "react";
 
 import { recordActivity } from "./log-actions";
-import { useTableWire } from "./table-wire";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
- * "Write this down, and tell the table it is written."
+ * "Put this up now, write it down, and tell the table it is written."
  *
- * The one way into the activity log, shared by the four places that put
- * something in it: the dice, the health band and both pack drawers. Each of
- * those already does its own writing and its own error handling; this is the
- * line afterwards, and it deliberately reports nothing back.
+ * The way into the activity log for everything the DATABASE cannot write for
+ * itself: the dice, the purse, a spell cast, and a grant to the whole party.
+ * Hit points, levels and a stack moving in one pack no longer come through here
+ * at all — a trigger writes those, inside the deed's own transaction, and the
+ * deed hands the fresh list back. See 20260830090000.
  *
- * A log entry describes something that has ALREADY happened, so a refusal here
- * must not reach the player — there is nothing they could do about it and
- * nothing they did wrong. `recordActivity` logs it instead.
+ * `preview` is the line to show while that round trip is in the air, in the
+ * shape `readActivity` hands the panel. Composed in the browser, which is
+ * allowed only because it is shown to the person who pressed, on their screen
+ * alone: it is never sent to another chair and never written down. The entry
+ * that reaches the column is built by `record_campaign_activity` out of typed
+ * arguments — see 20260823090000_campaign_activity_log.sql.
  *
- * The wire message is sent only once the server has taken the write, the way a
- * hit point and a pack change already are: it is a HEAD START on the Postgres
- * doorbell, never a substitute for it, and a message sent before the row exists
- * is a message answered by re-reading a table that has not changed yet.
+ * A refusal must not reach the player, since the deed it describes has already
+ * happened; it goes to `logFailure` and the pending line comes down.
  *
- * It runs in a transition of its own AND hands the promise back, which are for
- * two different callers.
- *
- * The dice and the health band do not wait: their control has already answered
- * and a line in the log is not something to hold it open for.
- *
- * The purse and the level ring DO wait — they `await` this inside their own
- * transition, so the control stays shut until the entry exists. That is not
- * politeness, it is the only thing standing between a quick second press and a
- * table that reads "granted 50 Gold" once for two grants: the log is capped at
- * ten entries and written asynchronously, so a press that lands before the
- * previous entry does can silently lose it.
- *
- * The promise NEVER REJECTS. A log entry describes something that has already
- * happened, so failing to write one must not fail the deed — and must not hang
- * the control that is waiting on it either. A refusal resolves `false` and goes
- * to `logFailure` inside `recordActivity`.
+ * The promise NEVER REJECTS, and callers still await it where two quick presses
+ * would race: the log keeps ten entries and the purse can write five at once.
  */
 export function useActivityLog(campaignId) {
-  const { send } = useTableWire();
+  const store = useTableStore();
+  const { send, resync } = useTableDeed(campaignId);
 
   return useCallback(
-    (actorCharacterId, entry) => {
-      const written = recordActivity(campaignId, actorCharacterId, entry).then(
-        (kept) => {
-          if (kept) {
-            send({ kind: "log" });
+    (actorCharacterId, entry, preview) => {
+      const ticket = preview ? store.noteEntries([preview]) : null;
+
+      return recordActivity(campaignId, actorCharacterId, entry).then(
+        (result) => {
+          if (!result) {
+            // Nothing was written. Whatever is standing in the panel is a line
+            // this browser drew, so take it down and ask the database what is
+            // really there.
+            store.dropEntries(ticket);
+            resync({ activity: true });
+            return false;
           }
 
-          return kept;
+          store.setActivity(result.activity, ticket);
+
+          /* Only once the server has taken it. The other chairs answer this by
+             re-reading the log rather than by rendering what was said — a name
+             off the wire is not a name. */
+          send({ kind: "log" });
+
+          return true;
         },
-        // Nothing above this may throw into a caller's transition.
-        () => false,
+        // Nothing above this may throw into a caller's handler.
+        () => {
+          store.dropEntries(ticket);
+          resync({ activity: true });
+          return false;
+        },
       );
-
-      startTransition(async () => {
-        await written;
-      });
-
-      return written;
     },
-    [campaignId, send],
+    [campaignId, resync, send, store],
   );
 }

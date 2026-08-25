@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import {
   consumeSpellSlot,
   forgetSpell,
   learnSpell,
+  listPartySpells,
   restoreSpellSlot,
 } from "sina/data/spells";
 import { SLOT_LEVELS } from "sina/rules/spellcasting";
@@ -15,9 +15,8 @@ import {
   validateSpell,
 } from "sina/rules/spells";
 
-import { logUncovered } from "@/lib/errors";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
-import { campaignTablePath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 /**
@@ -25,6 +24,15 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * the drawers run the same `sina/rules/spells` functions for speed, and nothing
  * arriving here is believed — least of all the slug, which is the key a shelf is
  * unique on and is re-derived on every call.
+ *
+ * Nothing here is revalidated: the book and the slot bar are held in
+ * table-state.jsx. A spell LEARNED is the one thing the browser cannot draw for
+ * itself — the row carries the whole of what the SRD says about it — so
+ * `teachSpell` hands the fresh book back instead.
+ *
+ * NO LOG ENTRY LEAVES THIS FILE. Learning, forgetting and moving a pip are not
+ * things the table is told about; a CAST is, but it is a slot, then the dice,
+ * then the line, so it is written from the browser once they land.
  */
 
 /** Sina reports why; the wording lives here, where the user can see it. */
@@ -99,12 +107,10 @@ export async function teachSpell(campaignId, characterIds, spell) {
     ),
   );
 
-  revalidatePath(campaignTablePath(campaignId));
-
   const failures = results.filter((result) => result.error);
 
   if (failures.length === 0) {
-    return { kind: "success" };
+    return { kind: "success", ...(await freshBooks(supabase, targets)) };
   }
 
   // Anything that is not "they already had it" is the one worth saying.
@@ -113,7 +119,7 @@ export async function teachSpell(campaignId, characterIds, spell) {
   );
 
   if (!real && failures.length < results.length) {
-    return { kind: "success" };
+    return { kind: "success", ...(await freshBooks(supabase, targets)) };
   }
 
   return refused(
@@ -143,7 +149,6 @@ export async function unlearnSpell(campaignId, characterId, slug) {
     return refused("unlearnSpell", error, "Could not forget that spell.");
   }
 
-  revalidatePath(campaignTablePath(campaignId));
   return { kind: "success" };
 }
 
@@ -178,6 +183,21 @@ export async function moveSpellSlot(campaignId, characterId, slotLevel, by) {
     return refused("moveSpellSlot", error, "Could not move that slot.");
   }
 
-  revalidatePath(campaignTablePath(campaignId));
   return { kind: "success" };
+}
+
+/**
+ * The books as they stand for whoever was just taught: a spell's row carries
+ * fields no optimistic copy could invent. `characterIds` rides with it because a
+ * row list cannot say that a book is empty.
+ */
+async function freshBooks(supabase, characterIds) {
+  const { data, error } = await listPartySpells(supabase, characterIds);
+
+  if (error) {
+    logFailure("listPartySpells", error);
+    return {};
+  }
+
+  return { spells: data, characterIds };
 }

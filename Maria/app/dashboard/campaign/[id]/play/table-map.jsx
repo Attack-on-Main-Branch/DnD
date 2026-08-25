@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import { useMapZoom } from "../use-map-zoom";
 
@@ -23,12 +23,17 @@ import { useTableMarks } from "./use-table-marks";
  * It also announces the picture's own size: the dice tray IS this picture, and
  * `naturalWidth` is a property of the file rather than of the box it is drawn
  * in, so it is the same pair of numbers in every chair. See dice-engine.js.
+ *
+ * Its parent, map-stage.jsx, is a Server Component, so nothing above this can
+ * re-render without the route re-rendering — which is exactly when the picture
+ * should be drawn again. `memo` at the foot keeps that true if the tree above
+ * ever becomes client. Below it, a token moving re-renders this and the marks
+ * and nothing else.
  */
-export default function TableMap({
+function TableMap({
   url,
   title,
   campaignId,
-  marks: placed,
   faces,
   seat,
   canSweep,
@@ -43,9 +48,8 @@ export default function TableMap({
     imageRef,
   });
 
-  const { marks, place, clear, error } = useTableMarks({
+  const { marks, place, clear } = useTableMarks({
     campaignId,
-    marks: placed,
     faces,
     seat,
     canSweep,
@@ -111,15 +115,16 @@ export default function TableMap({
         {/* The instruction, over the map rather than under it: a line of its
             own would push the health bar down on every screen for a sentence
             only useful before the first click. Announced either way — it is the
-            only thing telling a keyboard user the arrows do anything. A refused
-            write speaks here too, and holds the line open while it does. */}
+            only thing telling a keyboard user the arrows do anything.
+
+            A refused write speaks in a toast instead: the token goes down
+            before the write is sent, so by the time one is refused the map may
+            have been panned away from where it happened. */}
         <span
           aria-live="polite"
-          className={`pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 to-transparent px-3 pt-6 pb-2 text-center font-mono text-[10px] tracking-[0.2em] uppercase transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none ${
-            error ? "text-red-300 opacity-100" : "text-ink/70 opacity-0"
-          }`}
+          className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 to-transparent px-3 pt-6 pb-2 text-center font-mono text-[10px] tracking-[0.2em] text-ink/70 uppercase opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none"
         >
-          {error ?? (place ? `${hint} · right-click to mark` : hint)}
+          {place ? `${hint} · right-click to mark` : hint}
         </span>
 
         {/* Last, so a token near the foot of the map is not dimmed by the
@@ -136,3 +141,5 @@ export default function TableMap({
     </>
   );
 }
+
+export default memo(TableMap);

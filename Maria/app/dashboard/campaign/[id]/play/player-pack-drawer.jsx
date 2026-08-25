@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { parseQuantity } from "sina/rules/inventory";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
@@ -20,7 +20,8 @@ import {
   POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
-import { useActivityLog } from "./use-activity";
+import { useTableStore } from "./table-state";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * A player's own purse and their own pack, built the way the spellbook is: a
@@ -33,24 +34,27 @@ import { useActivityLog } from "./use-activity";
  * The three deeds ask first: using something is as irreversible as dropping it.
  * How many is a field and not a stepper, the purse's own: an amount at a table
  * is nearly always a particular number somebody just named.
+ *
+ * ALL THREE PAINT BEFORE THEY WRITE: the stack comes down, the line goes up in
+ * the log, the panel shuts, and one Server Action follows — one, because the
+ * entry is written by a trigger on the row this moved. A refusal says so in a
+ * toast, since by then the panel it would have gone into has closed.
  */
 export default function PlayerPackDrawer({
   campaignId,
   characterId,
+  actorName,
   pack,
   purse,
   party,
-  onWritten,
-  onCoinsWritten,
 }) {
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(null);
   const [typed, setTyped] = useState("");
   const [receiver, setReceiver] = useState("");
-  const [error, setError] = useState(null);
-  const [isPending, startTransition] = useTransition();
 
-  const record = useActivityLog(campaignId);
+  const store = useTableStore();
+  const { run, send } = useTableDeed(campaignId);
 
   /* Held as a slug and resolved against the pack, so a stack somebody else has
      spent down cannot be acted on at the amount it used to hold. */
@@ -77,40 +81,55 @@ export default function PlayerPackDrawer({
   function show(item) {
     setAsking(null);
     setTyped("");
-    setError(null);
     setReading((standing) => (standing?.slug === item.slug ? null : item));
   }
 
   function ask(question) {
-    setError(null);
     setAsking((standing) => (standing === question ? null : question));
   }
 
-  /* `entry` is what the table is told happened, written down only once the
-     server has taken the deed it describes. */
-  function run(work, entry, whoElse) {
-    setError(null);
+  /**
+   * One deed off this panel, which shuts on the press: what is left of the stack
+   * is on the row behind it. `whoElse` is the other end of a hand-over.
+   */
+  function deed(item, quantity, action, work, whoElse) {
+    const target = whoElse
+      ? (party.find((member) => member.id === whoElse)?.name ?? null)
+      : null;
 
-    startTransition(async () => {
-      const result = await work();
+    setAsking(null);
+    setTyped("");
+    setReading(null);
 
-      if (result?.kind === "rejected") {
-        setError(result.message);
-        return;
-      }
+    run({
+      /* Shown to whoever pressed until the real list lands. The entry that is
+         KEPT is built by the trigger, and its names come from rows. */
+      note: [{ action, actor: actorName, item: item.name, quantity, target }],
 
-      /* The deed is done, so the panel that offered it goes: what is left of
-         the stack is on the row behind it. */
-      setAsking(null);
-      setTyped("");
-      setReading(null);
-      onWritten(characterId);
+      paint: () => {
+        store.movePack(characterId, item, -quantity);
 
-      if (whoElse) {
-        onWritten(whoElse);
-      }
+        if (whoElse) {
+          store.movePack(whoElse, item, quantity);
+        }
+      },
 
-      record(characterId, entry);
+      work,
+
+      tell: () => {
+        // Only once the server has taken it, the way a hit point is told.
+        send({ kind: "pack", characterId });
+
+        if (whoElse) {
+          send({ kind: "pack", characterId: whoElse });
+        }
+      },
+
+      want: {
+        inventory: true,
+        activity: true,
+        characterIds: [characterId, whoElse].filter(Boolean),
+      },
     });
   }
 
@@ -128,9 +147,9 @@ export default function PlayerPackDrawer({
         <PlayerPurse
           campaignId={campaignId}
           characterId={characterId}
+          actorName={actorName}
           purse={purse}
           party={party}
-          onWritten={onCoinsWritten}
         />
       </div>
 
@@ -184,7 +203,6 @@ export default function PlayerPackDrawer({
                       value={typed}
                       placeholder="Qty"
                       onChange={(event) => setTyped(event.target.value)}
-                      disabled={isPending}
                       aria-label={`How many ${open.name}`}
                       className={controlClasses({
                         className: "px-2 py-1 text-center tabular-nums",
@@ -198,7 +216,7 @@ export default function PlayerPackDrawer({
 
                   <Action
                     onClick={() => ask("use")}
-                    disabled={isPending || !usable}
+                    disabled={!usable}
                     pressed={asking === "use"}
                     label={`Use ${count} ${open.name}`}
                   >
@@ -207,7 +225,7 @@ export default function PlayerPackDrawer({
 
                   <Action
                     onClick={() => ask("drop")}
-                    disabled={isPending || !usable}
+                    disabled={!usable}
                     pressed={asking === "drop"}
                     tone="danger"
                     label={`Drop ${count} ${open.name}`}
@@ -217,7 +235,7 @@ export default function PlayerPackDrawer({
 
                   <Action
                     onClick={() => ask("transfer")}
-                    disabled={isPending || !usable || party.length === 0}
+                    disabled={!usable || party.length === 0}
                     pressed={asking === "transfer"}
                     tone="gold"
                     label={`Hand ${count} ${open.name} to somebody`}
@@ -234,22 +252,10 @@ export default function PlayerPackDrawer({
 
                     <Action
                       onClick={() =>
-                        run(
-                          () =>
-                            consumePackItem(
-                              campaignId,
-                              characterId,
-                              open,
-                              count,
-                            ),
-                          {
-                            action: "item_used",
-                            itemName: open.name,
-                            quantity: count,
-                          },
+                        deed(open, count, "item_used", () =>
+                          consumePackItem(campaignId, characterId, open, count),
                         )
                       }
-                      disabled={isPending}
                       tone="gold"
                       label={`Confirm using ${count} ${open.name}`}
                     >
@@ -266,17 +272,10 @@ export default function PlayerPackDrawer({
 
                     <Action
                       onClick={() =>
-                        run(
-                          () =>
-                            dropPackItem(campaignId, characterId, open, count),
-                          {
-                            action: "item_dropped",
-                            itemName: open.name,
-                            quantity: count,
-                          },
+                        deed(open, count, "item_dropped", () =>
+                          dropPackItem(campaignId, characterId, open, count),
                         )
                       }
-                      disabled={isPending}
                       tone="danger"
                       label={`Confirm dropping ${count} ${open.name}`}
                     >
@@ -292,7 +291,10 @@ export default function PlayerPackDrawer({
                     onChoose={setReceiver}
                     onCancel={() => ask("transfer")}
                     onConfirm={() =>
-                      run(
+                      deed(
+                        open,
+                        count,
+                        "item_transferred",
                         () =>
                           handPackItem(
                             campaignId,
@@ -301,16 +303,9 @@ export default function PlayerPackDrawer({
                             open,
                             count,
                           ),
-                        {
-                          action: "item_transferred",
-                          itemName: open.name,
-                          quantity: count,
-                          targetCharacterId: receiver,
-                        },
                         receiver,
                       )
                     }
-                    disabled={isPending}
                     confirmLabel={`Hand ${count} ${open.name} over`}
                   >
                     Hand it over
@@ -320,12 +315,6 @@ export default function PlayerPackDrawer({
             ) : (
               <p className="text-xs text-ink/45">
                 Not in your pack. The head of the table hands this out.
-              </p>
-            )}
-
-            {error && (
-              <p role="alert" className="mt-2 text-xs text-red-300">
-                {error}
               </p>
             )}
           </ItemDetail>

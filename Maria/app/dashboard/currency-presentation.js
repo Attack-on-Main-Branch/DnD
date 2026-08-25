@@ -126,15 +126,3 @@ export const COIN_ROW_CLASSES = "flex flex-wrap items-center gap-1.5";
 export const COIN_PANEL_CLASSES =
   "rounded-xl border border-gold/20 bg-surface/70 px-3.5 py-3 " +
   "shadow-[inset_0_1px_0_rgba(255,223,156,0.08)]";
-
-/**
- * The party's purses split back up by whose they are — the mirror of
- * `packsByCharacter`.
- *
- * A member with no row is a member whose purse this viewer may not read, which
- * is one player looking at another. `undefined` rather than an empty purse, so
- * a caller can tell "nothing in it" from "not mine to see".
- */
-export function pursesByCharacter(rows) {
-  return new Map((rows ?? []).map((row) => [row.character_id, row]));
-}

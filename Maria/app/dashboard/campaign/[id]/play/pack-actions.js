@@ -1,11 +1,15 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import {
+  listCampaignActivity,
+  recordCampaignActivity,
+} from "sina/data/activity";
 import {
   grantInventoryItem,
   spendInventoryItem,
   transferInventoryItem,
 } from "sina/data/inventory";
+import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import {
   MAX_ITEM_QUANTITY,
   parseQuantity,
@@ -13,9 +17,8 @@ import {
   validateItem,
 } from "sina/rules/inventory";
 
-import { logUncovered } from "@/lib/errors";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
-import { campaignTablePath, characterSheetPath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 /**
@@ -25,6 +28,15 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * The validation here is the run that counts. The drawers run the same
  * `sina/rules/inventory` functions in the browser for speed, and nothing that
  * arrives at these functions is believed.
+ *
+ * ONE ROUND TRIP EACH: the trigger in 20260830090000 writes the entry inside the
+ * same transaction as the row it describes, and the fresh log comes back in the
+ * same response. The `campaignId` and the seat travel down to the RPC because
+ * they are the two things that trigger cannot read off the row.
+ *
+ * THE SEAT IS NOT A PERMISSION — `arm_table_log` puts it back through
+ * `my_seat_at_table`, and who may empty which pack is the RPC's own guards and
+ * the table's policies to decide.
  */
 
 /** Sina reports why; the wording lives here, where the user can see it. */
@@ -36,15 +48,6 @@ const PACK_COPY = {
   missing_table: "That part of the app is not ready yet.",
   bad_id: "That character is no longer at this table.",
 };
-
-/** Every character a write touched, so a transfer refreshes both ends of itself. */
-function revalidatePacks(campaignId, characterIds) {
-  revalidatePath(campaignTablePath(campaignId));
-
-  for (const id of new Set(characterIds.filter(Boolean))) {
-    revalidatePath(characterSheetPath(id));
-  }
-}
 
 async function signedIn(action) {
   const supabase = await createClient();
@@ -58,6 +61,25 @@ function refused(action, error, fallback) {
 
   logUncovered(action, error, copy);
   return rejected(copy ?? fallback);
+}
+
+/**
+ * The log after the write that has just landed. Absent rather than failed when
+ * it cannot be read: a line describes something that already happened.
+ */
+async function freshLog(supabase, campaignId) {
+  const { data, error } = await listCampaignActivity(
+    supabase,
+    campaignId,
+    MAX_ACTIVITY_ENTRIES,
+  );
+
+  if (error) {
+    logFailure("listCampaignActivity", error);
+    return undefined;
+  }
+
+  return readActivityLog(data);
 }
 
 /**
@@ -88,6 +110,12 @@ function readMove(item, quantity) {
  *
  * A grant that fails for one character does not roll back the others — there is
  * no transaction spanning six packs and there should not be.
+ *
+ * ONE PACK AND THE WHOLE PARTY ARE LOGGED DIFFERENTLY, and have to be. One pack
+ * is one row change, so the trigger writes it. Six packs are six transactions
+ * and one sentence, which no trigger can add up — so they arm nothing and the
+ * entry is written here, with a null recipient that `record_campaign_activity`
+ * turns into "the party". The name is never one this file chose.
  */
 export async function grantPackItems(campaignId, characterIds, item, quantity) {
   const { values, count, rejection: bad } = readMove(item, quantity);
@@ -108,6 +136,8 @@ export async function grantPackItems(campaignId, characterIds, item, quantity) {
     return rejection;
   }
 
+  const alone = targets.length === 1;
+
   // Together rather than one after another: six round trips in sequence is a
   // visible pause on a control that has already told the user it worked.
   const results = await Promise.all(
@@ -116,17 +146,36 @@ export async function grantPackItems(campaignId, characterIds, item, quantity) {
         characterId,
         item: values,
         quantity: count,
+        campaignId,
+        // Only the head of the table hands things out, so the chair is theirs.
+        seatCharacterId: null,
+        deed: alone ? "item_granted" : null,
       }),
     ),
   );
 
   const failed = results.find((result) => result.error);
 
-  revalidatePacks(campaignId, targets);
+  if (failed) {
+    return refused("grantPackItems", failed.error, "Could not hand that over.");
+  }
 
-  return failed
-    ? refused("grantPackItems", failed.error, "Could not hand that over.")
-    : { kind: "success" };
+  if (!alone) {
+    const { error } = await recordCampaignActivity(supabase, {
+      campaignId,
+      actorCharacterId: null,
+      action: "item_granted",
+      targetCharacterId: null,
+      itemName: values.name,
+      quantity: count,
+    });
+
+    if (error) {
+      logFailure("grantPackItems/record", error);
+    }
+  }
+
+  return { kind: "success", activity: await freshLog(supabase, campaignId) };
 }
 
 /**
@@ -155,19 +204,26 @@ export async function adjustPackItem(campaignId, characterId, item, delta) {
           characterId,
           item: values,
           quantity: count,
+          campaignId,
+          seatCharacterId: null,
+          deed: "item_granted",
         })
       : await spendInventoryItem(supabase, {
           characterId,
           slug: values.slug,
           quantity: count,
+          campaignId,
+          seatCharacterId: null,
+          // Taking something back out of a pack is the head of the table's
+          // alone, and `record_campaign_activity` says the same of the entry.
+          deed: "item_revoked",
         });
 
   if (error) {
     return refused("adjustPackItem", error, "Could not change that.");
   }
 
-  revalidatePacks(campaignId, [characterId]);
-  return { kind: "success" };
+  return { kind: "success", activity: await freshLog(supabase, campaignId) };
 }
 
 /**
@@ -178,6 +234,7 @@ export async function adjustPackItem(campaignId, characterId, item, delta) {
 export async function consumePackItem(campaignId, characterId, item, quantity) {
   return spendPack(
     "consumePackItem",
+    "item_used",
     campaignId,
     characterId,
     item,
@@ -190,6 +247,7 @@ export async function consumePackItem(campaignId, characterId, item, quantity) {
 export async function dropPackItem(campaignId, characterId, item, quantity) {
   return spendPack(
     "dropPackItem",
+    "item_dropped",
     campaignId,
     characterId,
     item,
@@ -198,9 +256,15 @@ export async function dropPackItem(campaignId, characterId, item, quantity) {
   );
 }
 
-/** What Use and Drop have in common, which is now everything. */
+/**
+ * What Use and Drop have in common, which is everything but the word the log
+ * uses: both are a quantity going down, so the deed has to be named for the
+ * trigger. The seat is the pack's own character — only a player uses or drops,
+ * and a Dungeon Master emptying somebody's pack comes through `adjustPackItem`.
+ */
 async function spendPack(
   action,
+  deed,
   campaignId,
   characterId,
   item,
@@ -223,14 +287,16 @@ async function spendPack(
     characterId,
     slug: values.slug,
     quantity: count,
+    campaignId,
+    seatCharacterId: characterId,
+    deed,
   });
 
   if (error) {
     return refused(action, error, copy);
   }
 
-  revalidatePacks(campaignId, [characterId]);
-  return { kind: "success" };
+  return { kind: "success", activity: await freshLog(supabase, campaignId) };
 }
 
 /**
@@ -238,6 +304,9 @@ async function spendPack(
  * is `transfer_inventory_item`'s to decide — it re-checks that both characters
  * are at the same table and that this one is the caller's to give from, so the
  * receiver's id arriving from a dropdown is not a permission.
+ *
+ * Two rows move and the sentence is one, which the trigger settles by filing the
+ * giver's change and staying quiet for the receiver's.
  */
 export async function handPackItem(
   campaignId,
@@ -267,12 +336,13 @@ export async function handPackItem(
     toCharacterId,
     item: values,
     quantity: count,
+    campaignId,
+    seatCharacterId: fromCharacterId,
   });
 
   if (error) {
     return refused("handPackItem", error, "Could not hand that over.");
   }
 
-  revalidatePacks(campaignId, [fromCharacterId, toCharacterId]);
-  return { kind: "success" };
+  return { kind: "success", activity: await freshLog(supabase, campaignId) };
 }

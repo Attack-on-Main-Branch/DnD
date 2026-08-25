@@ -7,8 +7,8 @@
  * never columns, so a policy wide enough to let a Dungeon Master add a gold
  * piece would let them rewrite the name and the ability scores with it. Each
  * function in 20260823160000 is a definer whose guards ARE the permission,
- * which is the shape `set_character_health` and `set_character_level` already
- * have.
+ * which is the shape `change_character_health` and `set_character_level`
+ * already have.
  *
  * The read is an RPC for the same reason `campaign_party` is one: the return
  * type is the column list, and the column list is the boundary.
