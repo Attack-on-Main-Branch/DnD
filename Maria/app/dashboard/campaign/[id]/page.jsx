@@ -63,7 +63,15 @@ export default async function CampaignPage({ params }) {
     notFound();
   }
 
-  const { campaign, members, notes, items, spells } = loaded;
+  const {
+    campaign,
+    members,
+    notes,
+    items,
+    spells,
+    containers,
+    containerItems,
+  } = loaded;
 
   // Resolved here rather than in PartyPanel: `classLabel` reaches through
   // `classDetails` into the whole ARCHETYPES catalogue, and importing it into a
@@ -142,8 +150,13 @@ export default async function CampaignPage({ params }) {
             create: (
               <CreatePanel
                 campaignId={campaign.id}
+                // The roster rather than the raw party: a container names who
+                // carries it or who may see it.
+                members={roster}
                 items={items}
                 spells={spells}
+                containers={containers}
+                containerItems={containerItems}
               />
             ),
           }}

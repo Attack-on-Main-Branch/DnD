@@ -50,7 +50,12 @@ export function stackLabel(quantity) {
   return Number.isFinite(quantity) ? `×${quantity}` : null;
 }
 
-/** A database row as the Server Actions want an item. */
+/**
+ * A database row as the Server Actions want an item. `character_inventory` and
+ * `container_items` carry the same columns for the same reason — a stack has to
+ * be describable the same way in both to be able to move between them — so one
+ * reader answers for both.
+ */
 export function rowItem(row) {
   return {
     slug: row.item_slug,

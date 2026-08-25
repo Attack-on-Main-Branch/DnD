@@ -1,10 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { MAX_CAMPAIGN_CONTAINERS, readContainers } from "sina/rules/containers";
 import { MAX_CAMPAIGN_ITEMS } from "sina/rules/inventory";
 import { MAX_CAMPAIGN_SPELLS } from "sina/rules/spells";
 
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
+import {
+  chestAudienceLine,
+  containerTagClasses,
+  containerTypeLabel,
+  CONTAINER_CARD_CLASSES,
+  NOBODY_YET,
+} from "@/app/dashboard/container-presentation";
 import {
   catalogueFacts,
   itemFactList,
@@ -17,32 +25,79 @@ import {
   levelBadge,
 } from "@/app/dashboard/spell-presentation";
 
+import ContainerForm from "./container-form";
+import { strikeCampaignContainer } from "./container-actions";
 import ItemForm from "./item-form";
 import { strikeCampaignItem } from "./item-actions";
 import SpellForm from "./spell-form";
 import { strikeCampaignSpell } from "./spell-actions";
 
 /**
- * Where homebrew is invented, both kinds of it. Written here rather than at the
- * table, where a form inside a popover had nowhere to keep what it made between
- * sessions; the table's own searches find these.
+ * Where homebrew is invented, all three kinds of it. Written here rather than
+ * at the table, where a form inside a popover had nowhere to keep what it made
+ * between sessions; the table's own searches and drawers find these.
  *
- * WHAT is being made comes first: the two forms have almost nothing in common
- * past a name, and one carrying both would be a form where most of the boxes
- * are always wrong.
+ * WHAT is being made comes first: the three forms have almost nothing in common
+ * past a name, and one carrying all of them would be a form where most of the
+ * boxes are always wrong.
+ *
+ * An item and a spell are DESCRIPTIONS; a container exists at once. It is
+ * written here anyway, because a chest made mid-session is a chest made in
+ * front of the people it is meant to surprise.
  */
 
 const KINDS = [
   { value: "item", label: "Item" },
   { value: "spell", label: "Spell" },
+  { value: "container", label: "Container" },
 ];
 
-export default function CreatePanel({ campaignId, items, spells }) {
+/** What the counter over each form says, and what the list under it is called. */
+const WRITTEN = {
+  item: (counts) => `${counts.item} of ${MAX_CAMPAIGN_ITEMS} written`,
+  spell: (counts) => `${counts.spell} of ${MAX_CAMPAIGN_SPELLS} written`,
+  container: (counts) =>
+    `${counts.container} of ${MAX_CAMPAIGN_CONTAINERS} on the table`,
+};
+
+const LIST_TITLES = {
+  item: "Your items",
+  spell: "Your spells",
+  container: "Your containers",
+};
+
+export default function CreatePanel({
+  campaignId,
+  members,
+  items,
+  spells,
+  containers,
+  containerItems,
+}) {
   const [kind, setKind] = useState("item");
   const [error, setError] = useState(null);
   const [isPending, startTransition] = useTransition();
 
-  const making = kind === "spell";
+  /* Read once rather than per card: two shapes live in one table. */
+  const shelf = useMemo(() => readContainers(containers), [containers]);
+
+  /* How much is in each of the ones NOBODY is carrying. A carried bag keeps
+     its contents in pack rows, which are read at the table and not here. */
+  const inside = useMemo(() => {
+    const counted = new Map();
+
+    for (const row of containerItems ?? []) {
+      counted.set(row.container_id, (counted.get(row.container_id) ?? 0) + 1);
+    }
+
+    return counted;
+  }, [containerItems]);
+
+  const counts = {
+    item: items.length,
+    spell: spells.length,
+    container: shelf.length,
+  };
 
   function strike(remove, id) {
     startTransition(async () => {
@@ -61,19 +116,17 @@ export default function CreatePanel({ campaignId, items, spells }) {
           </h2>
 
           <p className="font-sans text-xs tracking-wide text-ink/50 uppercase">
-            {making
-              ? `${spells.length} of ${MAX_CAMPAIGN_SPELLS} written`
-              : `${items.length} of ${MAX_CAMPAIGN_ITEMS} written`}
+            {WRITTEN[kind](counts)}
           </p>
         </div>
 
         <p className="mt-2 text-xs text-ink/50">
           Anything the rulebook has never heard of. What you write here is found
-          at the table beside the SRD’s own — handed out from the pack, or
-          taught from the spellbook.
+          at the table beside the SRD’s own — handed out from the pack, taught
+          from the spellbook, or opened from the chest.
         </p>
 
-        {/* A group of two rather than a tab strip: these select a FORM. */}
+        {/* A group of three rather than a tab strip: these select a FORM. */}
         <div
           role="group"
           aria-label="What to create"
@@ -97,24 +150,34 @@ export default function CreatePanel({ campaignId, items, spells }) {
         </div>
 
         {/* Keyed, so switching kinds is a fresh form. */}
-        {making ? (
+        {kind === "spell" && (
           <SpellForm
             key="spell"
             campaignId={campaignId}
-            written={spells.length}
+            written={counts.spell}
           />
-        ) : (
-          <ItemForm key="item" campaignId={campaignId} written={items.length} />
+        )}
+
+        {kind === "item" && (
+          <ItemForm key="item" campaignId={campaignId} written={counts.item} />
+        )}
+
+        {kind === "container" && (
+          <ContainerForm
+            key="container"
+            campaignId={campaignId}
+            written={counts.container}
+          />
         )}
       </section>
 
       <section>
         <h2 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-          {making ? "Your spells" : "Your items"}
+          {LIST_TITLES[kind]}
         </h2>
 
-        {making ? (
-          spells.length === 0 ? (
+        {kind === "spell" &&
+          (spells.length === 0 ? (
             <div className="mt-3">
               <EmptyPack
                 title="Nothing written down"
@@ -133,35 +196,63 @@ export default function CreatePanel({ campaignId, items, spells }) {
                 </li>
               ))}
             </ul>
-          )
-        ) : items.length === 0 ? (
-          <div className="mt-3">
-            <EmptyPack
-              title="Nothing written down"
-              description="Items you invent for this campaign are kept here, and found from the table."
-            />
-          </div>
-        ) : (
-          // Three to a row, as on the character sheet: same width, same cards.
-          <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((row, index) => (
-              <li key={row.id} className="flex">
-                <PackItemCard item={rowItem(row)} index={index}>
-                  {/* What the panel at the table will print, on one line. */}
-                  <ItemFacts row={row} />
+          ))}
 
-                  <div className="mt-2 flex justify-end">
-                    <StrikeButton
-                      label={`Remove ${row.name}`}
-                      disabled={isPending}
-                      onClick={() => strike(strikeCampaignItem, row.id)}
-                    />
-                  </div>
-                </PackItemCard>
-              </li>
-            ))}
-          </ul>
-        )}
+        {kind === "item" &&
+          (items.length === 0 ? (
+            <div className="mt-3">
+              <EmptyPack
+                title="Nothing written down"
+                description="Items you invent for this campaign are kept here, and found from the table."
+              />
+            </div>
+          ) : (
+            // Three to a row, as on the character sheet: same width, same cards.
+            <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((row, index) => (
+                <li key={row.id} className="flex">
+                  <PackItemCard item={rowItem(row)} index={index}>
+                    {/* What the panel at the table will print, on one line. */}
+                    <ItemFacts row={row} />
+
+                    <div className="mt-2 flex justify-end">
+                      <StrikeButton
+                        label={`Remove ${row.name}`}
+                        disabled={isPending}
+                        onClick={() => strike(strikeCampaignItem, row.id)}
+                      />
+                    </div>
+                  </PackItemCard>
+                </li>
+              ))}
+            </ul>
+          ))}
+
+        {kind === "container" &&
+          (shelf.length === 0 ? (
+            <div className="mt-3">
+              <EmptyPack
+                title="Nothing on the table"
+                description="Bags and chests you make are opened from the table — a bag by whoever carries it, a chest once you reveal it."
+              />
+            </div>
+          ) : (
+            <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {shelf.map((container) => (
+                <li key={container.id} className="flex">
+                  <ContainerEntry
+                    container={container}
+                    members={members}
+                    inside={inside.get(container.id) ?? 0}
+                    disabled={isPending}
+                    onStrike={() =>
+                      strike(strikeCampaignContainer, container.id)
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
 
         {error && (
           <p role="alert" className="mt-3 text-xs text-red-300">
@@ -207,6 +298,53 @@ function SpellEntry({ spell, disabled, onStrike }) {
       <div className="mt-auto flex justify-end pt-3">
         <StrikeButton
           label={`Remove ${spell.name}`}
+          disabled={disabled}
+          onClick={onStrike}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The same card again, saying whose it is. What is INSIDE a carried bag is not
+ * counted here: those rows are that character's pack's, read at the table.
+ */
+function ContainerEntry({ container, members, inside, disabled, onStrike }) {
+  const carrier = members.find(
+    (member) => member.id === container.ownerCharacterId,
+  );
+
+  return (
+    <div className={`flex h-full w-full flex-col ${CONTAINER_CARD_CLASSES}`}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 font-display text-sm font-semibold tracking-wide text-ink">
+          {container.name}
+        </p>
+
+        <span className={`shrink-0 ${containerTagClasses(container.type)}`}>
+          {containerTypeLabel(container.type)}
+        </span>
+      </div>
+
+      <p className="mt-2 text-xs text-ink/55">
+        {container.type === "chest"
+          ? chestAudienceLine(container, members)
+          : carrier
+            ? `Carried by ${carrier.name}`
+            : NOBODY_YET}
+      </p>
+
+      {/* Only for the ones nobody is carrying — see above. */}
+      {(container.type === "chest" || !carrier) && (
+        <p className="mt-1 font-mono text-[10px] tracking-[0.16em] text-ink/40 uppercase">
+          {inside} inside
+        </p>
+      )}
+
+      <div className="mt-auto flex justify-end pt-3">
+        <StrikeButton
+          label={`Remove ${container.name}`}
           disabled={disabled}
           onClick={onStrike}
         />

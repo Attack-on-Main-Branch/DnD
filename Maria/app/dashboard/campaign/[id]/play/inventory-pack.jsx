@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { canOpenContainer } from "sina/rules/containers";
 import { emptyPurse } from "sina/rules/currency";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
@@ -10,7 +11,8 @@ import TravellingPack from "@/app/components/ui/travelling-pack";
 import DmPackDrawer from "./dm-pack-drawer";
 import PlayerPackDrawer from "./player-pack-drawer";
 import TablePopover from "./table-popover";
-import { useAllPacks, useAllPurses } from "./table-state";
+import { useAllPacks, useAllPurses, useContainers } from "./table-state";
+import { useContainerWire } from "./use-containers";
 import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
 
@@ -41,6 +43,7 @@ export default function InventoryPack({
 }) {
   const packs = useAllPacks();
   const purses = useAllPurses();
+  const containers = useContainers();
   const { resync } = useTableDeed(campaignId);
 
   /* A counter, not a flag: TablePopover uses it as a `key`, and changing a key
@@ -90,6 +93,12 @@ export default function InventoryPack({
 
   const watched = useMemo(
     () => new Set(watching ? watching.split(",") : []),
+    [watching],
+  );
+
+  /* The same set as a list, for the shelf's subscription. */
+  const watchedIds = useMemo(
+    () => (watching ? watching.split(",") : []),
     [watching],
   );
 
@@ -148,6 +157,42 @@ export default function InventoryPack({
 
   useWireMessage("pack", heard);
   useWireMessage("purse", heard);
+
+  /* Mounted here because this is the one control both chairs draw. */
+  useContainerWire(campaignId, watchedIds);
+
+  /**
+   * A chest opened to this seat since the page was drawn. The rail is the
+   * Dungeon Master's alone, so this mark is where a player is told — and what
+   * is in a chest is on its way into this pack anyway.
+   */
+  const openTo = useMemo(
+    () =>
+      isDungeonMaster
+        ? []
+        : containers
+            .filter(
+              (one) =>
+                one.type === "chest" && canOpenContainer(one, seat.characterId),
+            )
+            .map((one) => one.id),
+    [containers, isDungeonMaster, seat.characterId],
+  );
+
+  /* Seeded from the first render, so a chest already open is not news. A ref
+     rather than state: writing it must not re-run the effect. */
+  const seen = useRef(new Set(openTo));
+
+  useEffect(() => {
+    const fresh = openTo.some((id) => !seen.current.has(id));
+
+    /* Replaced rather than added to: a re-reveal is news a second time. */
+    seen.current = new Set(openTo);
+
+    if (fresh) {
+      setArrived((count) => count + 1);
+    }
+  }, [openTo]);
 
   /* Maps rather than the store's own objects, because that is the shape both
      drawers already read. Six entries at most, so the copy is free. */

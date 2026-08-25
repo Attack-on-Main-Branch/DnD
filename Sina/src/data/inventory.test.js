@@ -8,6 +8,7 @@ import {
   listCampaignItems,
   listCharacterInventory,
   listPartyInventory,
+  moveInventoryItem,
   removeCampaignItem,
   spendInventoryItem,
   transferInventoryItem,
@@ -16,6 +17,7 @@ import {
 const CHARACTER = "6f1c3d2e-0000-4000-8000-000000000000";
 const OTHER = "6f1c3d2e-0000-4000-8000-000000000001";
 const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
+const CONTAINER = "6f1c3d2e-0000-4000-8000-00000000ba61";
 
 const ITEM = {
   slug: "potion-of-healing",
@@ -145,6 +147,31 @@ describe("grantInventoryItem", () => {
     assert.equal(error.reason, "not_found");
   });
 
+  it("means the pack itself when no bag is named", async () => {
+    // The stack is keyed on the three together since 20260831090000, so a
+    // grant that named a bag by accident would land somewhere nobody looked.
+    const query = stubQuery({ data: 1, error: null });
+    await grantInventoryItem(query, {
+      characterId: CHARACTER,
+      item: ITEM,
+      quantity: 1,
+    });
+
+    assert.equal(query.lastRpc.params.p_container, null);
+  });
+
+  it("carries the bag it lands in when there is one", async () => {
+    const query = stubQuery({ data: 1, error: null });
+    await grantInventoryItem(query, {
+      characterId: CHARACTER,
+      item: ITEM,
+      quantity: 1,
+      containerId: CONTAINER,
+    });
+
+    assert.equal(query.lastRpc.params.p_container, CONTAINER);
+  });
+
   it("sends an empty description rather than null", async () => {
     const query = stubQuery({ data: 1, error: null });
     await grantInventoryItem(query, {
@@ -188,6 +215,66 @@ describe("spendInventoryItem", () => {
 
     assert.equal(error.reason, "not_found");
   });
+
+  it("reaches into the bag it was told to and no other", async () => {
+    const query = stubQuery({ data: 1, error: null });
+    await spendInventoryItem(query, {
+      characterId: CHARACTER,
+      slug: ITEM.slug,
+      quantity: 1,
+      containerId: CONTAINER,
+    });
+
+    assert.equal(query.lastRpc.params.p_container, CONTAINER);
+  });
+});
+
+describe("moveInventoryItem", () => {
+  it("names both pockets and never a second character", async () => {
+    const query = stubQuery({ data: 3, error: null });
+    const { data } = await moveInventoryItem(query, {
+      characterId: CHARACTER,
+      slug: ITEM.slug,
+      quantity: 2,
+      toContainerId: CONTAINER,
+    });
+
+    assert.equal(query.lastRpc.name, "move_inventory_item");
+    assert.deepEqual(query.lastRpc.params, {
+      target_character: CHARACTER,
+      p_item_slug: ITEM.slug,
+      p_quantity: 2,
+      p_from_container: null,
+      p_to_container: CONTAINER,
+    });
+    assert.deepEqual(data, { remaining: 3 });
+  });
+
+  it("reads the pack as a null container at either end", async () => {
+    const query = stubQuery({ data: 0, error: null });
+    const { data, error } = await moveInventoryItem(query, {
+      characterId: CHARACTER,
+      slug: ITEM.slug,
+      quantity: 1,
+      fromContainerId: CONTAINER,
+    });
+
+    assert.equal(query.lastRpc.params.p_from_container, CONTAINER);
+    assert.equal(query.lastRpc.params.p_to_container, null);
+    // Zero is a stack that moved whole, which is not a refusal.
+    assert.equal(error, null);
+    assert.deepEqual(data, { remaining: 0 });
+  });
+
+  it("reads null as a miss", async () => {
+    const { data, error } = await moveInventoryItem(
+      stubQuery({ data: null, error: null }),
+      { characterId: CHARACTER, slug: ITEM.slug, quantity: 1 },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
+  });
 });
 
 describe("transferInventoryItem", () => {
@@ -206,6 +293,22 @@ describe("transferInventoryItem", () => {
     assert.equal(query.lastRpc.params.p_quantity, 2);
     assert.equal(error, null);
     assert.equal(data.quantity, 2);
+  });
+
+  it("names the giver's bag and never the receiver's", async () => {
+    // What is handed across a table arrives in the hand: `p_container` is the
+    // stack it comes OUT of, and the function always deposits into the pack.
+    const query = stubQuery({ data: true, error: null });
+    await transferInventoryItem(query, {
+      fromCharacterId: CHARACTER,
+      toCharacterId: OTHER,
+      item: ITEM,
+      quantity: 1,
+      containerId: CONTAINER,
+    });
+
+    assert.equal(query.lastRpc.params.p_container, CONTAINER);
+    assert.ok(!("p_to_container" in query.lastRpc.params));
   });
 
   it("reads false as a miss, so a refusal and a gap look alike", async () => {

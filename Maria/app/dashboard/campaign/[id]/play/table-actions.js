@@ -7,6 +7,10 @@ import {
   listPartySheets,
 } from "sina/data/campaigns";
 import { getCharacter } from "sina/data/characters";
+import {
+  listCampaignContainers,
+  listContainerItems,
+} from "sina/data/containers";
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
 import { listPartySpells } from "sina/data/spells";
@@ -48,25 +52,46 @@ export async function readTableSlice(campaignId, want = {}) {
 
   const ids = (want.characterIds ?? []).filter(Boolean);
 
-  const [activity, party, marks, inventory, purses, spells, sheets, seat] =
-    await Promise.all([
-      want.activity
-        ? listCampaignActivity(supabase, campaignId, MAX_ACTIVITY_ENTRIES)
-        : null,
-      want.party ? listPartyMembers(supabase, campaignId) : null,
-      want.marks ? listCampaignMarks(supabase, campaignId) : null,
-      want.inventory ? listPartyInventory(supabase, ids) : null,
-      want.purses ? listPartyPurses(supabase, campaignId) : null,
-      want.spells ? listPartySpells(supabase, ids) : null,
-      /* The party's slots, for the head of the table: `campaign_sheets` answers
+  const [
+    activity,
+    party,
+    marks,
+    inventory,
+    purses,
+    spells,
+    sheets,
+    seat,
+    containers,
+  ] = await Promise.all([
+    want.activity
+      ? listCampaignActivity(supabase, campaignId, MAX_ACTIVITY_ENTRIES)
+      : null,
+    want.party ? listPartyMembers(supabase, campaignId) : null,
+    want.marks ? listCampaignMarks(supabase, campaignId) : null,
+    want.inventory ? listPartyInventory(supabase, ids) : null,
+    want.purses ? listPartyPurses(supabase, campaignId) : null,
+    want.spells ? listPartySpells(supabase, ids) : null,
+    /* The party's slots, for the head of the table: `campaign_sheets` answers
          the campaign's owner alone. */
-      want.sheets ? listPartySheets(supabase, campaignId) : null,
-      /* And a player's own, which no party-wide read hands back — the columns
+    want.sheets ? listPartySheets(supabase, campaignId) : null,
+    /* And a player's own, which no party-wide read hands back — the columns
          are on `characters`, where RLS is "your own characters". */
-      want.seatCharacterId
-        ? getCharacter(supabase, { id: want.seatCharacterId, userId: user.id })
-        : null,
-    ]);
+    want.seatCharacterId
+      ? getCharacter(supabase, { id: want.seatCharacterId, userId: user.id })
+      : null,
+    /* The shelf. What is INSIDE waits on it — the ids are the query — so
+       that is fetched below rather than here. */
+    want.containers ? listCampaignContainers(supabase, campaignId) : null,
+  ]);
+
+  const shelf = slice("listCampaignContainers", containers);
+
+  const containerItems = shelf
+    ? await listContainerItems(
+        supabase,
+        shelf.map((container) => container.id),
+      )
+    : null;
 
   return {
     /* Which packs and books this answer speaks for. A row list alone cannot say
@@ -82,6 +107,11 @@ export async function readTableSlice(campaignId, want = {}) {
     inventory: slice("listPartyInventory", inventory),
     purses: slice("listPartyPurses", purses),
     spells: slice("listPartySpells", spells),
+
+    /* Both halves together, always: a chest that arrives without its rows is
+       a chest that opens onto nothing. */
+    containers: shelf,
+    containerItems: slice("listContainerItems", containerItems),
 
     // One shape for both, because the store reads one thing out of either: a
     // seat's own row and a party sheet both carry an `id` and `spell_slots`.

@@ -3,6 +3,10 @@ import {
   listCampaignNotes,
   listPartyMembers,
 } from "sina/data/campaigns";
+import {
+  listCampaignContainers,
+  listContainerItems,
+} from "sina/data/containers";
 import { listCampaignItems } from "sina/data/inventory";
 import { listCampaignSpells } from "sina/data/spells";
 import { cache } from "react";
@@ -11,9 +15,9 @@ import { logFailure } from "@/lib/errors";
 import { createClient, currentUser } from "@/lib/supabase";
 
 /**
- * One load for a campaign, its party, its notes and both halves of its
- * catalogue. `cache` deduplicates within a request: Next calls
- * `generateMetadata` and the component separately.
+ * One load for a campaign, its party, its notes, both halves of its catalogue
+ * and the containers standing on it. `cache` deduplicates within a request:
+ * Next calls `generateMetadata` and the component separately.
  *
  * Returns a sentinel rather than redirecting — `generateMetadata` is not the
  * place for that, so the page decides.
@@ -51,16 +55,19 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       notes: [],
       items: [],
       spells: [],
+      containers: [],
+      containerItems: [],
       error: realFailure,
     };
   }
 
-  // Together rather than one after the other: four round trips, one wait.
-  const [party, notes, items, spells] = await Promise.all([
+  // Together rather than one after the other: five round trips, one wait.
+  const [party, notes, items, spells, containers] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignNotes(supabase, id),
     listCampaignItems(supabase, id),
     listCampaignSpells(supabase, id),
+    listCampaignContainers(supabase, id),
   ]);
 
   if (party.error) {
@@ -79,6 +86,22 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     logFailure("listCampaignSpells", spells.error);
   }
 
+  if (containers.error) {
+    logFailure("listCampaignContainers", containers.error);
+  }
+
+  const shelf = containers.error ? [] : containers.data;
+
+  /* After the shelf rather than beside it: the ids are the query. */
+  const held = await listContainerItems(
+    supabase,
+    shelf.map((container) => container.id),
+  );
+
+  if (held.error) {
+    logFailure("listContainerItems", held.error);
+  }
+
   // Logged rather than thrown on: the campaign is the page, and a party or a
   // notes tab that could not load is no reason to replace it with an error.
   return {
@@ -87,6 +110,8 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     notes: notes.error ? [] : notes.data,
     items: items.error ? [] : items.data,
     spells: spells.error ? [] : spells.data,
+    containers: shelf,
+    containerItems: held.error ? [] : held.data,
     error: null,
   };
 });

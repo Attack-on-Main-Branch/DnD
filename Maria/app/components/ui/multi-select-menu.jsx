@@ -3,29 +3,28 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { controlClasses, LABEL_CLASSES } from "./field-styles";
+import { CheckIcon, ChevronIcon } from "./select-menu";
 import { surfaceClasses } from "./surface";
 
 /**
- * Styled single-choice dropdown, replacing the native <select>, which cannot be
- * themed: browsers render <option> rows in the OS popup, so the dark-mode text
- * colour landed on a white system background and the list came out invisible.
+ * select-menu.jsx with ONE RULE CHANGED: a row toggles instead of choosing, and
+ * the menu stays open while it does. Everything else is that control's, down to
+ * the chevron and the tick.
  *
- * The ARIA listbox pattern, with the chosen value in a hidden input so it
- * submits with the surrounding form exactly like a <select> would.
+ * No hidden input: nothing that uses this posts a form.
  *
- * The chevron and the tick are exported for multi-select-menu.jsx, which is
- * this control with one rule changed.
+ * `everything` is the row at the top that takes them all at once. It belongs
+ * inside the list rather than beside it — it is one more way to answer the same
+ * question.
  */
-export default function SelectMenu({
+export default function MultiSelectMenu({
   label,
-  name,
   options,
   value,
   onChange,
+  everything,
   disabled = false,
-  invalid = false,
-  placeholder = "Select…",
-  describedBy,
+  placeholder = "Nobody yet",
 }) {
   const labelId = useId();
   const listboxId = useId();
@@ -37,8 +36,14 @@ export default function SelectMenu({
   const triggerRef = useRef(null);
   const listRef = useRef(null);
 
-  const selectedIndex = options.findIndex((option) => option.value === value);
-  const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
+  const chosen = value ?? [];
+
+  /* Index 0 when offered, so the keyboard walks the list the pointer sees. */
+  const rows = everything
+    ? [{ value: null, label: everything }, ...options]
+    : options;
+
+  const all = options.length > 0 && chosen.length === options.length;
 
   // pointerdown rather than click: a press starting outside dismisses at once,
   // instead of waiting for a release that may never land on the same element.
@@ -68,20 +73,29 @@ export default function SelectMenu({
       ?.scrollIntoView({ block: "nearest" });
   }, [open, activeIndex]);
 
-  function openMenu(startIndex = selectedIndex >= 0 ? selectedIndex : 0) {
-    setActiveIndex(startIndex);
-    setOpen(true);
-  }
+  /** One row toggled, and the menu LEFT OPEN — the point of the control. */
+  function toggle(index) {
+    const row = rows[index];
 
-  function commit(index) {
-    const option = options[index];
-
-    if (option) {
-      onChange(option.value);
+    if (!row) {
+      return;
     }
 
-    setOpen(false);
-    triggerRef.current?.focus();
+    if (row.value === null) {
+      onChange(all ? [] : options.map((option) => option.value));
+      return;
+    }
+
+    onChange(
+      chosen.includes(row.value)
+        ? chosen.filter((one) => one !== row.value)
+        : [...chosen, row.value],
+    );
+  }
+
+  function openMenu() {
+    setActiveIndex(0);
+    setOpen(true);
   }
 
   function handleKeyDown(event) {
@@ -92,21 +106,19 @@ export default function SelectMenu({
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
-        if (!open) {
-          openMenu();
+        if (open) {
+          setActiveIndex((current) => Math.min(current + 1, rows.length - 1));
         } else {
-          setActiveIndex((current) =>
-            Math.min(current + 1, options.length - 1),
-          );
+          openMenu();
         }
         break;
 
       case "ArrowUp":
         event.preventDefault();
-        if (!open) {
-          openMenu();
-        } else {
+        if (open) {
           setActiveIndex((current) => Math.max(current - 1, 0));
+        } else {
+          openMenu();
         }
         break;
 
@@ -120,7 +132,7 @@ export default function SelectMenu({
       case "End":
         if (open) {
           event.preventDefault();
-          setActiveIndex(options.length - 1);
+          setActiveIndex(rows.length - 1);
         }
         break;
 
@@ -128,7 +140,7 @@ export default function SelectMenu({
       case " ":
         event.preventDefault();
         if (open) {
-          commit(activeIndex);
+          toggle(activeIndex);
         } else {
           openMenu();
         }
@@ -150,14 +162,32 @@ export default function SelectMenu({
     }
   }
 
+  /** The names while they fit, a count once they do not. */
+  const summary = () => {
+    if (chosen.length === 0) {
+      return null;
+    }
+
+    if (all && everything) {
+      return everything;
+    }
+
+    const named = chosen
+      .map((id) => options.find((option) => option.value === id)?.label)
+      .filter(Boolean);
+
+    return named.length <= 2
+      ? named.join(", ")
+      : `${named.length} of ${options.length}`;
+  };
+
+  const said = summary();
+
   return (
     <div className="flex flex-col gap-1.5" ref={containerRef}>
       <span id={labelId} className={LABEL_CLASSES}>
         {label}
       </span>
-
-      {/* Carries the value to the server so the form posts like a native select. */}
-      <input type="hidden" name={name} value={value ?? ""} />
 
       <div className="relative">
         <button
@@ -173,15 +203,13 @@ export default function SelectMenu({
           aria-activedescendant={
             open ? `${listboxId}-option-${activeIndex}` : undefined
           }
-          aria-invalid={invalid || undefined}
-          aria-describedby={describedBy}
           disabled={disabled}
           onClick={() => (open ? setOpen(false) : openMenu())}
           onKeyDown={handleKeyDown}
-          className={`${controlClasses({ invalid })} flex items-center justify-between gap-2 text-left`}
+          className={`${controlClasses()} flex items-center justify-between gap-2 text-left`}
         >
-          <span className={selected ? "" : "text-ink/50"}>
-            {selected ? selected.label : placeholder}
+          <span className={said ? "truncate" : "truncate text-ink/50"}>
+            {said ?? placeholder}
           </span>
           <ChevronIcon open={open} />
         </button>
@@ -192,6 +220,7 @@ export default function SelectMenu({
             id={listboxId}
             role="listbox"
             aria-labelledby={labelId}
+            aria-multiselectable="true"
             tabIndex={-1}
             className={surfaceClasses({
               variant: "solid",
@@ -199,12 +228,13 @@ export default function SelectMenu({
                 "scroll-gold absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg p-1",
             })}
           >
-            {options.map((option, index) => {
-              const isSelected = option.value === value;
+            {rows.map((row, index) => {
+              const isSelected =
+                row.value === null ? all : chosen.includes(row.value);
               const isActive = index === activeIndex;
 
               return (
-                <li key={option.value}>
+                <li key={row.value ?? "everything"}>
                   {/*
                     A native option is not focusable, and neither is this:
                     focus stays on the trigger while aria-activedescendant
@@ -217,14 +247,14 @@ export default function SelectMenu({
                     data-index={index}
                     onPointerDown={(event) => {
                       event.preventDefault();
-                      commit(index);
+                      toggle(index);
                     }}
                     onPointerEnter={() => setActiveIndex(index)}
                     className={`flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition ${
                       isActive ? "bg-gold/10 text-gold" : "text-ink"
-                    }`}
+                    } ${row.value === null ? "font-display tracking-wide" : ""}`}
                   >
-                    {option.label}
+                    {row.label}
                     {isSelected && <CheckIcon />}
                   </div>
                 </li>
@@ -234,43 +264,5 @@ export default function SelectMenu({
         )}
       </div>
     </div>
-  );
-}
-
-export function ChevronIcon({ open }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={`shrink-0 text-ink/50 transition-transform ${open ? "rotate-180" : ""}`}
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-export function CheckIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <path d="m5 13 4 4L19 7" />
-    </svg>
   );
 }

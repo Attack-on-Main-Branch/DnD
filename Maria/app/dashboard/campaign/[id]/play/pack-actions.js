@@ -6,6 +6,7 @@ import {
 } from "sina/data/activity";
 import {
   grantInventoryItem,
+  moveInventoryItem,
   spendInventoryItem,
   transferInventoryItem,
 } from "sina/data/inventory";
@@ -183,8 +184,17 @@ export async function grantPackItems(campaignId, characterIds, item, quantity) {
  * health band's reducer takes one: a total is computed against a row that may
  * have moved since the page was drawn, so two quick presses would both aim at
  * the same number.
+ *
+ * `containerId` is which of their bags, null being the pack — the whole of
+ * what tells rope in the Bag of Holding from rope in the pack.
  */
-export async function adjustPackItem(campaignId, characterId, item, delta) {
+export async function adjustPackItem(
+  campaignId,
+  characterId,
+  item,
+  delta,
+  containerId = null,
+) {
   const size = Math.abs(Number(delta) || 0);
   const { values, count, rejection: bad } = readMove(item, size);
 
@@ -207,6 +217,7 @@ export async function adjustPackItem(campaignId, characterId, item, delta) {
           campaignId,
           seatCharacterId: null,
           deed: "item_granted",
+          containerId,
         })
       : await spendInventoryItem(supabase, {
           characterId,
@@ -217,6 +228,7 @@ export async function adjustPackItem(campaignId, characterId, item, delta) {
           // Taking something back out of a pack is the head of the table's
           // alone, and `record_campaign_activity` says the same of the entry.
           deed: "item_revoked",
+          containerId,
         });
 
   if (error) {
@@ -231,7 +243,13 @@ export async function adjustPackItem(campaignId, characterId, item, delta) {
  * nobody chose to write is noise in the one place a player keeps their own
  * account of the session.
  */
-export async function consumePackItem(campaignId, characterId, item, quantity) {
+export async function consumePackItem(
+  campaignId,
+  characterId,
+  item,
+  quantity,
+  containerId = null,
+) {
   return spendPack(
     "consumePackItem",
     "item_used",
@@ -240,11 +258,18 @@ export async function consumePackItem(campaignId, characterId, item, quantity) {
     item,
     quantity,
     "Could not use that.",
+    containerId,
   );
 }
 
 /** Something thrown away. */
-export async function dropPackItem(campaignId, characterId, item, quantity) {
+export async function dropPackItem(
+  campaignId,
+  characterId,
+  item,
+  quantity,
+  containerId = null,
+) {
   return spendPack(
     "dropPackItem",
     "item_dropped",
@@ -253,6 +278,7 @@ export async function dropPackItem(campaignId, characterId, item, quantity) {
     item,
     quantity,
     "Could not drop that.",
+    containerId,
   );
 }
 
@@ -270,6 +296,7 @@ async function spendPack(
   item,
   quantity,
   copy,
+  containerId,
 ) {
   const { values, count, rejection: bad } = readMove(item, quantity);
 
@@ -290,6 +317,7 @@ async function spendPack(
     campaignId,
     seatCharacterId: characterId,
     deed,
+    containerId,
   });
 
   if (error) {
@@ -300,6 +328,49 @@ async function spendPack(
 }
 
 /**
+ * A stack from one pocket of a coat to another; null is the pack at either end.
+ *
+ * NO CAMPAIGN, unlike every other action here, and that absence is the point:
+ * nothing is written down. Moving rope into a bag is not something that
+ * happened at the table.
+ *
+ * Which bags are theirs is `move_inventory_item`'s to decide.
+ */
+export async function stowPackItem(
+  characterId,
+  item,
+  quantity,
+  fromContainerId,
+  toContainerId,
+) {
+  const { values, count, rejection: bad } = readMove(item, quantity);
+
+  if (bad) {
+    return bad;
+  }
+
+  const { supabase, rejection } = await signedIn("stowPackItem");
+
+  if (rejection) {
+    return rejection;
+  }
+
+  const { error } = await moveInventoryItem(supabase, {
+    characterId,
+    slug: values.slug,
+    quantity: count,
+    fromContainerId: fromContainerId ?? null,
+    toContainerId: toContainerId ?? null,
+  });
+
+  if (error) {
+    return refused("stowPackItem", error, "Could not move that.");
+  }
+
+  return { kind: "success" };
+}
+
+/**
  * One pack to another, in one transaction. Which of them the caller may empty
  * is `transfer_inventory_item`'s to decide — it re-checks that both characters
  * are at the same table and that this one is the caller's to give from, so the
@@ -307,6 +378,9 @@ async function spendPack(
  *
  * Two rows move and the sentence is one, which the trigger settles by filing the
  * giver's change and staying quiet for the receiver's.
+ *
+ * `containerId` is the GIVER'S bag: what is handed across a table arrives in
+ * the hand, and stowing it is the receiver's own decision.
  */
 export async function handPackItem(
   campaignId,
@@ -314,6 +388,7 @@ export async function handPackItem(
   toCharacterId,
   item,
   quantity,
+  containerId = null,
 ) {
   const { values, count, rejection: bad } = readMove(item, quantity);
 
@@ -338,6 +413,7 @@ export async function handPackItem(
     quantity: count,
     campaignId,
     seatCharacterId: fromCharacterId,
+    containerId,
   });
 
   if (error) {

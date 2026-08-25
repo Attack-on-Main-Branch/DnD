@@ -16,8 +16,8 @@
  * whose each row is.
  */
 const COLUMNS =
-  "id, character_id, item_slug, name, category, description, quantity, " +
-  "is_custom, facts, created_at";
+  "id, character_id, container_id, item_slug, name, category, description, " +
+  "quantity, is_custom, facts, created_at";
 
 const CATALOGUE_COLUMNS =
   "id, item_slug, name, category, description, cost_quantity, cost_unit, " +
@@ -196,11 +196,15 @@ export async function removeCampaignItem(supabase, { campaignId, id }) {
  * that matched no row — and reads here as `not_found`, which is also what a
  * deleted character gives. A caller must not be able to tell them apart.
  *
- * THE LAST THREE ARE THE LOG: the trigger on `character_inventory` writes the
- * entry inside this same transaction, and those are the three things it cannot
- * read off the row — which table, which chair, and which of the five deeds a
- * quantity going up was. Passing no `deed` writes the stack and no line, which
- * is what a grant to the WHOLE party wants: six transactions, one sentence.
+ * `campaignId`, `seatCharacterId` AND `deed` ARE THE LOG: the trigger on
+ * `character_inventory` writes the entry inside this same transaction, and
+ * those are the three things it cannot read off the row. Passing no `deed`
+ * writes the stack and no line, which is what a grant to the WHOLE party wants:
+ * six transactions, one sentence.
+ *
+ * `containerId` is WHICH BAG of theirs it lands in; null is the pack itself. A
+ * stack is keyed on the three together, so a grant naming no bag never lands
+ * on one.
  */
 export async function grantInventoryItem(
   supabase,
@@ -211,6 +215,7 @@ export async function grantInventoryItem(
     campaignId = null,
     seatCharacterId = null,
     deed = null,
+    containerId = null,
   },
 ) {
   const { data, error } = await supabase.rpc("grant_inventory_item", {
@@ -225,6 +230,7 @@ export async function grantInventoryItem(
     p_campaign: campaignId,
     p_seat: seatCharacterId,
     p_deed: deed,
+    p_container: containerId,
   });
 
   if (error) {
@@ -246,7 +252,8 @@ export async function grantInventoryItem(
  * granted.
  *
  * `deed` is which of the three this was: the row change is identical for all of
- * them. See `grantInventoryItem` above for the rest.
+ * them. `containerId` is which bag it comes out of, null being the pack. See
+ * `grantInventoryItem` above for the rest.
  */
 export async function spendInventoryItem(
   supabase,
@@ -257,6 +264,7 @@ export async function spendInventoryItem(
     campaignId = null,
     seatCharacterId = null,
     deed = null,
+    containerId = null,
   },
 ) {
   const { data, error } = await supabase.rpc("spend_inventory_item", {
@@ -266,6 +274,37 @@ export async function spendInventoryItem(
     p_campaign: campaignId,
     p_seat: seatCharacterId,
     p_deed: deed,
+    p_container: containerId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (data === null) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: { remaining: data }, error: null };
+}
+
+/**
+ * One pocket of a coat to another: a stack between a character's pack and one
+ * of their own bags. NOT `transferInventoryItem` with the same character twice
+ * — that one is about two PEOPLE and writes a line in the log.
+ *
+ * `remaining` is what is left where it came from; null is a refusal.
+ */
+export async function moveInventoryItem(
+  supabase,
+  { characterId, slug, quantity, fromContainerId = null, toContainerId = null },
+) {
+  const { data, error } = await supabase.rpc("move_inventory_item", {
+    target_character: characterId,
+    p_item_slug: slug,
+    p_quantity: quantity,
+    p_from_container: fromContainerId,
+    p_to_container: toContainerId,
   });
 
   if (error) {
@@ -287,6 +326,10 @@ export async function spendInventoryItem(
  * No `deed`: a transfer is the only thing this function does. Two rows move and
  * the sentence is one, so the trigger files the giver's and stays quiet for the
  * receiver's.
+ *
+ * `containerId` is the GIVER'S bag, and there is deliberately no second one for
+ * the receiver: what is handed across a table arrives in the hand, and stowing
+ * it in a bag is a decision the receiver makes for themselves.
  */
 export async function transferInventoryItem(
   supabase,
@@ -297,6 +340,7 @@ export async function transferInventoryItem(
     quantity,
     campaignId = null,
     seatCharacterId = null,
+    containerId = null,
   },
 ) {
   const { data, error } = await supabase.rpc("transfer_inventory_item", {
@@ -310,6 +354,7 @@ export async function transferInventoryItem(
     p_facts: item.facts ?? {},
     p_campaign: campaignId,
     p_seat: seatCharacterId,
+    p_container: containerId,
   });
 
   if (error) {

@@ -16,6 +16,18 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.14.0",
+    date: "2026-08-25",
+    title: "Something to keep it in",
+    changes: [
+      "Bags and chests, written down on the campaign page beside your items and spells: what kind it is, what it is called, and what goes in it. Both start empty-handed — a bag belongs to nobody until it is handed over, and a chest stays out of sight until it is found.",
+      "A chest beside the map, opposite the dice, and it is the Dungeon Master's. Open it to fill any container at the table, hand a bag to whoever should be carrying it, or reveal a chest — to one player, to a few, or to the whole party.",
+      "A chest revealed to you appears in your pack, under your bags. Take what you want out of it, however much of it there is, and it lands in your hands.",
+      "Every bag you carry is a section of its own inside the pack, and items move between them: press Move on anything you are holding and choose where it goes. Coin stays with the character, as it always has.",
+      "Pass a bag with everything in it. One press hands the whole thing to a teammate, and the table's log says who was shown a chest, who took what out of one, and who was handed a bag.",
+    ],
+  },
+  {
     version: "0.13.0",
     date: "2026-08-25",
     title: "The table answers at once",

@@ -13,6 +13,7 @@ import { campaignSheetPath, characterSheetPath } from "@/lib/routes";
 
 import AbilitySheet from "./ability-sheet";
 import ActivityLog from "./activity-log";
+import ChestStage from "./chest-stage";
 import DiceBoard from "./dice-board";
 import DiceCapsule from "./dice-capsule";
 import DiceRail from "./dice-rail";
@@ -108,7 +109,8 @@ export default async function CampaignTablePage({ params, searchParams }) {
     notFound();
   }
 
-  const { campaign, members, seat, inventory, spells, purses } = loaded;
+  const { campaign, members, seat, inventory, spells, purses, containers } =
+    loaded;
 
   // The seat, not the deed: owning this campaign offers the chair, sitting in
   // it is what makes the party's health and the whole board yours.
@@ -213,6 +215,8 @@ export default async function CampaignTablePage({ params, searchParams }) {
               spells,
               purses,
               casters: spellcasters,
+              containers,
+              containerItems: loaded.containerItems,
             }}
           >
             {/* Three columns so the title is centred on the viewport rather than on
@@ -344,7 +348,18 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 {/* No `data-fade` on the row: the board and the rail beside it
               leave on their own beats — see panel-fold.js. */}
                 <div className="flex w-full min-w-0 items-center justify-center gap-10">
-                  {seat && <div aria-hidden="true" className="w-14 shrink-0" />}
+                  {/* The box that used to be empty, balancing the dice rail so
+                the board keeps the viewport's centre line. The same width
+                either way, so it does not move between the two chairs.
+
+                THE HEAD OF THE TABLE'S ALONE — what a player may reach is in
+                the pack above the board. */}
+                  {seat &&
+                    (isDungeonMaster ? (
+                      <ChestStage campaignId={campaign.id} members={carriers} />
+                    ) : (
+                      <div aria-hidden="true" className="w-14 shrink-0" />
+                    ))}
 
                   <MapStage
                     url={campaign.map_url}

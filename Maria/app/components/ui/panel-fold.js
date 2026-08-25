@@ -126,6 +126,8 @@ const TUCK_OUT = {
   /* The dice rail, sliding back under the map's right edge — the entrance in
      entrance.js run backwards. */
   left: "-5rem 0",
+  /* The containers' rail on the other side, under the left edge. */
+  right: "5rem 0",
 };
 
 /**

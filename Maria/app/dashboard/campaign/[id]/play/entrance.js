@@ -60,6 +60,9 @@ export const CARD_CLASSES = `motion-safe:animate-[glide-in-right_0.7s_var(--ease
  */
 export const RAIL_CLASSES = `motion-safe:animate-[rail-out_0.5s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
 
+/** The containers' rail: the dice rail's beat, mirrored. */
+export const RAIL_MIRRORED_CLASSES = `motion-safe:animate-[rail-out-mirrored_0.5s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
+
 export const MAP_DELAY = { "--enter-delay": `${MAP_AT}ms` };
 export const FRAME_DELAY = { "--enter-delay": `${FRAME_AT}ms` };
 

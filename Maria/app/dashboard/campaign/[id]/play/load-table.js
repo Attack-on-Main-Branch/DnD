@@ -8,6 +8,10 @@ import {
   listPartySheets,
 } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
+import {
+  listCampaignContainers,
+  listContainerItems,
+} from "sina/data/containers";
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
 import { listPartySpells } from "sina/data/spells";
@@ -60,6 +64,8 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       purses: [],
       activity: [],
       sheets: [],
+      containers: [],
+      containerItems: [],
       seat: null,
       error: realFailure,
     };
@@ -69,7 +75,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
      Not only the first paint: every doorbell here is answered by re-rendering
      the whole route. The seat still waits for the party, being chosen out of
      it. */
-  const [party, tokens, log, purses] = await Promise.all([
+  const [party, tokens, log, purses, containers] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignMarks(supabase, id),
     listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
@@ -77,6 +83,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
        the campaign, and it decides for itself whose purses the caller may
        read — the whole party's for a Dungeon Master, their own for a player. */
     listPartyPurses(supabase, id),
+    /* And beside it for the same reason: the SELECT policy on `containers`
+       decides which this viewer may see, so neither the party nor the seat is
+       needed to ask. */
+    listCampaignContainers(supabase, id),
   ]);
 
   if (party.error) {
@@ -95,12 +105,17 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listCampaignActivity", log.error);
   }
 
+  if (containers.error) {
+    logFailure("listCampaignContainers", containers.error);
+  }
+
   const members = party.error ? [] : party.data;
+  const shelf = containers.error ? [] : containers.data;
 
   /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs, books, sheets] = await Promise.all([
+  const [seat, packs, books, sheets, held] = await Promise.all([
     readSeat(supabase, campaign, members, requestedSeat, user.id),
     listPartyInventory(
       supabase,
@@ -120,6 +135,12 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     campaign.is_owner
       ? listPartySheets(supabase, id)
       : { data: [], error: null },
+    /* What is in the containers nobody is carrying. The ids are the query, so
+       this waits on the shelf and on nothing else. */
+    listContainerItems(
+      supabase,
+      shelf.map((container) => container.id),
+    ),
   ]);
 
   if (packs.error) {
@@ -134,6 +155,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listPartySheets", sheets.error);
   }
 
+  if (held.error) {
+    logFailure("listContainerItems", held.error);
+  }
+
   // Logged rather than thrown on: the map is the page, and neither a party nor
   // a set of marks that could not load is a reason to replace it with an error.
   return {
@@ -145,6 +170,8 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     purses: purses.error ? [] : purses.data,
     activity: log.error ? [] : log.data,
     sheets: sheets.error ? [] : sheets.data,
+    containers: shelf,
+    containerItems: held.error ? [] : held.data,
     seat,
     error: null,
   };

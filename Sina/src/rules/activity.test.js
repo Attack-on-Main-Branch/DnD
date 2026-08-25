@@ -40,6 +40,9 @@ describe("the catalogue", () => {
       "coin_granted",
       "coin_revoked",
       "spell_cast",
+      "chest_revealed",
+      "chest_looted",
+      "bag_transferred",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -414,6 +417,101 @@ describe("readActivity, on a row that does not hold together", () => {
     const entry = readActivity(row({ actor_name: "x".repeat(400) }));
 
     assert.equal(entry.actor.length, MAX_ACTOR_NAME_LENGTH);
+  });
+});
+
+describe("readActivity, containers", () => {
+  const revealed = (payload) =>
+    row({
+      actor_type: "dm",
+      actor_name: "Dungeon Master",
+      action_type: "chest_revealed",
+      payload,
+    });
+
+  const looted = (payload) => row({ action_type: "chest_looted", payload });
+  const handed = (payload) => row({ action_type: "bag_transferred", payload });
+
+  it("reads a chest shown to one character, who is named", () => {
+    const entry = revealed({
+      containerName: "Sunken Iron Chest",
+      shown: 1,
+      targetName: "Frieren",
+    });
+
+    assert.deepEqual(readActivity(entry), {
+      id: ROW.id,
+      action: "chest_revealed",
+      actor: "Dungeon Master",
+      container: "Sunken Iron Chest",
+      shown: 1,
+      target: "Frieren",
+    });
+  });
+
+  it("reads one shown to several, where there is no one name to say", () => {
+    const entry = readActivity(
+      revealed({ containerName: "Crypt Chest", shown: 3 }),
+    );
+
+    assert.equal(entry.shown, 3);
+    assert.equal(entry.target, null);
+  });
+
+  it("refuses a reveal that reached nobody", () => {
+    assert.equal(
+      readActivity(revealed({ containerName: "Chest", shown: 0 })),
+      null,
+    );
+    assert.equal(readActivity(revealed({ shown: 1 })), null);
+  });
+
+  it("reads a stack taken out of a chest, which names nobody", () => {
+    const entry = readActivity(
+      looted({ containerName: "Crypt Chest", itemName: "Rope", quantity: 2 }),
+    );
+
+    assert.equal(entry.container, "Crypt Chest");
+    assert.equal(entry.item, "Rope");
+    assert.equal(entry.quantity, 2);
+    assert.equal(entry.target, undefined);
+  });
+
+  it("refuses a loot line with no chest, no item, or no amount", () => {
+    assert.equal(readActivity(looted({ itemName: "Rope", quantity: 2 })), null);
+    assert.equal(
+      readActivity(looted({ containerName: "Chest", quantity: 2 })),
+      null,
+    );
+    assert.equal(
+      readActivity(
+        looted({ containerName: "Chest", itemName: "Rope", quantity: 0 }),
+      ),
+      null,
+    );
+  });
+
+  it("reads a bag handed over, which must name its receiver", () => {
+    const entry = readActivity(
+      handed({ containerName: "Bag of Holding", targetName: "Fern" }),
+    );
+
+    assert.equal(entry.container, "Bag of Holding");
+    assert.equal(entry.target, "Fern");
+
+    // A bag put back on the table names nobody and is never written down.
+    assert.equal(
+      readActivity(handed({ containerName: "Bag of Holding" })),
+      null,
+    );
+  });
+
+  it("holds a container name to its own shorter bound", () => {
+    const entry = readActivity(
+      handed({ containerName: "b".repeat(400), targetName: "Fern" }),
+    );
+
+    assert.equal(entry.container.length, 60);
   });
 });
 

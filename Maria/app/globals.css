@@ -877,6 +877,52 @@ body {
   }
 
   /*
+   * The same mechanism with its AXIS TURNED, for a panel that opens sideways out
+   * of a mark beside the board. The column runs 0fr to 1fr, so the panel is
+   * revealed from its left edge outward.
+   *
+   * The clip is `.tab-clip` mirrored: the block axis gets 4rem for the glow, the
+   * inline axis is held at the box edge because that is the one collapsing. The
+   * arrow therefore hangs outside this, as the marks' own arrow does.
+   *
+   * The panel carries its own width: a track at `0fr` has no space to hand out.
+   */
+  .tray-shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    transition: grid-template-columns 420ms var(--ease-tray);
+  }
+
+  .tray-shell[data-state="collapsed"] {
+    grid-template-columns: 0fr;
+  }
+
+  .tray-clip {
+    min-width: 0;
+    overflow: clip;
+    overflow-clip-margin: 4rem;
+    clip-path: inset(-4rem 0);
+  }
+
+  .tray-panel {
+    transition:
+      opacity 260ms var(--ease-tray),
+      visibility 0s;
+  }
+
+  .tray-shell[data-state="collapsed"] .tray-panel {
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 260ms var(--ease-tray),
+      visibility 0s 420ms;
+  }
+
+  .tray-shell[data-state="collapsed"] * {
+    animation-play-state: paused;
+  }
+
+  /*
    * The board's rim, at rest and while a die is on it.
    *
    * A component class and not `border` plus `transition-*` utilities: those sit
@@ -1056,6 +1102,14 @@ body {
   }
 }
 
+/* The same arrival for a panel that opens sideways, from the mark's side. */
+@keyframes tray-panel-in {
+  from {
+    opacity: 0;
+    translate: -8px 0;
+  }
+}
+
 /* The dashboard's headings, drifting up beside the tiles. A longer reach than
    `rise`, and no duration of its own: each section sets one from its own tile
    stagger, so the text settles as the last tile lands. */
@@ -1176,6 +1230,16 @@ body {
   from {
     opacity: 0;
     translate: -5rem 0;
+  }
+}
+
+/* The same rail mirrored, for the containers on the map's other side. Two
+   keyframes rather than a property: a class built from a template is one
+   Tailwind's scanner never sees. */
+@keyframes rail-out-mirrored {
+  from {
+    opacity: 0;
+    translate: 5rem 0;
   }
 }
 

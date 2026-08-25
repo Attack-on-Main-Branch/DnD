@@ -72,6 +72,62 @@ export function Confirm({ question, children }) {
  * and that this one is the caller's to give from, so a receiver's id arriving
  * from here decides nothing.
  */
+/**
+ * Where a stack is going INSIDE one coat: the pack, or one of its bags.
+ * `PartyChoice`'s twin, separate because that one names PEOPLE and carries a
+ * face for each, and a pocket has none.
+ *
+ * Not a permission: `move_inventory_item` re-checks every bag named.
+ */
+export function StowChoice({
+  places,
+  chosen,
+  onChoose,
+  onCancel,
+  onConfirm,
+  confirmLabel,
+  disabled,
+  children,
+}) {
+  return (
+    <div className="mt-2.5 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2">
+      <ul className="flex flex-col gap-1">
+        {places.map((place) => (
+          <li key={place.id ?? "pack"}>
+            <button
+              type="button"
+              onClick={() => onChoose(place.id)}
+              aria-pressed={chosen === place.id}
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-300 ${
+                chosen === place.id
+                  ? "bg-gold/15 text-gold"
+                  : "text-ink/70 hover:bg-gold/10 hover:text-gold"
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate">{place.name}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <Action onClick={onCancel} label="Leave it where it is">
+          Cancel
+        </Action>
+
+        <Action
+          onClick={onConfirm}
+          disabled={disabled || chosen === undefined}
+          tone="gold"
+          label={confirmLabel}
+        >
+          {children}
+        </Action>
+      </div>
+    </div>
+  );
+}
+
 export function PartyChoice({
   party,
   receiver,

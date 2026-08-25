@@ -35,6 +35,9 @@ export const ACTION_TYPES = [
   "coin_granted",
   "coin_revoked",
   "spell_cast",
+  "chest_revealed",
+  "chest_looted",
+  "bag_transferred",
 ];
 
 /** Mirrors the `actor_type` CHECK. */
@@ -77,10 +80,20 @@ const ADDRESSED = new Set([
   "coin_revoked",
 ]);
 
+/** Mirrors MAX_CONTAINER_NAME_LENGTH in ./containers.js. */
+const MAX_CONTAINER_NAME = 60;
+
 function text(value) {
   const trimmed = String(value ?? "").trim();
 
   return trimmed ? trimmed.slice(0, MAX_ACTOR_NAME_LENGTH) : null;
+}
+
+/** A container's name, which is bounded shorter than an actor's. */
+function name(value) {
+  const trimmed = String(value ?? "").trim();
+
+  return trimmed ? trimmed.slice(0, MAX_CONTAINER_NAME) : null;
 }
 
 function whole(value) {
@@ -210,6 +223,37 @@ export function readActivity(row) {
           save: text(payload.spellSave),
         }
       : null;
+  }
+
+  /* The three a container can be the subject of. The name comes off the ROW,
+     exactly as `targetName` does. */
+  if (action === "chest_revealed") {
+    const container = name(payload.containerName);
+    const shown = whole(payload.shown);
+
+    // `target` only when there is ONE name to say; two of five is a number.
+    return container && shown !== null && shown >= 1
+      ? { ...entry, container, shown, target: text(payload.targetName) }
+      : null;
+  }
+
+  if (action === "chest_looted") {
+    const container = name(payload.containerName);
+    const item = text(payload.itemName);
+    const quantity = whole(payload.quantity);
+
+    // Nobody at the other end: it came from the world.
+    return container && item && quantity !== null && quantity >= 1
+      ? { ...entry, container, item, quantity }
+      : null;
+  }
+
+  if (action === "bag_transferred") {
+    const container = name(payload.containerName);
+    const target = text(payload.targetName);
+
+    // A row without a second name is a row from an older shape.
+    return container && target ? { ...entry, container, target } : null;
   }
 
   if (!ITEM_ACTIONS.has(action)) {

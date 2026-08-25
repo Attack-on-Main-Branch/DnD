@@ -60,7 +60,14 @@ export default function DmPackDrawer({
   const selected = members.find((member) => member.id === target) ?? null;
   const targets = selected ? [selected.id] : members.map((member) => member.id);
 
-  const pack = selected ? (packs.get(selected.id) ?? []) : [];
+  /* The pack ITSELF, and not the bags hanging off it. A stack is keyed on
+     `(character, slug, container)` since 20260831090000, so a character can
+     hold rope in two places and a list mixing them would show two rows of one
+     name with no way to tell which a press meant. What is in a bag is worked
+     from the chest drawer beside the board, where the bag is named. */
+  const pack = selected
+    ? (packs.get(selected.id) ?? []).filter((row) => !row.container_id)
+    : [];
 
   /* An empty purse for a character `campaign_purses` returned no row for. Null
      for "all party": there is no one balance to hold up as a placeholder. */

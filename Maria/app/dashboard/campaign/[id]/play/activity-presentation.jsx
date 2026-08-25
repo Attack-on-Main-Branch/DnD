@@ -55,6 +55,15 @@ const ACCENTS = {
 
   /* The arcane violet the kept roll wears, held back a step. */
   spell_cast: "border-l-arcane/70",
+
+  /* Teal because nothing else in this panel is: a chest APPEARS, and the line
+     has to be findable without being read. Light for it arriving in front of
+     the party, dark for it leaving the chest. */
+  chest_revealed: "border-l-teal-300",
+  chest_looted: "border-l-teal-600",
+
+  /* One step darker than an item's: what moved is the whole bag. */
+  bag_transferred: "border-l-sky-600",
 };
 
 /**
@@ -96,6 +105,11 @@ const COIN_PHRASES = {
   coin_granted: { verb: "granted", into: "to" },
   coin_revoked: { verb: "took", into: "from" },
 };
+
+/** The container in a sentence, which is a name rather than a thing counted. */
+function Container({ name }) {
+  return <span className={EMPHASIS_CLASSES}>{name}</span>;
+}
 
 /** A name other than the actor's: the same secondary gold the actor wears. */
 const NAME_CLASSES = "font-display font-semibold tracking-wide text-gold/70";
@@ -250,6 +264,44 @@ function Body({ entry }) {
         cast <span className={EMPHASIS_CLASSES}>{entry.spell}</span>
         {entry.level > 0 && <> at {spellLevelLabel(entry.level)}</>}
         <Effect damage={entry.damage} save={entry.save} />
+      </>
+    );
+  }
+
+  /* Named where one character was shown it, counted where several were:
+     `reveal_chest` writes a `targetName` only when there is one name to say. */
+  if (entry.action === "chest_revealed") {
+    return (
+      <>
+        revealed <Container name={entry.container} />
+        {entry.target ? (
+          <>
+            {" to "}
+            <span className={NAME_CLASSES}>{entry.target}</span>
+          </>
+        ) : (
+          <> to {entry.shown} of the party</>
+        )}
+      </>
+    );
+  }
+
+  /* No second half: it came from the world, not from anybody at the table. */
+  if (entry.action === "chest_looted") {
+    return (
+      <>
+        took <Stack quantity={entry.quantity} item={entry.item} /> from{" "}
+        <Container name={entry.container} />
+      </>
+    );
+  }
+
+  /* All second half: the bag moved whole, and who has it now is the rest. */
+  if (entry.action === "bag_transferred") {
+    return (
+      <>
+        handed over <Container name={entry.container} /> to{" "}
+        <span className={NAME_CLASSES}>{entry.target}</span>
       </>
     );
   }

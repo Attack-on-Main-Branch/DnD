@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
+import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
 
@@ -82,6 +83,20 @@ function regroup(grouped, ids, rows) {
 }
 
 /**
+ * What is in each container NOBODY is carrying. A carried bag has no rows here:
+ * its contents are that character's pack rows under the bag's id.
+ */
+function byContainer(rows) {
+  const grouped = {};
+
+  for (const row of rows ?? []) {
+    (grouped[row.container_id] ??= []).push(row);
+  }
+
+  return grouped;
+}
+
+/**
  * Where every token stands, by the seat that owns it. A Map, because `null` is a
  * real key here — the head of the table's own chair.
  */
@@ -103,6 +118,8 @@ function readSeed({
   spells,
   purses,
   casters,
+  containers,
+  containerItems,
 }) {
   const levels = {};
   const health = {};
@@ -131,6 +148,9 @@ function readSeed({
     books: byCharacter(members, spells),
     purses: wallets,
     slots,
+    /* Read through the rules layer: two shapes live in one table. */
+    containers: readContainers(containers),
+    chests: byContainer(containerItems),
   };
 }
 
@@ -399,15 +419,23 @@ function createTableStore(seed) {
      * A stack going up or down in one pack. `item` is what the drawer has on
      * screen, so a grant of something nobody was carrying draws a row for it
      * with an ephemeral id — the real one is generated in the database.
+     *
+     * `containerId` is WHICH BAG of theirs, null being the pack. It is part of
+     * the key: a stack is `(character, slug, container)`, so matching on the
+     * slug alone would spend the wrong rope.
      */
-    movePack(characterId, item, delta) {
+    movePack(characterId, item, delta, containerId = null) {
       const pack = state.packs[characterId];
 
       if (!pack || !delta) {
         return;
       }
 
-      const held = pack.find((row) => row.item_slug === item.slug);
+      const here = (row) =>
+        row.item_slug === item.slug &&
+        (row.container_id ?? null) === containerId;
+
+      const held = pack.find(here);
 
       if (!held) {
         if (delta < 0) {
@@ -419,6 +447,7 @@ function createTableStore(seed) {
           {
             id: `pending:${++drawn}`,
             character_id: characterId,
+            container_id: containerId,
             item_slug: item.slug,
             name: item.name,
             category: item.category ?? "Equipment",
@@ -442,11 +471,142 @@ function createTableStore(seed) {
         "packs",
         characterId,
         quantity === 0
-          ? pack.filter((row) => row.item_slug !== item.slug)
-          : pack.map((row) =>
+          ? pack.filter((row) => !here(row))
+          : pack.map((row) => (here(row) ? { ...row, quantity } : row)),
+      );
+    },
+
+    /* ---------------------------------------------------------------------
+     * Containers.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * A chest opened to the table, or shut again. The audience is kept when it
+     * is shut, as `hide_chest` keeps it.
+     */
+    showContainer(containerId, visibleTo) {
+      const shelf = state.containers;
+
+      if (!shelf.some((one) => one.id === containerId)) {
+        return;
+      }
+
+      commit({
+        ...state,
+        containers: shelf.map((one) =>
+          one.id === containerId
+            ? {
+                ...one,
+                isRevealed: Boolean(visibleTo),
+                visibleTo: visibleTo ?? one.visibleTo,
+              }
+            : one,
+        ),
+      });
+    },
+
+    /** `movePack` for a chest, ephemeral id and all. */
+    moveChest(containerId, item, delta) {
+      if (!delta) {
+        return;
+      }
+
+      const rows = state.chests[containerId] ?? [];
+      const held = rows.find((row) => row.item_slug === item.slug);
+
+      if (!held) {
+        if (delta < 0) {
+          return;
+        }
+
+        amend("chests", containerId, [
+          ...rows,
+          {
+            id: `pending:${++drawn}`,
+            container_id: containerId,
+            item_slug: item.slug,
+            name: item.name,
+            category: item.category ?? "Equipment",
+            description: item.description ?? "",
+            quantity: Math.min(MAX_ITEM_QUANTITY, delta),
+            is_custom: Boolean(item.isCustom),
+            facts: item.facts ?? {},
+            created_at: null,
+          },
+        ]);
+
+        return;
+      }
+
+      const quantity = Math.min(
+        MAX_ITEM_QUANTITY,
+        Math.max(0, held.quantity + delta),
+      );
+
+      amend(
+        "chests",
+        containerId,
+        quantity === 0
+          ? rows.filter((row) => row.item_slug !== item.slug)
+          : rows.map((row) =>
               row.item_slug === item.slug ? { ...row, quantity } : row,
             ),
       );
+    },
+
+    /**
+     * A whole bag changing hands: the card says who carries it and the pack
+     * drawer draws what is inside it, so a frame in which those disagree shows
+     * a bag in one player's hands whose contents are still in another's.
+     *
+     * The rows come from both homes at once — the old owner's pack, and
+     * `container_items` for a bag nobody had picked up yet — because
+     * `transfer_container` drains both. The two shapes are the same columns.
+     */
+    passContainer(containerId, from, to) {
+      const shelf = state.containers;
+
+      if (!to || from === to || !shelf.some((one) => one.id === containerId)) {
+        return;
+      }
+
+      const packs = { ...state.packs };
+      const chests = { ...state.chests };
+
+      const moving = [
+        ...(packs[from] ?? []).filter(
+          (row) => row.container_id === containerId,
+        ),
+        ...(chests[containerId] ?? []),
+      ];
+
+      if (from && from in packs) {
+        packs[from] = packs[from].filter(
+          (row) => row.container_id !== containerId,
+        );
+      }
+
+      if (to in packs) {
+        packs[to] = [
+          ...packs[to],
+          ...moving.map((row) => ({
+            ...row,
+            character_id: to,
+            container_id: containerId,
+          })),
+        ];
+      }
+
+      chests[containerId] = [];
+
+      commit({
+        ...state,
+        packs,
+        chests,
+        containers: shelf.map((one) =>
+          one.id === containerId ? { ...one, ownerCharacterId: to } : one,
+        ),
+      });
     },
 
     /* ---------------------------------------------------------------------
@@ -596,6 +756,15 @@ function createTableStore(seed) {
         next = { ...next, purses };
       }
 
+      // The whole shelf: a row list is also how an absence arrives.
+      if (slices.containers) {
+        next = { ...next, containers: readContainers(slices.containers) };
+      }
+
+      if (slices.containerItems) {
+        next = { ...next, chests: byContainer(slices.containerItems) };
+      }
+
       if (slices.sheets) {
         const slots = { ...next.slots };
 
@@ -726,6 +895,16 @@ export function useAllSlots() {
   return useTableValue(selectSlots);
 }
 
+/** Every bag and chest this viewer was handed. RLS has already narrowed it. */
+export function useContainers() {
+  return useTableValue(selectContainers);
+}
+
+/** And what is in the ones nobody is carrying, by container. */
+export function useChestItems() {
+  return useTableValue(selectChests);
+}
+
 const selectActivity = (state) => state.log.shown;
 const selectMarks = (state) => state.marks;
 const selectLevels = (state) => state.levels;
@@ -733,3 +912,5 @@ const selectPacks = (state) => state.packs;
 const selectPurses = (state) => state.purses;
 const selectBooks = (state) => state.books;
 const selectSlots = (state) => state.slots;
+const selectContainers = (state) => state.containers;
+const selectChests = (state) => state.chests;
