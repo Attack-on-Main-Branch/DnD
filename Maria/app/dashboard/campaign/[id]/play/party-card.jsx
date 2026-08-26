@@ -12,10 +12,13 @@ import {
 import CardHealth from "./card-health";
 import DiceCapsule from "./dice-capsule";
 import { CARD_CLASSES, cardEntrance } from "./entrance";
+import InspirationPips from "./inspiration-pips";
 import LevelRing from "./level-ring";
 
 /**
- * One chair on the rail: a face, a name, the ring, and the bar under it.
+ * One chair on the rail: a face, a name, the ring, and the bar under it — with
+ * the marks of inspiration standing OUTSIDE its left edge, in the gutter the
+ * dice capsule comes out into.
  *
  * ITS OWN FILE AND MEMOISED, because it subscribes to NOTHING: the level is read
  * inside the ring and the hit points inside the bar, so a member's numbers
@@ -33,11 +36,11 @@ function PartyCard({
   count,
   here,
   showsHealth,
+  showsInspiration,
   canEdit,
-  canAward,
+  isDungeonMaster,
   seatCharacterId,
   actorName,
-  onAwarded,
 }) {
   return (
     <li
@@ -55,6 +58,19 @@ function PartyCard({
     >
       {/* Out of flow, so it answers to the card rather than to a row inside. */}
       <DiceCapsule characterId={member.id} />
+
+      {/* Three marks in the gutter beside the card — see inspiration-pips.jsx.
+          A roll's pill comes out into the same strip and passes over them, which
+          is what the layers say. */}
+      {showsInspiration && (
+        <InspirationPips
+          campaignId={campaignId}
+          characterId={member.id}
+          name={member.name}
+          head={isDungeonMaster}
+          own={member.id === seatCharacterId}
+        />
+      )}
 
       <div className="flex items-center gap-3">
         <Avatar
@@ -75,18 +91,9 @@ function PartyCard({
           </p>
         </div>
 
-        {/* Carries the card's whole accessible line, the rim included: the
-          number is the one the table is looking at, whether it came from a
-          press here or from a chair on the other side of the room. */}
-        <LevelRing
-          campaignId={campaignId}
-          characterId={member.id}
-          name={member.name}
-          actorName={actorName}
-          canAward={canAward}
-          atTable={here}
-          onAwarded={onAwarded}
-        />
+        {/* The number the table is looking at, whether it came from an award
+          here or from a chair on the other side of the room. */}
+        <LevelRing characterId={member.id} atTable={here} />
       </div>
 
       {showsHealth && (

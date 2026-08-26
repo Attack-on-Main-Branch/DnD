@@ -13,7 +13,9 @@ import {
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
+import { parseInspiration, steppedInspiration } from "sina/rules/inspiration";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
+import { steppedXp } from "sina/rules/xp";
 
 /**
  * Everything at this table that a press can move, held in the browser.
@@ -122,12 +124,18 @@ function readSeed({
   containerItems,
 }) {
   const levels = {};
+  const experience = {};
+  const inspired = {};
   const health = {};
   const wallets = {};
   const slots = {};
 
   for (const member of members) {
     levels[member.id] = member.level;
+    experience[member.id] = member.xp ?? 0;
+    /* Null where this viewer may not read them — `campaign_party` answers with
+       one for anybody but their own, so the card draws no pips at all. */
+    inspired[member.id] = parseInspiration(member.inspiration);
     health[member.id] = { current: member.current_hp, max: member.max_hp };
   }
 
@@ -141,6 +149,8 @@ function readSeed({
 
   return {
     levels,
+    xp: experience,
+    inspiration: inspired,
     health,
     log: readLog(activity ?? [], new Map(), new Set()),
     marks: readMarks(marks),
@@ -292,6 +302,27 @@ function createTableStore(seed) {
       return true;
     },
 
+    /**
+     * THE FRAME AND THE BAR TOGETHER, which is what a level moving does to them:
+     * laid down one at a time, the bar would draw past its own track for a frame.
+     */
+    setFrame(characterId, maxHp, hitPoints) {
+      const bar = state.health[characterId];
+
+      if (!bar || maxHp === null || hitPoints === null) {
+        return;
+      }
+
+      if (bar.max === maxHp && bar.current === hitPoints) {
+        return;
+      }
+
+      amend("health", characterId, {
+        max: maxHp,
+        current: Math.min(maxHp, Math.max(0, hitPoints)),
+      });
+    },
+
     /** A number heard from another chair, clamped by this character's ceiling. */
     setHealth(characterId, hitPoints) {
       const bar = state.health[characterId];
@@ -316,6 +347,165 @@ function createTableStore(seed) {
       }
 
       amend("levels", characterId, level);
+    },
+
+    /* ---------------------------------------------------------------------
+     * Experience.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * A CHANGE, and the rung it may carry them to. `steppedXp` is the arithmetic
+     * `xp_after` mirrors, so the bar filling and the ring turning over are one
+     * press rather than a press and a round trip.
+     */
+    moveXp(characterId, delta) {
+      const held = state.xp[characterId];
+      const level = state.levels[characterId];
+
+      if (held === undefined || level === undefined || !delta) {
+        return null;
+      }
+
+      const landed = steppedXp(level, held, delta);
+
+      if (!landed || (landed.xp === held && landed.level === level)) {
+        return null;
+      }
+
+      commit({
+        ...state,
+        xp: { ...state.xp, [characterId]: landed.xp },
+        levels: { ...state.levels, [characterId]: landed.level },
+      });
+
+      return landed;
+    },
+
+    /**
+     * Where the database settled, laid over what a press painted — and only
+     * while that is still what the bar reads. `false` is "somebody has moved
+     * on", and the caller uses it to hold its tongue on the wire.
+     */
+    reconcileXp(characterId, expected, actual) {
+      if (
+        state.xp[characterId] !== expected.xp ||
+        state.levels[characterId] !== expected.level
+      ) {
+        return false;
+      }
+
+      if (actual.xp !== expected.xp || actual.level !== expected.level) {
+        commit({
+          ...state,
+          xp: { ...state.xp, [characterId]: actual.xp },
+          levels: { ...state.levels, [characterId]: actual.level },
+        });
+      }
+
+      return true;
+    },
+
+    /** A figure heard from another chair, for a card this browser already has. */
+    setXp(characterId, xp, level) {
+      if (!(characterId in state.xp) || xp === null || level === null) {
+        return;
+      }
+
+      if (state.xp[characterId] === xp && state.levels[characterId] === level) {
+        return;
+      }
+
+      commit({
+        ...state,
+        xp: { ...state.xp, [characterId]: xp },
+        levels: { ...state.levels, [characterId]: level },
+      });
+    },
+
+    /* ---------------------------------------------------------------------
+     * Inspiration.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * One mark, given or spent. Null is a press that moved nothing — an end
+     * already reached, or a card this viewer has no figure for.
+     */
+    moveInspiration(characterId, delta) {
+      const held = state.inspiration[characterId];
+      const next = steppedInspiration(held, delta);
+
+      if (next === null) {
+        return null;
+      }
+
+      amend("inspiration", characterId, next);
+
+      return next;
+    },
+
+    /** Where the database settled, laid over what a press painted. */
+    reconcileInspiration(characterId, expected, actual) {
+      if (state.inspiration[characterId] !== expected) {
+        return false;
+      }
+
+      if (actual !== expected) {
+        amend("inspiration", characterId, actual);
+      }
+
+      return true;
+    },
+
+    /**
+     * Only for a card this browser already HAS a figure for: a mark arriving for
+     * somebody whose row came back null is one this viewer may not read.
+     */
+    setInspiration(characterId, marked) {
+      if (
+        state.inspiration[characterId] === undefined ||
+        state.inspiration[characterId] === null ||
+        marked === null ||
+        marked === state.inspiration[characterId]
+      ) {
+        return;
+      }
+
+      amend("inspiration", characterId, marked);
+    },
+
+    /* ---------------------------------------------------------------------
+     * Resting.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Everybody who woke. ONE SHAPE for both the press's paint and the server's
+     * answer, so a rest is drawn once and confirmed rather than drawn twice.
+     */
+    rested(rows) {
+      const health = { ...state.health };
+      const slots = { ...state.slots };
+      let moved = false;
+
+      for (const row of rows ?? []) {
+        const bar = health[row.id];
+
+        if (bar && typeof row.currentHp === "number") {
+          health[row.id] = {
+            ...bar,
+            current: Math.min(bar.max, Math.max(0, row.currentHp)),
+          };
+          moved = true;
+        }
+
+        if (row.id in slots && row.spellSlots) {
+          slots[row.id] = row.spellSlots;
+          moved = true;
+        }
+      }
+
+      if (moved) {
+        commit({ ...state, health, slots });
+      }
     },
 
     /* ---------------------------------------------------------------------
@@ -716,11 +906,15 @@ function createTableStore(seed) {
 
       if (slices.party) {
         const levels = { ...next.levels };
+        const experience = { ...next.xp };
+        const marked = { ...next.inspiration };
         const health = { ...next.health };
 
         for (const member of slices.party) {
           if (member.id in levels) {
             levels[member.id] = member.level;
+            experience[member.id] = member.xp ?? 0;
+            marked[member.id] = parseInspiration(member.inspiration);
             health[member.id] = {
               current: member.current_hp,
               max: member.max_hp,
@@ -728,7 +922,7 @@ function createTableStore(seed) {
           }
         }
 
-        next = { ...next, levels, health };
+        next = { ...next, levels, xp: experience, inspiration: marked, health };
       }
 
       // Scoped to the characters the answer speaks for: a row list cannot carry
@@ -855,6 +1049,22 @@ export function useMaxHitPoints(characterId) {
 export function useCharacterLevel(characterId) {
   return useTableValue(
     useCallback((state) => state.levels[characterId] ?? 1, [characterId]),
+  );
+}
+
+export function useCharacterXp(characterId) {
+  return useTableValue(
+    useCallback((state) => state.xp[characterId] ?? 0, [characterId]),
+  );
+}
+
+/** Null for a card whose marks this viewer may not read. */
+export function useCharacterInspiration(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => state.inspiration[characterId] ?? null,
+      [characterId],
+    ),
   );
 }
 

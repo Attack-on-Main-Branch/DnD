@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { useMapZoom } from "../use-map-zoom";
 
@@ -24,13 +24,13 @@ import { useTableMarks } from "./use-table-marks";
  * `naturalWidth` is a property of the file rather than of the box it is drawn
  * in, so it is the same pair of numbers in every chair. See dice-engine.js.
  *
- * Its parent, map-stage.jsx, is a Server Component, so nothing above this can
- * re-render without the route re-rendering — which is exactly when the picture
- * should be drawn again. `memo` at the foot keeps that true if the tree above
- * ever becomes client. Below it, a token moving re-renders this and the marks
- * and nothing else.
+ * NOT `memo`, and that is load-bearing here and in dice-board.jsx and
+ * activity-log.jsx: a memoised client component rendered by a SERVER one is a
+ * different element type on every RSC payload, so React remounts it on each
+ * `router.refresh()`. It bought nothing either way — `faces` and `seat` are
+ * built fresh in page.jsx, so the shallow compare never once held.
  */
-function TableMap({
+export default function TableMap({
   url,
   title,
   campaignId,
@@ -141,5 +141,3 @@ function TableMap({
     </>
   );
 }
-
-export default memo(TableMap);

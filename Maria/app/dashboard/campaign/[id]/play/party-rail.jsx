@@ -3,13 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useTransition } from "react";
 import { parseHitPoints } from "sina/rules/health";
+import { parseInspiration } from "sina/rules/inspiration";
 import { parseLevel } from "sina/rules/level";
+import { parseXp } from "sina/rules/xp";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 
 import PartyCard from "./party-card";
 import { useTableStore } from "./table-state";
 import { useTableWire, useWireMessage } from "./table-wire";
+import { useTableDeed } from "./use-table-deed";
 
 /**
  * Who is at the table, stacked down the right rail and cascading in from off
@@ -27,6 +30,10 @@ import { useTableWire, useWireMessage } from "./table-wire";
  * session is a real `router.refresh()`; a hit point is held in table-state.jsx
  * and re-renders the one control that shows it.
  *
+ * IT ALSO ANSWERS FOR THE SESSION PANEL, which only the head of the table opens:
+ * a player's experience has to move on their screen too, and this rail is the
+ * one piece every seat mounts.
+ *
  * The wire is the only way these travel between chairs. `characters` is not a
  * table another player may read a row of — that is what `campaign_party` exists
  * to stand in for — so the subscription below could not carry a hit point.
@@ -42,6 +49,7 @@ export default function PartyRail({
   const [, startTransition] = useTransition();
   const store = useTableStore();
   const { seated } = useTableWire();
+  const { resync } = useTableDeed(campaignId);
 
   /* The whole route, and only for the two things that actually change it. */
   const refresh = useCallback(() => {
@@ -92,6 +100,52 @@ export default function PartyRail({
     refresh();
   });
 
+  /* Experience, and the rung it may have carried them to. Same rails: both
+     numbers go through the rules that bound the sender's own write, and the id
+     only ever picks out a card this rail already has from the server. A level
+     that MOVED refreshes for the reason above, whichever way it went. */
+  useWireMessage("xp", (message) => {
+    const level = parseLevel(message.level);
+    const xp = parseXp(message.xp);
+
+    if (level === null || xp === null) {
+      return;
+    }
+
+    const moved = level !== store.read().levels[message.characterId];
+
+    store.setXp(message.characterId, xp, level);
+
+    /* A rung that moved took the frame with it: `characters_sync_max_hp`
+       recomputed the maximum and carried the bar across. Both figures came off
+       the server's own party list before this was sent. */
+    store.setFrame(
+      message.characterId,
+      parseHitPoints(message.maxHp),
+      parseHitPoints(message.hitPoints),
+    );
+
+    if (moved) {
+      refresh();
+    }
+  });
+
+  /* One mark. `setInspiration` writes to no card this rail was not seeded a
+     figure for, so a player cannot be told somebody else's. */
+  useWireMessage("inspiration", (message) => {
+    store.setInspiration(
+      message.characterId,
+      parseInspiration(message.inspiration),
+    );
+  });
+
+  /* A DOORBELL AND NOT A NUMBER. A rest moves a bar and as many as nine pips
+     across up to six characters, and none of that has been through a `select()`
+     list — so the other chairs are told that it happened and go and read it. */
+  useWireMessage("rest", () => {
+    resync({ party: true, sheets: true, seatCharacterId });
+  });
+
   if (members.length === 0) {
     return (
       <div className="w-full">
@@ -117,14 +171,15 @@ export default function PartyRail({
             // their own alone.
             showsHealth={isDungeonMaster || member.id === seatCharacterId}
             canEdit={isDungeonMaster || member.id === seatCharacterId}
-            // The seat, not the deed, decides who may award a level.
-            canAward={isDungeonMaster}
+            // The seat, not the deed — see inspiration-pips.jsx for why the
+            // database cannot draw this line on its own.
+            showsInspiration={isDungeonMaster || member.id === seatCharacterId}
+            isDungeonMaster={isDungeonMaster}
             seatCharacterId={seatCharacterId}
             // Only ever read back to the person who pressed, on the line the
             // panel shows while the write is out. The name the log KEEPS is
             // derived in the database from the row.
             actorName={seatTitle}
-            onAwarded={refresh}
           />
         ))}
       </ul>

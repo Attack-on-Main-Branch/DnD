@@ -16,6 +16,27 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.15.0",
+    date: "2026-08-26",
+    title: "What a session costs",
+    changes: [
+      "A cog under the chest beside the map, and it is the Dungeon Master’s: rests and experience for the party, or for any few of it, chosen from the same dropdown the chest uses.",
+      "Short and long rest. A long one fills every bar and every spell slot; a short one returns Pact Magic. Hover either to be told which.",
+      "Experience, given and taken back. The bar fills, and the level moves on its own when it crosses — up when it fills, and back down if the experience is taken away again.",
+      "Levels are no longer nudged by hand. The arrows have gone from the party cards; experience is the only thing that moves a level now.",
+      "Max HP is worked out rather than typed. Your hit die, your level and your Constitution decide it, and the box on the character sheet is now a read-out that answers as you pick a class or move the score. Raise Constitution at eighth level and all eight levels are paid for.",
+      "Three marks of inspiration beside every party card. Players spend their own and cannot hand one back; the Dungeon Master gives and takes, and sees the whole party’s.",
+      "Roll a handful. A box above the dice says how many go at once — up to twenty — and drops back to one after every throw.",
+      "Casting a spell no longer throws dice for you. The log carries what it deals; you roll it on the rail, where the table can watch.",
+      "The chest and the session share one panel. Press either mark and it changes shape rather than closing and opening again.",
+      "Party pills carry the face at the capsule’s left end, which fits a party of six on one line. Spinner arrows are gone from every number box.",
+    ],
+    fixes: [
+      "The table no longer flashes as though the page had reloaded. Anything that quietly re-read itself — somebody joining, a level moving, or just coming back to the tab — faded the whole board out and back, map and log with it.",
+      "Dice are visible again after that. The board they land on was being rebuilt underneath the roller, which went on rolling where nobody could see it — only the number arrived, and it stayed that way until the page was reloaded.",
+    ],
+  },
+  {
     version: "0.14.0",
     date: "2026-08-25",
     title: "Something to keep it in",

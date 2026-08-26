@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isDie, readDieResult } from "sina/rules/dice";
+import { isDie, parseDiceCount, readDiceResult } from "sina/rules/dice";
 
 import { realtime } from "@/app/components/realtime";
 
 /**
  * Everybody's dice, on one socket.
  *
- * What travels is the ROLL and not a picture of it: the die, and the seed its
- * physics is thrown by. Every chair runs that throw itself and reads its own
+ * What travels is the ROLL and not a picture of it: the die, how many of it,
+ * and the seed its physics is thrown by. Every chair runs that throw itself and reads its own
  * number off its own board — see dice-engine.js for what makes the two the same
  * throw. A number is sent at the end all the same, for the chair that could not
  * throw at all; such a chair sends no seed when it rolls either.
@@ -19,8 +19,9 @@ import { realtime } from "@/app/components/realtime";
  * STANDS is announced too, so the boards change colour before the roll.
  *
  * Nothing off the wire is trusted beyond its shape: the die is checked against
- * the catalogue and any face against that die, and the roller's key only ever
- * matches a card the rail already has from the server. Who may speak at all is
+ * the catalogue, the count against the rail's own ceiling and any total against
+ * the two together, and the roller's key only ever matches a card the rail
+ * already has from the server. Who may speak at all is
  * 20260822090000_table_rolls.sql's to decide.
  */
 
@@ -91,9 +92,9 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
    * roll names none, and nobody but the roller is told what is on the way.
    */
   const begin = useCallback(
-    (key, secret, die) => {
+    (key, secret, die, count) => {
       answered.current.delete(key);
-      setFlying((current) => ({ ...current, [key]: { secret, die } }));
+      setFlying((current) => ({ ...current, [key]: { secret, die, count } }));
       after(`flight:${key}`, STRANDED_MS, () =>
         setFlying((current) => without(current, key)),
       );
@@ -182,16 +183,19 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
       // lights on its own.
       const die = isDie(payload.die) ? payload.die : null;
 
+      // A chair a release behind sends no count and is throwing one.
+      const count = parseDiceCount(payload.count ?? 1) ?? 1;
+
       if (payload.phase === "start") {
-        begin(key, Boolean(payload.secret), die);
+        begin(key, Boolean(payload.secret), die, count);
 
         // No seed, no shared throw: whoever rolled could not run one either, so
         // this board waits for the number rather than inventing a roll of its
         // own to put under it.
         if (die && Number.isInteger(payload.seed)) {
-          onMirror(die, payload.seed, (value) => {
+          onMirror(die, count, payload.seed, (value) => {
             if (value !== null) {
-              land(key, { die, value, secret: false });
+              land(key, { die, count, value, secret: false });
             }
           });
         }
@@ -203,7 +207,8 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
         return;
       }
 
-      const value = die === null ? null : readDieResult(die, payload.value);
+      const value =
+        die === null ? null : readDiceResult(die, count, payload.value);
 
       // Already read off this board's own dice, which are the same dice — bar
       // the one case `correct` is about.
@@ -215,7 +220,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
         return;
       }
 
-      land(key, value === null ? null : { die, value, secret: false });
+      land(key, value === null ? null : { die, count, value, secret: false });
     },
     [begin, correct, keeper, land, onMirror],
   );
@@ -265,12 +270,12 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
 
   /** This browser's roll, on its own board and on everybody else's. */
   const start = useCallback(
-    (key, { die, secret, seed }) => {
-      begin(key, secret, die);
+    (key, { die, count, secret, seed }) => {
+      begin(key, secret, die, count);
       share.current?.(
         secret
           ? { phase: "start", key, secret: true }
-          : { phase: "start", key, secret: false, die, seed },
+          : { phase: "start", key, secret: false, die, count, seed },
       );
     },
     [begin],
@@ -288,6 +293,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
               key,
               secret: false,
               die: entry.die,
+              count: entry.count,
               value: entry.value,
             },
       );

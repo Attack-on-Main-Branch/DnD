@@ -7,6 +7,10 @@ import { controlClasses, LABEL_CLASSES } from "./field-styles";
 
 /**
  * Labelled text input, with an optional show/hide toggle for passwords.
+ *
+ * A number field loses its spinners here rather than at each call site: they
+ * cannot be themed — browsers draw them in the OS palette — and nothing in this
+ * app is a figure anybody wants to reach by pressing an arrow forty times.
  */
 export default function TextField({
   label,
@@ -37,7 +41,11 @@ export default function TextField({
           aria-invalid={invalid || undefined}
           className={controlClasses({
             invalid,
-            className: [canReveal ? "pr-11" : "", className]
+            className: [
+              canReveal ? "pr-11" : "",
+              type === "number" ? "no-spin" : "",
+              className,
+            ]
               .filter(Boolean)
               .join(" "),
           })}

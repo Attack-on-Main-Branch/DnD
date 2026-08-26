@@ -27,8 +27,27 @@ export function isDie(id) {
   return BY_ID.has(id);
 }
 
-export function dieSides(id) {
+function dieSides(id) {
   return BY_ID.get(id)?.sides ?? null;
+}
+
+/**
+ * How many of one die a single throw may be. Mirrored in the log's own SQL,
+ * where a total is bounded against it.
+ */
+export const MAX_DICE_COUNT = 20;
+
+/**
+ * How many dice a throw is. CLAMPED at the ceiling rather than refused: the
+ * rail's own field does the same as it is typed into, and the two must agree
+ * about what 40 means. Null for anything that is not a count at all.
+ */
+export function parseDiceCount(value) {
+  const count = Number(value);
+
+  return Number.isInteger(count) && count >= 1
+    ? Math.min(count, MAX_DICE_COUNT)
+    : null;
 }
 
 const DRAW_RANGE = 2 ** 32;
@@ -42,95 +61,57 @@ const DRAW_RANGE = 2 ** 32;
  * that block are drawn again — the loop runs a second time about once in fifty
  * million rolls for a d100, and never at all for d4, d8 or d16-alikes.
  */
-export function rollDie(id) {
-  const sides = dieSides(id);
-
-  if (sides === null) {
-    return null;
-  }
-
+function face(sides) {
   const ceiling = DRAW_RANGE - (DRAW_RANGE % sides);
-  const draw = new Uint32Array(1);
+  const drawn = new Uint32Array(1);
 
   do {
-    crypto.getRandomValues(draw);
-  } while (draw[0] >= ceiling);
+    crypto.getRandomValues(drawn);
+  } while (drawn[0] >= ceiling);
 
-  return (draw[0] % sides) + 1;
+  return (drawn[0] % sides) + 1;
 }
 
 /**
- * A result that came from somewhere other than `rollDie` — the physics
- * simulation reads the face a die settled on — put to the same bounds. Null for
- * anything that is not a face this die has, so a caller can fall back rather
- * than print a d20 showing 34.
+ * A handful of one die, totalled the way a table totals them. Null for a die
+ * this app does not carry or a count that is not one.
  */
-export function readDieResult(id, value) {
+export function rollDice(id, count = 1) {
   const sides = dieSides(id);
-  const face = Number(value);
+  const rolls = parseDiceCount(count);
 
-  if (sides === null || !Number.isInteger(face) || face < 1 || face > sides) {
-    return null;
-  }
-
-  return face;
-}
-
-/** As many dice as a spell throws at once — a Meteor Swarm is 40. */
-const MAX_NOTATION_DICE = 60;
-
-/**
- * Dice notation as a list of throws: "8d6" is one, "2d8 + 4d6" is two. Only what
- * a spell's scaling table writes — a flat bonus is not read here, and a die this
- * app does not carry is one it cannot draw. Null for anything else.
- */
-function readNotation(notation) {
-  const groups = String(notation ?? "").match(/\d+\s*d\s*\d+/gi);
-
-  if (!groups) {
-    return null;
-  }
-
-  const throws = [];
-  let counted = 0;
-
-  for (const group of groups) {
-    const [count, sides] = group.toLowerCase().split("d").map(Number);
-    const die = `d${sides}`;
-
-    if (!isDie(die) || !Number.isInteger(count) || count < 1) {
-      return null;
-    }
-
-    counted += count;
-
-    if (counted > MAX_NOTATION_DICE) {
-      return null;
-    }
-
-    throws.push({ count, die });
-  }
-
-  return throws;
-}
-
-/**
- * Every die in a notation, rolled here rather than by the physics: the answer
- * for a screen that asked for stillness. Null when there is nothing to roll.
- */
-export function rollNotation(notation) {
-  const throws = readNotation(notation);
-
-  if (!throws) {
+  if (sides === null || rolls === null) {
     return null;
   }
 
   let total = 0;
 
-  for (const group of throws) {
-    for (let index = 0; index < group.count; index += 1) {
-      total += rollDie(group.die);
-    }
+  for (let roll = 0; roll < rolls; roll += 1) {
+    total += face(sides);
+  }
+
+  return total;
+}
+
+/**
+ * A total that came from somewhere other than `rollDice` — the physics
+ * simulation reads the faces its dice settled on — put to the same bounds:
+ * every die shows at least one and at most its own face count. Null for
+ * anything else, so a caller can fall back rather than print 3d6 showing 34.
+ */
+export function readDiceResult(id, count, value) {
+  const sides = dieSides(id);
+  const rolls = parseDiceCount(count);
+  const total = Number(value);
+
+  if (
+    sides === null ||
+    rolls === null ||
+    !Number.isInteger(total) ||
+    total < rolls ||
+    total > rolls * sides
+  ) {
+    return null;
   }
 
   return total;

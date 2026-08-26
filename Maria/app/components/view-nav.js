@@ -66,12 +66,35 @@ function stampDriftOffset(book) {
   document.documentElement.style.setProperty(DRIFT_PROPERTY, `${offset}px`);
 }
 
+/**
+ * Stamps the root for the length of a view transition and lets go after it.
+ *
+ * THE PAGE-WIDE FADE IS GATED ON THIS. React runs a view transition for every
+ * update inside `startTransition`, `router.refresh()` among them — so without a
+ * flag to tell the two apart, a doorbell faded the whole page out and back.
+ */
+function holdRoot(direction) {
+  document.documentElement.setAttribute(ATTRIBUTE, direction);
+
+  watchForEnd();
+  armBackstop();
+}
+
+/** A move the grimoire does not fly between: the flag alone. */
+export function markRouteChange() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  holdRoot("page");
+}
+
 export function markNavDirection(direction) {
   if (typeof document === "undefined") {
     return;
   }
 
-  document.documentElement.setAttribute(ATTRIBUTE, direction);
+  holdRoot(direction);
 
   const book = document.querySelector(".mark-book");
   const drift = driftOf(book);
@@ -82,9 +105,6 @@ export function markNavDirection(direction) {
     heldAnimation = drift;
     stampDriftOffset(book);
   }
-
-  watchForEnd();
-  armBackstop();
 }
 
 /**

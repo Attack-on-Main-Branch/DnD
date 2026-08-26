@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import {
@@ -50,8 +50,11 @@ const LOG_HEIGHT_CLASS = "h-[518px]";
  * that — and at this height they very nearly all fit; the scroller inside is
  * for the last of them, where the alternative was cutting the oldest off with
  * nothing to say it had happened.
+ *
+ * NOT `memo` — see table-map.jsx. A remount replayed the entrance on every
+ * refresh, as though ten things had just happened.
  */
-function ActivityLog({ campaignId }) {
+export default function ActivityLog({ campaignId }) {
   const entries = useActivityEntries();
   const { resync } = useTableDeed(campaignId);
 
@@ -148,12 +151,3 @@ function ActivityLog({ campaignId }) {
     </section>
   );
 }
-
-/**
- * Memoised, and its one prop is a string. The panel therefore renders when the
- * log changes and at no other time — not when a hit point moves on a card, not
- * when a die lands, not when somebody opens a drawer. That is the whole of what
- * `React.memo` buys here, and it only holds because the entries arrive through
- * a subscription rather than as a prop from a parent that re-renders.
- */
-export default memo(ActivityLog);

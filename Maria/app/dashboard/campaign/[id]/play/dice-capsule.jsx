@@ -70,6 +70,9 @@ export default function DiceCapsule({ characterId = null, under = false }) {
       >
         <p className="flex items-center gap-2 font-display text-base font-semibold tracking-wide whitespace-nowrap text-(--cast-ink)">
           {die && <DieGlyph die={die} className="size-5 shrink-0" />}
+          {/* How many of that one glyph are on their way. A landed roll says it
+              in the sentence instead — "3d6 ➔ 14". */}
+          {flight?.count > 1 && <span>×{flight.count}</span>}
           {flight ? ROLLING_LABEL : result && rollSentence(result)}
         </p>
       </span>

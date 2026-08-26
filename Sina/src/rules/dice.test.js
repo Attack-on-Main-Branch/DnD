@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DICE, dieSides, isDie, readDieResult, rollDie } from "./dice.js";
+import {
+  DICE,
+  isDie,
+  MAX_DICE_COUNT,
+  parseDiceCount,
+  readDiceResult,
+  rollDice,
+} from "./dice.js";
 
 describe("the catalogue", () => {
   it("holds the seven dice a table uses", () => {
@@ -23,26 +30,64 @@ describe("the catalogue", () => {
     assert.equal(isDie(""), false);
     assert.equal(isDie(undefined), false);
   });
+});
 
-  it("has no sides for a die it does not hold", () => {
-    assert.equal(dieSides("d20"), 20);
-    assert.equal(dieSides("d7"), null);
+describe("how many dice a throw is", () => {
+  it("takes a whole number of dice", () => {
+    assert.equal(parseDiceCount(1), 1);
+    assert.equal(parseDiceCount("3"), 3);
+    assert.equal(parseDiceCount(MAX_DICE_COUNT), MAX_DICE_COUNT);
+  });
+
+  it("clamps at the ceiling rather than refusing", () => {
+    assert.equal(parseDiceCount(MAX_DICE_COUNT + 1), MAX_DICE_COUNT);
+    assert.equal(parseDiceCount(9999), MAX_DICE_COUNT);
+  });
+
+  it("has no count for anything that is not one", () => {
+    assert.equal(parseDiceCount(0), null);
+    assert.equal(parseDiceCount(-2), null);
+    assert.equal(parseDiceCount(1.5), null);
+    assert.equal(parseDiceCount(""), null);
+    assert.equal(parseDiceCount(null), null);
+    assert.equal(parseDiceCount(undefined), null);
+    assert.equal(parseDiceCount("three"), null);
   });
 });
 
 describe("rolling", () => {
   it("refuses a die that is not in the catalogue", () => {
-    assert.equal(rollDie("d7"), null);
+    assert.equal(rollDice("d7"), null);
+  });
+
+  it("refuses a count that is not one", () => {
+    assert.equal(rollDice("d20", 0), null);
+    assert.equal(rollDice("d20", 2.5), null);
   });
 
   it("stays within the die's own faces", () => {
     for (const die of DICE) {
       for (let attempt = 0; attempt < 500; attempt++) {
-        const value = rollDie(die.id);
+        const value = rollDice(die.id);
 
         assert.ok(Number.isInteger(value));
         assert.ok(value >= 1 && value <= die.sides);
       }
+    }
+  });
+
+  it("stays between one and all faces for a handful", () => {
+    for (let attempt = 0; attempt < 2000; attempt++) {
+      const total = rollDice("d6", 4);
+
+      assert.ok(Number.isInteger(total));
+      assert.ok(total >= 4 && total <= 24);
+    }
+  });
+
+  it("throws no more than the ceiling, however many are asked for", () => {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      assert.ok(rollDice("d4", 500) <= MAX_DICE_COUNT * 4);
     }
   });
 
@@ -52,7 +97,7 @@ describe("rolling", () => {
     const seen = new Set();
 
     for (let attempt = 0; attempt < 20000; attempt++) {
-      seen.add(rollDie("d20"));
+      seen.add(rollDice("d20"));
     }
 
     assert.equal(seen.size, 20);
@@ -61,25 +106,35 @@ describe("rolling", () => {
 
 describe("reading a result back", () => {
   it("takes a face the die actually has", () => {
-    assert.equal(readDieResult("d20", 18), 18);
-    assert.equal(readDieResult("d20", "18"), 18);
-    assert.equal(readDieResult("d4", 1), 1);
+    assert.equal(readDiceResult("d20", 1, 18), 18);
+    assert.equal(readDiceResult("d20", 1, "18"), 18);
+    assert.equal(readDiceResult("d4", 1, 1), 1);
   });
 
-  it("refuses a face outside the die", () => {
-    assert.equal(readDieResult("d20", 21), null);
-    assert.equal(readDieResult("d20", 0), null);
-    assert.equal(readDieResult("d20", -3), null);
+  it("takes a total a handful could have come to", () => {
+    assert.equal(readDiceResult("d6", 3, 3), 3);
+    assert.equal(readDiceResult("d6", 3, 14), 14);
+    assert.equal(readDiceResult("d6", 3, 18), 18);
+  });
+
+  it("refuses a total outside the dice", () => {
+    assert.equal(readDiceResult("d20", 1, 21), null);
+    assert.equal(readDiceResult("d20", 1, 0), null);
+    assert.equal(readDiceResult("d20", 1, -3), null);
+    assert.equal(readDiceResult("d6", 3, 2), null);
+    assert.equal(readDiceResult("d6", 3, 19), null);
   });
 
   it("refuses anything that is not a whole number", () => {
-    assert.equal(readDieResult("d20", 4.5), null);
-    assert.equal(readDieResult("d20", null), null);
-    assert.equal(readDieResult("d20", undefined), null);
-    assert.equal(readDieResult("d20", "eighteen"), null);
+    assert.equal(readDiceResult("d20", 1, 4.5), null);
+    assert.equal(readDiceResult("d20", 1, null), null);
+    assert.equal(readDiceResult("d20", 1, undefined), null);
+    assert.equal(readDiceResult("d20", 1, "eighteen"), null);
   });
 
-  it("refuses a die it does not hold", () => {
-    assert.equal(readDieResult("d7", 3), null);
+  it("refuses a die it does not hold, and a count it cannot read", () => {
+    assert.equal(readDiceResult("d7", 1, 3), null);
+    assert.equal(readDiceResult("d20", 0, 3), null);
+    assert.equal(readDiceResult("d20", null, 3), null);
   });
 });

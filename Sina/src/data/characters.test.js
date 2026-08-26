@@ -9,7 +9,6 @@ import {
   removeCharacter,
   updateCharacter,
   updateCharacterHealth,
-  updateCharacterLevel,
 } from "./characters.js";
 
 const ARGS = { id: "6f1c3d2e-0000-4000-8000-000000000000", userId: "user-1" };
@@ -277,7 +276,6 @@ describe("the query shape itself", () => {
       classId: "fighter",
       alignment: "lawful_good",
       colorTheme: "violet",
-      maxHp: 42,
       abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
       skills: { stealth: { proficient: true, custom_bonus: null } },
       backstory: "a tale",
@@ -298,9 +296,8 @@ describe("the query shape itself", () => {
         class_id: "fighter",
         alignment: "lawful_good",
         color_theme: "violet",
-        // Both, from the one value: a character starts the day whole.
-        max_hp: 42,
-        current_hp: 42,
+        // No maximum and no current: `characters_sync_max_hp` derives one from
+        // the path, the rung and the Constitution, and starts them whole.
         ability_str: 15,
         ability_dex: 14,
         ability_con: 13,
@@ -366,7 +363,6 @@ describe("updateCharacter's parameter map", () => {
     classId: "fighter",
     alignment: "lawful_good",
     colorTheme: "violet",
-    maxHp: 42,
     abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
     skills: { stealth: { proficient: true, custom_bonus: null } },
     backstory: "a tale",
@@ -387,7 +383,6 @@ describe("updateCharacter's parameter map", () => {
       new_class_id: "fighter",
       new_alignment: "lawful_good",
       new_color_theme: "violet",
-      new_max_hp: 42,
       new_ability_str: 15,
       new_ability_dex: 14,
       new_ability_con: 13,
@@ -450,22 +445,6 @@ describe("the chair that acted travels with the write", () => {
     // What the row came to, which is not the change and not what was asked for:
     // ten damage against seven hit points ends at zero.
     assert.equal(data.currentHp, 34);
-  });
-
-  it("sends a null seat rather than omitting it, which is the head of the table", async () => {
-    // Omitted is not the same thing: PostgREST resolves an overload by the
-    // exact set of keys it is handed, and a missing one would leave the
-    // four-argument function unmatched.
-    const q = stubQuery({ data: 5, error: null });
-    await updateCharacterLevel(q, {
-      id: ARGS.id,
-      level: 5,
-      campaignId: CAMPAIGN,
-    });
-
-    assert.equal(q.lastRpc.name, "set_character_level");
-    assert.ok("acting_seat" in q.lastRpc.params);
-    assert.equal(q.lastRpc.params.acting_seat, null);
   });
 
   it("still reads a refusal as a miss, seat or no seat", async () => {

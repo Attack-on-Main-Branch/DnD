@@ -15,9 +15,12 @@
  */
 
 import { isCoin, MAX_COINS } from "./currency.js";
-import { dieSides, isDie } from "./dice.js";
+import { isDie, parseDiceCount, readDiceResult } from "./dice.js";
+import { MAX_HP, MIN_MAX_HP } from "./hp.js";
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
+import { isRestType } from "./rest.js";
 import { isSpellLevel } from "./spells.js";
+import { MAX_XP_AWARD } from "./xp.js";
 
 /** Mirrors the `action_type` CHECK. In the order the migration lists them. */
 export const ACTION_TYPES = [
@@ -38,6 +41,9 @@ export const ACTION_TYPES = [
   "chest_revealed",
   "chest_looted",
   "bag_transferred",
+  "xp_change",
+  "rest_taken",
+  "max_hp_change",
 ];
 
 /** Mirrors the `actor_type` CHECK. */
@@ -131,44 +137,49 @@ export function readActivity(row) {
   const entry = { id: row.id, action, actor };
 
   if (action === "dice_roll" || action === "secret_dice_roll") {
-    if (!isDie(payload.dieType)) {
+    // A row written before the rail could throw a handful carries no count,
+    // and one die is what it meant.
+    const count = parseDiceCount(payload.count ?? 1);
+
+    if (!isDie(payload.dieType) || count === null) {
       return null;
     }
 
     const secret = action === "secret_dice_roll";
-    const value = secret ? null : whole(payload.value);
+    const value = secret
+      ? null
+      : readDiceResult(payload.dieType, count, payload.value);
 
-    // A face this die does not have is a row that cannot be believed. A kept
-    // roll carries no number at all, and one that arrived carrying one would
-    // be a database that had stopped keeping the secret.
-    if (
-      !secret &&
-      (value === null || value < 1 || value > dieSides(payload.dieType))
-    ) {
+    // A total these dice could not have come to is a row that cannot be
+    // believed. A kept roll carries no number at all, and one that arrived
+    // carrying one would be a database that had stopped keeping the secret.
+    if (!secret && value === null) {
       return null;
     }
 
-    return { ...entry, die: payload.dieType, secret, value };
+    return { ...entry, die: payload.dieType, count, secret, value };
   }
 
   /**
-   * Where the ring landed and which way it went; the sentence needs both. The
-   * target is always named, because a level is only ever changed from the head
-   * of the table and so the character is never the actor.
+   * Where the ring landed and which way it went; the sentence needs both.
+   *
+   * The target used to be required, a level having only ever been AWARDED —
+   * from the head of the table, so the character was never the actor. Since
+   * 20260903090000 a rung can also be climbed by the character themselves, on
+   * their own experience, and the database omits the key for that exactly as it
+   * does for somebody moving their own hit points. Two sentences, one entry.
    */
   if (action === "level_change") {
     const level = whole(payload.level);
     const delta = whole(payload.delta);
-    const target = text(payload.targetName);
 
     return level === null ||
       level < MIN_LEVEL ||
       level > MAX_LEVEL ||
       delta === null ||
-      delta === 0 ||
-      !target
+      delta === 0
       ? null
-      : { ...entry, level, delta, target };
+      : { ...entry, level, delta, target: text(payload.targetName) };
   }
 
   if (action === "hp_change") {
@@ -180,6 +191,25 @@ export function readActivity(row) {
     return delta === null || delta === 0
       ? null
       : { ...entry, delta, target: text(payload.targetName) };
+  }
+
+  /**
+   * A frame that moved: where the maximum landed and the rung it landed on.
+   * Written by a trigger and never by a browser, so both numbers came off the
+   * row — and both are bounded here anyway, for a row a migration behind.
+   */
+  if (action === "max_hp_change") {
+    const maxHp = whole(payload.maxHp);
+    const level = whole(payload.level);
+
+    return maxHp === null ||
+      maxHp < MIN_MAX_HP ||
+      maxHp > MAX_HP ||
+      level === null ||
+      level < MIN_LEVEL ||
+      level > MAX_LEVEL
+      ? null
+      : { ...entry, maxHp, level, target: text(payload.targetName) };
   }
 
   /**
@@ -245,6 +275,33 @@ export function readActivity(row) {
     // Nobody at the other end: it came from the world.
     return container && item && quantity !== null && quantity >= 1
       ? { ...entry, container, item, quantity }
+      : null;
+  }
+
+  /**
+   * Experience, as a CHANGE and never a total: the bar beside it already says
+   * where that left them. The target is named only when it was granted from the
+   * head of the table, exactly as a hit point's is.
+   */
+  if (action === "xp_change") {
+    const delta = whole(payload.delta);
+
+    return delta === null || delta === 0 || Math.abs(delta) > MAX_XP_AWARD
+      ? null
+      : { ...entry, delta, target: text(payload.targetName) };
+  }
+
+  /**
+   * A rest. `target` is somebody else's, which for the party at once is the
+   * fixed string the database writes rather than a name from a caller.
+   */
+  if (action === "rest_taken") {
+    return isRestType(payload.restType)
+      ? {
+          ...entry,
+          restType: payload.restType,
+          target: text(payload.targetName),
+        }
       : null;
   }
 

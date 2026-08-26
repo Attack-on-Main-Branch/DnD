@@ -26,7 +26,6 @@ import {
   abilityScoresOf,
   ALIGNMENTS,
   countCharacters,
-  DEFAULT_MAX_HP,
   MAX_PROSE_LENGTH,
   RACES,
   alignmentDetails,
@@ -48,6 +47,7 @@ import {
   suggestedAvatarColor,
 } from "./character-presentation";
 import ClassPicker from "./class-picker";
+import MaxHpBadge from "./max-hp-badge";
 import SkillPicker, { skillFormState } from "./skill-picker";
 
 const FEEDBACK_ID = "character-feedback";
@@ -80,11 +80,6 @@ export default function PlayerCharacterForm({
     character?.discriminator ?? "",
   );
   const [race, setRace] = useState(character?.race ?? RACES[0]);
-  // A string, not a number: this is what is in the box, and an empty box is
-  // the placeholder taken at its word rather than a zero.
-  const [maxHp, setMaxHp] = useState(
-    character ? String(character.max_hp ?? DEFAULT_MAX_HP) : "",
-  );
   const [archetype, setArchetype] = useState(character?.archetype ?? "");
   const [classId, setClassId] = useState(character?.class_id ?? "");
   const [alignment, setAlignment] = useState(character?.alignment ?? "");
@@ -235,27 +230,14 @@ export default function PlayerCharacterForm({
           describedBy={describedBy}
         />
 
-        <TextField
-          label="Max HP"
-          name="maxHp"
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder={`${DEFAULT_MAX_HP}`}
-          maxLength={3}
-          value={maxHp}
-          // Digits only, like the tag above, so the field cannot hold what
-          // the rule will refuse. Empty is allowed: `readMaxHitPoints` reads
-          // an empty box as the placeholder.
-          onChange={(event) =>
-            setMaxHp(event.target.value.replace(/\D/g, "").slice(0, 3))
-          }
-          disabled={isPending}
-          invalid={state?.field === "maxHp"}
-          // Left, not centred: it sits under the tag in the same narrow
-          // column, and the two read as one column only if they agree.
-          className="tabular-nums"
-          aria-describedby={describedBy}
+        {/* Where the box used to be, and posting nothing: the figure is the
+            path, the rung and the Constitution, and the row computes it for
+            itself. See max-hp-badge.jsx. */}
+        <MaxHpBadge
+          race={race}
+          classId={classId}
+          level={character?.level ?? MIN_LEVEL}
+          abilities={abilities}
         />
       </div>
 

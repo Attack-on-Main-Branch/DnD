@@ -39,7 +39,6 @@ const RESTING = {
   setSecret: () => {},
   roll: () => {},
   warm: () => {},
-  cast: async () => null,
   board: { lit: false, secret: false },
   veiled: false,
   flying: {},
@@ -82,7 +81,7 @@ export default function DiceTable({
      actually arrives. */
   const board = useRef(null);
   const onMirror = useCallback(
-    (die, seed, land) => board.current?.(die, seed, land),
+    (die, count, seed, land) => board.current?.(die, count, seed, land),
     [],
   );
 
@@ -119,13 +118,23 @@ export default function DiceTable({
       record(
         characterId,
         entry.secret
-          ? { action: "secret_dice_roll", die: entry.die }
-          : { action: "dice_roll", die: entry.die, value: entry.value },
+          ? {
+              action: "secret_dice_roll",
+              die: entry.die,
+              count: entry.count,
+            }
+          : {
+              action: "dice_roll",
+              die: entry.die,
+              count: entry.count,
+              value: entry.value,
+            },
         entry.secret
           ? {
               action: "secret_dice_roll",
               actor: seatTitle,
               die: entry.die,
+              count: entry.count,
               secret: true,
               value: null,
             }
@@ -133,6 +142,7 @@ export default function DiceTable({
               action: "dice_roll",
               actor: seatTitle,
               die: entry.die,
+              count: entry.count,
               secret: false,
               value: entry.value,
             },

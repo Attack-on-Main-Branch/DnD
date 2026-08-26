@@ -11,20 +11,22 @@ import {
   insertCharacterNote,
   listCharacterNotes,
   updateCharacterHealth,
-  updateCharacterLevel,
 } from "sina/data/characters";
+import { moveCharacterInspiration } from "sina/data/inspiration";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import { parseMarkPoint } from "sina/rules/campaign";
 import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
 import { MAX_HP } from "sina/rules/health";
-import { parseLevel } from "sina/rules/level";
 
 import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
 /**
- * The board's own writes: hit points, levels, notes and the tokens on the map.
+ * The board's own writes: hit points, inspiration, notes and the tokens on the
+ * map. A LEVEL IS NOT AMONG THEM ANY MORE — since 20260906 the ring is a
+ * read-out, and the only thing that moves it is experience crossing a threshold
+ * inside `modify_character_xp`. See session-actions.js.
  *
  * NOTHING HERE CALLS `revalidatePath`. Revalidating the page the caller is
  * standing on makes the response carry a re-rendered tree for it — `loadTable`'s
@@ -131,54 +133,53 @@ function parseHealthChange(value) {
     : null;
 }
 
-/** A level is awarded, so a refusal is "not yours to give", not "that is gone". */
-const LEVEL_COPY = {
-  not_found: "That level is not yours to award.",
+/**
+ * A mark is spent by whoever holds it and given by whoever runs the session, so
+ * a refusal here is "not yours to move" rather than "that is gone".
+ */
+const INSPIRATION_COPY = {
+  not_found: "That mark is not yours to move.",
   invalid_value: "That is outside what a character sheet can hold.",
+  missing_column: "That part of the app is not ready yet.",
   missing_function: "That part of the app is not ready yet.",
   missing_table: "That part of the app is not ready yet.",
   bad_id: "That character is no longer at this table.",
 };
 
 /**
- * One step of the ring on a party card. Bounded here for speed and by
- * `set_character_level` for real, which answers anybody who is not this
- * campaign's Dungeon Master with null — so the entry is always filed under the
- * head of the table.
+ * One mark of inspiration, given or spent. `delta` is ±1 — a pip is one press —
+ * and `move_character_inspiration` decides who may send which: the head of the
+ * table both ways for anybody, a player only downwards and only their own.
+ *
+ * Nothing is revalidated and no line is written: the pips are held in
+ * table-state.jsx, and a mark is not one of the ten things the log keeps.
  */
-export async function setCharacterLevel(campaignId, characterId, value) {
-  const level = parseLevel(value);
-
-  if (level === null) {
-    return rejected("A level has to be a number.");
+export async function moveInspiration(campaignId, characterId, delta) {
+  if (!Number.isInteger(delta) || delta === 0) {
+    return rejected("That is not a mark to move.");
   }
 
   const supabase = await createClient();
   const { user, error: authError } = await getCurrentUser(supabase);
 
   if (!user) {
-    return sessionRejection("setCharacterLevel", authError);
+    return sessionRejection("moveInspiration", authError);
   }
 
-  const { data, error } = await updateCharacterLevel(supabase, {
-    id: characterId,
-    level,
+  const { data, error } = await moveCharacterInspiration(supabase, {
     campaignId,
-    seatCharacterId: null,
+    characterId,
+    delta,
   });
 
   if (error) {
-    const copy = LEVEL_COPY[error.reason];
+    const copy = INSPIRATION_COPY[error.reason];
 
-    logUncovered("setCharacterLevel", error, copy);
-    return rejected(copy ?? "Could not set that. Try again.");
+    logUncovered("moveInspiration", error, copy);
+    return rejected(copy ?? "Could not move that. Try again.");
   }
 
-  return {
-    kind: "success",
-    level: data.level,
-    activity: await freshLog(supabase, campaignId),
-  };
+  return { kind: "success", inspiration: data.inspiration };
 }
 
 /**

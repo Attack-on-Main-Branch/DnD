@@ -19,12 +19,10 @@ import {
   canRaiseAbility,
   abilityScoresOf,
   characterHandle,
-  DEFAULT_MAX_HP,
   healthFraction,
   healthTier,
   HEALTH_TIERS,
   MAX_HP,
-  MIN_MAX_HP,
   classDetails,
   classLabel,
   defaultAbilityScores,
@@ -38,9 +36,7 @@ import {
   RACES,
   raceAbilityBonus,
   readCharacterValues,
-  readMaxHitPoints,
   validateCharacter,
-  validateMaxHitPoints,
 } from "./character.js";
 
 /** A set of values that must always pass, so each test can spoil exactly one. */
@@ -53,7 +49,6 @@ function validValues(overrides = {}) {
     classId: "fighter",
     alignment: "lawful_good",
     colorTheme: "violet",
-    maxHp: DEFAULT_MAX_HP,
     abilities: defaultAbilityScores(),
     skills: defaultSkills(),
     backstory: "",
@@ -598,8 +593,9 @@ describe("hit points", () => {
       assert.equal(healthFraction(Number.NaN, 100), 0);
     });
 
-    it("defaults the maximum to MAX_HP", () => {
-      assert.equal(healthFraction(25), 0.25);
+    it("defaults the maximum to MAX_HP, which is now the derived ceiling", () => {
+      assert.equal(healthFraction(MAX_HP), 1);
+      assert.equal(healthFraction(MAX_HP / 2), 0.5);
     });
   });
 
@@ -627,57 +623,15 @@ describe("hit points", () => {
 });
 
 describe("the maximum a character is worth", () => {
-  describe("readMaxHitPoints", () => {
-    it("reads a typed figure", () => {
-      assert.equal(readMaxHitPoints("35"), 35);
-      assert.equal(readMaxHitPoints(" 35 "), 35);
-    });
-
-    it("reads an empty field as the placeholder it shows", () => {
-      // The box is allowed to be left alone, and the column's default is the
-      // same number the placeholder prints.
-      assert.equal(readMaxHitPoints(""), DEFAULT_MAX_HP);
-      assert.equal(readMaxHitPoints(null), DEFAULT_MAX_HP);
-      assert.equal(readMaxHitPoints(undefined), DEFAULT_MAX_HP);
-    });
-
-    it("leaves anything that is not a run of digits as NaN", () => {
-      // Not defaulted, for the reason the ability scores are not: a mangled
-      // field must reach validation and be refused, rather than quietly
-      // becoming a number nobody chose.
-      assert.ok(Number.isNaN(readMaxHitPoints("2o")));
-      assert.ok(Number.isNaN(readMaxHitPoints("-5")));
-      assert.ok(Number.isNaN(readMaxHitPoints("2.5")));
-    });
-  });
-
-  describe("validateMaxHitPoints", () => {
-    it("accepts both ends of the range the CHECK constraint holds", () => {
-      assert.equal(validateMaxHitPoints(MIN_MAX_HP), null);
-      assert.equal(validateMaxHitPoints(MAX_HP), null);
-    });
-
-    it("refuses a character worth nothing, or worth more than the ceiling", () => {
-      assert.equal(validateMaxHitPoints(MIN_MAX_HP - 1)?.field, "maxHp");
-      assert.equal(validateMaxHitPoints(MAX_HP + 1)?.field, "maxHp");
-    });
-
-    it("refuses what is not a whole number at all", () => {
-      assert.equal(validateMaxHitPoints(Number.NaN)?.field, "maxHp");
-      assert.equal(validateMaxHitPoints(20.5)?.field, "maxHp");
-    });
-  });
-
-  it("is part of what makes a character valid", () => {
-    assert.equal(validateCharacter(validValues({ maxHp: 42 })), null);
-    assert.equal(validateCharacter(validValues({ maxHp: 0 }))?.field, "maxHp");
-  });
-
-  it("comes off the form under its own field name", () => {
+  it("is not on the form at all: the row computes it", () => {
+    // The box is gone since 20260907090000 — a maximum is the path, the rung
+    // and the Constitution, and `characters_sync_max_hp` derives it. Nothing a
+    // caller posts can name one.
     const data = new FormData();
-    data.set("maxHp", "42");
+    data.set("maxHp", "999");
 
-    assert.equal(readCharacterValues(data).maxHp, 42);
+    assert.equal("maxHp" in readCharacterValues(data), false);
+    assert.equal(validateCharacter(validValues()), null);
   });
 });
 

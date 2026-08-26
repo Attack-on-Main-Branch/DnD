@@ -111,6 +111,13 @@ export async function getCharacter(supabase, { id, userId }) {
   return error ? failure(error) : { data, error: null };
 }
 
+/**
+ * A new sheet. NOTHING HERE SETS A MAXIMUM: `characters_sync_max_hp` derives one
+ * from the path, the rung and the Constitution before the row lands, and starts
+ * the character whole. See 20260907090000 — the same trigger is what keeps the
+ * figure true through every later edit, so the app has one door to it and not
+ * four.
+ */
 export async function insertCharacter(supabase, { userId, values }) {
   const { error } = await supabase.from("characters").insert({
     user_id: userId,
@@ -122,9 +129,6 @@ export async function insertCharacter(supabase, { userId, values }) {
     class_id: values.classId,
     alignment: values.alignment,
     color_theme: values.colorTheme,
-    // A character starts the day whole.
-    max_hp: values.maxHp,
-    current_hp: values.maxHp,
     // Only the bought values are written. The six `_total` columns are
     // generated, and Postgres refuses an INSERT that names one.
     ability_str: values.abilities.str,
@@ -148,6 +152,11 @@ export async function insertCharacter(supabase, { userId, values }) {
  * narrowest UPDATE policy here would hand its holder the level a Dungeon Master
  * awards and the hit points a table calls out. The parameter list is the edit.
  *
+ * NO MAXIMUM AMONG THE ARGUMENTS since 20260907090000. A race, a path or a
+ * Constitution moving is exactly what decides one, so the trigger recomputes it
+ * behind this write and carries the bar with it — there is nothing left for a
+ * caller to get wrong.
+ *
  * `false` is a refusal or a miss, deliberately the same answer. A handle
  * somebody else holds arrives as a unique violation — `handle_taken`.
  */
@@ -161,7 +170,6 @@ export async function updateCharacter(supabase, { id, values }) {
     new_class_id: values.classId,
     new_alignment: values.alignment,
     new_color_theme: values.colorTheme,
-    new_max_hp: values.maxHp,
     new_ability_str: values.abilities.str,
     new_ability_dex: values.abilities.dex,
     new_ability_con: values.abilities.con,
@@ -250,40 +258,6 @@ export async function updateCharacterHealth(
   }
 
   return { data: { currentHp: data }, error: null };
-}
-
-/**
- * The level, through a definer function for the same reason hit points go
- * through one: RLS grants rows and never columns.
- *
- * The head of the table alone, unlike health — damage is called out by whoever
- * runs the session, but a level is theirs to award. Everybody else gets null,
- * which is what a deleted character gives too.
- *
- * `seatCharacterId` is the chair the log entry is filed under. Only ever null
- * here — the function admits the head of the table alone — but passed rather
- * than assumed, so the two writes are armed the same way.
- */
-export async function updateCharacterLevel(
-  supabase,
-  { id, level, campaignId, seatCharacterId = null },
-) {
-  const { data, error } = await supabase.rpc("set_character_level", {
-    target_character: id,
-    new_level: level,
-    target_campaign: campaignId,
-    acting_seat: seatCharacterId,
-  });
-
-  if (error) {
-    return failure(error);
-  }
-
-  if (data === null) {
-    return { data: null, error: { reason: "not_found", detail: null } };
-  }
-
-  return { data: { level: data }, error: null };
 }
 
 /** Newest first: the table shows the last thing written at the top. */

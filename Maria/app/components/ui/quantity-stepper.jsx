@@ -18,6 +18,9 @@
 const TONES = {
   gold: "hover:border-gold/45 hover:text-gold",
   danger: "hover:border-red-500 hover:text-red-500",
+  /* Experience, and the long rest that is also a gain: the emerald the XP bar
+     wears — see `.hp-verdant` in globals.css. */
+  emerald: "hover:border-emerald-400/60 hover:text-emerald-300",
 };
 
 export function StepButton({

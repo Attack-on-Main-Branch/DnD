@@ -529,10 +529,11 @@ body {
   }
 
   /*
-   * The hit-point box. Native number spinners duplicate the − and + beside them
-   * and cannot be themed -- browsers draw them in the OS palette. Two engines,
-   * two answers: WebKit and Blink draw a pseudo-element, Firefox answers to
-   * `appearance`.
+   * Every number field in the app -- the hit-point box, the dice rail's handful,
+   * and whatever `TextField` is given `type="number"`. Native spinners cannot be
+   * themed: browsers draw them in the OS palette, and beside the hit-point box
+   * they duplicate the - and + already there. Two engines, two answers: WebKit
+   * and Blink draw a pseudo-element, Firefox answers to `appearance`.
    */
   .no-spin {
     appearance: textfield;
@@ -877,52 +878,6 @@ body {
   }
 
   /*
-   * The same mechanism with its AXIS TURNED, for a panel that opens sideways out
-   * of a mark beside the board. The column runs 0fr to 1fr, so the panel is
-   * revealed from its left edge outward.
-   *
-   * The clip is `.tab-clip` mirrored: the block axis gets 4rem for the glow, the
-   * inline axis is held at the box edge because that is the one collapsing. The
-   * arrow therefore hangs outside this, as the marks' own arrow does.
-   *
-   * The panel carries its own width: a track at `0fr` has no space to hand out.
-   */
-  .tray-shell {
-    display: grid;
-    grid-template-columns: 1fr;
-    transition: grid-template-columns 420ms var(--ease-tray);
-  }
-
-  .tray-shell[data-state="collapsed"] {
-    grid-template-columns: 0fr;
-  }
-
-  .tray-clip {
-    min-width: 0;
-    overflow: clip;
-    overflow-clip-margin: 4rem;
-    clip-path: inset(-4rem 0);
-  }
-
-  .tray-panel {
-    transition:
-      opacity 260ms var(--ease-tray),
-      visibility 0s;
-  }
-
-  .tray-shell[data-state="collapsed"] .tray-panel {
-    visibility: hidden;
-    opacity: 0;
-    transition:
-      opacity 260ms var(--ease-tray),
-      visibility 0s 420ms;
-  }
-
-  .tray-shell[data-state="collapsed"] * {
-    animation-play-state: paused;
-  }
-
-  /*
    * The board's rim, at rest and while a die is on it.
    *
    * A component class and not `border` plus `transition-*` utilities: those sit
@@ -1073,6 +1028,34 @@ body {
     --hp-flare-max: 1.2;
     --hp-flare-time: 1.9s;
   }
+
+  /*
+   * EXPERIENCE, not health -- the fourth palette on the same object. The bar in
+   * the session panel is `HealthBar` with these underneath it rather than a
+   * second component that merely looks like one: everything that makes the
+   * health bar move is a custom property, so a hue is all a sibling needs.
+   *
+   * Tailwind's emerald ramp, warmest core to darkest floor: 100, 300, 500, 700,
+   * with 400 as the light coming off it. Solar's timings, because the two stand
+   * one above the other in the same panel and a bar breathing at a different
+   * rate reads as a different KIND of thing.
+   */
+  .hp-verdant {
+    --hp-base: #059669;
+    --hp-c1: #d1fae5;
+    --hp-c2: #6ee7b7;
+    --hp-c3: #10b981;
+    --hp-c4: #047857;
+    --hp-glow: #34d399;
+    --hp-breathe-min: 0.4;
+    --hp-breathe-max: 0.8;
+    --hp-breathe-time: 6s;
+    --hp-drift-time: 15s;
+    --hp-shear-time: 9s;
+    --hp-flare-min: 1;
+    --hp-flare-max: 1.05;
+    --hp-flare-time: 7s;
+  }
 }
 
 /* `translate` rather than `transform`, so a transformed panel keeps its own. */
@@ -1102,7 +1085,9 @@ body {
   }
 }
 
-/* The same arrival for a panel that opens sideways, from the mark's side. */
+/* The arrival for a panel that opens beside the board rather than under it: it
+   comes in from the mark's own side. Its morph is `.tab-shell` above — the rail
+   and the strip of marks share one mechanism. */
 @keyframes tray-panel-in {
   from {
     opacity: 0;
@@ -1637,7 +1622,8 @@ body {
    */
   .hp-solar,
   .hp-ember,
-  .hp-ruby {
+  .hp-ruby,
+  .hp-verdant {
     --hp-breathe-min: 0.68;
     --hp-breathe-max: 0.78;
     --hp-breathe-time: 14s;
@@ -1693,6 +1679,24 @@ body {
 /* The overlay would otherwise swallow taps for as long as it is up. */
 ::view-transition {
   pointer-events: none;
+}
+
+/*
+ * A REFRESH IS NOT A ROUTE CHANGE, and this is what tells them apart.
+ *
+ * React runs a view transition for every update committed inside
+ * `startTransition`, and `router.refresh()` is one of those — so the pair below
+ * used to fade the whole document out and back whenever a doorbell rang: a party
+ * member joining, a level moving, or simply coming back to the tab. At the table
+ * that read as the page reloading, twice a minute, for a list that had quietly
+ * re-read itself.
+ *
+ * With no `view-transition-name` the root is never captured, so no group is
+ * created and there is nothing for those rules to animate. `view-nav.js` stamps
+ * the flag for the length of an actual navigation and takes it off after.
+ */
+:root:not([data-view-nav]) {
+  view-transition-name: none;
 }
 
 /*

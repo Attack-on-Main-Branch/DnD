@@ -112,6 +112,10 @@ export async function listCampaignActivity(supabase, campaignId, limit) {
  * names nobody. 20260825120000 DROPS the thirteen-argument version, and
  * 20260826120000 the fifteen.
  *
+ * A roll carries HOW MANY dice as well as which, because a total is only
+ * believable against a count: 14 is a face no d6 has and a perfectly ordinary
+ * 3d6. 20260902090000 DROPS the seventeen-argument version.
+ *
  * `false` from the function is a refusal — a seat the caller is not in, a die
  * that has no such face, a target who has left the party — and reads here as
  * `not_found`, which is also what a deleted campaign gives. A caller must not
@@ -128,6 +132,7 @@ export async function recordCampaignActivity(
     itemName = null,
     quantity = null,
     die = null,
+    diceCount = null,
     value = null,
     delta = null,
     level = null,
@@ -148,6 +153,7 @@ export async function recordCampaignActivity(
     item_name: itemName,
     item_quantity: quantity,
     die_type: die,
+    dice_count: diceCount,
     roll_value: value,
     hp_delta: delta,
     level_value: level,

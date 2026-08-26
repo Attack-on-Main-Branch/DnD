@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CANTRIP_LEVEL, spellDiceAt } from "sina/rules/spells";
+import { CANTRIP_LEVEL } from "sina/rules/spells";
 
 import SpellDetail, { EmptySpellbook } from "@/app/dashboard/spell-detail";
 import SpellRow from "@/app/dashboard/spell-row";
@@ -11,7 +11,6 @@ import {
   spellsByShelf,
 } from "@/app/dashboard/spell-presentation";
 
-import { useDiceTable } from "./dice-table";
 import { Action, Confirm } from "./pack-controls";
 import { moveSpellSlot, teachSpell, unlearnSpell } from "./spell-actions";
 import SpellCastControl from "./spell-cast-control";
@@ -36,15 +35,19 @@ import { useTableDeed } from "./use-table-deed";
  * ONE SPELL IS OPEN AT A TIME and may have come from either list, which is what
  * decides the panel's footer: `Learn`, or `Cast` and `Forget`.
  *
- * Casting goes slot, close, dice, log, in that order and no other. The slot is
- * atomic and can refuse — the last 3rd spent by another browser a moment ago —
- * and a refused cast must not reach the dice or the log; the book closes because
- * the arena is the map and the map is behind this panel; the log goes last so
- * the line carries the number. A cantrip skips the first step and only that one.
+ * Casting goes slot, close, log, in that order and no other. The slot is atomic
+ * and can refuse — the last 3rd spent by another browser a moment ago — and a
+ * refused cast must not reach the log; the book closes because the map behind
+ * this panel is what the table is looking at. A cantrip skips the first step and
+ * only that one.
+ *
+ * NOTHING IS ROLLED HERE. The log carries the spell's own notation — "8d6 Fire"
+ * — and the dice rail beside the map is where a caster throws it, with the same
+ * handful everybody else at the table can see land.
  *
  * A CAST IS THE ONE DEED HERE THAT STILL WAITS: the pip goes out on the press,
- * but the round trip confirming it is awaited before the dice are thrown,
- * because a refused slot must not become a roll everybody watched.
+ * but the round trip confirming it is awaited before the line is written,
+ * because a refused slot must not become an entry saying it was cast.
  */
 export default function PlayerSpellDrawer({
   campaignId,
@@ -60,7 +63,6 @@ export default function PlayerSpellDrawer({
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
   const record = useActivityLog(campaignId);
-  const { cast: throwDice } = useDiceTable();
   const { close } = useTableMarks();
 
   const shelves = spellsByShelf(book);
@@ -135,7 +137,7 @@ export default function PlayerSpellDrawer({
       });
 
       // Refused: the toast has said so and the pip has gone back. A cast that
-      // was not paid for must not reach the dice or the log.
+      // was not paid for must not reach the log.
       if (!paid) {
         return;
       }
@@ -145,19 +147,11 @@ export default function PlayerSpellDrawer({
 
     // A cantrip scales with its caster and a levelled spell with its slot.
     const at = slotLevel > CANTRIP_LEVEL ? slotLevel : caster.level;
-    const dice = spellDiceAt(spell, at);
-    const thrown = dice ? await throwDice(dice) : null;
 
-    const damage = castDamageLine(spell, at);
-    const spellDamage =
-      damage && thrown !== null ? `${damage} ➔ ${thrown}` : damage;
+    const spellDamage = castDamageLine(spell, at);
     const spellSave = castSaveLine(spell, caster.casting);
 
-    setNote(
-      thrown === null
-        ? `${spell.name} cast.`
-        : `${spell.name} cast — ${thrown}.`,
-    );
+    setNote(`${spell.name} cast.`);
 
     record(
       characterId,
@@ -165,8 +159,7 @@ export default function PlayerSpellDrawer({
         action: "spell_cast",
         spellName: spell.name,
         spellLevel: slotLevel,
-        // The dice AND what they came to: this throw is not mirrored at the
-        // other chairs, so the log is where the table learns the number.
+        // What it throws, not what it threw: the rail is where the dice are.
         spellDamage,
         spellSave,
       },

@@ -43,7 +43,7 @@ const CONFIG = {
   preloadThemes: Object.keys(DICE_THEMES),
   themeColor: DICE_THEMES.obsidian.body,
   size: ARENA_SIZE,
-  scale: 10,
+  scale: 7,
   /* Thrown from above the lip and hard, with enough spin to tumble and enough
      bounce to read as bone on wood — but damped, or a d20 skates for seconds
      against the far wall while everybody waits for a number. */
@@ -285,9 +285,15 @@ function startCorner(ratio) {
   return [-half * ratio * CORNER, CONFIG.startingHeight, -half * CORNER];
 }
 
-/** One of ours is one body, except percentile: a tens die and a units die. */
+/**
+ * How many bodies a notation puts in the world, which is what the seed's clock
+ * waits for. One each, except percentile: dice-box builds every d100 out of a
+ * tens die and a units die.
+ */
 function bodies(notation) {
-  return notation.endsWith("d100") ? 2 : 1;
+  const [count, sides] = notation.split("d").map(Number);
+
+  return count * (sides === 100 ? 2 : 1);
 }
 
 /** The next throw's numbers, settled in the worker before a die is added. */
@@ -458,6 +464,20 @@ function queued(step) {
 }
 
 /**
+ * Whether the world we are holding still paints onto the board on the page.
+ *
+ * The canvas is held in module state rather than by React, so React cannot take
+ * it away — but it CAN take the stage out from under it, leaving the roller
+ * simulating perfectly into a detached box. True only when there IS a stage and
+ * this is not in it: a table with no map has no board to miss.
+ */
+function stranded(built) {
+  const stage = document.getElementById(DICE_STAGE_ID);
+
+  return Boolean(stage) && built?.box?.canvas?.parentElement !== stage;
+}
+
+/**
  * The roller, built on demand into the stage and reused after that. Rejects the
  * way `import()` does — a caller with no engine falls back to rolling the
  * number itself. The arena is checked INSIDE the queued step, so an engine that
@@ -466,7 +486,12 @@ function queued(step) {
  */
 export function diceEngine() {
   if (live) {
-    return Promise.resolve(live);
+    if (!stranded(live)) {
+      return Promise.resolve(live);
+    }
+
+    // One roll without dice, then it builds again.
+    discardDice();
   }
 
   const mine = arena;
@@ -527,6 +552,23 @@ export function clearDice() {
 }
 
 /**
+ * The world down with the STAGE LEFT WHERE IT IS: the tray is the map's own size
+ * and the map has not moved, so clearing it would strand the next build on a
+ * `holdTray` that only fires when the picture mounts.
+ */
+function discardDice() {
+  const held = live;
+
+  arena += 1;
+  live = null;
+  pending = null;
+
+  if (held) {
+    tearDown(held);
+  }
+}
+
+/**
  * Everything down: the dice, both threads, the GPU context and the canvas.
  *
  * `getContext` is tried and allowed to fail — on the offscreen path the canvas
@@ -552,16 +594,8 @@ function tearDown({ box, workers }) {
   box.canvas.remove();
 }
 
-/** The arena leaving, and everything it was holding with it. */
+/** The arena leaving, and everything it was holding with it — the tray too. */
 export function releaseDice() {
-  const held = live;
-
-  arena += 1;
-  live = null;
-  pending = null;
+  discardDice();
   tray = null;
-
-  if (held) {
-    tearDown(held);
-  }
 }

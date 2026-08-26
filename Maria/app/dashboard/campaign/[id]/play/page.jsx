@@ -21,11 +21,19 @@ import DiceTable from "./dice-table";
 import { loadTable } from "./load-table";
 import LeaveTable from "./leave-table";
 import MapStage from "./map-stage";
-import { NOTES_CLASSES, notesEntrance } from "./entrance";
+import {
+  NOTES_CLASSES,
+  notesEntrance,
+  RAIL_MIRRORED_CLASSES,
+  railEntrance,
+} from "./entrance";
 import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
 import PartyRail from "./party-rail";
+import RailMarks from "./rail-marks";
+import SessionStage from "./session-stage";
 import SpellBook from "./spell-book";
+import XpBar from "./xp-bar";
 import TableMarks from "./table-marks";
 import TableState from "./table-state";
 import TableWire from "./table-wire";
@@ -144,6 +152,15 @@ export default async function CampaignTablePage({ params, searchParams }) {
     color_theme,
   }));
 
+  /* The session panel's own list: a name to aim at, and the path, which is what
+     `sina/rules/rest` reads to decide what a short rest returns. Built for the
+     head of the table alone — nobody else opens that panel. */
+  const resters = members.map(({ id, name, class_id }) => ({
+    id,
+    name,
+    class_id,
+  }));
+
   /* Whose numbers this viewer may read, and the panel each opens — the head of
      the table gets the party's, a player their own. Built here and handed over
      rendered: the picker needs the browser, the arithmetic does not. */
@@ -151,8 +168,24 @@ export default async function CampaignTablePage({ params, searchParams }) {
     (isDungeonMaster ? loaded.sheets : [seat?.sheet].filter(Boolean)).map(
       (sheet) => [
         sheet.id,
-        <div key={sheet.id} className="flex flex-col gap-6">
+        <div key={sheet.id} className="flex flex-col gap-4">
           <CharacterStats character={sheet} />
+
+          {/* Under the skills, and a READ-OUT: the session panel that moves it
+              is the head of the table's, and this is where everybody else finds
+              out where they stand. A Client Component inside a server-rendered
+              panel, because the figure is held in the browser.
+
+              `gap-4` rather than `gap-6`, and the bar carries no heading of its
+              own: between them, that is what lets a player's sheet reach the
+              foot of this panel without scrolling. */}
+          <XpBar
+            characterId={sheet.id}
+            name={
+              members.find((one) => one.id === sheet.id)?.name ??
+              "This character"
+            }
+          />
         </div>,
       ],
     ),
@@ -348,15 +381,41 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 {/* No `data-fade` on the row: the board and the rail beside it
               leave on their own beats — see panel-fold.js. */}
                 <div className="flex w-full min-w-0 items-center justify-center gap-10">
-                  {/* The box that used to be empty, balancing the dice rail so
-                the board keeps the viewport's centre line. The same width
-                either way, so it does not move between the two chairs.
+                  {/* THE HEAD OF THE TABLE'S RAIL — the chest, and the session
+                under it. What a player may reach is in the pack above the board,
+                and their own experience is under the skills on the scores sheet.
 
-                THE HEAD OF THE TABLE'S ALONE — what a player may reach is in
-                the pack above the board. */}
+                Empty for everybody else, and the same width either way: it is
+                what balances the dice rail so the board keeps the viewport's
+                centre line, and it must not move between the two chairs. */}
                   {seat &&
                     (isDungeonMaster ? (
-                      <ChestStage campaignId={campaign.id} members={carriers} />
+                      /* One column, two marks and ONE panel behind them — the
+                         marks above the board are built the same way, and moving
+                         between the two morphs a single box rather than closing
+                         one and opening another. See rail-marks.jsx.
+
+                         The arrival and the tuck belong to the column rather
+                         than to each mark on it. */
+                      <div
+                        data-tuck="right"
+                        style={railEntrance()}
+                        className={RAIL_MIRRORED_CLASSES}
+                      >
+                        <RailMarks>
+                          <ChestStage
+                            campaignId={campaign.id}
+                            members={carriers}
+                          />
+
+                          {resters.length > 0 && (
+                            <SessionStage
+                              campaignId={campaign.id}
+                              members={resters}
+                            />
+                          )}
+                        </RailMarks>
+                      </div>
                     ) : (
                       <div aria-hidden="true" className="w-14 shrink-0" />
                     ))}

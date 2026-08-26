@@ -10,7 +10,7 @@ import {
   readActivityLog,
 } from "sina/rules/activity";
 import { isCoin, parseCoins } from "sina/rules/currency";
-import { isDie, readDieResult } from "sina/rules/dice";
+import { isDie, parseDiceCount, readDiceResult } from "sina/rules/dice";
 import { MAX_HP } from "sina/rules/health";
 import { MAX_LEVEL, MIN_LEVEL } from "sina/rules/level";
 import { MAX_ITEM_NAME_LENGTH, parseQuantity } from "sina/rules/inventory";
@@ -71,16 +71,23 @@ function readEntry(entry) {
     return null;
   }
 
-  if (action === "secret_dice_roll") {
-    return isDie(entry.die) ? { die: entry.die } : null;
-  }
+  if (action === "secret_dice_roll" || action === "dice_roll") {
+    const diceCount = parseDiceCount(entry.count);
 
-  if (action === "dice_roll") {
-    const value = isDie(entry.die)
-      ? readDieResult(entry.die, entry.value)
-      : null;
+    if (!isDie(entry.die) || diceCount === null) {
+      return null;
+    }
 
-    return value === null ? null : { die: entry.die, value };
+    // Nothing is written down about what a kept roll came to.
+    if (action === "secret_dice_roll") {
+      return { die: entry.die, diceCount };
+    }
+
+    // A TOTAL, bounded against the handful that made it: 14 is a face no d6
+    // has and an ordinary 3d6.
+    const value = readDiceResult(entry.die, diceCount, entry.value);
+
+    return value === null ? null : { die: entry.die, diceCount, value };
   }
 
   if (action === "hp_change") {

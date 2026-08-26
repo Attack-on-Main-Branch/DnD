@@ -2,6 +2,7 @@ import { coinName } from "@/app/dashboard/currency-presentation";
 import { spellLevelLabel } from "@/app/dashboard/spell-presentation";
 
 import DieGlyph from "./dice-glyphs";
+import { diceName } from "./dice-presentation";
 
 /**
  * What the log SAYS, which is Maria's alone. `sina/rules/activity` knows that a
@@ -31,6 +32,9 @@ const ACCENTS = {
   dice_roll: "border-l-gold/70",
   secret_dice_roll: "border-l-arcane",
   hp_change: "border-l-orange-500",
+  /* One step back from a hit point's own orange: what moved is the FRAME the
+     bar is drawn in, not anything that happened to the character inside it. */
+  max_hp_change: "border-l-orange-300",
   item_used: "border-l-emerald-400",
   item_dropped: "border-l-zinc-500",
   item_transferred: "border-l-sky-400",
@@ -64,6 +68,11 @@ const ACCENTS = {
 
   /* One step darker than an item's: what moved is the whole bag. */
   bag_transferred: "border-l-sky-600",
+
+  /* The emerald the experience bar wears, and one step back from it for the
+     rest that fills every other bar on the page. */
+  xp_change: "border-l-emerald-400",
+  rest_taken: "border-l-emerald-700",
 };
 
 /**
@@ -125,15 +134,34 @@ const EMPHASIS_CLASSES = "font-semibold text-ink";
  * `size-3.5` is 14px, which is `text-sm`: the glyph is a word in this sentence
  * and should stand as tall as the ones either side of it.
  */
-function Die({ die }) {
+function Die({ die, count }) {
   return (
     <>
+      {/* One glyph however many were thrown, with the count in front of it the
+          way a table writes them: "3d6". */}
+      {count > 1 && <span aria-hidden="true">{count}</span>}
       <DieGlyph
         die={die}
         className="inline-block size-3.5 shrink-0 align-[-0.15em]"
       />
-      <span className="sr-only">{die}</span>
+      <span className="sr-only">{diceName(die, count)}</span>
     </>
+  );
+}
+
+/**
+ * Experience, signed the way a hit point is and in the bar's own emerald. Taken
+ * back is the ink the rest of the sentence is in rather than a warning colour:
+ * a correction is not a wound.
+ */
+function Experience({ delta }) {
+  return (
+    <span
+      className={`font-semibold ${delta > 0 ? "text-emerald-300" : "text-ink"}`}
+    >
+      {delta > 0 ? "+" : "−"}
+      {Math.abs(delta)}
+    </span>
   );
 }
 
@@ -182,13 +210,20 @@ function Coins({ amount, coin }) {
 }
 
 /**
- * Whose name the line opens with: the actor's, except for a level. That
- * exception is grammar rather than credit — `record_campaign_activity` writes
- * `level_change` only from the head of the table, so the actor is always
- * "Dungeon Master" and the sentence is about the character.
+ * Whose name the line opens with: the actor's, except where the sentence is
+ * ABOUT somebody else — a level awarded, and the maximum that moved with it.
+ * Grammar rather than credit: the character is what changed, and the actor is
+ * the Dungeon Master who changed them.
+ *
+ * A rung climbed on somebody's OWN experience carries no target, and then the
+ * actor is the character and the line opens with them like every other.
  */
+const ABOUT_THE_TARGET = new Set(["level_change", "max_hp_change"]);
+
 function opensWith(entry) {
-  return entry.action === "level_change" ? entry.target : entry.actor;
+  return ABOUT_THE_TARGET.has(entry.action) && entry.target
+    ? entry.target
+    : entry.actor;
 }
 
 /** One entry, as a sentence. */
@@ -205,7 +240,7 @@ function Body({ entry }) {
   if (entry.action === "secret_dice_roll") {
     return (
       <>
-        rolled <Die die={entry.die} /> in secret
+        rolled <Die die={entry.die} count={entry.count} /> in secret
       </>
     );
   }
@@ -214,7 +249,20 @@ function Body({ entry }) {
     return (
       <>
         rolled <span className={EMPHASIS_CLASSES}>{entry.value}</span> with{" "}
-        <Die die={entry.die} />
+        <Die die={entry.die} count={entry.count} />
+      </>
+    );
+  }
+
+  /* The frame the bar is drawn in, and the rung that decided it. No direction:
+     what it came TO is the fact, and the bar beside it already shows where that
+     left them. */
+  if (entry.action === "max_hp_change") {
+    return (
+      <>
+        Max HP updated to{" "}
+        <span className={EMPHASIS_CLASSES}>{entry.maxHp}</span> (Lvl{" "}
+        {entry.level})
       </>
     );
   }
@@ -225,7 +273,7 @@ function Body({ entry }) {
    * them; somebody moving another character's dealt or gave them, and the
    * database only writes a `target` for that second case.
    */
-  // The one sentence here that opens with somebody other than its actor —
+  // The one sentence here that can open with somebody other than its actor —
   // see `opensWith`.
   if (entry.action === "level_change") {
     return (
@@ -264,6 +312,51 @@ function Body({ entry }) {
         cast <span className={EMPHASIS_CLASSES}>{entry.spell}</span>
         {entry.level > 0 && <> at {spellLevelLabel(entry.level)}</>}
         <Effect damage={entry.damage} save={entry.save} />
+      </>
+    );
+  }
+
+  /**
+   * Experience, and the two sentences a `targetName` decides between: somebody
+   * who earned it, and the head of the table who handed it out. `the party` is
+   * the database's own fixed string for a grant to everybody at once.
+   */
+  if (entry.action === "xp_change") {
+    const gained = entry.delta > 0;
+
+    if (!entry.target) {
+      return (
+        <>
+          {gained ? "gained" : "lost"} <Experience delta={entry.delta} /> XP
+        </>
+      );
+    }
+
+    return (
+      <>
+        {gained ? "granted" : "took"} <Experience delta={entry.delta} /> XP{" "}
+        {gained ? "to" : "from"}{" "}
+        <span className={NAME_CLASSES}>{entry.target}</span>
+      </>
+    );
+  }
+
+  /* And a rest, which is a thing done rather than given: no target is somebody
+     resting their own character, and a name is the head of the table calling
+     one for them or for the party. */
+  if (entry.action === "rest_taken") {
+    return (
+      <>
+        completed a{" "}
+        <span className={EMPHASIS_CLASSES}>
+          {entry.restType === "long" ? "Long" : "Short"} Rest
+        </span>
+        {entry.target && (
+          <>
+            {" for "}
+            <span className={NAME_CLASSES}>{entry.target}</span>
+          </>
+        )}
       </>
     );
   }

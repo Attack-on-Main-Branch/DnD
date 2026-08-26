@@ -1,13 +1,16 @@
+import PlasmaBar from "./plasma-bar";
+
 /**
- * One health bar: a track, a plasma fill and the two auras behind it. Lifted
- * out of the character sheet so the table can show the same object rather than
- * a second one that merely looks like it.
+ * One health bar: the readout, and the plasma track under it. Lifted out of the
+ * character sheet so the table can show the same object rather than a second one
+ * that merely looks like it.
  *
- * Takes `tierClass` ready-made rather than deriving it, the way Avatar takes
- * its colour: `components/` never imports from a route directory.
+ * The track itself is plasma-bar.jsx, which experience borrows in another hue.
+ * What stays here is the part that is about HIT POINTS — the heading, the unit
+ * and the sentence a screen reader is given.
  *
- * `role="progressbar"` on the track, not the fill: a progressbar whose width
- * changes would be announced as though it were resizing.
+ * Takes `tierClass` ready-made rather than deriving it, the way Avatar takes its
+ * colour: `components/` never imports from a route directory.
  *
  * `compact` is the same object standing in a party card rather than on a sheet:
  * the heading goes, because the card already carries the name, and every gap
@@ -23,8 +26,6 @@ export default function HealthBar({
   label = "Health",
   compact = false,
 }) {
-  const width = `${fraction * 100}%`;
-
   return (
     <section className="w-full">
       {compact ? (
@@ -47,34 +48,16 @@ export default function HealthBar({
         </div>
       )}
 
-      {/* The near aura follows the fill; a glow under an empty track would be
-          light coming from health that is not there. */}
-      <div
-        className={`hp-bar relative ${compact ? "mt-1" : "mt-3"} ${tierClass}`}
-      >
-        <span
-          aria-hidden="true"
-          className="hp-aura hp-aura-wide pointer-events-none absolute -inset-x-0 -inset-y-0.3 rounded-full blur-lg"
-        />
-        <span
-          aria-hidden="true"
-          className="hp-aura pointer-events-none absolute left-0 -inset-y-0.5 rounded-full blur-lg"
-          style={{ width }}
-        />
-
-        <div
-          role="progressbar"
-          aria-valuenow={current}
-          aria-valuemin={0}
-          aria-valuemax={max}
-          aria-valuetext={`${current} of ${max} hit points`}
-          aria-label={label}
-          className={`relative ${compact ? "h-2.5" : "h-3"} w-full overflow-hidden rounded-full border border-gold/15 bg-black/40 shadow-[inset_0_1px_3px] shadow-black/70`}
-        >
-          {/* Inline width: the value is only known at render. */}
-          <div className="hp-fill h-full rounded-full" style={{ width }} />
-        </div>
-      </div>
+      <PlasmaBar
+        fraction={fraction}
+        toneClass={tierClass}
+        label={label}
+        valueNow={current}
+        valueMax={max}
+        valueText={`${current} of ${max} hit points`}
+        compact={compact}
+        className={compact ? "mt-1" : "mt-3"}
+      />
     </section>
   );
 }

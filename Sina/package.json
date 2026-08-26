@@ -1,6 +1,6 @@
 {
   "name": "sina",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
@@ -13,11 +13,15 @@
     "./rules/dice": "./src/rules/dice.js",
     "./rules/activity": "./src/rules/activity.js",
     "./rules/health": "./src/rules/health.js",
+    "./rules/hp": "./src/rules/hp.js",
+    "./rules/inspiration": "./src/rules/inspiration.js",
     "./rules/level": "./src/rules/level.js",
+    "./rules/rest": "./src/rules/rest.js",
     "./rules/skills": "./src/rules/skills.js",
     "./rules/spells": "./src/rules/spells.js",
     "./rules/spellcasting": "./src/rules/spellcasting.js",
     "./rules/text": "./src/rules/text.js",
+    "./rules/xp": "./src/rules/xp.js",
     "./rules/campaign": "./src/rules/campaign.js",
     "./rules/containers": "./src/rules/containers.js",
     "./rules/currency": "./src/rules/currency.js",
@@ -30,10 +34,13 @@
     "./data/campaigns": "./src/data/campaigns.js",
     "./data/containers": "./src/data/containers.js",
     "./data/currency": "./src/data/currency.js",
+    "./data/inspiration": "./src/data/inspiration.js",
     "./data/inventory": "./src/data/inventory.js",
     "./data/account": "./src/data/account.js",
     "./data/notifications": "./src/data/notifications.js",
-    "./data/spells": "./src/data/spells.js"
+    "./data/rest": "./src/data/rest.js",
+    "./data/spells": "./src/data/spells.js",
+    "./data/xp": "./src/data/xp.js"
   },
   "scripts": {
     "lint": "eslint",

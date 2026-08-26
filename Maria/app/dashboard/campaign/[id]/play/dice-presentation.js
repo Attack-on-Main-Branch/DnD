@@ -74,9 +74,14 @@ export function diceCast(secret) {
   return secret ? CASTS.secret : CASTS.open;
 }
 
-/** dice-box's own notation. One die at a time — the rail has no quantity. */
-export function dieNotation(id) {
-  return `1${id}`;
+/** dice-box's own notation, for however many of one die the rail was set to. */
+export function dieNotation(id, count) {
+  return `${count}${id}`;
+}
+
+/** The same throw as a table names it: "d20", "3d6". */
+export function diceName(id, count) {
+  return count > 1 ? `${count}${id}` : id;
 }
 
 /** What the pill says while the die is still on its way to a number. */
@@ -86,6 +91,6 @@ export const ROLLING_LABEL = "Rolling…";
  * What the banner and the ledger say. The wording is Maria's, as always: Sina
  * knows a die has twenty faces and nothing about how to announce one.
  */
-export function rollSentence({ die, value, secret }) {
-  return `${secret ? "Secret roll: " : ""}${die} ➔ ${value}`;
+export function rollSentence({ die, count, value, secret }) {
+  return `${secret ? "Secret roll: " : ""}${diceName(die, count)} ➔ ${value}`;
 }

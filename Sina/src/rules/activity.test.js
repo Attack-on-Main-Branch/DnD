@@ -43,6 +43,9 @@ describe("the catalogue", () => {
       "chest_revealed",
       "chest_looted",
       "bag_transferred",
+      "xp_change",
+      "rest_taken",
+      "max_hp_change",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -59,9 +62,19 @@ describe("readActivity, on a roll", () => {
       action: "dice_roll",
       actor: "Fern",
       die: "d20",
+      count: 1,
       secret: false,
       value: 18,
     });
+  });
+
+  it("reads a handful and the total it came to", () => {
+    const entry = readActivity(
+      row({ payload: { value: 14, dieType: "d6", count: 3 } }),
+    );
+
+    assert.equal(entry.count, 3);
+    assert.equal(entry.value, 14);
   });
 
   it("refuses a face the die does not have", () => {
@@ -71,6 +84,24 @@ describe("readActivity, on a roll", () => {
     );
     assert.equal(
       readActivity(row({ payload: { value: 0, dieType: "d20" } })),
+      null,
+    );
+  });
+
+  it("refuses a total the handful could not have come to", () => {
+    assert.equal(
+      readActivity(row({ payload: { value: 19, dieType: "d6", count: 3 } })),
+      null,
+    );
+    assert.equal(
+      readActivity(row({ payload: { value: 2, dieType: "d6", count: 3 } })),
+      null,
+    );
+  });
+
+  it("refuses a count the rail could not have thrown", () => {
+    assert.equal(
+      readActivity(row({ payload: { value: 4, dieType: "d6", count: 0 } })),
       null,
     );
   });
@@ -190,12 +221,141 @@ describe("readActivity, on a level change", () => {
     );
   });
 
-  it("refuses a row that names nobody", () => {
-    // Unlike a hit-point change: a level is only ever moved from the head of
-    // the table, so the character is never the actor and the sentence has
-    // nobody to be about without this.
+  it("names nobody for a rung somebody climbed themselves", () => {
+    // A level used to be AWARDED and nothing else, so the character was never
+    // the actor and a row without a name was unreadable. Since 20260903090000
+    // experience can carry somebody up their own ladder, and the database omits
+    // the key for that exactly as it does for a hit point moved on one's own
+    // bar. Two sentences, one entry.
+    const climbed = readActivity(
+      row({ ...LEVELLED, payload: { level: 5, delta: 1 } }),
+    );
+
+    assert.equal(climbed.level, 5);
+    assert.equal(climbed.delta, 1);
+    assert.equal(climbed.target, null);
+  });
+});
+
+describe("readActivity, on experience", () => {
+  it("reads a gain nobody else was named for", () => {
+    const gained = readActivity(
+      row({ action_type: "xp_change", payload: { delta: 150 } }),
+    );
+
+    assert.equal(gained.delta, 150);
+    assert.equal(gained.target, null);
+  });
+
+  it("reads a grant from the head of the table", () => {
+    const granted = readActivity(
+      row({
+        actor_name: "Dungeon Master",
+        actor_type: "dm",
+        action_type: "xp_change",
+        payload: { delta: 150, targetName: "the party" },
+      }),
+    );
+
+    assert.equal(granted.target, "the party");
+  });
+
+  it("refuses a change of nothing, and one past a single press", () => {
     assert.equal(
-      readActivity(row({ ...LEVELLED, payload: { level: 5, delta: 1 } })),
+      readActivity(row({ action_type: "xp_change", payload: { delta: 0 } })),
+      null,
+    );
+    assert.equal(
+      readActivity(
+        row({ action_type: "xp_change", payload: { delta: 100001 } }),
+      ),
+      null,
+    );
+  });
+});
+
+describe("readActivity, on a rest", () => {
+  it("reads which of the two it was", () => {
+    const rested = readActivity(
+      row({ action_type: "rest_taken", payload: { restType: "long" } }),
+    );
+
+    assert.equal(rested.restType, "long");
+    assert.equal(rested.target, null);
+  });
+
+  it("names the party when the table rested together", () => {
+    const rested = readActivity(
+      row({
+        actor_name: "Dungeon Master",
+        actor_type: "dm",
+        action_type: "rest_taken",
+        payload: { restType: "short", targetName: "the party" },
+      }),
+    );
+
+    assert.equal(rested.target, "the party");
+  });
+
+  it("refuses a rest nobody takes", () => {
+    assert.equal(
+      readActivity(row({ action_type: "rest_taken", payload: {} })),
+      null,
+    );
+    assert.equal(
+      readActivity(
+        row({ action_type: "rest_taken", payload: { restType: "nap" } }),
+      ),
+      null,
+    );
+  });
+});
+
+describe("readActivity, on a frame that moved", () => {
+  it("reads where the maximum landed and the rung it landed on", () => {
+    const moved = readActivity(
+      row({
+        actor_name: "Dungeon Master",
+        actor_type: "dm",
+        action_type: "max_hp_change",
+        payload: { maxHp: 12, level: 2, targetName: "Frieren" },
+      }),
+    );
+
+    assert.equal(moved.maxHp, 12);
+    assert.equal(moved.level, 2);
+    assert.equal(moved.target, "Frieren");
+  });
+
+  it("refuses a maximum or a rung outside its own ends", () => {
+    assert.equal(
+      readActivity(
+        row({ action_type: "max_hp_change", payload: { maxHp: 0, level: 2 } }),
+      ),
+      null,
+    );
+    assert.equal(
+      readActivity(
+        row({
+          action_type: "max_hp_change",
+          payload: { maxHp: 9999, level: 2 },
+        }),
+      ),
+      null,
+    );
+    assert.equal(
+      readActivity(
+        row({ action_type: "max_hp_change", payload: { maxHp: 12, level: 0 } }),
+      ),
+      null,
+    );
+  });
+
+  it("refuses a row missing either half", () => {
+    assert.equal(
+      readActivity(
+        row({ action_type: "max_hp_change", payload: { maxHp: 12 } }),
+      ),
       null,
     );
   });

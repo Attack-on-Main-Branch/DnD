@@ -8,15 +8,17 @@ import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 import { useTableMarks } from "./table-marks";
 
 /**
- * How tall a panel's contents stand, the same for the scroll and the pack —
- * they open into the same box, and one half the height of the other would have
- * that box resize every time the pointer moved between two marks. Fixing the
- * body also stops a panel resizing as a note is written or an item used.
+ * How tall a panel's contents stand — ONE height for every mark and every chair,
+ * or the box resizes each time the pointer moves between two of them.
  *
- * A literal, or Tailwind's scanner never sees it. `60vh` is the guard: the
- * panel hangs off the marks above the board.
+ * THE FIGURE IS THE SCORES SHEET'S, measured: a player's runs to 552px at 1440
+ * by 900, and this is the next round pair above it. A Dungeon Master's carries
+ * the party picker on top and does scroll; that is the trade.
+ *
+ * A literal, or Tailwind's scanner never sees it. The `vh` half is the guard:
+ * the panel hangs off the marks and has the window's foot to clear.
  */
-export const POPOVER_BODY_CLASSES = "h-[min(34rem,60vh)]";
+export const POPOVER_BODY_CLASSES = "h-[min(36rem,64vh)]";
 
 /**
  * And how tall it stands with a SECOND panel under it: the pair hangs off the

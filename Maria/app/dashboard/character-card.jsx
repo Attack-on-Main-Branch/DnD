@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import HoverNote from "@/app/components/ui/hover-note";
 import Avatar from "@/app/components/ui/avatar";
 import ConfirmDialog from "@/app/components/ui/confirm-dialog";
 import { surfaceClasses } from "@/app/components/ui/surface";
@@ -163,18 +164,15 @@ export default function CharacterCard({ character, handle, facts }) {
               onClick={copyHandle}
               disabled={isPending}
               aria-label={`Copy ${handle}`}
-              className="group/copy relative z-10 min-w-0 cursor-pointer rounded-lg text-left"
+              className="group/note relative z-10 min-w-0 cursor-pointer rounded-lg text-left"
             >
-              <span className="block truncate font-display text-xl leading-tight font-semibold text-ink drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] transition-colors duration-300 group-hover/copy:text-gold">
+              <span className="block truncate font-display text-xl leading-tight font-semibold text-ink drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] transition-colors duration-300 group-hover/note:text-gold">
                 {character.name}
               </span>
 
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute top-full left-0 mt-1 rounded-md border border-gold/25 bg-surface/95 px-2 py-1 font-sans text-[0.7rem] whitespace-nowrap text-gold opacity-0 transition-opacity duration-200 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100"
-              >
+              <HoverNote className="top-full left-0 mt-1">
                 {copied ? "Copied" : "Copy name"}
-              </span>
+              </HoverNote>
             </button>
           </div>
 

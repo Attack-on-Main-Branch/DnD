@@ -1,17 +1,19 @@
 "use client";
 
-import { DICE } from "sina/rules/dice";
+import { useState } from "react";
+import { DICE, MAX_DICE_COUNT, parseDiceCount } from "sina/rules/dice";
 
 import EyeIcon from "@/app/components/ui/eye-icon";
+import { controlClasses } from "@/app/components/ui/field-styles";
 
 import DieGlyph from "./dice-glyphs";
-import { diceCast } from "./dice-presentation";
+import { diceCast, diceName } from "./dice-presentation";
 import { RollAnnouncement, useDiceTable } from "./dice-table";
 import { RAIL_CLASSES, railEntrance } from "./entrance";
 
 /**
- * The dice, stacked down the rail beside the board, with the Dungeon Master's
- * veil under them.
+ * The dice, stacked down the rail beside the board, with how many of them go at
+ * once above and the Dungeon Master's veil under them.
  *
  * Marks and not buttons: no rim, no fill, nothing behind the drawing. A surface
  * around a 36px icon is a second object competing with the icon, and the
@@ -32,10 +34,22 @@ const MARK_CLASSES =
 export default function DiceRail({ canKeepSecrets }) {
   const { stage, secret, setSecret, roll, warm } = useDiceTable();
 
+  /* Held as what was TYPED, so the field can be emptied; one is what an empty
+     field throws. */
+  const [handful, setHandful] = useState("1");
+
+  const count = parseDiceCount(handful) ?? 1;
+
   // The rail wears the veil's own colour whatever the rest of the table is
   // doing: it says what the NEXT roll will be, not what the last one was.
   const cast = diceCast(secret);
   const busy = stage !== "idle";
+
+  /* A handful is for ONE throw: back to a single die as they leave the hand. */
+  function throwDice(die) {
+    setHandful("1");
+    roll(die, count);
+  }
 
   return (
     <div
@@ -49,15 +63,19 @@ export default function DiceRail({ canKeepSecrets }) {
       style={{ ...cast.style, ...railEntrance() }}
       className={`flex w-14 shrink-0 flex-col items-center gap-1 ${RAIL_CLASSES}`}
     >
+      <Handful value={handful} onChange={setHandful} disabled={busy} />
+
       <ul className="flex flex-col items-center gap-1">
         {DICE.map((die) => (
           <li key={die.id}>
             <button
               type="button"
-              onClick={() => roll(die.id)}
+              onClick={() => throwDice(die.id)}
               disabled={busy}
               aria-label={
-                secret ? `Roll a ${die.id} in secret` : `Roll a ${die.id}`
+                secret
+                  ? `Roll ${diceName(die.id, count)} in secret`
+                  : `Roll ${diceName(die.id, count)}`
               }
               className={MARK_CLASSES}
             >
@@ -83,6 +101,50 @@ export default function DiceRail({ canKeepSecrets }) {
 
       <RollAnnouncement />
     </div>
+  );
+}
+
+/**
+ * How many of whichever die is pressed next.
+ *
+ * CLAMPED AS IT IS TYPED rather than on the throw: 40 read back as 40 and then
+ * threw twenty, which is a field disagreeing with itself. Emptying it is left
+ * alone — a field that refills itself cannot be retyped in.
+ */
+function Handful({ value, onChange, disabled }) {
+  function set(typed) {
+    const asked = Number(typed);
+
+    onChange(
+      Number.isInteger(asked) && asked > MAX_DICE_COUNT
+        ? String(MAX_DICE_COUNT)
+        : typed,
+    );
+  }
+
+  return (
+    <>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={MAX_DICE_COUNT}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => set(event.target.value)}
+        aria-label="How many dice the next roll throws"
+        className={controlClasses({
+          className: "no-spin px-1 py-1 text-center tabular-nums",
+        })}
+      />
+
+      {/* The field is not one of the marks below it, and must not read as the
+          top of the stack. */}
+      <div
+        aria-hidden="true"
+        className="mt-1 mb-2 h-px w-full bg-linear-to-r from-transparent via-(--cast-rule) to-transparent"
+      />
+    </>
   );
 }
 

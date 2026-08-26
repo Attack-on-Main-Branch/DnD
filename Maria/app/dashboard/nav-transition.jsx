@@ -8,6 +8,7 @@ import {
   stopNavigationProgress,
 } from "@/app/components/navigation-progress-control";
 import { closeOut, reopen } from "@/app/components/ui/panel-fold";
+import { markRouteChange } from "@/app/components/view-nav";
 
 /**
  * Moving between the dashboard's pages, played as a closing rather than a cut:
@@ -86,6 +87,10 @@ export default function NavTransition({ className, children }) {
     event.preventDefault();
     leaving.current = true;
     startNavigationProgress();
+
+    /* This one IS a page you are leaving, so the fade is wanted — see the gate
+       in globals.css. */
+    markRouteChange();
 
     const leavingRoute = target.pathname !== window.location.pathname;
 

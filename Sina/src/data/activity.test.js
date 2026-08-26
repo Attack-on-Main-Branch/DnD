@@ -95,6 +95,7 @@ describe("recordCampaignActivity", () => {
       actorCharacterId: CHARACTER,
       action: "dice_roll",
       die: "d20",
+      diceCount: 1,
       value: 18,
     });
 
@@ -107,6 +108,7 @@ describe("recordCampaignActivity", () => {
       item_name: null,
       item_quantity: null,
       die_type: "d20",
+      dice_count: 1,
       roll_value: 18,
       hp_delta: null,
       level_value: null,

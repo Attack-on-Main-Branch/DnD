@@ -21,17 +21,24 @@ const SIZE_CLASSES = {
  * Takes the initials and the colour class ready-made rather than deriving them:
  * `components/` never imports from a route directory, or the primitive cannot
  * be reused outside the dashboard.
+ *
+ * `ring` is the pale edge that lifts a portrait off whatever it is standing on.
+ * Off where the avatar IS an edge — a party pill's face sits flush in the
+ * capsule's own outline, and a second ring inside it reads as two rims.
  */
 export default function Avatar({
   initials,
   colorClass,
   size = "md",
+  ring = true,
   className = "",
 }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex shrink-0 items-center justify-center rounded-full font-display font-semibold tracking-wide text-white ring-2 ring-white/20 ${SIZE_CLASSES[size] ?? SIZE_CLASSES.md} ${colorClass} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-display font-semibold tracking-wide text-white ${
+        ring ? "ring-2 ring-white/20" : ""
+      } ${SIZE_CLASSES[size] ?? SIZE_CLASSES.md} ${colorClass} ${className}`}
     >
       {initials}
     </span>

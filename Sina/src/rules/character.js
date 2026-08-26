@@ -7,15 +7,12 @@
  */
 
 import {
-  DEFAULT_MAX_HP,
   healthFraction,
   healthTier,
   HEALTH_TIERS,
   MAX_HP,
   MIN_MAX_HP,
   parseHitPoints,
-  readMaxHitPoints,
-  validateMaxHitPoints,
 } from "./health.js";
 import {
   abilityModifier,
@@ -49,15 +46,12 @@ export {
 /** Hit points live in health.js so the browser can import them without the
     catalogues below; re-exported where callers already look for them. */
 export {
-  DEFAULT_MAX_HP,
   healthFraction,
   healthTier,
   HEALTH_TIERS,
   MAX_HP,
   MIN_MAX_HP,
   parseHitPoints,
-  readMaxHitPoints,
-  validateMaxHitPoints,
 };
 
 export const MAX_CHARACTERS = 3;
@@ -505,7 +499,6 @@ export function readCharacterValues(formData) {
     name: String(formData.get("name") ?? "").trim(),
     discriminator: String(formData.get("discriminator") ?? "").trim(),
     race: String(formData.get("race") ?? ""),
-    maxHp: readMaxHitPoints(formData.get("maxHp")),
     archetype: String(formData.get("archetype") ?? ""),
     classId: String(formData.get("classId") ?? ""),
     alignment: String(formData.get("alignment") ?? ""),
@@ -525,7 +518,6 @@ export function validateCharacter({
   name,
   discriminator,
   race,
-  maxHp,
   archetype,
   classId,
   alignment,
@@ -562,13 +554,6 @@ export function validateCharacter({
 
   if (!RACES.includes(race)) {
     return { field: "race", message: "Choose a race." };
-  }
-
-  // Beside the race, which is where the sheet asks for it.
-  const badMaximum = validateMaxHitPoints(maxHp);
-
-  if (badMaximum) {
-    return badMaximum;
   }
 
   const chosenArchetype = archetypeDetails(archetype);
