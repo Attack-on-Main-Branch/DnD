@@ -21,7 +21,7 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DICE_THEMES } from "../lib/dice-themes.mjs";
+import { DARK_NUMERAL_LEVEL, DICE_THEMES, rgbOf } from "../lib/dice-themes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HERE, "..", "public", "assets", "dice-box");
@@ -36,9 +36,6 @@ const SOURCE = path.join(
 const SHARED = ["default.json", "normal.png", "specular.jpg"];
 
 const DICE_AVAILABLE = ["d4", "d6", "d8", "d10", "d12", "d20", "d100"];
-
-/** How far the dark variant of a numeral is taken down. */
-const DARK_LEVEL = 0.35;
 
 const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -58,16 +55,6 @@ function crc32(bytes) {
   }
 
   return (crc ^ 0xffffffff) >>> 0;
-}
-
-function rgb(hex, level = 1) {
-  const value = parseInt(hex.replace("#", ""), 16);
-
-  return [
-    Math.round(((value >> 16) & 255) * level),
-    Math.round(((value >> 8) & 255) * level),
-    Math.round((value & 255) * level),
-  ];
 }
 
 /**
@@ -145,11 +132,11 @@ async function writeTheme(systemName, theme) {
   await Promise.all([
     writeFile(
       path.join(folder, "numerals-light.png"),
-      repaintPalette(glyphs, rgb(theme.numerals)),
+      repaintPalette(glyphs, rgbOf(theme.numerals)),
     ),
     writeFile(
       path.join(folder, "numerals-dark.png"),
-      repaintPalette(glyphs, rgb(theme.numerals, DARK_LEVEL)),
+      repaintPalette(glyphs, rgbOf(theme.numerals, DARK_NUMERAL_LEVEL)),
     ),
     writeFile(
       path.join(folder, "theme.config.json"),

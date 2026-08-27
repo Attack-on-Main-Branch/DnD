@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { markKey } from "sina/rules/campaign";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
@@ -107,7 +108,20 @@ function byContainer(rows) {
  */
 function readMarks(rows) {
   return new Map(
-    (rows ?? []).map((mark) => [mark.character_id, { x: mark.x, y: mark.y }]),
+    (rows ?? []).map((mark) => [
+      // A seat has a token on every map it has stood on, so the seat alone is
+      // no longer the key — see `markKey`, which the unique index in
+      // 20260921090000 spells out the same way.
+      markKey(mark.map_id, mark.character_id),
+      {
+        characterId: mark.character_id,
+        mapId: mark.map_id ?? null,
+        x: mark.x,
+        y: mark.y,
+        q: mark.hex_q,
+        r: mark.hex_r,
+      },
+    ]),
   );
 }
 

@@ -13,8 +13,13 @@
  * No `user_id` on this table and nothing here may invent one. `campaign_id`
  * stays out too — every read is already filtered to one campaign, and the panel
  * has no use for it.
+ *
+ * `actor_character` is the seat, and the panel draws a face from it. It names a
+ * character the reader can already see on a card beside the log, which is why
+ * it may travel where the owner behind it may not.
  */
-const COLUMNS = "id, actor_name, actor_type, action_type, payload, created_at";
+const COLUMNS =
+  "id, actor_character, actor_name, actor_type, action_type, payload, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const CHECK_VIOLATION = "23514";

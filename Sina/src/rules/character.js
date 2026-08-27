@@ -15,6 +15,14 @@ import {
   parseHitPoints,
 } from "./health.js";
 import {
+  formatBytes,
+  imageExtension,
+  IMAGE_ACCEPT_ATTRIBUTE,
+  isAcceptedImage,
+  isUploadedFile,
+  pathFromPublicUrl,
+} from "./images.js";
+import {
   abilityModifier,
   defaultSkills,
   formatModifier,
@@ -29,6 +37,9 @@ import {
 import { countCharacters, readProse } from "./text.js";
 
 export { countCharacters };
+
+/** A picture's own rules sit in images.js; the sheet's callers look here. */
+export { formatBytes };
 
 /** The skills sit in their own module for the reason hit points do; what the
     sheet reads is re-exported here, where the rest of a character is. */
@@ -250,10 +261,14 @@ export const ALIGNMENTS = [
 ];
 
 /**
- * The twelve avatar colours, as stored. Must stay in step with the
- * `characters_color_theme_check` constraint in the migrations.
+ * The twelve colours a character owns. They pigment the DICE that character
+ * throws, and the disc a portrait has not been hung over. Must stay in step
+ * with the `characters_dice_color_check` constraint in the migrations.
+ *
+ * The Dungeon Master is not on this list: the head of the table rolls the
+ * house's own dice, and a chair with no character has no colour to spend.
  */
-export const AVATAR_COLOR_VALUES = [
+export const DICE_COLOR_VALUES = [
   "rose",
   "orange",
   "amber",
@@ -268,7 +283,59 @@ export const AVATAR_COLOR_VALUES = [
   "pink",
 ];
 
-export const DEFAULT_AVATAR_COLOR = "violet";
+/** The first swatch, which is what the column defaults an unanswered sheet to. */
+export const DEFAULT_DICE_COLOR = DICE_COLOR_VALUES[0];
+
+/**
+ * Whether a slug is one of the twelve. The counterpart to `isDie` next door,
+ * and for the same reason: a colour arrives at a table over a socket, where
+ * nothing is trusted beyond its shape.
+ */
+export function isDiceColor(value) {
+  return DICE_COLOR_VALUES.includes(value);
+}
+
+/* ---------------------------------------------------------------------------
+   THE PORTRAIT
+   --------------------------------------------------------------------------- */
+
+/** For the file picker's `accept`, which takes a comma-separated list. */
+export const AVATAR_ACCEPT_ATTRIBUTE = IMAGE_ACCEPT_ATTRIBUTE;
+
+/**
+ * A 512px square at q90 measures tens of kilobytes; this is the ceiling for
+ * everything that did not go through the browser's own re-encode. Well under
+ * `serverActions.bodySizeLimit`, which a map is what actually sizes.
+ */
+export const MAX_AVATAR_BYTES = 512 * 1024;
+
+/** The bucket the portraits live in, as the migration names it. */
+const AVATAR_BUCKET = "character-avatars";
+
+/**
+ * `{uid}/{character id}-{stamp}.{ext}`. The first segment is the owner's uid
+ * and the storage policy compares exactly that, so this shape is load-bearing
+ * — change it and the policy in the migration changes with it.
+ *
+ * NOT `characters/{id}/…`, however well that reads: a character does not exist
+ * while its sheet is still being written, so a policy asking who owns the row
+ * could never let a first portrait through. The uid is known before either.
+ *
+ * `stamp` rather than overwriting, for the reason a replaced map takes a fresh
+ * name: the upload asks for a year of `max-age`, so the old URL would go on
+ * serving the old face.
+ */
+export function avatarObjectPath({ userId, characterId, type, stamp }) {
+  return `${userId}/${characterId}-${stamp}.${imageExtension(type)}`;
+}
+
+/**
+ * The storage path back out of a public URL, or null if it is not one of ours
+ * — which is what lets a replaced or deleted portrait be swept up after.
+ */
+export function avatarPathFromUrl(url) {
+  return pathFromPublicUrl(url, AVATAR_BUCKET);
+}
 
 const DISCRIMINATOR_PATTERN = /^[0-9]{4}$/;
 
@@ -495,6 +562,8 @@ export function parseNote(value) {
 }
 
 export function readCharacterValues(formData) {
+  const avatar = formData.get("avatar");
+
   return {
     name: String(formData.get("name") ?? "").trim(),
     discriminator: String(formData.get("discriminator") ?? "").trim(),
@@ -502,7 +571,15 @@ export function readCharacterValues(formData) {
     archetype: String(formData.get("archetype") ?? ""),
     classId: String(formData.get("classId") ?? ""),
     alignment: String(formData.get("alignment") ?? ""),
-    colorTheme: String(formData.get("colorTheme") ?? ""),
+    diceColor: String(formData.get("diceColor") ?? ""),
+
+    // An empty file input still submits a zero-byte File with no name.
+    avatar: isUploadedFile(avatar) ? avatar : null,
+
+    /* Only the edit sheet posts this, and only while a portrait is still on
+       it: "leave the picture alone" and "take it away" both arrive as no file,
+       and this is the whole of what tells them apart. */
+    keepAvatar: formData.get("keepAvatar") === "1",
     abilities: readAbilityScores(formData),
     skills: readSkills(formData),
     backstory: readProse(formData.get("backstory")),
@@ -521,7 +598,8 @@ export function validateCharacter({
   archetype,
   classId,
   alignment,
-  colorTheme,
+  diceColor,
+  avatar,
   abilities,
   skills,
   backstory,
@@ -588,8 +666,24 @@ export function validateCharacter({
     return { field: "alignment", message: "Choose an alignment." };
   }
 
-  if (!AVATAR_COLOR_VALUES.includes(colorTheme)) {
-    return { field: "colorTheme", message: "Choose an avatar colour." };
+  if (!DICE_COLOR_VALUES.includes(diceColor)) {
+    return { field: "diceColor", message: "Choose a dice colour." };
+  }
+
+  if (avatar) {
+    if (!isAcceptedImage(avatar.type)) {
+      return {
+        field: "avatar",
+        message: "The portrait must be a WebP, PNG, JPEG or GIF image.",
+      };
+    }
+
+    if (avatar.size > MAX_AVATAR_BYTES) {
+      return {
+        field: "avatar",
+        message: `The portrait must be under ${formatBytes(MAX_AVATAR_BYTES)} once compressed.`,
+      };
+    }
   }
 
   // Code points, not UTF-16 units — the count the CHECK constraint uses.

@@ -1,5 +1,6 @@
 import {
   getCampaign,
+  listCampaignMaps,
   listCampaignNotes,
   listPartyMembers,
 } from "sina/data/campaigns";
@@ -54,6 +55,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       campaign: null,
       members: [],
       notes: [],
+      maps: [],
       items: [],
       spells: [],
       containers: [],
@@ -63,10 +65,11 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     };
   }
 
-  // Together rather than one after the other: five round trips, one wait.
-  const [party, notes, items, spells, containers] = await Promise.all([
+  // Together rather than one after the other: six round trips, one wait.
+  const [party, notes, maps, items, spells, containers] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignNotes(supabase, id),
+    listCampaignMaps(supabase, id),
     listCampaignItems(supabase, id),
     listCampaignSpells(supabase, id),
     listCampaignContainers(supabase, id),
@@ -78,6 +81,10 @@ export const loadCampaign = cache(async function loadCampaign(id) {
 
   if (notes.error) {
     logFailure("listCampaignNotes", notes.error);
+  }
+
+  if (maps.error) {
+    logFailure("listCampaignMaps", maps.error);
   }
 
   if (items.error) {
@@ -122,6 +129,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     campaign,
     members: party.error ? [] : party.data,
     notes: notes.error ? [] : notes.data,
+    maps: maps.error ? [] : maps.data,
     items: items.error ? [] : items.data,
     spells: spells.error ? [] : spells.data,
     containers: shelf,

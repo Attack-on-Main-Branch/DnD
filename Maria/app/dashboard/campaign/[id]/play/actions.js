@@ -8,6 +8,7 @@ import {
   listCampaignNotes,
   placeCampaignMark,
   updateCampaignNote,
+  updateMapGridSettings,
 } from "sina/data/campaigns";
 import {
   applyDamage,
@@ -27,6 +28,7 @@ import { moveCharacterInspiration } from "sina/data/inspiration";
 import { isAbilityId, parseAbilityTotal } from "sina/rules/ability-scores";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import { parseMarkPoint } from "sina/rules/campaign";
+import { clampGridLuminance, clampGridSize } from "sina/rules/grid";
 import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
 import { parseArmorClass } from "sina/rules/death";
 import { MAX_HP } from "sina/rules/health";
@@ -618,7 +620,7 @@ const MARK_COPY = {
  * anybody else, so an account holding two chairs here cannot place the other
  * one's token by naming it.
  */
-export async function placeTableMark(campaignId, characterId, point) {
+export async function placeTableMark(campaignId, characterId, mapId, point) {
   const spot = parseMarkPoint(point?.x, point?.y);
 
   if (!spot) {
@@ -635,8 +637,14 @@ export async function placeTableMark(campaignId, characterId, point) {
   const { error } = await placeCampaignMark(supabase, {
     campaignId,
     characterId,
+    mapId,
     x: spot.x,
     y: spot.y,
+    // The cell the point fell in, or nothing for a board with no grid. The
+    // browser does the geometry — see lib/hex-math.js — and the database keeps
+    // the answer beside the point rather than instead of it.
+    q: point?.q,
+    r: point?.r,
   });
 
   if (error) {
@@ -652,7 +660,7 @@ export async function placeTableMark(campaignId, characterId, point) {
 }
 
 /** The token off again — your own, or any of them if you run this table. */
-export async function clearTableMark(campaignId, characterId) {
+export async function clearTableMark(campaignId, characterId, mapId) {
   const supabase = await createClient();
   const { user, error: authError } = await getCurrentUser(supabase);
 
@@ -663,6 +671,7 @@ export async function clearTableMark(campaignId, characterId) {
   const { error } = await clearCampaignMark(supabase, {
     campaignId,
     characterId,
+    mapId,
   });
 
   if (error) {
@@ -670,6 +679,47 @@ export async function clearTableMark(campaignId, characterId) {
 
     logUncovered("clearTableMark", error, copy);
     return rejected(copy ?? "Could not clear that mark. Try again.");
+  }
+
+  return { kind: "success" };
+}
+
+/**
+ * A map ruled with hexagons, or the ruling taken off it.
+ *
+ * NOTHING IS REVALIDATED, like every other deed at this table: the board has
+ * already drawn the grid the Dungeon Master is dragging, and what this is for
+ * is making it true and telling the chairs the broadcast did not reach.
+ *
+ * Called on RELEASE and not on every frame of a slider — see the ribbon in
+ * dm-map-drawer.jsx. A drag is one intention, not two hundred writes.
+ */
+export async function ruleMapGrid(mapId, { enabled, size, luminance }) {
+  if (typeof mapId !== "string" || mapId.length === 0) {
+    return rejected("Missing map id.");
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("ruleMapGrid", authError);
+  }
+
+  const { error } = await updateMapGridSettings(supabase, {
+    mapId,
+    enabled: Boolean(enabled),
+    // Bounded here as well as by the CHECK constraint and by the function that
+    // clamps between them: a slider is what produces these.
+    size: clampGridSize(size),
+    luminance: clampGridLuminance(luminance),
+  });
+
+  if (error) {
+    const copy = MARK_COPY[error.reason];
+
+    logUncovered("ruleMapGrid", error, copy);
+    return rejected(copy ?? "Could not change the grid. Try again.");
   }
 
   return { kind: "success" };

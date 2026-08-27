@@ -64,7 +64,8 @@ export default function CharacterInventory({ characters }) {
                 name: character.name,
                 discriminator: character.discriminator,
                 race: character.race,
-                color_theme: character.color_theme,
+                dice_color: character.dice_color,
+                avatar_url: character.avatar_url,
               }}
               handle={characterHandle(character)}
               facts={<CharacterFacts character={character} />}

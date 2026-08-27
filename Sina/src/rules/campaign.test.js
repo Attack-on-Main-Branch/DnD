@@ -13,6 +13,13 @@ import {
   parseMarkPoint,
   readCampaignValues,
   validateCampaign,
+  campaignMapObjectPath,
+  DEFAULT_MAP_NAME,
+  MAX_EXTRA_MAPS,
+  MAX_MAP_NAME_LENGTH,
+  readCampaignMaps,
+  validateCampaignMaps,
+  markKey,
 } from "./campaign.js";
 
 const DRAGON = "🐉"; // one code point, two UTF-16 units — the whole point below
@@ -428,4 +435,196 @@ describe("parseMarkPoint", () => {
       assert.equal(parseMarkPoint(x, y), null);
     });
   }
+});
+
+describe("the shelf of maps", () => {
+  /** A File the way a parsed multipart body hands one over. */
+  function picture({ type = "image/webp", bytes = 64 } = {}) {
+    return new File([new Uint8Array(bytes)], "keep.webp", { type });
+  }
+
+  function sheet({ kept = [], added = [] } = {}) {
+    const data = new FormData();
+
+    // What the zone posts to say it is talking about the shelf at all.
+    data.append("mapShelf", "1");
+
+    for (const slot of kept) {
+      data.append("mapKept", slot.id);
+      data.append("mapKeptName", slot.name);
+    }
+
+    for (const slot of added) {
+      data.append("mapFile", slot.file);
+      data.append("mapFileName", slot.name);
+    }
+
+    return data;
+  }
+
+  describe("campaignMapObjectPath", () => {
+    // The first segment is what the storage policy compares against auth.uid(),
+    // so the shape of this string is load-bearing rather than tidy. It is the
+    // same bucket, and the same four policies, the world map is admitted by.
+    it("puts the object in a folder named after the owner", () => {
+      assert.equal(
+        campaignMapObjectPath({
+          userId: "user-1",
+          campaignId: "camp-1",
+          mapId: "map-1",
+          type: "image/webp",
+        }),
+        "user-1/camp-1-map-1.webp",
+      );
+    });
+
+    it("falls back to webp for a type it does not know", () => {
+      assert.match(
+        campaignMapObjectPath({
+          userId: "u",
+          campaignId: "c",
+          mapId: "m",
+          type: "image/avif",
+        }),
+        /\.webp$/,
+      );
+    });
+  });
+
+  describe("readCampaignMaps", () => {
+    it("pairs every name with the slot it was typed into", () => {
+      const shelf = readCampaignMaps(
+        sheet({
+          kept: [
+            { id: "a", name: "The Keep" },
+            { id: "b", name: "The Crypt" },
+          ],
+          added: [{ file: picture(), name: "The Docks" }],
+        }),
+      );
+
+      assert.deepEqual(shelf.kept, [
+        { id: "a", name: "The Keep" },
+        { id: "b", name: "The Crypt" },
+      ]);
+      assert.equal(shelf.added.length, 1);
+      assert.equal(shelf.added[0].name, "The Docks");
+    });
+
+    it("gives a slot left unnamed the column's own default", () => {
+      const shelf = readCampaignMaps(
+        sheet({ kept: [{ id: "a", name: "   " }] }),
+      );
+
+      assert.equal(shelf.kept[0].name, DEFAULT_MAP_NAME);
+    });
+
+    // A zone that IS on the sheet and empty means every map was taken off.
+    it("reads an emptied zone as an empty shelf", () => {
+      assert.deepEqual(readCampaignMaps(sheet()), { kept: [], added: [] });
+    });
+
+    /* And a sheet with no zone at all means something else entirely: leave the
+       shelf where it is. Without this the two are the same request, and a form
+       that never mentioned maps would delete all of them. */
+    it("answers null for a sheet that never mentioned the shelf", () => {
+      assert.equal(readCampaignMaps(new FormData()), null);
+      assert.equal(validateCampaignMaps(null), null);
+    });
+
+    it("drops the zero-byte File an empty file input still submits", () => {
+      const data = sheet();
+
+      data.append("mapFile", new File([], "", { type: "" }));
+      data.append("mapFileName", "Nothing");
+
+      assert.deepEqual(readCampaignMaps(data).added, []);
+    });
+  });
+
+  describe("validateCampaignMaps", () => {
+    it("accepts a shelf inside the limit", () => {
+      assert.equal(
+        validateCampaignMaps({
+          kept: [{ id: "a", name: "The Keep" }],
+          added: [{ file: picture(), name: "The Docks" }],
+        }),
+        null,
+      );
+    });
+
+    // Counted as it will BE, not as it is being added: a save that keeps ten
+    // and adds one is over, and the trigger would refuse it halfway through the
+    // upload rather than before it started.
+    it("counts what will be on the shelf, not what is arriving", () => {
+      const kept = Array.from({ length: MAX_EXTRA_MAPS }, (_, at) => ({
+        id: `map-${at}`,
+        name: "Kept",
+      }));
+
+      assert.equal(validateCampaignMaps({ kept }), null);
+
+      const problem = validateCampaignMaps({
+        kept,
+        added: [{ file: picture(), name: "One too many" }],
+      });
+
+      assert.equal(problem.field, "maps");
+    });
+
+    it("refuses a name longer than the column takes", () => {
+      const problem = validateCampaignMaps({
+        kept: [{ id: "a", name: "x".repeat(MAX_MAP_NAME_LENGTH + 1) }],
+      });
+
+      assert.equal(problem.field, "maps");
+    });
+
+    it("refuses a file that is not one of the four image types", () => {
+      const problem = validateCampaignMaps({
+        added: [{ file: picture({ type: "application/pdf" }), name: "Bad" }],
+      });
+
+      assert.equal(problem.field, "maps");
+    });
+
+    it("refuses one over the ceiling, even after the browser re-encoded it", () => {
+      const problem = validateCampaignMaps({
+        added: [
+          { file: picture({ bytes: 5 * 1024 * 1024 }), name: "Enormous" },
+        ],
+      });
+
+      assert.equal(problem.field, "maps");
+    });
+
+    it("answers null for a sheet that named no maps at all", () => {
+      assert.equal(validateCampaignMaps(), null);
+    });
+  });
+});
+
+describe("markKey", () => {
+  // What the unique index in 20260921090000 says, said the same way in the
+  // browser: a seat has a token on every map it has stood on.
+  it("tells the same seat on two maps apart", () => {
+    assert.notEqual(markKey("map-a", "char-1"), markKey("map-b", "char-1"));
+  });
+
+  it("tells two seats on one map apart", () => {
+    assert.notEqual(markKey("map-a", "char-1"), markKey("map-a", "char-2"));
+  });
+
+  it("is stable for the same pair", () => {
+    assert.equal(markKey("map-a", "char-1"), markKey("map-a", "char-1"));
+  });
+
+  // The head of the table has no character and a row from before the shelf has
+  // no map. Both are values here rather than absences, or the two would collide
+  // with every other token that happens to be missing the same half.
+  it("gives the empty halves names of their own", () => {
+    assert.equal(markKey("map-a", null), markKey("map-a", undefined));
+    assert.notEqual(markKey("map-a", null), markKey("map-a", "dm"));
+    assert.notEqual(markKey(null, "char-1"), markKey("-", "char-1"));
+  });
 });

@@ -2,6 +2,7 @@ import { cache } from "react";
 import { listCampaignActivity } from "sina/data/activity";
 import {
   getCampaignTable,
+  listCampaignMaps,
   listCampaignMarks,
   listCampaignNotes,
   listPartyMembers,
@@ -59,6 +60,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     return {
       campaign: null,
       members: [],
+      maps: [],
       marks: [],
       inventory: [],
       spells: [],
@@ -77,7 +79,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
      Not only the first paint: every doorbell here is answered by re-rendering
      the whole route. The seat still waits for the party, being chosen out of
      it. */
-  const [party, tokens, log, purses, containers] = await Promise.all([
+  const [party, tokens, log, purses, containers, maps] = await Promise.all([
     listPartyMembers(supabase, id),
     listCampaignMarks(supabase, id),
     listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
@@ -89,6 +91,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
        decides which this viewer may see, so neither the party nor the seat is
        needed to ask. */
     listCampaignContainers(supabase, id),
+    /* And beside those: the shelf answers the Dungeon Master and the party
+       alike, so it needs neither. Every chair is handed it, not only the one
+       that can switch — a player's board paints from the same list. */
+    listCampaignMaps(supabase, id),
   ]);
 
   if (party.error) {
@@ -97,6 +103,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
 
   if (purses.error) {
     logFailure("listPartyPurses", purses.error);
+  }
+
+  if (maps.error) {
+    logFailure("listCampaignMaps", maps.error);
   }
 
   if (tokens.error) {
@@ -177,6 +187,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
   return {
     campaign,
     members,
+    maps: maps.error ? [] : maps.data,
     marks: tokens.error ? [] : tokens.data,
     inventory: packs.error ? [] : packs.data,
     spells: books.error ? [] : books.data,
@@ -203,6 +214,8 @@ function seatsAt(campaign, members) {
         {
           id: DUNGEON_MASTER_SEAT,
           characterId: null,
+          // No colour: the head of the table rolls the house's own dice.
+          diceColor: null,
           title: "Dungeon Master",
         },
       ]
@@ -213,6 +226,7 @@ function seatsAt(campaign, members) {
       seats.push({
         id: member.id,
         characterId: member.id,
+        diceColor: member.dice_color,
         title: member.name,
       });
     }

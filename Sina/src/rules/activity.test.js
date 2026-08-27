@@ -12,6 +12,7 @@ import {
 
 const ROW = {
   id: "6f1c3d2e-0000-4000-8000-000000000000",
+  actor_character: "a1b2c3d4-0000-4000-8000-000000000000",
   actor_name: "Fern",
   actor_type: "player",
   action_type: "dice_roll",
@@ -67,6 +68,8 @@ describe("readActivity, on a roll", () => {
       id: ROW.id,
       action: "dice_roll",
       actor: "Fern",
+      seat: ROW.actor_character,
+      head: false,
       die: "d20",
       count: 1,
       secret: false,
@@ -522,6 +525,8 @@ describe("readActivity, on a spell", () => {
         id: ROW.id,
         action: "spell_cast",
         actor: "Fern",
+        seat: ROW.actor_character,
+        head: false,
         spell: "Fireball",
         level: 3,
         damage: null,
@@ -609,6 +614,8 @@ describe("readActivity, containers", () => {
       id: ROW.id,
       action: "chest_revealed",
       actor: "Dungeon Master",
+      seat: ROW.actor_character,
+      head: true,
       container: "Sunken Iron Chest",
       shown: 1,
       target: "Frieren",
@@ -771,5 +778,27 @@ describe("readActivity, at zero hit points", () => {
 
   it("refuses a revival with nobody at the other end of it", () => {
     assert.equal(readActivity(entry("character_revived", {})), null);
+  });
+});
+
+describe("who a line is filed under", () => {
+  // Older rows carry no seat at all, so "no seat" cannot mean "the head of the
+  // table" — the panel would hang the gold token beside a player's own line.
+  it("marks the head of the table by actor_type, not by a missing seat", () => {
+    assert.equal(
+      readActivity(row({ actor_type: "dm", actor_character: null })).head,
+      true,
+    );
+
+    const orphan = readActivity(
+      row({ actor_type: "player", actor_character: null }),
+    );
+
+    assert.equal(orphan.head, false);
+    assert.equal(orphan.seat, null);
+  });
+
+  it("carries the seat through when there is one", () => {
+    assert.equal(readActivity(ROW).seat, ROW.actor_character);
   });
 });

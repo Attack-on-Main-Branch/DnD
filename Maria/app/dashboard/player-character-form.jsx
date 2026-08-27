@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import Avatar from "@/app/components/ui/avatar";
 import Link from "next/link";
 
 import Button, { buttonClasses } from "@/app/components/ui/button";
@@ -26,6 +25,7 @@ import {
   abilityScoresOf,
   ALIGNMENTS,
   countCharacters,
+  DEFAULT_DICE_COLOR,
   MAX_PROSE_LENGTH,
   RACES,
   alignmentDetails,
@@ -40,13 +40,10 @@ import { updateCharacter } from "@/app/actions/characters";
 
 import AbilityPicker from "./ability-picker";
 import { createPlayerCharacter } from "./actions";
-import {
-  avatarColorClass,
-  AVATAR_COLORS,
-  characterInitials,
-  suggestedAvatarColor,
-} from "./character-presentation";
+import AvatarField from "./avatar-field";
+import { diceColorClass } from "./character-presentation";
 import ClassPicker from "./class-picker";
+import DiceColorPicker from "./dice-color-picker";
 import MaxHpBadge from "./max-hp-badge";
 import SkillPicker, { skillFormState } from "./skill-picker";
 
@@ -87,15 +84,28 @@ export default function PlayerCharacterForm({
     character ? abilityScoresOf(character) : defaultAbilityScores(),
   );
   const [skills, setSkills] = useState(() => skillFormState(character));
-  const [colorTheme, setColorTheme] = useState(character?.color_theme ?? null);
+  const [diceColor, setDiceColor] = useState(
+    character?.dice_color ?? DEFAULT_DICE_COLOR,
+  );
   const [backstory, setBackstory] = useState(character?.backstory ?? "");
   const [personality, setPersonality] = useState(character?.personality ?? "");
 
-  const nameRef = useRef(null);
+  const [avatar, setAvatar] = useState(null);
 
-  // Until the user picks one, the colour follows the name — so the preview is
-  // never a placeholder grey, and two characters rarely start out alike.
-  const effectiveColor = colorTheme ?? suggestedAvatarColor(name);
+  /* The portrait already in storage, until it is taken away. Separate from
+     `avatar` above: that one is a file to upload, this a URL to leave alone —
+     and "leave it" and "take it away" both look like no file to the server,
+     which is what the hidden `keepAvatar` field is for. */
+  const [keptAvatarUrl, setKeptAvatarUrl] = useState(
+    character?.avatar_url ?? null,
+  );
+
+  /* Up here rather than inside the field, because the submit has to know: the
+     input holds the original until compression finishes, and a press in that
+     window uploads the megabytes the re-encode exists to avoid. */
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  const nameRef = useRef(null);
 
   const chosenClass = classDetails(classId);
   const chosenAlignment = alignmentDetails(alignment);
@@ -128,10 +138,15 @@ export default function PlayerCharacterForm({
   return (
     <form action={formAction} noValidate className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
-        <Avatar
-          initials={characterInitials(name || "?")}
-          colorClass={avatarColorClass(effectiveColor)}
-          size="lg"
+        <AvatarField
+          avatar={avatar}
+          keptUrl={keptAvatarUrl}
+          colorClass={diceColorClass(diceColor)}
+          onChange={setAvatar}
+          onDropKept={() => setKeptAvatarUrl(null)}
+          onBusyChange={setAvatarBusy}
+          disabled={isPending}
+          invalid={state?.field === "avatar"}
         />
         <div className="min-w-0">
           <p className="truncate font-display text-lg font-semibold tracking-wide">
@@ -291,11 +306,11 @@ export default function PlayerCharacterForm({
         invalid={state?.field === "alignment"}
       />
 
-      <ColorPicker
-        value={effectiveColor}
-        onChange={setColorTheme}
+      <DiceColorPicker
+        value={diceColor}
+        onChange={setDiceColor}
         disabled={isPending}
-        invalid={state?.field === "colorTheme"}
+        invalid={state?.field === "diceColor"}
       />
 
       {/*
@@ -361,7 +376,7 @@ export default function PlayerCharacterForm({
             Cancel
           </Link>
         )}
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || avatarBusy}>
           {editing
             ? isPending
               ? "Saving…"
@@ -431,49 +446,6 @@ function AlignmentPicker({ value, onChange, disabled, invalid }) {
               <span className="text-xs leading-relaxed text-pretty text-ink/50">
                 {option.description}
               </span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-}
-
-function ColorPicker({ value, onChange, disabled, invalid }) {
-  return (
-    <fieldset disabled={disabled}>
-      <legend className={LABEL_CLASSES}>Avatar colour</legend>
-
-      <div
-        className={`mt-1.5 flex flex-wrap gap-2 ${
-          invalid ? `rounded-lg p-1 ${INVALID_GROUP_CLASSES}` : ""
-        }`}
-      >
-        {AVATAR_COLORS.map((option) => {
-          const isSelected = value === option.value;
-
-          return (
-            <label
-              key={option.value}
-              title={option.label}
-              className={`cursor-pointer rounded-full p-0.5 transition ${CHOICE_CARD_FOCUS_CLASSES} ${
-                isSelected
-                  ? "ring-2 ring-gold ring-offset-2 dark:ring-offset-surface"
-                  : ""
-              }`}
-            >
-              <input
-                type="radio"
-                name="colorTheme"
-                value={option.value}
-                checked={isSelected}
-                onChange={() => onChange(option.value)}
-                className="sr-only"
-              />
-              <span
-                className={`block size-7 rounded-full ${option.className}`}
-              />
-              <span className="sr-only">{option.label}</span>
             </label>
           );
         })}

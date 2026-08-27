@@ -29,6 +29,7 @@ import {
 import { countCharacters } from "sina/rules/character";
 
 import { createCampaign } from "./actions";
+import MapSlots from "./map-slots";
 
 const FEEDBACK_ID = "campaign-feedback";
 
@@ -45,6 +46,7 @@ const FEEDBACK_ID = "campaign-feedback";
  */
 export default function CampaignForm({
   campaign = null,
+  maps = [],
   onDone,
   onCancel = null,
   onPending = null,
@@ -67,6 +69,24 @@ export default function CampaignForm({
      the input holds the original until compression finishes, so a press in
      that window uploads the megabytes this panel exists to avoid. */
   const [mapBusy, setMapBusy] = useState(false);
+
+  /* The shelf under the world map, as the sheet wants it to end up. Stored
+     rows arrive already on it; a slot removed here is removed on save, which
+     is what `readCampaignMaps` reads out of what this posts. */
+  const [slots, setSlots] = useState(() =>
+    maps
+      .filter((map) => !map.is_world_map)
+      .map((map) => ({
+        key: map.id,
+        id: map.id,
+        name: map.name,
+        file: null,
+        url: map.url,
+        bytes: 0,
+      })),
+  );
+
+  const [slotsBusy, setSlotsBusy] = useState(false);
 
   const titleRef = useRef(null);
 
@@ -152,6 +172,17 @@ export default function CampaignForm({
         invalid={state?.field === "map"}
       />
 
+      {/* Directly under the world map, because that is the relationship: one
+          picture the campaign IS, and a shelf of the ones it can put on the
+          table during a session. */}
+      <MapSlots
+        slots={slots}
+        onChange={setSlots}
+        onBusyChange={setSlotsBusy}
+        disabled={isPending}
+        invalid={state?.field === "maps"}
+      />
+
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
       <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
@@ -170,7 +201,7 @@ export default function CampaignForm({
             Cancel
           </Link>
         )}
-        <Button type="submit" disabled={isPending || mapBusy}>
+        <Button type="submit" disabled={isPending || mapBusy || slotsBusy}>
           {editing
             ? isPending
               ? "Saving…"

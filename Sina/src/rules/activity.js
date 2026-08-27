@@ -150,7 +150,23 @@ export function readActivity(row) {
     return null;
   }
 
-  const entry = { id: row.id, action, actor };
+  /*
+   * The seat as well as the name it was read off: two characters at one table
+   * may answer to the same one, so a face cannot be found by the word. Null for
+   * the head of the table — and for every row written before 20260919090000
+   * added a column to hold it.
+   *
+   * Which is why `head` travels too. Without it those older rows are
+   * indistinguishable from the Dungeon Master's, and the panel would hang the
+   * gold token beside a line a player wrote.
+   */
+  const entry = {
+    id: row.id,
+    action,
+    actor,
+    seat: row.actor_character ?? null,
+    head: row.actor_type === "dm",
+  };
 
   if (action === "dice_roll" || action === "secret_dice_roll") {
     // A row written before the rail could throw a handful carries no count,

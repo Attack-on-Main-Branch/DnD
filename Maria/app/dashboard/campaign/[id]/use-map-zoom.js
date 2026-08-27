@@ -5,8 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /** How far a press may drift before it counts as a drag rather than a click. */
 const DRAG_SLOP_PX = 4;
 
-/** One step, and only one: a map is either being surveyed or being read. */
+/** The step a CLICK takes: surveyed, or read. The wheel walks instead. */
 const ZOOM = 2.5;
+
+/** How far the wheel may take it, and how much of a turn one notch is. */
+const MIN_WHEEL_ZOOM = 1;
+const MAX_WHEEL_ZOOM = 6;
+const WHEEL_STEP = 0.0018;
 
 /** Left moves the image right, so the view travels the way the key points. */
 const KEY_STEP_PX = 48;
@@ -33,16 +38,34 @@ const ZOOM_HINT = {
  *
  * @param frameRef  the box the map is clipped to.
  * @param imageRef  the <img> inside it, already laid out by the caller.
+ * @param wheel     turn the wheel to zoom, about the pointer. The table wants
+ *                  this; the modal, inside a scrollable dialog, does not.
+ * @param pointerZoom  whether a click toggles the zoom. Off at the table, where
+ *                  the left button belongs to the tokens. Enter still works.
+ * @param onTap     offered the point of every press that was not a drag, before
+ *                  the zoom toggles. Returning true claims it.
  */
-export function useMapZoom({ frameRef, imageRef }) {
-  const [zoomed, setZoomed] = useState(false);
+export function useMapZoom({
+  frameRef,
+  imageRef,
+  wheel = false,
+  pointerZoom = true,
+  onTap,
+}) {
+  /* The scale itself, because the wheel walks it rather than switching it: a
+     click still only knows two values, and both live in here. */
+  const [scale, setScale] = useState(1);
+
+  /* Readable synchronously: two notches can arrive in one frame, and the
+     second must compound on what the first asked for. */
+  const scaleRef = useRef(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
 
   // In a ref rather than state: it changes on every pointer move.
   const drag = useRef(null);
 
-  const scale = zoomed ? ZOOM : 1;
+  const zoomed = scale > 1;
 
   /**
    * What the frame actually paints, at rest, and the frame's own box with it.
@@ -137,24 +160,25 @@ export function useMapZoom({ frameRef, imageRef }) {
     }
 
     const observer = new ResizeObserver(() => {
-      setOffset((current) => clamp(current, ZOOM));
+      setOffset((current) => clamp(current, scale));
     });
 
     observer.observe(frame);
 
     return () => observer.disconnect();
-  }, [zoomed, clamp, frameRef]);
+  }, [zoomed, scale, clamp, frameRef]);
 
   // Shared by the pointer and the keyboard so the two cannot drift apart.
   function toggleZoom() {
-    const next = !zoomed;
+    const next = zoomed ? 1 : ZOOM;
 
-    setZoomed(next);
+    scaleRef.current = next;
+    setScale(next);
 
     // Zooming out recentres, or the map is left off-centre in a frame it now
-    // fits. Decided here rather than in a `setZoomed` updater: updaters must be
+    // fits. Decided here rather than in a `setScale` updater: updaters must be
     // pure, and React may run them more than once per update.
-    if (!next) {
+    if (next === 1) {
       setOffset({ x: 0, y: 0 });
     }
   }
@@ -205,7 +229,7 @@ export function useMapZoom({ frameRef, imageRef }) {
       return;
     }
 
-    setOffset(clamp({ x: state.originX + dx, y: state.originY + dy }, ZOOM));
+    setOffset(clamp({ x: state.originX + dx, y: state.originY + dy }, scale));
   }
 
   function onPointerUp(event) {
@@ -229,7 +253,15 @@ export function useMapZoom({ frameRef, imageRef }) {
       return;
     }
 
-    toggleZoom();
+    // Somebody is holding a token over the board, and this click is where they
+    // want it rather than a request to zoom.
+    if (onTap?.(pointAt(event))) {
+      return;
+    }
+
+    if (pointerZoom) {
+      toggleZoom();
+    }
   }
 
   function onPointerCancel() {
@@ -237,13 +269,79 @@ export function useMapZoom({ frameRef, imageRef }) {
     setDragging(false);
   }
 
+  /**
+   * THE WHEEL ZOOMS ABOUT THE POINTER: the picture is drawn at
+   * `offset + scale * p` from the frame's centre, so holding a point still
+   * across a change of scale is a matter of moving the offset by the same
+   * ratio.
+   *
+   * Bound by hand, because React attaches wheel listeners PASSIVELY and
+   * `preventDefault` inside one does nothing.
+   */
+  useEffect(() => {
+    const frame = frameRef.current;
+
+    if (!wheel || !frame) {
+      return undefined;
+    }
+
+    function onWheel(event) {
+      event.preventDefault();
+
+      const standing = scaleRef.current;
+
+      const next = Math.min(
+        MAX_WHEEL_ZOOM,
+        Math.max(
+          MIN_WHEEL_ZOOM,
+          standing * Math.exp(-event.deltaY * WHEEL_STEP),
+        ),
+      );
+
+      if (next === standing) {
+        return;
+      }
+
+      const box = frame.getBoundingClientRect();
+
+      /* Where the pointer is, measured from the centre the transform turns
+         about rather than from the frame's corner. */
+      const at = {
+        x: event.clientX - (box.left + box.width / 2),
+        y: event.clientY - (box.top + box.height / 2),
+      };
+
+      const ratio = next / standing;
+
+      scaleRef.current = next;
+      setScale(next);
+
+      /* BOTH SETTERS AT THE TOP LEVEL. This used to shift the offset from
+         inside the scale's updater, and an updater must be pure: React runs
+         them twice, so the pan applied twice per notch and the map crept. */
+      setOffset((current) =>
+        clamp(
+          {
+            x: at.x - (at.x - current.x) * ratio,
+            y: at.y - (at.y - current.y) * ratio,
+          },
+          next,
+        ),
+      );
+    }
+
+    frame.addEventListener("wheel", onWheel, { passive: false });
+
+    return () => frame.removeEventListener("wheel", onWheel);
+  }, [clamp, frameRef, wheel]);
+
   function onKeyDown(event) {
     const nudge = KEY_NUDGE[event.key];
 
     if (nudge && zoomed) {
       event.preventDefault();
       setOffset((current) =>
-        clamp({ x: current.x + nudge.x, y: current.y + nudge.y }, ZOOM),
+        clamp({ x: current.x + nudge.x, y: current.y + nudge.y }, scale),
       );
       return;
     }

@@ -594,6 +594,70 @@ body {
    * they duplicate the - and + already there. Two engines, two answers: WebKit
    * and Blink draw a pseudo-element, Firefox answers to `appearance`.
    */
+  /*
+   * A RANGE INPUT, in this app's hand. The browser's own is a system control
+   * that ignores `--color-gold` entirely, and there are exactly two of them —
+   * the grid ribbon's size and its contrast — so the whole style is here rather
+   * than in a component nobody else would mount.
+   *
+   * The track is a hairline and the thumb is a gold coin, which is what every
+   * other draggable thing at this table already is.
+   */
+  .range-gold {
+    appearance: none;
+    height: 1.25rem;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .range-gold:disabled {
+    cursor: not-allowed;
+  }
+
+  .range-gold::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 9999px;
+    background: var(--gold-25);
+  }
+
+  .range-gold::-moz-range-track {
+    height: 2px;
+    border-radius: 9999px;
+    background: var(--gold-25);
+  }
+
+  .range-gold::-webkit-slider-thumb {
+    appearance: none;
+    width: 0.875rem;
+    height: 0.875rem;
+
+    /* Half the thumb up from the track's own two pixels. */
+    margin-top: -0.375rem;
+    border-radius: 9999px;
+    background: var(--color-gold);
+    box-shadow: 0 0 8px -1px var(--gold-60);
+  }
+
+  .range-gold::-moz-range-thumb {
+    width: 0.875rem;
+    height: 0.875rem;
+    border: none;
+    border-radius: 9999px;
+    background: var(--color-gold);
+    box-shadow: 0 0 8px -1px var(--gold-60);
+  }
+
+  /* The contrast slider paints its own track — black through grey to white, so
+     the handle stands on the ink it is about to draw with. The runnable track
+     gets out of its way. */
+  .range-greyscale::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .range-greyscale::-moz-range-track {
+    background: transparent;
+  }
+
   .no-spin {
     appearance: textfield;
   }
@@ -996,6 +1060,37 @@ body {
       0 0 0 1px var(--cast-ring),
       0 0 28px -4px var(--cast-bloom),
       0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
+   * THE DIE ON THE CREATION SHEET, standing beside the twelve swatches and
+   * showing what the choice under the pointer will actually be thrown as.
+   *
+   * The real roller writes a canvas in here — see preview-roller.js. Nothing
+   * about the die itself is styled from this file: it is lit, lettered and
+   * shaded by the same theme the table's dice are, which is the whole point of
+   * it being a throw rather than a drawing.
+   */
+  .dice-preview canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+
+    /* The press belongs to the button around it, which throws the die again. */
+    pointer-events: none;
+  }
+
+  /*
+   * The map that was on the table, letting go of the one that replaced it.
+   *
+   * The arriving picture is already underneath at full strength, so this is a
+   * true cross-fade rather than a dip through the dark. An animation and not a
+   * transition: the element mounts holding the old URL, and an element cannot
+   * transition from a state it was never in — `animationend` is also what takes
+   * it back off the page.
+   */
+  .map-leaving {
+    animation: map-leaving 420ms var(--ease-tray) forwards;
   }
 
   /* The dice leaving the board. The canvas is never a click target, rolling or
@@ -1609,6 +1704,12 @@ body {
   }
 }
 
+@keyframes map-leaving {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes ring-spin {
   to {
     transform: rotate(360deg);
@@ -1674,6 +1775,13 @@ body {
   .tray-fold,
   .tray-fold.tray-folded {
     transition: none;
+  }
+
+  /* The board still changes, it just does not dissolve: the old picture is
+     taken away on the frame the new one arrives. */
+  .map-leaving {
+    animation: none;
+    opacity: 0;
   }
 
   /* The throw is skipped for a reader who asked for stillness — no dice reach

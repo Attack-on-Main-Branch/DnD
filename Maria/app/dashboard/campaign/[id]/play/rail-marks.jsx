@@ -51,6 +51,17 @@ export default function RailMarks({ children }) {
   /** Every mark's button, by the id RailTray made for itself. */
   const triggers = useRef(new Map());
 
+  /* How wide the box stands while whatever is open owns it. The panel is
+     SHARED: the maps tray is a grid of pictures and the two under it are lists,
+     and a box sized for the widest would leave those two floating in it.
+
+     SET FROM THE PRESS AND NOT FROM `hold`. An inline ref callback is detached
+     and re-attached on every render, so `hold` runs on every render — and a
+     `hold` that set state was a render scheduling a render, which took the
+     whole table into its error boundary with "Maximum update depth exceeded".
+     A toggle happens when somebody clicks, which is once. */
+  const [width, setWidth] = useState(null);
+
   /* The portal's landing place. State rather than a ref: it is null on the
      render that creates it, and the panels have to be told once it is not. */
   const [body, setBody] = useState(null);
@@ -66,10 +77,13 @@ export default function RailMarks({ children }) {
 
   const close = useCallback(() => setOpen(null), []);
 
-  const toggle = useCallback(
-    (value) => setOpen((standing) => (standing === value ? null : value)),
-    [],
-  );
+  const toggle = useCallback((value, asked) => {
+    setOpen((standing) => (standing === value ? null : value));
+
+    /* Left where it is on the way out, so a closing panel collapses at the
+       width it was opened at rather than snapping to the default first. */
+    setWidth(asked ?? null);
+  }, []);
 
   // Anywhere outside closes, and pointerdown rather than click so a drag that
   // starts outside does not leave it open behind the pointer. One listener for
@@ -136,8 +150,11 @@ export default function RailMarks({ children }) {
         <div
           className={[
             "absolute top-1/2 left-full z-40 ml-4 -translate-y-1/2",
-            TRAY_WIDTH_CLASSES,
-            "transition-opacity duration-300",
+            (open && width) || TRAY_WIDTH_CLASSES,
+            /* Width as well as opacity: both ends are definite lengths, so
+               morphing from a list to a grid of maps travels rather than
+               jumping halfway through the panel's own transition. */
+            "transition-[opacity,width] duration-300",
             open
               ? "ease-tray opacity-100"
               : "pointer-events-none ease-tray-in opacity-0",

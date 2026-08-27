@@ -3,6 +3,8 @@
 import { listPartyFeatures } from "sina/data/features";
 import { listCampaignActivity } from "sina/data/activity";
 import {
+  getCampaignTable,
+  listCampaignMaps,
   listCampaignMarks,
   listPartyMembers,
   listPartySheets,
@@ -64,6 +66,8 @@ export async function readTableSlice(campaignId, want = {}) {
     seat,
     containers,
     features,
+    maps,
+    table,
   ] = await Promise.all([
     want.activity
       ? listCampaignActivity(supabase, campaignId, MAX_ACTIVITY_ENTRIES)
@@ -85,6 +89,11 @@ export async function readTableSlice(campaignId, want = {}) {
        that is fetched below rather than here. */
     want.containers ? listCampaignContainers(supabase, campaignId) : null,
     want.features ? listPartyFeatures(supabase, ids) : null,
+    /* The shelf of maps and what is standing on the table. Both together or
+       neither: a switcher that knew the pictures but not which one is up would
+       show the party's own board as unlit. */
+    want.maps ? listCampaignMaps(supabase, campaignId) : null,
+    want.maps ? getCampaignTable(supabase, campaignId) : null,
   ]);
 
   const shelf = slice("listCampaignContainers", containers);
@@ -123,6 +132,15 @@ export async function readTableSlice(campaignId, want = {}) {
     // One shape for both, because the store reads one thing out of either: a
     // seat's own row and a party sheet both carry an `id` and `spell_slots`.
     sheets: sheetRows(sheets, seat),
+
+    /* The backstop behind the switcher's own broadcast: a chair that missed
+       the message, or joined after it, asks the database instead. */
+    maps: slice("listCampaignMaps", maps),
+    activeMapId: slice(
+      "getCampaignTable",
+      table,
+      (row) => row?.active_map_id ?? null,
+    ),
   };
 }
 

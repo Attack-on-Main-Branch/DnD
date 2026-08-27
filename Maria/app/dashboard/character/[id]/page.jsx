@@ -13,10 +13,7 @@ import { listCharacterSpells } from "sina/data/spells";
 import { characterHandle } from "sina/rules/character";
 import { canOpenContainer, readContainers } from "sina/rules/containers";
 
-import {
-  avatarColorClass,
-  characterInitials,
-} from "@/app/dashboard/character-presentation";
+import { diceColorClass } from "@/app/dashboard/character-presentation";
 
 import Avatar from "@/app/components/ui/avatar";
 import PlayButton from "@/app/components/ui/play-button";
@@ -133,8 +130,8 @@ export default async function CharacterPage({ params }) {
         */}
         <div data-fade className="flex min-w-0 items-center gap-4">
           <Avatar
-            initials={characterInitials(character.name)}
-            colorClass={avatarColorClass(character.color_theme)}
+            src={character.avatar_url}
+            colorClass={diceColorClass(character.dice_color)}
             size="lg"
           />
 

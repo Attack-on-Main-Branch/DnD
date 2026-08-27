@@ -32,7 +32,7 @@ const MARK_CLASSES =
   "disabled:cursor-not-allowed disabled:opacity-40";
 
 export default function DiceRail({ canKeepSecrets }) {
-  const { stage, secret, setSecret, roll, warm } = useDiceTable();
+  const { throwing, secret, setSecret, roll, warm } = useDiceTable();
 
   /* Held as what was TYPED, so the field can be emptied; one is what an empty
      field throws. */
@@ -43,7 +43,11 @@ export default function DiceRail({ canKeepSecrets }) {
   // The rail wears the veil's own colour whatever the rest of the table is
   // doing: it says what the NEXT roll will be, not what the last one was.
   const cast = diceCast(secret);
-  const busy = stage !== "idle";
+
+  /* THIS chair's own throw, and nothing else. The rail used to grey out
+     whenever the board was lit, which meant somebody else's roll took your
+     dice out of your hand — see use-dice-roll.js. */
+  const busy = throwing;
 
   /* A handful is for ONE throw: back to a single die as they leave the hand. */
   function throwDice(die) {

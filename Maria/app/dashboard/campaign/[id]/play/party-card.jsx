@@ -5,10 +5,7 @@ import { isDying } from "sina/rules/death";
 
 import Avatar from "@/app/components/ui/avatar";
 import { surfaceClasses } from "@/app/components/ui/surface";
-import {
-  avatarColorClass,
-  characterInitials,
-} from "@/app/dashboard/character-presentation";
+import { diceColorClass } from "@/app/dashboard/character-presentation";
 
 import CardCondition from "./card-condition";
 import CardConditions from "./card-conditions";
@@ -104,8 +101,8 @@ function PartyCard({
       >
         <div className="flex items-center gap-3">
           <Avatar
-            initials={characterInitials(member.name)}
-            colorClass={avatarColorClass(member.color_theme)}
+            src={member.avatar_url}
+            colorClass={diceColorClass(member.dice_color)}
           />
 
           <div className="min-w-0 flex-1">

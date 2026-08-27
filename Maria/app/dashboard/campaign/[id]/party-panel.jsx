@@ -12,10 +12,7 @@ import {
   LABEL_CLASSES,
 } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
-import {
-  avatarColorClass,
-  characterInitials,
-} from "@/app/dashboard/character-presentation";
+import { diceColorClass } from "@/app/dashboard/character-presentation";
 
 import {
   inviteCharacterToParty,
@@ -263,8 +260,8 @@ function MemberIdentity({ character }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <Avatar
-        initials={characterInitials(character.name)}
-        colorClass={avatarColorClass(character.color_theme)}
+        src={character.avatar_url}
+        colorClass={diceColorClass(character.dice_color)}
       />
 
       <div className="min-w-0">

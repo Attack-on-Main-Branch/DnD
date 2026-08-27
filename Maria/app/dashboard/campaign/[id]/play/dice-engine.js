@@ -1,6 +1,11 @@
 "use client";
 
-import { DICE_ASSET_PATH, DICE_THEMES } from "@/lib/dice-themes";
+import {
+  DICE_ASSET_PATH,
+  DICE_BODY_THEME,
+  DICE_LIGHTING,
+  DICE_THEMES,
+} from "@/lib/dice-themes";
 
 /**
  * The 3D roller's whole lifecycle, kept out of React.
@@ -39,9 +44,9 @@ const WARM_SETTLE_MS = 150;
 
 const CONFIG = {
   assetPath: DICE_ASSET_PATH,
-  theme: "obsidian",
+  theme: DICE_BODY_THEME,
   preloadThemes: Object.keys(DICE_THEMES),
-  themeColor: DICE_THEMES.obsidian.body,
+  themeColor: DICE_THEMES[DICE_BODY_THEME].body,
   size: ARENA_SIZE,
   scale: 7,
   /* Thrown from above the lip and hard, with enough spin to tumble and enough
@@ -55,9 +60,9 @@ const CONFIG = {
   linearDamping: 0.55,
   angularDamping: 0.32,
   settleTimeout: SETTLE_MS,
-  enableShadows: true,
-  shadowTransparency: 0.9,
-  lightIntensity: 1.15,
+  // Shared with the creation sheet's preview roller, so the die a player picks
+  // a colour for is lit as the die they will throw.
+  ...DICE_LIGHTING,
 };
 
 /*
@@ -248,8 +253,22 @@ let awaitingTray = [];
  */
 let seededBlob = null;
 
-/** The board, announcing the picture it has been laid over. */
+/**
+ * The board, announcing the picture it has been laid over.
+ *
+ * A DIFFERENT PICTURE IS A DIFFERENT ARENA. The physics walls are built from
+ * these two numbers once, at build time, and nothing in dice-box moves them
+ * afterwards — so a Dungeon Master switching to a map of another shape would
+ * leave the dice rolling inside the old one's rectangle, visibly off the board
+ * at one edge and stopping short at the other. The world is dropped instead and
+ * the next roll builds it again, which costs a second nobody is waiting on: the
+ * switch is not a throw.
+ */
 export function holdTray(width, height) {
+  if (tray && (tray.width !== width || tray.height !== height)) {
+    discardDice();
+  }
+
   tray = { width, height };
 
   const held = awaitingTray;
@@ -521,8 +540,8 @@ export function diceEngine() {
 }
 
 /**
- * One die, thrown in from the corner on the table's own seed, resolved to the
- * face it settles on. Every chair calling this with the same die and seed
+ * One die, thrown in from the corner on the table's own seed and in the colour
+ * whoever threw it rolls, resolved to the face it settles on. Every chair calling this with the same die and seed
  * watches the same throw and reads the same number off the end of it.
  *
  * The value comes from `getRollResults()` and not from what `roll()` resolves
@@ -530,14 +549,19 @@ export function diceEngine() {
  * already totalled — which is the whole answer for a d100, rolled the way a
  * table rolls percentile. Reading the first die alone would report the tens.
  */
-export async function throwDie({ notation, theme, seed }) {
+export async function throwDie({ notation, theme, themeColor, seed }) {
   const { box, physics } = await diceEngine();
 
   await sow(physics, seed, bodies(notation));
 
   await box.roll(notation, {
     theme,
-    themeColor: DICE_THEMES[theme].body,
+    /* The body, cast per throw rather than per theme: dice-box paints it from
+       this string at runtime and takes the lettering from the theme's texture,
+       so twelve player colours are twelve arguments to one theme instead of
+       twelve theme folders to download. See dice-presentation.js, which is
+       where the choice between a character's colour and the house's is made. */
+    themeColor,
     newStartPoint: false,
   });
 

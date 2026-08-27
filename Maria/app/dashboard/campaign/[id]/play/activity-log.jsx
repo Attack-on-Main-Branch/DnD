@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
+import Avatar from "@/app/components/ui/avatar";
 import {
   FADED_RULE_CLASSES,
   surfaceClasses,
@@ -40,6 +41,12 @@ const LOG_HEIGHT_CLASS = "h-[518px]";
  * something the browser composed is the writer's own, on the writer's own screen,
  * until the real list lands.
  *
+ * `faces` is the same list the map's tokens are drawn from — the party as this
+ * viewer was handed it. The FACE IS FOUND BY SEAT and never by the name in the
+ * sentence: two characters at one table may answer to the same one, which is
+ * what `actor_character` was added for. See `LogFace` for the two rows that
+ * name no seat, which are not the same row twice.
+ *
  * Real glass, and the budget was counted first: `backdrop-filter` is charged
  * per element — see surface.js — and this is the ninth on a full table, beside
  * six party cards, the map's frame and the application bar. That is over the
@@ -54,7 +61,7 @@ const LOG_HEIGHT_CLASS = "h-[518px]";
  * NOT `memo` — see table-map.jsx. A remount replayed the entrance on every
  * refresh, as though ten things had just happened.
  */
-export default function ActivityLog({ campaignId }) {
+export default function ActivityLog({ campaignId, faces = [] }) {
   const entries = useActivityEntries();
   const { resync } = useTableDeed(campaignId);
 
@@ -139,8 +146,9 @@ export default function ActivityLog({ campaignId }) {
                     and return it unchanged while still costing a compositor
                     readback. */}
                 <div
-                  className={`rounded-md border border-l-4 border-gold/15 bg-surface/40 px-2.5 py-1.5 ${accentClass(entry)}`}
+                  className={`flex items-start gap-2 rounded-md border border-l-4 border-gold/15 bg-surface/40 px-2.5 py-1.5 ${accentClass(entry)}`}
                 >
+                  <LogFace entry={entry} faces={faces} />
                   <ActivityLine entry={entry} />
                 </div>
               </li>
@@ -149,5 +157,52 @@ export default function ActivityLog({ campaignId }) {
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Who did it, as a face rather than a word — the name is in the sentence
+ * already, and a column of portraits is how a log of ten lines becomes
+ * skimmable.
+ *
+ * The head of the table wears the party's own gold token, exactly as it does on
+ * the map: no character, no portrait, and nothing but the house behind it.
+ * `mt-0.5` puts a 28px disc on the cap height of the line beside it rather than
+ * on its top edge.
+ */
+function LogFace({ entry, faces }) {
+  const face = entry.seat
+    ? faces.find((one) => one.characterId === entry.seat)
+    : null;
+
+  if (face) {
+    return (
+      <Avatar
+        src={face.src}
+        colorClass={face.colorClass}
+        size="xs"
+        ring={false}
+        className="mt-0.5"
+      />
+    );
+  }
+
+  if (entry.head) {
+    return (
+      <span
+        aria-hidden="true"
+        className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-gold font-display text-[9px] leading-none font-semibold tracking-wide text-surface"
+      >
+        DM
+      </span>
+    );
+  }
+
+  /* Somebody at this table, and no saying who: a row written before there was
+     a column for the seat, or one whose character has since left the party.
+     The unpainted disc is the honest answer — the gold token above would put
+     the Dungeon Master's name to a line a player wrote. */
+  return (
+    <Avatar colorClass="bg-ink/15" size="xs" ring={false} className="mt-0.5" />
   );
 }

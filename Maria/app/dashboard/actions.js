@@ -8,22 +8,33 @@ import {
   removePartyMember,
   uploadCampaignMap,
 } from "sina/data/campaigns";
-import { insertCharacter, removeCharacter } from "sina/data/characters";
+import {
+  insertCharacter,
+  removeCharacter,
+  removeCharacterAvatar,
+  uploadCharacterAvatar,
+} from "sina/data/characters";
 import { sendCampaignInvite } from "sina/data/notifications";
 import {
   mapObjectPath,
   mapPathFromUrl,
   MAX_CAMPAIGNS,
   MAX_PARTY,
+  readCampaignMaps,
   readCampaignValues,
   validateCampaign,
+  validateCampaignMaps,
 } from "sina/rules/campaign";
 import {
+  avatarObjectPath,
+  avatarPathFromUrl,
   MAX_CHARACTERS,
   readCharacterValues,
   validateCharacter,
 } from "sina/rules/character";
 
+import { AVATAR_COPY } from "@/app/actions/avatar-copy";
+import { applyMapShelf, MAP_SHELF_COPY } from "@/app/actions/map-shelf";
 import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -54,6 +65,7 @@ const SAVE_COPY = {
       "The characters table is missing a column this needs. Run the migrations in Sina/supabase/migrations.",
     field: null,
   },
+  ...AVATAR_COPY,
 };
 
 /**
@@ -88,12 +100,56 @@ export async function createPlayerCharacter(_prevState, formData) {
     return sessionRejection("createPlayerCharacter", authError);
   }
 
+  /* The id is generated here because the portrait's object is named after the
+     character, so the name has to exist before the upload: upload, insert, and
+     remove the object if the insert did not land. The other order would need a
+     storage UPDATE policy — the same reasoning `createCampaign` is built on. */
+  const id = crypto.randomUUID();
+  let avatarUrl = null;
+  let avatarPath = null;
+
+  if (values.avatar) {
+    avatarPath = avatarObjectPath({
+      userId: user.id,
+      characterId: id,
+      type: values.avatar.type,
+      stamp: Date.now(),
+    });
+
+    const upload = await uploadCharacterAvatar(supabase, {
+      path: avatarPath,
+      file: values.avatar,
+    });
+
+    if (upload.error) {
+      const copy = SAVE_COPY[upload.error.reason];
+      logUncovered("createPlayerCharacter/avatar", upload.error, copy);
+
+      return rejected(
+        copy?.message ?? "The portrait could not be uploaded. Try again.",
+        copy?.field ?? "avatar",
+      );
+    }
+
+    avatarUrl = upload.data.url;
+  }
+
   const { error } = await insertCharacter(supabase, {
+    id,
     userId: user.id,
-    values,
+    values: { ...values, avatarUrl },
   });
 
   if (error) {
+    // The row is what makes the object findable; without it, it is litter.
+    if (avatarPath) {
+      const cleanup = await removeCharacterAvatar(supabase, avatarPath);
+
+      if (cleanup.error) {
+        logFailure("createPlayerCharacter/rollback", cleanup.error);
+      }
+    }
+
     const copy = SAVE_COPY[error.reason];
     logUncovered("createPlayerCharacter", error, copy);
 
@@ -169,6 +225,16 @@ export async function createCampaign(_prevState, formData) {
     return rejected(malformed.message, malformed.field);
   }
 
+  /* The shelf standing under the world map on the same sheet. Checked here
+     rather than after the campaign lands, so an eleventh map is refused before
+     anything has been written. */
+  const shelf = readCampaignMaps(formData);
+  const overshelved = validateCampaignMaps(shelf);
+
+  if (overshelved) {
+    return rejected(overshelved.message, overshelved.field);
+  }
+
   const supabase = await createClient();
   const { user, error: authError } = await getCurrentUser(supabase);
 
@@ -228,6 +294,29 @@ export async function createCampaign(_prevState, formData) {
     return rejected(
       copy?.message ?? "Could not save the campaign. Please try again.",
       copy?.field ?? null,
+    );
+  }
+
+  /* AFTER the campaign, because every map on the shelf names it. A shelf that
+     fails leaves the campaign standing with its world map: the sheet is saved,
+     and the maps tab is where the rest is put right. */
+  const shelved = shelf
+    ? await applyMapShelf(supabase, {
+        campaignId: id,
+        userId: user.id,
+        shelf,
+      })
+    : { error: null };
+
+  if (shelved.error) {
+    const copy = MAP_SHELF_COPY[shelved.error.reason];
+    logUncovered("createCampaign/maps", shelved.error, copy);
+
+    revalidatePath("/dashboard");
+
+    return rejected(
+      copy?.message ?? "The campaign was saved, but its maps were not.",
+      copy?.field ?? "maps",
     );
   }
 
@@ -306,7 +395,7 @@ export async function deleteCharacter(characterId) {
     return sessionRejection("deleteCharacter", authError);
   }
 
-  const { error } = await removeCharacter(supabase, {
+  const { data, error } = await removeCharacter(supabase, {
     id: characterId,
     userId: user.id,
   });
@@ -324,6 +413,20 @@ export async function deleteCharacter(characterId) {
     }
 
     return rejected(copy ?? "Could not delete the character.");
+  }
+
+  /* The portrait goes after the row, the way a campaign's map does: removing
+     the object first would leave a character wearing a URL that answers 404 if
+     the delete were then refused. Logged, not reported — the character is gone
+     either way, and an orphaned object is an operator's problem. */
+  const path = avatarPathFromUrl(data.avatarUrl);
+
+  if (path) {
+    const cleanup = await removeCharacterAvatar(supabase, path);
+
+    if (cleanup.error) {
+      logFailure("deleteCharacter/avatar", cleanup.error);
+    }
   }
 
   revalidatePath("/dashboard");

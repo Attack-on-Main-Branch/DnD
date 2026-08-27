@@ -14,7 +14,8 @@ import {
   ALIGNMENTS,
   alignmentLabel,
   archetypeDetails,
-  AVATAR_COLOR_VALUES,
+  avatarObjectPath,
+  avatarPathFromUrl,
   canLowerAbility,
   canRaiseAbility,
   abilityScoresOf,
@@ -27,7 +28,10 @@ import {
   classLabel,
   defaultAbilityScores,
   defaultSkills,
+  DICE_COLOR_VALUES,
   formatModifier,
+  isDiceColor,
+  MAX_AVATAR_BYTES,
   MAX_ABILITY,
   MAX_NAME_LENGTH,
   MAX_PROSE_LENGTH,
@@ -48,7 +52,8 @@ function validValues(overrides = {}) {
     archetype: "warrior",
     classId: "fighter",
     alignment: "lawful_good",
-    colorTheme: "violet",
+    diceColor: "violet",
+    avatar: null,
     abilities: defaultAbilityScores(),
     skills: defaultSkills(),
     backstory: "",
@@ -187,8 +192,8 @@ describe("validateCharacter", () => {
 
   it("rejects a colour outside the palette", () => {
     assert.equal(
-      validateCharacter(validValues({ colorTheme: "beige" })).field,
-      "colorTheme",
+      validateCharacter(validValues({ diceColor: "beige" })).field,
+      "diceColor",
     );
   });
 
@@ -200,11 +205,11 @@ describe("validateCharacter", () => {
         `${race} should be valid`,
       );
     }
-    for (const colorTheme of AVATAR_COLOR_VALUES) {
+    for (const diceColor of DICE_COLOR_VALUES) {
       assert.equal(
-        validateCharacter(validValues({ colorTheme })),
+        validateCharacter(validValues({ diceColor })),
         null,
-        `${colorTheme} should be valid`,
+        `${diceColor} should be valid`,
       );
     }
     for (const { value } of ALIGNMENTS) {
@@ -711,5 +716,155 @@ describe("the skills on the sheet", () => {
     );
 
     assert.equal(problem.field, "skills");
+  });
+});
+
+describe("the portrait", () => {
+  /** A File the way a parsed multipart body hands one over. */
+  function portrait({ type = "image/webp", bytes = 64 } = {}) {
+    return new File([new Uint8Array(bytes)], "face.webp", { type });
+  }
+
+  describe("avatarObjectPath", () => {
+    // The first segment is what the storage policy compares against auth.uid(),
+    // so the shape of this string is load-bearing rather than tidy. The stamp
+    // is what keeps a replacement from being served out of a cache told to hold
+    // the old one for a year.
+    it("puts the object in a folder named after the owner", () => {
+      assert.equal(
+        avatarObjectPath({
+          userId: "user-1",
+          characterId: "char-1",
+          type: "image/webp",
+          stamp: 1756000000000,
+        }),
+        "user-1/char-1-1756000000000.webp",
+      );
+    });
+
+    it("gives a replacement a name of its own", () => {
+      const first = avatarObjectPath({
+        userId: "u",
+        characterId: "c",
+        type: "image/webp",
+        stamp: 1,
+      });
+      const second = avatarObjectPath({
+        userId: "u",
+        characterId: "c",
+        type: "image/webp",
+        stamp: 2,
+      });
+
+      assert.notEqual(first, second);
+    });
+
+    it("falls back to webp for a type it does not know", () => {
+      assert.match(
+        avatarObjectPath({
+          userId: "u",
+          characterId: "c",
+          type: "image/avif",
+          stamp: 1,
+        }),
+        /\.webp$/,
+      );
+    });
+  });
+
+  describe("avatarPathFromUrl", () => {
+    // This value names an object for deletion, so it is worth being sure it can
+    // only ever name one inside the bucket.
+    const base =
+      "https://project.supabase.co/storage/v1/object/public/character-avatars/";
+
+    it("recovers the path a public URL was built from", () => {
+      assert.equal(
+        avatarPathFromUrl(`${base}user-1/char-1-7.webp`),
+        "user-1/char-1-7.webp",
+      );
+    });
+
+    it("refuses a URL from another bucket", () => {
+      assert.equal(
+        avatarPathFromUrl(
+          "https://project.supabase.co/storage/v1/object/public/campaign-maps/u/c.webp",
+        ),
+        null,
+      );
+    });
+
+    it("refuses a path that could climb out of the bucket", () => {
+      assert.equal(avatarPathFromUrl(`${base}../secrets/key.webp`), null);
+    });
+
+    it("answers null for anything that is not a string", () => {
+      assert.equal(avatarPathFromUrl(null), null);
+      assert.equal(avatarPathFromUrl(undefined), null);
+    });
+  });
+
+  describe("readCharacterValues", () => {
+    it("drops the zero-byte File an empty file input still submits", () => {
+      const data = new FormData();
+      data.append("avatar", new File([], "", { type: "" }));
+
+      assert.equal(readCharacterValues(data).avatar, null);
+    });
+
+    it("keeps a real one, and reads the flag that says to leave one alone", () => {
+      const data = new FormData();
+      data.append("avatar", portrait({ bytes: 32 }));
+      data.append("keepAvatar", "1");
+
+      const values = readCharacterValues(data);
+
+      assert.equal(values.avatar?.size, 32);
+      assert.equal(values.keepAvatar, true);
+    });
+
+    it("reads no flag as leaving nothing behind", () => {
+      assert.equal(readCharacterValues(new FormData()).keepAvatar, false);
+    });
+  });
+
+  describe("validateCharacter", () => {
+    it("refuses a file that is not one of the four image types", () => {
+      const problem = validateCharacter(
+        validValues({ avatar: portrait({ type: "application/pdf" }) }),
+      );
+
+      assert.equal(problem.field, "avatar");
+    });
+
+    it("refuses one over the ceiling, even after the browser re-encoded it", () => {
+      const problem = validateCharacter(
+        validValues({ avatar: portrait({ bytes: MAX_AVATAR_BYTES + 1 }) }),
+      );
+
+      assert.equal(problem.field, "avatar");
+    });
+
+    it("accepts one inside it", () => {
+      assert.equal(
+        validateCharacter(validValues({ avatar: portrait({ bytes: 1024 }) })),
+        null,
+      );
+    });
+  });
+});
+
+describe("isDiceColor", () => {
+  it("admits every slug the palette declares", () => {
+    for (const value of DICE_COLOR_VALUES) {
+      assert.equal(isDiceColor(value), true, `${value} should be a colour`);
+    }
+  });
+
+  // The guard exists because a colour arrives at a table over a socket.
+  it("refuses anything else, whatever shape it arrives in", () => {
+    for (const value of ["beige", "", null, undefined, 7, {}]) {
+      assert.equal(isDiceColor(value), false);
+    }
   });
 });

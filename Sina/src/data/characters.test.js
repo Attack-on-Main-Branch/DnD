@@ -108,11 +108,23 @@ describe("the character limit is recognised by its exception message", () => {
 describe("removeCharacter", () => {
   it("reports success only when a row actually came back", async () => {
     const { data, error } = await removeCharacter(
-      stubQuery({ data: [{ id: ARGS.id }], error: null }),
+      stubQuery({ data: [{ id: ARGS.id, avatar_url: null }], error: null }),
       ARGS,
     );
     assert.equal(error, null);
-    assert.equal(data, true);
+    assert.deepEqual(data, { avatarUrl: null });
+  });
+
+  // The last moment anything points at the object. Without it, a retired
+  // character leaves their face in the bucket for ever.
+  it("hands back the portrait to be swept up after it", async () => {
+    const url =
+      "https://project.supabase.co/storage/v1/object/public/character-avatars/user-1/c-9.webp";
+    const { data } = await removeCharacter(
+      stubQuery({ data: [{ id: ARGS.id, avatar_url: url }], error: null }),
+      ARGS,
+    );
+    assert.equal(data.avatarUrl, url);
   });
 
   describe("a delete that matched nothing", () => {
@@ -209,7 +221,10 @@ describe("the query shape itself", () => {
     });
 
     it("removeCharacter filters on both id and user_id", async () => {
-      const q = stubQuery({ data: [{ id: ARGS.id }], error: null });
+      const q = stubQuery({
+        data: [{ id: ARGS.id, avatar_url: null }],
+        error: null,
+      });
       await removeCharacter(q, ARGS);
       assert.deepEqual(q.filters, [
         ["id", ARGS.id],
@@ -249,7 +264,8 @@ describe("the query shape itself", () => {
         "race",
         "class_id",
         "alignment",
-        "color_theme",
+        "dice_color",
+        "avatar_url",
         "level",
         "skills",
         "backstory",
@@ -275,7 +291,9 @@ describe("the query shape itself", () => {
       archetype: "warrior",
       classId: "fighter",
       alignment: "lawful_good",
-      colorTheme: "violet",
+      diceColor: "violet",
+      avatarUrl:
+        "https://project.supabase.co/storage/v1/object/public/character-avatars/user-1/c-9.webp",
       abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
       skills: { stealth: { proficient: true, custom_bonus: null } },
       backstory: "a tale",
@@ -284,9 +302,14 @@ describe("the query shape itself", () => {
 
     it("maps every value onto its column", async () => {
       const q = stubQuery({ data: null, error: null });
-      await insertCharacter(q, { userId: "user-1", values: VALUES });
+      await insertCharacter(q, {
+        id: "char-1",
+        userId: "user-1",
+        values: VALUES,
+      });
 
       assert.deepEqual(q.lastInsert, {
+        id: "char-1",
         user_id: "user-1",
         kind: "player",
         name: "Gandalf",
@@ -295,7 +318,10 @@ describe("the query shape itself", () => {
         archetype: "warrior",
         class_id: "fighter",
         alignment: "lawful_good",
-        color_theme: "violet",
+        // `color_theme` is the trigger's, not this module's — see
+        // 20260919090000_a_face_and_a_colour.sql.
+        dice_color: "violet",
+        avatar_url: VALUES.avatarUrl,
         // No maximum and no current: `characters_sync_max_hp` derives one from
         // the path, the rung and the Constitution, and starts them whole.
         ability_str: 15,
@@ -316,7 +342,11 @@ describe("the query shape itself", () => {
       // classify() has nothing to say about. So this is a mistake that would
       // reach the user as the generic failure, from code that looks right.
       const q = stubQuery({ data: null, error: null });
-      await insertCharacter(q, { userId: "user-1", values: VALUES });
+      await insertCharacter(q, {
+        id: "char-1",
+        userId: "user-1",
+        values: VALUES,
+      });
 
       const generated = Object.keys(q.lastInsert).filter((column) =>
         column.endsWith("_total"),
@@ -331,6 +361,7 @@ describe("the query shape itself", () => {
       // caller decides the shape.
       const q = stubQuery({ data: null, error: null });
       await insertCharacter(q, {
+        id: "char-1",
         userId: "user-1",
         values: { ...VALUES, userId: "user-2", user_id: "user-2" },
       });
@@ -345,7 +376,11 @@ describe("the query shape itself", () => {
     it("leaves no column undefined", async () => {
       // `undefined` here is the shape a half-applied rename takes.
       const q = stubQuery({ data: null, error: null });
-      await insertCharacter(q, { userId: "user-1", values: VALUES });
+      await insertCharacter(q, {
+        id: "char-1",
+        userId: "user-1",
+        values: VALUES,
+      });
       const undefinedColumns = Object.entries(q.lastInsert)
         .filter(([, v]) => v === undefined)
         .map(([k]) => k);
@@ -362,7 +397,8 @@ describe("updateCharacter's parameter map", () => {
     archetype: "warrior",
     classId: "fighter",
     alignment: "lawful_good",
-    colorTheme: "violet",
+    diceColor: "violet",
+    avatarUrl: null,
     abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
     skills: { stealth: { proficient: true, custom_bonus: null } },
     backstory: "a tale",
@@ -382,7 +418,8 @@ describe("updateCharacter's parameter map", () => {
       new_archetype: "warrior",
       new_class_id: "fighter",
       new_alignment: "lawful_good",
-      new_color_theme: "violet",
+      new_dice_color: "violet",
+      new_avatar_url: null,
       new_ability_str: 15,
       new_ability_dex: 14,
       new_ability_con: 13,

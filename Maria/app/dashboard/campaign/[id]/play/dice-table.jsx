@@ -35,6 +35,7 @@ import { useTableRolls } from "./use-table-rolls";
 
 const RESTING = {
   stage: "idle",
+  throwing: false,
   secret: false,
   setSecret: () => {},
   roll: () => {},
@@ -70,6 +71,7 @@ export default function DiceTable({
   campaignId,
   seatId,
   characterId,
+  diceColor = null,
   seatTitle,
   canKeepSecrets,
   children,
@@ -81,7 +83,8 @@ export default function DiceTable({
      actually arrives. */
   const board = useRef(null);
   const onMirror = useCallback(
-    (die, count, seed, land) => board.current?.(die, count, seed, land),
+    (die, count, seed, color, land) =>
+      board.current?.(die, count, seed, color, land),
     [],
   );
 
@@ -160,7 +163,9 @@ export default function DiceTable({
     [characterId, finish, mine, record, seatTitle],
   );
 
-  const local = useDiceRoll({ onStart, onFinish });
+  /* The chair's own colour, null at the head of the table — which is what
+     `diceMaterial` reads as "throw the house's dice". */
+  const local = useDiceRoll({ color: diceColor, onStart, onFinish });
 
   useEffect(() => {
     board.current = local.mirror;

@@ -1,13 +1,33 @@
 /**
- * Shrinking a map in the browser, before it reaches the network — a 4000px PNG
- * export costs the upload, the bucket, and every later page view.
+ * Shrinking a picture in the browser, before it reaches the network — a 4000px
+ * PNG export costs the upload, the bucket, and every later page view.
  *
  * Browser only: uses `createImageBitmap` and a canvas, so this module must not
  * be imported by a Server Component.
  */
 
-/** Above this, on the longest edge, the image is scaled down. */
-export const MAX_EDGE = 2560;
+/**
+ * Above this, on the longest edge, a map is scaled down.
+ *
+ * A battle map is read at 100% and pinch-zoomed into, so the ceiling is the
+ * picture's own rather than the screen's. It is not the binding limit —
+ * `MAX_MAP_BYTES` is, and `compressMap` below is what reconciles the two.
+ */
+export const MAX_EDGE = 4096;
+
+/** Where a map that would not fit under its byte cap is tried again. */
+const FALLBACK_EDGE = 2560;
+
+/**
+ * The same, for a portrait. Small because of where one is looked at: the
+ * biggest an avatar is ever drawn is 80px, and 512 leaves room for a retina
+ * screen and for wherever a face is shown larger later.
+ *
+ * The picture is NOT cropped square on the way through. Every avatar renders
+ * under `object-cover` inside a circle, so the crop is the browser's and a
+ * portrait that is retaken keeps whatever the file had.
+ */
+export const AVATAR_EDGE = 512;
 
 /**
  * High for WebP, because a map is read at 100% rather than glanced at, and 0.75
@@ -15,6 +35,39 @@ export const MAX_EDGE = 2560;
  * from the resize anyway.
  */
 export const QUALITY = 0.9;
+
+/**
+ * A portrait, at the size a face is worth storing. Same encoder, same "keep
+ * whichever is smaller" bargain — see `compressImage` below.
+ */
+export function compressAvatar(file) {
+  return compressImage(file, { maxEdge: AVATAR_EDGE });
+}
+
+/**
+ * A map, at the largest edge worth keeping — and at a smaller one if that did
+ * not fit.
+ *
+ * The ceiling and the byte cap are two different promises, and only the second
+ * is enforced by anything: a 6000px hand-drawn map re-encodes to something over
+ * `MAX_MAP_BYTES` at 4096 and comfortably under it at 2560. Reporting that as a
+ * refusal would be telling a Dungeon Master their map is too big when what is
+ * actually true is that this page did not try hard enough.
+ *
+ * One retry and no more. A file still over the cap at 2560 is one there is
+ * genuinely nothing to be done about from here, and the caller says so.
+ */
+export async function compressMap(file, byteCap) {
+  const full = await compressImage(file);
+
+  if (full.decodable === false || !byteCap || full.file.size <= byteCap) {
+    return full;
+  }
+
+  const smaller = await compressImage(file, { maxEdge: FALLBACK_EDGE });
+
+  return smaller.file.size < full.file.size ? smaller : full;
+}
 
 /**
  * Always resolves with a usable file: if the re-encode fails or comes out
@@ -170,12 +223,13 @@ function draw(canvas, source, width, height) {
 }
 
 function toWebpName(name) {
-  const base = String(name || "map").replace(/\.[^.]+$/, "");
+  const base = String(name || "picture").replace(/\.[^.]+$/, "");
 
-  // Not the storage key — `mapObjectPath` names the object. Sanitised anyway,
-  // because this travels in the multipart body's `filename` parameter, and a
-  // header value is not the place to pass on whatever the file picker gave.
+  // Not the storage key — `mapObjectPath` and `avatarObjectPath` name the
+  // object. Sanitised anyway, because this travels in the multipart body's
+  // `filename` parameter, and a header value is not the place to pass on
+  // whatever the file picker gave.
   const safe = base.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 60);
 
-  return `${safe || "map"}.webp`;
+  return `${safe || "picture"}.webp`;
 }

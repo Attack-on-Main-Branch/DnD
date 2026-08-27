@@ -1,7 +1,14 @@
 /**
- * Every read and write against the `characters` table. Failures come back as a
- * `reason` code rather than a sentence.
+ * Every read and write against the `characters` table and the
+ * `character-avatars` bucket. Failures come back as a `reason` code rather
+ * than a sentence.
  */
+
+import { removeObject, uploadObject } from "./storage.js";
+
+/** The bucket, and what its reasons are named after — see storage.js. */
+const BUCKET = "character-avatars";
+const SUBJECT = "avatar";
 
 /**
  * A column list rather than `*`, so `user_id` never travels to the client — a
@@ -9,7 +16,7 @@
  * the base ones, so the sheet prints the number Postgres would sort by.
  */
 const COLUMNS =
-  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, xp, current_hp, max_hp, " +
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, dice_color, avatar_url, level, xp, current_hp, max_hp, " +
   "armor_class, death_saves, is_dead, hit_dice_spent, custom_proficiencies, conditions, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
@@ -119,8 +126,12 @@ export async function getCharacter(supabase, { id, userId }) {
  * figure true through every later edit, so the app has one door to it and not
  * four.
  */
-export async function insertCharacter(supabase, { userId, values }) {
+export async function insertCharacter(supabase, { id, userId, values }) {
   const { error } = await supabase.from("characters").insert({
+    /* Named by the caller, because the portrait's object is named after the
+       character and had to be uploaded before the row could exist — the same
+       order, and the same reason, as a campaign and its map. */
+    id,
     user_id: userId,
     kind: "player",
     name: values.name,
@@ -129,7 +140,11 @@ export async function insertCharacter(supabase, { userId, values }) {
     archetype: values.archetype,
     class_id: values.classId,
     alignment: values.alignment,
-    color_theme: values.colorTheme,
+    /* `color_theme` is NOT written here and must not be: the trigger added in
+       20260919090000 mirrors it off this column, which is what keeps the name
+       it used to go by from ever disagreeing with the one it goes by now. */
+    dice_color: values.diceColor,
+    avatar_url: values.avatarUrl ?? null,
     // Only the bought values are written. The six `_total` columns are
     // generated, and Postgres refuses an INSERT that names one.
     ability_str: values.abilities.str,
@@ -153,6 +168,10 @@ export async function insertCharacter(supabase, { userId, values }) {
  * narrowest UPDATE policy here would hand its holder the level a Dungeon Master
  * awards and the hit points a table calls out. The parameter list is the edit.
  *
+ * THE PORTRAIT IS A URL AND NOT A FILE. The object is already in the bucket by
+ * the time this runs — the Server Action puts it there — so what the sheet
+ * carries is where it landed, and `null` is a character back to their disc.
+ *
  * NO MAXIMUM AMONG THE ARGUMENTS since 20260907090000. A race, a path or a
  * Constitution moving is exactly what decides one, so the trigger recomputes it
  * behind this write and carries the bar with it — there is nothing left for a
@@ -170,7 +189,8 @@ export async function updateCharacter(supabase, { id, values }) {
     new_archetype: values.archetype,
     new_class_id: values.classId,
     new_alignment: values.alignment,
-    new_color_theme: values.colorTheme,
+    new_dice_color: values.diceColor,
+    new_avatar_url: values.avatarUrl ?? null,
     new_ability_str: values.abilities.str,
     new_ability_dex: values.abilities.dex,
     new_ability_con: values.abilities.con,
@@ -194,9 +214,14 @@ export async function updateCharacter(supabase, { id, values }) {
 }
 
 /**
- * `.select("id")` makes the DELETE report the rows it removed. A DELETE
- * matching nothing is not an error and RLS filters silently, so without this a
- * stale or someone else's id looked exactly like a successful delete.
+ * `.select(…)` makes the DELETE report the row it removed. A DELETE matching
+ * nothing is not an error and RLS filters silently, so without this a stale or
+ * someone else's id looked exactly like a successful delete.
+ *
+ * The portrait's URL comes back with it: this is the last moment anything
+ * points at that object, and a character who is gone should not leave a face
+ * behind in the bucket. The caller does the sweeping — the same division
+ * `removeCampaign` and its map are written along.
  */
 export async function removeCharacter(supabase, { id, userId }) {
   const { data, error } = await supabase
@@ -204,7 +229,7 @@ export async function removeCharacter(supabase, { id, userId }) {
     .delete()
     .eq("id", id)
     .eq("user_id", userId)
-    .select("id");
+    .select("id, avatar_url");
 
   if (error) {
     return failure(error);
@@ -217,7 +242,53 @@ export async function removeCharacter(supabase, { id, userId }) {
     };
   }
 
-  return { data: true, error: null };
+  return { data: { avatarUrl: data[0].avatar_url }, error: null };
+}
+
+/**
+ * Where a character's portrait is now, and nothing else.
+ *
+ * The edit sheet needs it twice over: to leave the column alone when no new
+ * picture was chosen, and to know which object to sweep up when one was. A
+ * column list of one, because that is the whole question.
+ */
+export async function getCharacterAvatarUrl(supabase, { id, userId }) {
+  const { data, error } = await supabase
+    .from("characters")
+    .select("avatar_url")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return error
+    ? failure(error)
+    : { data: data?.avatar_url ?? null, error: null };
+}
+
+/**
+ * The portrait, up into the bucket. Server-side only, like every other query
+ * here: the session cookies are `httpOnly`, so a browser client would reach
+ * Storage unauthenticated and be refused by the policy in silence.
+ *
+ * The path names the owner's uid in its first segment and the policy compares
+ * exactly that — see `avatarObjectPath` in rules/character.js.
+ */
+export async function uploadCharacterAvatar(supabase, { path, file }) {
+  return uploadObject(supabase, {
+    bucket: BUCKET,
+    path,
+    file,
+    subject: SUBJECT,
+  });
+}
+
+/**
+ * The portrait a character has stopped wearing: replaced, cleared, or one whose
+ * row never landed. Reports rather than throws, for the reason a map's cleanup
+ * does — an orphaned object is invisible to everyone but an operator.
+ */
+export async function removeCharacterAvatar(supabase, path) {
+  return removeObject(supabase, { bucket: BUCKET, path, subject: SUBJECT });
 }
 
 /**

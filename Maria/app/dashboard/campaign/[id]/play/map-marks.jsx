@@ -29,11 +29,18 @@ const PARTY_SHADOW =
  * on the world rather than on the screen, at no cost in JavaScript. `inset-0`
  * is exact because `w-fit` in table-map.jsx makes frame and picture one box.
  *
- * `pointer-events-none` on the layer and back on only for a token that can be
- * cleared: the map underneath has to keep receiving the right-click that marks
- * it, and a transparent sheet over the whole board would swallow it.
+ * `pointer-events-none` on the layer and back on only for a token somebody may
+ * actually pick up: the map underneath has to keep receiving the press that
+ * pans it and the right button that measures across it, and a transparent sheet
+ * over the whole board would swallow both.
  */
-export default function MapMarks({ marks, scale, layerStyle, onClear }) {
+export default function MapMarks({
+  marks,
+  scale,
+  layerStyle,
+  onGrab = null,
+  cell = null,
+}) {
   return (
     // Announced by MarkRoll instead: nothing inside a `role="button"` is read
     // out, and the map is one.
@@ -47,7 +54,8 @@ export default function MapMarks({ marks, scale, layerStyle, onClear }) {
           key={mark.characterId ?? "party"}
           mark={mark}
           scale={scale}
-          onClear={onClear}
+          cell={cell}
+          onGrab={onGrab}
         />
       ))}
     </div>
@@ -68,31 +76,51 @@ export default function MapMarks({ marks, scale, layerStyle, onClear }) {
  * different shapes — a gold rim adds to the box — so sizing it here would pin
  * them to a shared width neither wants.
  */
-function Mark({ mark, scale, onClear }) {
-  const removable = mark.removable && Boolean(onClear);
+function Mark({ mark, scale, cell, onGrab }) {
+  /* Whose hand may drag this one. A Dungeon Master's over every piece at their
+     table, a player's over their own — see use-table-marks.js, which decides
+     it, and the database, which decides it again. */
+  const movable = mark.movable && Boolean(onGrab);
 
   return (
     <span
       className={`absolute ${
-        removable ? "pointer-events-auto cursor-context-menu" : ""
+        movable ? "pointer-events-auto cursor-grab active:cursor-grabbing" : ""
       }`}
-      style={{
-        left: `${mark.x * 100}%`,
-        top: `${mark.y * 100}%`,
-        transform: `translate(-50%, -50%) scale(${1 / scale})`,
-        transition: "transform 250ms ease",
-      }}
-      onContextMenu={
-        removable
+      onPointerDown={
+        movable
           ? (event) => {
-              event.preventDefault();
-              // Or the map below would take this as "mark here" and put a new
-              // token down on the spot the old one was just lifted from.
+              if (event.button !== 0 || !event.isPrimary) {
+                return;
+              }
+
+              /* Or the map underneath takes this as the start of a pan and the
+                 board slides out from under the piece being lifted. */
               event.stopPropagation();
-              onClear(mark.characterId);
+              event.preventDefault();
+
+              onGrab(mark.characterId, event);
             }
           : undefined
       }
+      style={{
+        left: `${mark.x * 100}%`,
+        top: `${mark.y * 100}%`,
+        /*
+         * OFF THE GRID the token keeps its size on screen at every zoom step —
+         * `1 / scale` — so it covers less ground zoomed in than out, which is
+         * how the zoom is used to say precisely where.
+         *
+         * ON THE GRID it does the opposite, because the cell is now the unit of
+         * "where": a piece that shrank as you leaned in would stop filling the
+         * square it is standing in.
+         */
+        transform: cell
+          ? "translate(-50%, -50%)"
+          : `translate(-50%, -50%) scale(${1 / scale})`,
+        transition: "transform 250ms ease",
+        ...(cell ? { width: `${cell * 100}%`, aspectRatio: "1" } : null),
+      }}
     >
       {mark.characterId ? (
         /*
@@ -104,14 +132,24 @@ function Mark({ mark, scale, onClear }) {
          * push the token off its own point.
          */
         <span
+          /* A RING, not a gold disc with the face padded into it. The padding
+             version drew a second rim inside the avatar's own pale one — two
+             edges a pixel apart, which is what made a round token look like it
+             had been cut out badly. A ring is painted outside the box, so the
+             circle stays one circle. */
           className={`flex rounded-full ${GROUND_SHADOW} ${
-            mark.mine ? "bg-gold p-[3px]" : ""
-          }`}
+            cell ? "size-full" : ""
+          } ${mark.mine ? "ring-2 ring-gold" : ""}`}
         >
           <Avatar
-            initials={mark.initials}
+            src={mark.src}
             colorClass={mark.colorClass}
             size="xs"
+            // One rim at a time: the gold one above says whose piece this is.
+            ring={!mark.mine}
+            /* Last, so it wins over `xs`: on a ruled board the token is the
+               size of the cell it stands in, and the cell is the unit. */
+            className={cell ? "size-full" : ""}
           />
         </span>
       ) : (
@@ -123,7 +161,9 @@ function Mark({ mark, scale, onClear }) {
          * and the disc.
          */
         <span
-          className={`grid size-7 place-items-center rounded-full bg-gold font-display text-xs leading-none font-semibold text-surface ${PARTY_SHADOW}`}
+          className={`grid place-items-center rounded-full bg-gold font-display text-xs leading-none font-semibold text-surface ${PARTY_SHADOW} ${
+            cell ? "size-full" : "size-7"
+          }`}
         >
           P
         </span>

@@ -16,6 +16,22 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.17.0",
+    date: "2026-08-27",
+    title: "A face, a shelf of maps, and a grid to stand on",
+    changes: [
+      "Characters carry a portrait. Drop a picture on the circle at the top of the sheet and it is resized and re-encoded in your browser before it is uploaded; it shows on every card, token and log line. Without one, a cameo on your own colour.",
+      "That colour is now your DICE colour, and the creation sheet throws a real d20 in it beside the swatches — the same die the table rolls. It no longer changes itself while you type a name.",
+      "The Dungeon Master's dice keep their obsidian. A secret roll is the same die, lettered in violet.",
+      "A campaign can keep ten maps besides its world map, added on the campaign sheet and listed under a new Maps tab, where any picture can be swapped without reopening the sheet.",
+      "A map switcher at the table, for the Dungeon Master alone: pick a map and every chair cross-fades to it, with no page reload anywhere.",
+      "Any map can be ruled with a hex grid — a toggle, a size and a black-to-white contrast slider, all three live as you drag them. Tokens grow to their cell and snap to it.",
+      "One hex is five feet. Drag a token and an arrow follows the pointer with the distance in feet; hold the right button and it measures without moving anything, and the whole table watches it.",
+      "The Dungeon Master deals tokens out from a row of party faces beside the board and can move anybody's. On an unruled map every player still places and lifts their own.",
+      "The board zooms on the scroll wheel now, towards whatever is under the pointer, and the left button belongs to the tokens.",
+    ],
+  },
+  {
     version: "0.16.0",
     date: "2026-08-27",
     title: "The rest of what a character is",

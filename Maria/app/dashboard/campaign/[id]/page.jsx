@@ -10,6 +10,7 @@ import { campaignTablePath, DUNGEON_MASTER_SEAT } from "@/lib/routes";
 
 import CampaignMap from "./campaign-map";
 import EditCampaignPencil from "./edit-campaign-pencil";
+import MapGrid from "./map-grid";
 import CreatePanel from "./create-panel";
 import { loadCampaign } from "./load-campaign";
 import PartyPanel from "./party-panel";
@@ -17,6 +18,9 @@ import PartyPanel from "./party-panel";
 /** The campaign's sections, named beside the panels they select. */
 const CAMPAIGN_TABS = [
   { value: "overview", label: "Overview" },
+  // Beside Overview because that is where the world map is printed: this is the
+  // same subject, and the rest of what the table can be shown.
+  { value: "maps", label: "Maps" },
   // `focusable: false` — the panel opens with a search field, so a tab stop on
   // the panel itself only puts an empty step in front of it.
   { value: "party", label: "Party", focusable: false },
@@ -67,6 +71,7 @@ export default async function CampaignPage({ params }) {
     campaign,
     members,
     notes,
+    maps,
     items,
     spells,
     containers,
@@ -134,9 +139,18 @@ export default async function CampaignPage({ params }) {
           tabs={CAMPAIGN_TABS}
           label="Campaign sections"
           // The pen at the far end of the tab row. See the character sheet's.
-          action={<EditCampaignPencil campaign={campaign} />}
+          action={<EditCampaignPencil campaign={campaign} maps={maps} />}
           panels={{
             overview: <OverviewPanel campaign={campaign} />,
+            // The shelf, and the one control on it: a picture can be swapped
+            // without the campaign sheet being reopened.
+            maps: (
+              <MapGrid
+                campaignId={campaign.id}
+                maps={maps}
+                activeMapId={campaign.active_map_id}
+              />
+            ),
             party: <PartyPanel campaignId={campaign.id} members={roster} />,
             // The Dungeon Master's own book, written at the table and read
             // back here the way a character's is on their sheet.

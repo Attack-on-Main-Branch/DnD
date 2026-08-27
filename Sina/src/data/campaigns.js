@@ -1,15 +1,19 @@
 /**
- * Every read and write against the `campaigns` table and the `campaign-maps`
- * bucket. Failures come back as a `reason` code, not a sentence.
+ * Every read and write against the `campaigns` table, its shelf of
+ * `campaign_maps`, and the `campaign-maps` bucket both keep their pictures in.
+ * Failures come back as a `reason` code, not a sentence.
  */
+
+import { removeObject, uploadObject } from "./storage.js";
 
 const BUCKET = "campaign-maps";
 
-/** One year. See the note on the upload for why that is safe here. */
-const MAP_CACHE_SECONDS = 31536000;
+/** What this module's storage reasons are named after — see storage.js. */
+const SUBJECT = "map";
 
 /** `user_id` is deliberately absent: it must not travel to the client. */
-const COLUMNS = "id, title, world_description, map_url, created_at";
+const COLUMNS =
+  "id, title, world_description, map_url, active_map_id, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const CHECK_VIOLATION = "23514";
@@ -49,6 +53,10 @@ function classify(error) {
 
   if (error.message?.includes("party_limit_reached")) {
     return "party_full";
+  }
+
+  if (error.message?.includes("map_limit_reached")) {
+    return "map_limit_reached";
   }
 
   if (error.code === UNDEFINED_TABLE) {
@@ -185,80 +193,145 @@ export async function removeCampaign(supabase, { id, userId }) {
   return { data: { mapUrl: data[0].map_url }, error: null };
 }
 
-/**
- * `upsert: false` because the path carries a fresh uuid — something already
- * there means a reused id, and overwriting would be the wrong repair.
- * `contentType` is explicit: Storage otherwise infers it from the extension,
- * and a FormData filename need not match the browser's type.
- */
 export async function uploadCampaignMap(supabase, { path, file }) {
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type,
-    upsert: false,
+  return uploadObject(supabase, {
+    bucket: BUCKET,
+    path,
+    file,
+    subject: SUBJECT,
+  });
+}
 
-    /*
-     * A year, against a default of one hour. These URLs never change what they
-     * point at, and the SDK builds the header as `max-age=${cacheControl}`, so
-     * `immutable` is unreachable through this API.
-     */
-    cacheControl: `${MAP_CACHE_SECONDS}`,
+export async function removeCampaignMap(supabase, path) {
+  return removeObject(supabase, { bucket: BUCKET, path, subject: SUBJECT });
+}
+
+/* ---------------------------------------------------------------------------
+   THE SHELF OF MAPS
+   --------------------------------------------------------------------------- */
+
+/** `campaign_id` stays out: every read is already scoped to one campaign. */
+const MAP_COLUMNS =
+  "id, name, url, is_world_map, sort_order, grid_enabled, grid_size, " +
+  "grid_luminance, created_at";
+
+/**
+ * Every map this campaign keeps, world map first.
+ *
+ * No `.eq("user_id", …)` second lock, because there is no such column: the
+ * policy in 20260920090000 answers the Dungeon Master AND the party, so this is
+ * one of the few reads whose audience is wider than an owner. The ORDER is the
+ * shelf's own — the world map carries a negative `sort_order`.
+ */
+export async function listCampaignMaps(supabase, campaignId) {
+  const { data, error } = await supabase
+    .from("campaign_maps")
+    .select(MAP_COLUMNS)
+    .eq("campaign_id", campaignId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  return error ? failure(error) : { data: data ?? [], error: null };
+}
+
+/**
+ * One map onto the shelf. The id is the caller's because the object in storage
+ * is named after it and had to be uploaded first — the same order, and the same
+ * reason, as a campaign and its world map.
+ */
+export async function addCampaignMap(
+  supabase,
+  { id, campaignId, name, url, sortOrder },
+) {
+  const { error } = await supabase.from("campaign_maps").insert({
+    id,
+    campaign_id: campaignId,
+    name,
+    url,
+    sort_order: sortOrder,
+  });
+
+  return error ? failure(error) : { data: true, error: null };
+}
+
+/** The label on a card. The world map's row takes a rename like any other. */
+export async function renameCampaignMap(supabase, { id, name }) {
+  const { data, error } = await supabase
+    .from("campaign_maps")
+    .update({ name })
+    .eq("id", id)
+    .select("id");
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data?.length
+    ? { data: true, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
+}
+
+/**
+ * A new picture on an existing card, through the definer function for the
+ * reason it gives: the world map's row is derived from `campaigns.map_url`, so
+ * writing the row would be undone by the next thing that touched the column.
+ *
+ * Answers with the URL it replaced, which is the last moment anything points at
+ * that object. Null is a refusal or a miss, deliberately the same answer.
+ */
+export async function replaceCampaignMap(supabase, { id, url }) {
+  const { data, error } = await supabase.rpc("replace_campaign_map", {
+    p_map_id: id,
+    p_url: url,
   });
 
   if (error) {
-    return {
-      data: null,
-      error: { reason: classifyStorage(error), detail: error.message },
-    };
+    return failure(error);
   }
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-
-  return { data: { url: data.publicUrl, path }, error: null };
+  return data === null
+    ? { data: null, error: { reason: "not_found", detail: null } }
+    : { data: { previousUrl: data }, error: null };
 }
 
 /**
- * Cleanup for a map whose campaign is gone or never got written.
- *
- * Best-effort for the caller — neither one has anything better to tell the user
- * than the failure that brought them here — but it reports, because a storage
- * client returns `{ error }` rather than throwing, and swallowing that leaves
- * orphaned objects nobody can see. The `catch` stays for the transport failure
- * that does throw: cleanup must not take the caller down with it.
+ * A map off the shelf. `.select("url")` makes the DELETE report the row it
+ * removed — the only chance to learn where the object is before nothing points
+ * at it. An empty result is a miss: already gone, or never this caller's.
  */
-export async function removeCampaignMap(supabase, path) {
-  try {
-    const { error } = await supabase.storage.from(BUCKET).remove([path]);
+export async function dropCampaignMap(supabase, { id }) {
+  const { data, error } = await supabase
+    .from("campaign_maps")
+    .delete()
+    .eq("id", id)
+    .select("url");
 
-    return error
-      ? { error: { reason: classifyStorage(error), detail: error.message } }
-      : { error: null };
-  } catch (thrown) {
-    return { error: { reason: "map_failed", detail: String(thrown) } };
+  if (error) {
+    return failure(error);
   }
+
+  return data?.length
+    ? { data: { url: data[0].url }, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
 }
 
-/** Storage speaks HTTP, not SQLSTATE, hence the string matching. */
-function classifyStorage(error) {
-  const status = Number(error.statusCode ?? error.status);
-  const message = String(error.message ?? "").toLowerCase();
+/**
+ * What the table is looking at. `mapId` null puts the world map back, and is
+ * not a refusal — `false` from the function is.
+ */
+export async function setActiveCampaignMap(supabase, { campaignId, mapId }) {
+  const { data, error } = await supabase.rpc("set_active_campaign_map", {
+    p_campaign_id: campaignId,
+    p_map_id: mapId,
+  });
 
-  if (status === 404 || message.includes("bucket not found")) {
-    return "missing_bucket";
+  if (error) {
+    return failure(error);
   }
 
-  if (status === 409 || message.includes("already exists")) {
-    return "map_exists";
-  }
-
-  if (status === 401 || status === 403 || message.includes("row-level")) {
-    return "map_denied";
-  }
-
-  if (status === 413 || message.includes("maximum allowed size")) {
-    return "map_too_large";
-  }
-
-  return "map_failed";
+  return data
+    ? { data: true, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
 }
 
 /**
@@ -491,7 +564,7 @@ export async function deleteCampaignNote(supabase, { id, campaignId }) {
 export async function listCampaignMarks(supabase, campaignId) {
   const { data, error } = await supabase
     .from("campaign_marks")
-    .select("character_id, x, y, placed_at")
+    .select("character_id, map_id, x, y, hex_q, hex_r, placed_at")
     .eq("campaign_id", campaignId);
 
   return error ? failure(error) : { data: data ?? [], error: null };
@@ -507,13 +580,18 @@ export async function listCampaignMarks(supabase, campaignId) {
  */
 export async function placeCampaignMark(
   supabase,
-  { campaignId, characterId, x, y },
+  { campaignId, characterId, mapId, x, y, q, r },
 ) {
   const { data, error } = await supabase.rpc("place_campaign_mark", {
     target_campaign: campaignId,
     target_character: characterId,
+    target_map: mapId ?? null,
     mark_x: x,
     mark_y: y,
+    // Null for a map with no grid: the point is where the token IS, and the
+    // cell is which square it is standing in. A board with no squares has none.
+    cell_q: Number.isInteger(q) ? q : null,
+    cell_r: Number.isInteger(r) ? r : null,
   });
 
   if (error) {
@@ -521,15 +599,18 @@ export async function placeCampaignMark(
   }
 
   return data
-    ? { data: { characterId, x, y }, error: null }
+    ? { data: { characterId, mapId: mapId ?? null, x, y }, error: null }
     : { data: null, error: { reason: "not_found", detail: null } };
 }
 
-/** The other half. Yours to clear, or the Dungeon Master's over any of them. */
-export async function clearCampaignMark(supabase, { campaignId, characterId }) {
+export async function clearCampaignMark(
+  supabase,
+  { campaignId, characterId, mapId },
+) {
   const { data, error } = await supabase.rpc("clear_campaign_mark", {
     target_campaign: campaignId,
     target_character: characterId,
+    target_map: mapId ?? null,
   });
 
   if (error) {
@@ -537,6 +618,34 @@ export async function clearCampaignMark(supabase, { campaignId, characterId }) {
   }
 
   return data
-    ? { data: { characterId }, error: null }
+    ? { data: { characterId, mapId: mapId ?? null }, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
+}
+
+/**
+ * A map ruled, or the ruling taken off it. Through the definer function for the
+ * reason `replace_campaign_map` is: RLS grants rows and never columns, so the
+ * narrowest policy that would let a Dungeon Master rule a map also lets them
+ * rewrite its URL from a hand-built request.
+ *
+ * `false` is a refusal or a miss, deliberately the same answer.
+ */
+export async function updateMapGridSettings(
+  supabase,
+  { mapId, enabled, size, luminance },
+) {
+  const { data, error } = await supabase.rpc("update_map_grid_settings", {
+    p_map_id: mapId,
+    p_enabled: enabled,
+    p_size: size,
+    p_luminance: luminance,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data: true, error: null }
     : { data: null, error: { reason: "not_found", detail: null } };
 }

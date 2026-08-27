@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  listCampaignMaps,
   removeCampaignMap,
   updateCampaign as writeCampaign,
   uploadCampaignMap,
@@ -9,10 +10,13 @@ import {
 import {
   mapObjectPath,
   mapPathFromUrl,
+  readCampaignMaps,
   readCampaignValues,
   validateCampaign,
+  validateCampaignMaps,
 } from "sina/rules/campaign";
 
+import { applyMapShelf, MAP_SHELF_COPY } from "@/app/actions/map-shelf";
 import { logFailure, logUncovered } from "@/lib/errors";
 import { campaignSheetPath, campaignTablePath } from "@/lib/routes";
 import { rejected, sessionRejection } from "@/lib/rejection";
@@ -85,6 +89,14 @@ export async function updateCampaign(campaignId, formData) {
 
   if (malformed) {
     return rejected(malformed.message, malformed.field);
+  }
+
+  // The shelf as this sheet wants it to end up — see `readCampaignMaps`.
+  const shelf = readCampaignMaps(formData);
+  const overshelved = validateCampaignMaps(shelf);
+
+  if (overshelved) {
+    return rejected(overshelved.message, overshelved.field);
   }
 
   const supabase = await createClient();
@@ -169,6 +181,37 @@ export async function updateCampaign(campaignId, formData) {
     if (cleanup.error) {
       logFailure("updateCampaign/stale", cleanup.error);
     }
+  }
+
+  /* The shelf, against what is actually on it rather than what the sheet was
+     opened with: a map added from the maps tab in another window is not one
+     this save should take down. Skipped entirely for a sheet that did not
+     describe one. */
+  const standing = shelf ? await listCampaignMaps(supabase, campaignId) : null;
+
+  if (standing?.error) {
+    logFailure("updateCampaign/shelf", standing.error);
+  }
+
+  const shelved = shelf
+    ? await applyMapShelf(supabase, {
+        campaignId,
+        userId: user.id,
+        shelf,
+        existing: standing.error ? [] : standing.data,
+      })
+    : { error: null };
+
+  if (shelved.error) {
+    const copy = MAP_SHELF_COPY[shelved.error.reason];
+    logUncovered("updateCampaign/maps", shelved.error, copy);
+
+    revalidatePath(campaignSheetPath(campaignId));
+
+    return rejected(
+      copy?.message ?? "The campaign was saved, but its maps were not.",
+      copy?.field ?? "maps",
+    );
   }
 
   // The sheet, the table it opens onto, and the tile on the dashboard.

@@ -12,7 +12,7 @@ import CampaignForm from "@/app/dashboard/campaign-form";
  * Its own module because it is loaded on demand: the map field brings the
  * browser-side image compression with it. See edit-campaign-pencil.jsx.
  */
-export default function EditCampaignModal({ campaign, open, onClose }) {
+export default function EditCampaignModal({ campaign, maps, open, onClose }) {
   const [busy, setBusy] = useState(false);
 
   return (
@@ -24,6 +24,7 @@ export default function EditCampaignModal({ campaign, open, onClose }) {
     >
       <CampaignForm
         campaign={campaign}
+        maps={maps}
         onPending={setBusy}
         onDone={onClose}
         onCancel={onClose}

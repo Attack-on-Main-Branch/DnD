@@ -2,14 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  getCharacterAvatarUrl,
+  removeCharacterAvatar,
   toggleCondition as toggleCharacterCondition,
   togglePartyCondition,
   updateCharacter as writeCharacter,
+  uploadCharacterAvatar,
 } from "sina/data/characters";
 import { ALL_PARTY, isCondition } from "sina/rules/conditions";
-import { readCharacterValues, validateCharacter } from "sina/rules/character";
+import {
+  avatarObjectPath,
+  avatarPathFromUrl,
+  readCharacterValues,
+  validateCharacter,
+} from "sina/rules/character";
 
-import { logUncovered } from "@/lib/errors";
+import { AVATAR_COPY } from "@/app/actions/avatar-copy";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { characterSheetPath } from "@/lib/routes";
 import { rejected, sessionRejection } from "@/lib/rejection";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -51,6 +60,7 @@ const EDIT_COPY = {
       "The characters table is missing a column this needs. Run the migrations in Sina/supabase/migrations.",
     field: null,
   },
+  ...AVATAR_COPY,
 };
 
 /**
@@ -85,12 +95,72 @@ export async function updateCharacter(characterId, formData) {
     return sessionRejection("updateCharacter", authError);
   }
 
+  /*
+   * WHAT IS HANGING THERE NOW, read before anything is written. The sheet
+   * posts a file, or a `keepAvatar` flag, or neither, and the three mean
+   * "replace it", "leave it" and "take it down" — but the function writes the
+   * column outright either way, so "leave it" has to be spelled as the URL
+   * that is already there. It is also what says which object to sweep up.
+   */
+  const { data: standingUrl, error: readError } = await getCharacterAvatarUrl(
+    supabase,
+    { id: characterId, userId: user.id },
+  );
+
+  if (readError) {
+    const copy = EDIT_COPY[readError.reason];
+    logUncovered("updateCharacter/avatar", readError, copy);
+
+    return rejected(
+      copy?.message ?? "Could not save the changes. Please try again.",
+      copy?.field ?? null,
+    );
+  }
+
+  let avatarUrl = values.keepAvatar ? standingUrl : null;
+  let uploadedPath = null;
+
+  if (values.avatar) {
+    uploadedPath = avatarObjectPath({
+      userId: user.id,
+      characterId,
+      type: values.avatar.type,
+      stamp: Date.now(),
+    });
+
+    const upload = await uploadCharacterAvatar(supabase, {
+      path: uploadedPath,
+      file: values.avatar,
+    });
+
+    if (upload.error) {
+      const copy = EDIT_COPY[upload.error.reason];
+      logUncovered("updateCharacter/upload", upload.error, copy);
+
+      return rejected(
+        copy?.message ?? "The portrait could not be uploaded. Try again.",
+        copy?.field ?? "avatar",
+      );
+    }
+
+    avatarUrl = upload.data.url;
+  }
+
   const { error } = await writeCharacter(supabase, {
     id: characterId,
-    values,
+    values: { ...values, avatarUrl },
   });
 
   if (error) {
+    // The row is what makes the object findable; without it, it is litter.
+    if (uploadedPath) {
+      const cleanup = await removeCharacterAvatar(supabase, uploadedPath);
+
+      if (cleanup.error) {
+        logFailure("updateCharacter/rollback", cleanup.error);
+      }
+    }
+
     const copy = EDIT_COPY[error.reason];
     logUncovered("updateCharacter", error, copy);
 
@@ -98,6 +168,23 @@ export async function updateCharacter(characterId, formData) {
       copy?.message ?? "Could not save the changes. Please try again.",
       copy?.field ?? null,
     );
+  }
+
+  /* The old object goes AFTER the row, and only once nothing points at it:
+     removing it first would leave a character wearing a URL that answers 404
+     if the write were then refused. Logged rather than reported — the sheet is
+     saved either way, and an orphan is an operator's problem. */
+  const discarded =
+    standingUrl && standingUrl !== avatarUrl
+      ? avatarPathFromUrl(standingUrl)
+      : null;
+
+  if (discarded) {
+    const cleanup = await removeCharacterAvatar(supabase, discarded);
+
+    if (cleanup.error) {
+      logFailure("updateCharacter/sweep", cleanup.error);
+    }
   }
 
   // The sheet the edit was made on, and the roster tile that repeats it.

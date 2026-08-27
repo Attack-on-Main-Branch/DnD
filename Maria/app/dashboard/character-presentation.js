@@ -1,7 +1,4 @@
-import {
-  AVATAR_COLOR_VALUES,
-  DEFAULT_AVATAR_COLOR,
-} from "sina/rules/character";
+import { DEFAULT_DICE_COLOR, DICE_COLOR_VALUES } from "sina/rules/character";
 
 import dragonbornArt from "./race-art/dragonborn.webp";
 import dwarfArt from "./race-art/dwarf.webp";
@@ -15,49 +12,61 @@ import tieflingArt from "./race-art/tiefling.webp";
  * which colour slugs exist, this decides what they look like, and the check
  * below fails loudly at module load rather than rendering a silent default.
  *
+ * TWO FORMS OF THE SAME COLOUR, because it is worn in two places that cannot
+ * read each other's: a Tailwind class for the swatch, the disc behind a
+ * silhouette and anything else painted in CSS, and a hex for the 3D roller,
+ * which takes `themeColor` as a string and has never heard of a stylesheet.
+ * They are the -600 step of Tailwind's own ramp either way, and the pair lives
+ * on one line so neither can be changed alone.
+ *
  * The class strings must stay literal for Tailwind's scanner to find them.
  */
-const CLASS_BY_VALUE = {
-  rose: "bg-rose-600",
-  orange: "bg-orange-600",
-  amber: "bg-amber-600",
-  lime: "bg-lime-600",
-  emerald: "bg-emerald-600",
-  teal: "bg-teal-600",
-  cyan: "bg-cyan-600",
-  sky: "bg-sky-600",
-  blue: "bg-blue-600",
-  violet: "bg-violet-600",
-  fuchsia: "bg-fuchsia-600",
-  pink: "bg-pink-600",
+const DRESS_BY_VALUE = {
+  rose: { className: "bg-rose-600", hex: "#e11d48" },
+  orange: { className: "bg-orange-600", hex: "#ea580c" },
+  amber: { className: "bg-amber-600", hex: "#d97706" },
+  lime: { className: "bg-lime-600", hex: "#65a30d" },
+  emerald: { className: "bg-emerald-600", hex: "#059669" },
+  teal: { className: "bg-teal-600", hex: "#0d9488" },
+  cyan: { className: "bg-cyan-600", hex: "#0891b2" },
+  sky: { className: "bg-sky-600", hex: "#0284c7" },
+  blue: { className: "bg-blue-600", hex: "#2563eb" },
+  violet: { className: "bg-violet-600", hex: "#7c3aed" },
+  fuchsia: { className: "bg-fuchsia-600", hex: "#c026d3" },
+  pink: { className: "bg-pink-600", hex: "#db2777" },
 };
 
-const UNSTYLED_COLORS = AVATAR_COLOR_VALUES.filter(
-  (value) => !CLASS_BY_VALUE[value],
+const UNDRESSED_COLORS = DICE_COLOR_VALUES.filter(
+  (value) => !DRESS_BY_VALUE[value],
 );
 
-if (UNSTYLED_COLORS.length > 0) {
+if (UNDRESSED_COLORS.length > 0) {
   throw new Error(
-    `character-presentation: no class for avatar colour ` +
-      `${UNSTYLED_COLORS.join(", ")}. Sina lists it in rules/character.js — ` +
-      `add it to CLASS_BY_VALUE here, or the picker offers a swatch that ` +
-      `renders as something else.`,
+    `character-presentation: no dress for dice colour ` +
+      `${UNDRESSED_COLORS.join(", ")}. Sina lists it in rules/character.js — ` +
+      `add it to DRESS_BY_VALUE here, or the picker offers a swatch that ` +
+      `renders as something else and rolls a die of another colour again.`,
   );
 }
 
-/** No fallback: the check above has already proved every slug has a class. */
-export const AVATAR_COLORS = AVATAR_COLOR_VALUES.map((value) => ({
+/** No fallback: the check above has already proved every slug is dressed. */
+export const DICE_COLORS = DICE_COLOR_VALUES.map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
-  className: CLASS_BY_VALUE[value],
+  ...DRESS_BY_VALUE[value],
 }));
 
 /**
- * The `??` belongs here and nowhere else: this reads a database row, which can
+ * The `??` belongs here and nowhere else: these read a database row, which can
  * hold a slug written by an older deploy.
  */
-export function avatarColorClass(value) {
-  return CLASS_BY_VALUE[value] ?? CLASS_BY_VALUE[DEFAULT_AVATAR_COLOR];
+export function diceColorClass(value) {
+  return (DRESS_BY_VALUE[value] ?? DRESS_BY_VALUE[DEFAULT_DICE_COLOR])
+    .className;
+}
+
+export function diceColorHex(value) {
+  return (DRESS_BY_VALUE[value] ?? DRESS_BY_VALUE[DEFAULT_DICE_COLOR]).hex;
 }
 
 /**
@@ -174,39 +183,4 @@ const IMAGE_BY_RACE = {
 
 export function raceImage(race) {
   return IMAGE_BY_RACE[race] ?? null;
-}
-
-/**
- * "Darth Vader" → "DV". First and last word, so a middle name does not push the
- * surname out. Iterated as code points, so an emoji is not cut in half.
- */
-export function characterInitials(name) {
-  const words = String(name ?? "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length === 0) {
-    return "?";
-  }
-
-  if (words.length === 1) {
-    return Array.from(words[0]).slice(0, 2).join("").toUpperCase();
-  }
-
-  const first = Array.from(words[0])[0];
-  const last = Array.from(words[words.length - 1])[0];
-
-  return `${first}${last}`.toUpperCase();
-}
-
-/** A stable starting colour, so a new character is not always the same violet. */
-export function suggestedAvatarColor(name) {
-  let hash = 0;
-
-  for (const character of String(name ?? "")) {
-    hash = (hash * 31 + character.codePointAt(0)) >>> 0;
-  }
-
-  return AVATAR_COLOR_VALUES[hash % AVATAR_COLOR_VALUES.length];
 }

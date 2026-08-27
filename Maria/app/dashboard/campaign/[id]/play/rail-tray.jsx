@@ -23,6 +23,9 @@ export default function RailTray({
   title,
   meta,
   dialogLabel,
+  /* How wide the shared box stands while THIS tray owns it. Undefined leaves
+     the rail's own default — see rail-marks.jsx. */
+  width,
   children,
 }) {
   const value = useId();
@@ -92,7 +95,7 @@ export default function RailTray({
           hold(value, node);
         }}
         type="button"
-        onClick={() => toggle(value)}
+        onClick={() => toggle(value, width)}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-controls={panelId}

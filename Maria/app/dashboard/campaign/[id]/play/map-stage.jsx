@@ -1,8 +1,11 @@
+"use client";
+
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
 import { MAP_HEIGHT_CLASS, MAP_MAX_WIDTH_CLASS } from "./map-height";
 import TableMap from "./table-map";
+import { useTableMaps } from "./table-maps";
 
 /**
  * The world, at its own aspect ratio and the height map-height.js allows.
@@ -33,9 +36,14 @@ import TableMap from "./table-map";
  * No `marks` prop any more: the tokens are held in the browser now, in
  * table-state.jsx, and `faces` is what turns one of them into something to
  * draw. See use-table-marks.js.
+ *
+ * A CLIENT COMPONENT since the shelf: `url` is what the route rendered, and
+ * what is actually on the table is whatever the Dungeon Master last reached
+ * for — which arrives over a socket rather than through a render. The prop is
+ * still the fallback, and the only picture a table with no shelf ever shows.
  */
 export default function MapStage({
-  url,
+  url: served,
   title,
   campaignId,
   faces,
@@ -44,6 +52,10 @@ export default function MapStage({
   cast = null,
   children,
 }) {
+  const { activeUrl } = useTableMaps();
+
+  const url = activeUrl ?? served;
+
   if (!url) {
     return (
       <div

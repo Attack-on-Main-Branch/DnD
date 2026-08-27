@@ -13,7 +13,7 @@ const EditCampaignModal = dynamic(() => import("./edit-campaign-modal"), {
 
 /** The pen in the corner of the campaign sheet, and the sheet it opens. See
     the character sheet's copy for why every press mounts a fresh one. */
-export default function EditCampaignPencil({ campaign }) {
+export default function EditCampaignPencil({ campaign, maps }) {
   const [opens, setOpens] = useState(0);
   const [open, setOpen] = useState(false);
 
@@ -36,6 +36,7 @@ export default function EditCampaignPencil({ campaign }) {
         <EditCampaignModal
           key={opens}
           campaign={campaign}
+          maps={maps}
           open={open}
           onClose={() => setOpen(false)}
         />
