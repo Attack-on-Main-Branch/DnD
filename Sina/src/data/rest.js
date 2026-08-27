@@ -81,6 +81,7 @@ async function performRest(
     id: row.id,
     currentHp: row.current_hp,
     spellSlots: row.spell_slots,
+    hitDiceSpent: row.hit_dice_spent,
   }));
 
   return rested.length > 0

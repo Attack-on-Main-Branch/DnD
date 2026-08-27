@@ -8,11 +8,9 @@ import {
   skillTotal,
   skillsOf,
 } from "sina/rules/character";
+import { getSavingThrowBonus } from "sina/rules/saving-throws";
 
-import {
-  abilityEmblem,
-  withAlpha,
-} from "@/app/dashboard/character-presentation";
+import AbilityCard from "@/app/dashboard/ability-card";
 
 /**
  * The numbers half of a character sheet, kept here rather than in the sheet's
@@ -22,11 +20,17 @@ import {
  * is a 400-line catalogue that has no business travelling to it.
  */
 
-/** Both sections, in printing order — the whole of a sheet's arithmetic. */
-export function CharacterStats({ character }) {
+/**
+ * Both sections, in printing order — the whole of a sheet's arithmetic.
+ *
+ * `scoreField` turns the six figures into six fields: called once per score
+ * with the score itself, `total` included. A function and not a flag — see
+ * AbilityCard. Both run on the server, so it crosses between them freely.
+ */
+export function CharacterStats({ character, scoreField = null }) {
   return (
     <>
-      <AbilityScores character={character} />
+      <AbilityScores character={character} scoreField={scoreField} />
       <SkillList character={character} />
     </>
   );
@@ -36,14 +40,16 @@ export function CharacterStats({ character }) {
  * Read straight off the row, totals included — those are generated columns, so
  * this prints what the database holds rather than recomputing from the racial
  * table, where a disagreement between the two would go unseen.
+ *
+ * The modifier is the TOTAL's: the racial bonus is already in that number, and
+ * counting it again doubled it. The save is derived from the path and the rung
+ * and stored nowhere — see `sina/rules/saving-throws`.
  */
-function AbilityScores({ character }) {
-  const scores = ABILITIES.map((ability) => {
-    const base = character[`ability_${ability.id}`];
-    const total = character[`ability_${ability.id}_total`];
-
-    return { ...ability, base, total };
-  });
+function AbilityScores({ character, scoreField }) {
+  const scores = ABILITIES.map((ability) => ({
+    ...ability,
+    total: character[`ability_${ability.id}_total`],
+  }));
 
   // Nothing to print for a row that predates the columns.
   if (scores.some((score) => typeof score.total !== "number")) {
@@ -58,44 +64,22 @@ function AbilityScores({ character }) {
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {scores.map((score) => {
-          const { accent, clip } = abilityEmblem(score.id);
+          const modifier = abilityModifier(score.total);
 
           return (
-            <div
+            <AbilityCard
               key={score.id}
-              className="flex items-center gap-3 rounded-lg border border-gold/15 bg-surface/25 px-3.5 py-3"
-            >
-              <span
-                aria-hidden="true"
-                className="grid size-10 shrink-0 place-items-center rounded-full border border-gold/15 bg-white/5"
-              >
-                <span
-                  className="size-5"
-                  style={{
-                    background: accent,
-                    clipPath: clip,
-                    filter: `drop-shadow(0 0 6px ${withAlpha(accent, 0.35)})`,
-                  }}
-                />
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <p className="font-display text-xs font-semibold tracking-wide text-ink/85 uppercase">
-                  {score.name}
-                </p>
-                {/* The modifier of the TOTAL beside it: the racial bonus is
-                    already in that number, and counting it again doubled it. */}
-                <p className="mt-0.5 font-mono text-[0.65rem] text-ink/45">
-                  {`Base ${score.base} · Mod ${formatModifier(
-                    abilityModifier(score.total),
-                  )}`}
-                </p>
-              </div>
-
-              <p className="shrink-0 text-right font-display text-xl font-semibold text-ink tabular-nums">
-                {score.total}
-              </p>
-            </div>
+              ability={score}
+              total={score.total}
+              modifier={modifier}
+              save={getSavingThrowBonus({
+                className: character.class_id,
+                abilityName: score.id,
+                abilityMod: modifier,
+                level: character.level,
+              })}
+              field={scoreField?.(score)}
+            />
           );
         })}
       </div>

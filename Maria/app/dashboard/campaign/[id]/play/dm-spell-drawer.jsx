@@ -7,10 +7,10 @@ import SpellRow from "@/app/dashboard/spell-row";
 import { spellsByShelf } from "@/app/dashboard/spell-presentation";
 
 import { Action, Confirm } from "./pack-controls";
-import PartyPills, { Pill } from "./party-pills";
+import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import { teachSpell, unlearnSpell } from "./spell-actions";
 import SpellSearch from "./spell-search";
-import Shelf from "./spell-shelf";
+import Shelf from "@/app/dashboard/spell-shelf";
 import SpellSlotTracker from "./spell-slot-tracker";
 import {
   PopoverAside,

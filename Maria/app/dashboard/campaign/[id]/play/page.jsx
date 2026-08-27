@@ -1,5 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { readActivityLog } from "sina/rules/activity";
+import {
+  characterSize,
+  initiativeBonus,
+  movementSpeed,
+  proficienciesFor,
+} from "sina/rules/character-stats";
 import { readSpellcasting } from "sina/rules/spellcasting";
 import { classLabel } from "sina/rules/character";
 
@@ -13,6 +19,8 @@ import { campaignSheetPath, characterSheetPath } from "@/lib/routes";
 
 import AbilitySheet from "./ability-sheet";
 import ActivityLog from "./activity-log";
+import AbilityScoreField from "./ability-score-field";
+import CharacterVitals from "./character-vitals";
 import ChestStage from "./chest-stage";
 import DiceBoard from "./dice-board";
 import DiceCapsule from "./dice-capsule";
@@ -29,7 +37,9 @@ import {
 } from "./entrance";
 import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
+import FeatureShelf from "./feature-shelf";
 import PartyRail from "./party-rail";
+import ProficienciesSection from "./proficiencies-section";
 import RailMarks from "./rail-marks";
 import SessionStage from "./session-stage";
 import SpellBook from "./spell-book";
@@ -50,6 +60,20 @@ export async function generateMetadata({ params, searchParams }) {
   return {
     title: loaded?.campaign ? `${loaded.campaign.title} · Table` : "Table",
   };
+}
+
+/**
+ * A section title on the scores sheet. `CharacterStats` writes its own two —
+ * Ability scores and Skills — and `XpMeter` its Experience; this is the same
+ * one, for the sections on page two that have no component of their own to put
+ * it in.
+ */
+function SheetHeading({ children }) {
+  return (
+    <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
+      {children}
+    </h3>
+  );
 }
 
 /**
@@ -161,51 +185,141 @@ export default async function CampaignTablePage({ params, searchParams }) {
     class_id,
   }));
 
+  /* The sheets this viewer was handed, once — the scores panel, the vitals
+     ribbon and the spellbook all read the same list and RLS has already decided
+     it. */
+  const sheets = isDungeonMaster
+    ? loaded.sheets
+    : [seat?.sheet].filter(Boolean);
+
+  /*
+   * What the vitals ribbon prints, worked out here for the reason `scorePanels`
+   * is: `proficienciesFor` reaches through a table of thirteen paths and the
+   * ribbon prints five figures off it.
+   *
+   * EVERY FIELD BUT THE TALLY IS DERIVED FROM A ROW ONLY A ROUTE RENDER CAN
+   * CHANGE — the race, the path and the six scores — so they cross the boundary
+   * as plain values. `hitDiceSpent` seeds the store instead, because a short
+   * rest moves it from any chair.
+   */
+  const vitals = Object.fromEntries(
+    sheets.map((sheet) => [
+      sheet.id,
+      {
+        classId: sheet.class_id,
+        skills: sheet.skills ?? {},
+        wisTotal: sheet.ability_wis_total,
+        initiative: initiativeBonus(sheet.ability_dex_total),
+        speed: movementSpeed(sheet.race),
+        size: characterSize(sheet.race),
+        proficiencies: proficienciesFor(
+          sheet.class_id,
+          sheet.custom_proficiencies,
+        ),
+        hitDiceSpent: sheet.hit_dice_spent ?? 0,
+      },
+    ]),
+  );
+
   /* Whose numbers this viewer may read, and the panel each opens — the head of
      the table gets the party's, a player their own. Built here and handed over
      rendered: the picker needs the browser, the arithmetic does not. */
   const scorePanels = Object.fromEntries(
-    (isDungeonMaster ? loaded.sheets : [seat?.sheet].filter(Boolean)).map(
-      (sheet) => [
+    sheets.map((sheet) => {
+      const name =
+        members.find((one) => one.id === sheet.id)?.name ?? "This character";
+
+      /* Whoever may move this character's numbers: the head of the table, and
+         the character's own player. Every writer below re-asks. */
+      const own = isDungeonMaster || sheet.id === seat?.characterId;
+
+      return [
         sheet.id,
-        <div key={sheet.id} className="flex flex-col gap-4">
-          <CharacterStats character={sheet} />
+        {
+          /* PAGE ONE — what the numbers ARE. The scores, and the bar they are
+             climbing. NO REST HERE: a rest is something a SESSION does, and it
+             is the session panel's — two buttons in two panels was one control
+             pretending to be two. */
+          scores: (
+            <div className="flex flex-col gap-4">
+              {/* THE SIX AS FIELDS, and only for whoever runs the session: a
+                  player may not raise their own Strength past the fifteen
+                  points they spent. `set_ability_score` refuses one too, so
+                  this is a door rather than the lock. */}
+              <CharacterStats
+                character={sheet}
+                scoreField={
+                  isDungeonMaster
+                    ? (score) => (
+                        <AbilityScoreField
+                          campaignId={campaign.id}
+                          characterId={sheet.id}
+                          ability={score}
+                          name={name}
+                          total={score.total}
+                        />
+                      )
+                    : null
+                }
+              />
 
-          {/* Under the skills, and a READ-OUT: the session panel that moves it
-              is the head of the table's, and this is where everybody else finds
-              out where they stand. A Client Component inside a server-rendered
-              panel, because the figure is held in the browser.
+              {/* Last on the page, and a READ-OUT: the session panel that moves
+                  it is the head of the table's, and this is where everybody
+                  else finds out where they stand. A Client Component inside a
+                  server-rendered panel, because the figure is held in the
+                  browser. */}
+              <XpBar characterId={sheet.id} name={name} />
+            </div>
+          ),
 
-              `gap-4` rather than `gap-6`, and the bar carries no heading of its
-              own: between them, that is what lets a player's sheet reach the
-              foot of this panel without scrolling. */}
-          <XpBar
-            characterId={sheet.id}
-            name={
-              members.find((one) => one.id === sheet.id)?.name ??
-              "This character"
-            }
-          />
-        </div>,
-      ],
-    ),
+          /* PAGE TWO — what they let this character DO. Each section titled the
+             way page one's are, in the same face at the same size: two pages of
+             one sheet should not be two typographies. */
+          vitals: (
+            <div className="flex flex-col gap-4">
+              <section>
+                <SheetHeading>Vitals</SheetHeading>
+
+                <div className="mt-3">
+                  <CharacterVitals
+                    characterId={sheet.id}
+                    name={name}
+                    vitals={vitals[sheet.id]}
+                  />
+                </div>
+              </section>
+
+              <section>
+                <SheetHeading>Proficiencies</SheetHeading>
+
+                <div className="mt-3">
+                  <ProficienciesSection
+                    proficiencies={vitals[sheet.id].proficiencies}
+                  />
+                </div>
+              </section>
+
+              <FeatureShelf characterId={sheet.id} name={name} canEdit={own} />
+            </div>
+          ),
+        },
+      ];
+    }),
   );
 
   /* What a caster needs above the map, resolved here for the reason
      `scorePanels` is: the arithmetic wants the whole row and the bar wants four
      fields of it. Same audience as the sheets, so RLS has already decided it. */
   const spellcasters = Object.fromEntries(
-    (isDungeonMaster ? loaded.sheets : [seat?.sheet].filter(Boolean)).map(
-      (sheet) => [
-        sheet.id,
-        {
-          classId: sheet.class_id,
-          level: sheet.level,
-          slots: sheet.spell_slots ?? {},
-          casting: readSpellcasting(sheet),
-        },
-      ],
-    ),
+    sheets.map((sheet) => [
+      sheet.id,
+      {
+        classId: sheet.class_id,
+        level: sheet.level,
+        slots: sheet.spell_slots ?? {},
+        casting: readSpellcasting(sheet),
+      },
+    ]),
   );
 
   // In party order, and only those a sheet came back for: a failed read leaves
@@ -250,6 +364,8 @@ export default async function CampaignTablePage({ params, searchParams }) {
               casters: spellcasters,
               containers,
               containerItems: loaded.containerItems,
+              vitals,
+              features: loaded.features,
             }}
           >
             {/* Three columns so the title is centred on the viewport rather than on

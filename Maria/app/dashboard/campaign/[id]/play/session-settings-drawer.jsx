@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { hitDiceRegained } from "sina/rules/character-stats";
 import { longRestSlotLevels, shortRestSlotLevels } from "sina/rules/rest";
 
 import HoverNote from "@/app/components/ui/hover-note";
@@ -8,6 +9,7 @@ import MultiSelectMenu from "@/app/components/ui/multi-select-menu";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
+import ConditionsGrid from "./conditions-grid";
 import { takeRest } from "./session-actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
@@ -21,6 +23,13 @@ import XpBar, { XpStepper } from "./xp-bar";
  * toggle, the list stays open, and a subset is an ordinary answer — both writers
  * read a list and narrow it themselves. The bar appears for a single character
  * only; six at once is more than this panel can show.
+ *
+ * WHAT A CHARACTER *IS* LIVES ON THE SCORES DRAWER, and what a SESSION does to
+ * them lives here. The vitals ribbon and the proficiencies used to stand under
+ * this bar as well as there, which made two panels that answered the same
+ * question and neither of them the obvious place to look. They are the scores
+ * drawer's alone now; the conditions below are this panel's, because applying
+ * one is something the head of the table DOES.
  *
  * The head of the table's alone, so every deed here is filed under that chair.
  * A rest paints before it writes, in the shape the server answers with.
@@ -74,10 +83,19 @@ export default function SessionSettingsDrawer({
         }
       }
 
+      /* Painted the way the bar and the slots are: half the pool back on a
+         long rest, none on a short one. `trigger_rest` answers with the real
+         figure a beat later and `rested` lays it over this. */
+      const spent = held.hitDice[id] ?? 0;
+
       return {
         id,
         currentHp: restType === "long" ? bar?.max : bar?.current,
         spellSlots: woken,
+        hitDiceSpent:
+          restType === "long"
+            ? Math.max(0, spent - hitDiceRegained(held.levels[id]))
+            : spent,
       };
     });
   }
@@ -190,6 +208,22 @@ export default function SessionSettingsDrawer({
           />
         </div>
       </section>
+
+      {/* Under the bar, and aimed by the same menu everything above it is: one
+          name is a toggle against that row, and anything wider is the party's
+          own function. Nothing at all where the menu reaches nobody. */}
+      {aimed.length > 0 && (
+        <>
+          <div aria-hidden="true" className={FADED_RULE_CLASSES} />
+
+          <ConditionsGrid
+            campaignId={campaignId}
+            target={alone?.id ?? null}
+            everybody={!alone}
+            members={members.filter((one) => aimed.includes(one.id))}
+          />
+        </>
+      )}
     </div>
   );
 }

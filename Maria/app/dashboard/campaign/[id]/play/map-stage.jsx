@@ -1,7 +1,7 @@
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
-import { MAP_HEIGHT_CLASS } from "./map-height";
+import { MAP_HEIGHT_CLASS, MAP_MAX_WIDTH_CLASS } from "./map-height";
 import TableMap from "./table-map";
 
 /**
@@ -62,8 +62,20 @@ export default function MapStage({
 
   return (
     /* `data-shrink` takes the mat, the marks and the dice board with it, which
-       is the whole reason the frame is a child here rather than a sibling. */
-    <div data-shrink className="relative w-fit">
+       is the whole reason the frame is a child here rather than a sibling.
+
+       `min-w-0` beside `w-fit` is what lets this give way. It is a flex item,
+       and a flex item's automatic minimum size is its content — so a window too
+       narrow for the map at its own size did not shrink the picture, it painted
+       it over the log and the party.
+
+       THE WIDTH CEILING IS HERE AND NOT ON THE PICTURE, because the mat below
+       is `-inset-6` of THIS box: a box wider than what is inside it is a mat
+       that stands proud of the map on one side. See map-height.js. */
+    <div
+      data-shrink
+      className={`relative w-fit min-w-0 ${MAP_MAX_WIDTH_CLASS}`}
+    >
       {/* No `glow`: the rim would light under the pointer, which promises a
           control where there is only a picture. */}
       <span

@@ -13,6 +13,9 @@ import {
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
+import { parseArmorClass, readDeathSaves } from "sina/rules/death";
+import { readConditions } from "sina/rules/conditions";
+import { readFeatures } from "sina/rules/features";
 import { parseInspiration, steppedInspiration } from "sina/rules/inspiration";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
 import { steppedXp } from "sina/rules/xp";
@@ -122,11 +125,18 @@ function readSeed({
   casters,
   containers,
   containerItems,
+  vitals,
+  features,
 }) {
   const levels = {};
   const experience = {};
   const inspired = {};
   const health = {};
+  const shields = {};
+  const saves = {};
+  const gone = {};
+  const dice = {};
+  const suffering = {};
   const wallets = {};
   const slots = {};
 
@@ -137,6 +147,16 @@ function readSeed({
        one for anybody but their own, so the card draws no pips at all. */
     inspired[member.id] = parseInspiration(member.inspiration);
     health[member.id] = { current: member.current_hp, max: member.max_hp };
+    /* Null the same way, and for the same reason: an armour class is the head
+       of the table's to read across the party and a player's for their own. */
+    shields[member.id] = parseArmorClass(member.armor_class);
+    /* Never null. A character lying at zero in front of the party is the most
+       public thing that can happen at a table. */
+    saves[member.id] = readDeathSaves(member.death_saves);
+    gone[member.id] = Boolean(member.is_dead);
+    /* Read through the rules layer, which drops what it does not know and puts
+       the rest in the catalogue's own order — see readConditions. */
+    suffering[member.id] = readConditions(member.conditions);
   }
 
   for (const row of purses ?? []) {
@@ -147,11 +167,32 @@ function readSeed({
     slots[characterId] = caster.slots ?? {};
   }
 
+  /* The tally a short rest spends, for whichever sheets this viewer was handed.
+     Everything else the vitals ribbon prints is derived from a row that only a
+     route render can change, so only this one is held here. */
+  for (const [characterId, sheet] of Object.entries(vitals ?? {})) {
+    dice[characterId] = sheet.hitDiceSpent ?? 0;
+  }
+
   return {
     levels,
     xp: experience,
     inspiration: inspired,
     health,
+    armor: shields,
+    saves,
+    dead: gone,
+    hitDice: dice,
+    conditions: suffering,
+    /* One list per character the viewer was handed a sheet for. Read through
+       the rules layer, which drops anything that does not hold together. */
+    features: byCharacter(
+      Object.keys(vitals ?? {}).map((id) => ({ id })),
+      readFeatures(features).map((one) => ({
+        ...one,
+        character_id: one.characterId,
+      })),
+    ),
     log: readLog(activity ?? [], new Map(), new Set()),
     marks: readMarks(marks),
     packs: byCharacter(members, inventory),
@@ -323,6 +364,152 @@ function createTableStore(seed) {
       });
     },
 
+    /**
+     * EVERYTHING ZERO HIT POINTS DECIDES, laid down together. The bar, the flag
+     * and the two tallies are one fact — `apply_damage` and `roll_death_save`
+     * each write all three in one statement — and putting them down one at a
+     * time draws a frame of a character who is dead with saves still standing.
+     *
+     * Every field is optional: a press that only moved the bar leaves the rest
+     * where they are.
+     */
+    setCondition(characterId, { hitPoints, isDead, deathSaves } = {}) {
+      const bar = state.health[characterId];
+
+      if (!bar) {
+        return;
+      }
+
+      const next = { ...state };
+      let moved = false;
+
+      if (hitPoints !== null && hitPoints !== undefined) {
+        const landed = Math.min(bar.max, Math.max(0, hitPoints));
+
+        if (landed !== bar.current) {
+          next.health = {
+            ...state.health,
+            [characterId]: { ...bar, current: landed },
+          };
+          moved = true;
+        }
+      }
+
+      if (isDead !== undefined && Boolean(isDead) !== state.dead[characterId]) {
+        next.dead = { ...state.dead, [characterId]: Boolean(isDead) };
+        moved = true;
+      }
+
+      if (deathSaves) {
+        const held = state.saves[characterId];
+        const read = readDeathSaves(deathSaves);
+
+        if (
+          held?.successes !== read.successes ||
+          held?.failures !== read.failures
+        ) {
+          next.saves = { ...state.saves, [characterId]: read };
+          moved = true;
+        }
+      }
+
+      if (moved) {
+        commit(next);
+      }
+    },
+
+    /**
+     * The hit dice a short rest has spent. Clamped by nothing here: the level is
+     * the pool and it moves on its own, so `hitDicePool` holds the tally inside
+     * it at the moment it is read rather than at the moment it is written.
+     */
+    setHitDice(characterId, spent) {
+      if (
+        !(characterId in state.hitDice) ||
+        spent === null ||
+        spent === state.hitDice[characterId]
+      ) {
+        return;
+      }
+
+      amend("hitDice", characterId, Math.max(0, spent));
+    },
+
+    /**
+     * ONE FEATURE, PUT UP OR TAKEN DOWN. Both are idempotent on the id, because
+     * the same event reaches this browser twice: once as the answer to its own
+     * press, and once off the wire from whoever else is looking at the card.
+     */
+    addFeature(characterId, feature) {
+      const held = state.features[characterId];
+
+      if (!held || !feature?.id || held.some((one) => one.id === feature.id)) {
+        return;
+      }
+
+      amend("features", characterId, [...held, feature]);
+    },
+
+    dropFeature(characterId, featureId) {
+      const held = state.features[characterId];
+
+      if (!held || !held.some((one) => one.id === featureId)) {
+        return;
+      }
+
+      amend(
+        "features",
+        characterId,
+        held.filter((one) => one.id !== featureId),
+      );
+    },
+
+    /** The whole list again, for a press that was refused. */
+    setFeatures(characterId, rows) {
+      if (!(characterId in state.features)) {
+        return;
+      }
+
+      amend("features", characterId, rows);
+    },
+
+    /**
+     * What one character is under. A whole list rather than a toggle, because
+     * this lays down an ANSWER: the press painted its own guess a moment ago,
+     * and the row is what settles it.
+     */
+    setConditions(characterId, conditions) {
+      const held = state.conditions[characterId];
+
+      if (!held) {
+        return;
+      }
+
+      const next = readConditions(conditions);
+
+      if (
+        held.length === next.length &&
+        held.every((one, index) => one === next[index])
+      ) {
+        return;
+      }
+
+      amend("conditions", characterId, next);
+    },
+
+    /** The shield, from a press here or from another chair. Null is unreadable. */
+    setArmor(characterId, armorClass) {
+      if (
+        !(characterId in state.armor) ||
+        armorClass === null ||
+        armorClass === state.armor[characterId]
+      ) {
+        return;
+      }
+
+      amend("armor", characterId, armorClass);
+    },
+
     /** A number heard from another chair, clamped by this character's ceiling. */
     setHealth(characterId, hitPoints) {
       const bar = state.health[characterId];
@@ -484,6 +671,7 @@ function createTableStore(seed) {
     rested(rows) {
       const health = { ...state.health };
       const slots = { ...state.slots };
+      const dice = { ...state.hitDice };
       let moved = false;
 
       for (const row of rows ?? []) {
@@ -501,10 +689,18 @@ function createTableStore(seed) {
           slots[row.id] = row.spellSlots;
           moved = true;
         }
+
+        /* A long rest hands half the pool back — see `hitDiceRegained`, which
+           `trigger_rest` mirrors. The figure is the database's rather than
+           this browser's, so the ribbon and the row cannot disagree. */
+        if (row.id in dice && typeof row.hitDiceSpent === "number") {
+          dice[row.id] = Math.max(0, row.hitDiceSpent);
+          moved = true;
+        }
       }
 
       if (moved) {
-        commit({ ...state, health, slots });
+        commit({ ...state, health, slots, hitDice: dice });
       }
     },
 
@@ -909,6 +1105,10 @@ function createTableStore(seed) {
         const experience = { ...next.xp };
         const marked = { ...next.inspiration };
         const health = { ...next.health };
+        const shields = { ...next.armor };
+        const saves = { ...next.saves };
+        const gone = { ...next.dead };
+        const suffering = { ...next.conditions };
 
         for (const member of slices.party) {
           if (member.id in levels) {
@@ -919,10 +1119,24 @@ function createTableStore(seed) {
               current: member.current_hp,
               max: member.max_hp,
             };
+            shields[member.id] = parseArmorClass(member.armor_class);
+            saves[member.id] = readDeathSaves(member.death_saves);
+            gone[member.id] = Boolean(member.is_dead);
+            suffering[member.id] = readConditions(member.conditions);
           }
         }
 
-        next = { ...next, levels, xp: experience, inspiration: marked, health };
+        next = {
+          ...next,
+          levels,
+          xp: experience,
+          inspiration: marked,
+          health,
+          armor: shields,
+          saves,
+          dead: gone,
+          conditions: suffering,
+        };
       }
 
       // Scoped to the characters the answer speaks for: a row list cannot carry
@@ -959,14 +1173,38 @@ function createTableStore(seed) {
         next = { ...next, chests: byContainer(slices.containerItems) };
       }
 
+      /* Scoped to the characters the answer speaks for, the way the packs and
+         the books are: a row list cannot carry the fact that a character now
+         has NO features, so a wider replace would blank the rest. */
+      if (slices.features && covered.length > 0) {
+        const grouped = regroup(
+          next.features,
+          covered,
+          readFeatures(slices.features).map((one) => ({
+            ...one,
+            character_id: one.characterId,
+          })),
+        );
+
+        next = { ...next, features: grouped };
+      }
+
       if (slices.sheets) {
         const slots = { ...next.slots };
+        const dice = { ...next.hitDice };
 
         for (const sheet of slices.sheets) {
           slots[sheet.id] = sheet.spell_slots ?? {};
+
+          /* Only into a slot this browser was seeded with: `campaign_sheets`
+             answers a Dungeon Master for the whole party, and the tally is what
+             the vitals ribbon draws its pool from. */
+          if (sheet.id in dice) {
+            dice[sheet.id] = Math.max(0, sheet.hit_dice_spent ?? 0);
+          }
         }
 
-        next = { ...next, slots };
+        next = { ...next, slots, hitDice: dice };
       }
 
       commit(next);
@@ -1057,6 +1295,61 @@ export function useCharacterXp(characterId) {
     useCallback((state) => state.xp[characterId] ?? 0, [characterId]),
   );
 }
+
+/** What this character is under. The store keeps the array stable. */
+export function useConditions(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => state.conditions[characterId] ?? NO_CONDITIONS,
+      [characterId],
+    ),
+  );
+}
+
+const NO_CONDITIONS = Object.freeze([]);
+
+/** What this character can do. The store keeps the array referentially stable. */
+export function useFeatures(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => state.features[characterId] ?? NO_FEATURES,
+      [characterId],
+    ),
+  );
+}
+
+/** One frozen list, so a card with no row does not resubscribe every render. */
+const NO_FEATURES = Object.freeze([]);
+
+/** How many of the pool a short rest has spent. */
+export function useHitDiceSpent(characterId) {
+  return useTableValue(
+    useCallback((state) => state.hitDice[characterId] ?? 0, [characterId]),
+  );
+}
+
+/** Null for a card whose shield this viewer may not read. */
+export function useArmorClass(characterId) {
+  return useTableValue(
+    useCallback((state) => state.armor[characterId] ?? null, [characterId]),
+  );
+}
+
+/** The slice itself, which the store keeps referentially stable. */
+export function useDeathSaves(characterId) {
+  return useTableValue(
+    useCallback((state) => state.saves[characterId] ?? NO_SAVES, [characterId]),
+  );
+}
+
+export function useIsDead(characterId) {
+  return useTableValue(
+    useCallback((state) => state.dead[characterId] ?? false, [characterId]),
+  );
+}
+
+/** One frozen object, so a card with no row does not resubscribe every render. */
+const NO_SAVES = Object.freeze({ successes: 0, failures: 0 });
 
 /** Null for a card whose marks this viewer may not read. */
 export function useCharacterInspiration(characterId) {

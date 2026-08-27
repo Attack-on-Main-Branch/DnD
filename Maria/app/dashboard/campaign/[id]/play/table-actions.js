@@ -1,5 +1,6 @@
 "use server";
 
+import { listPartyFeatures } from "sina/data/features";
 import { listCampaignActivity } from "sina/data/activity";
 import {
   listCampaignMarks,
@@ -62,6 +63,7 @@ export async function readTableSlice(campaignId, want = {}) {
     sheets,
     seat,
     containers,
+    features,
   ] = await Promise.all([
     want.activity
       ? listCampaignActivity(supabase, campaignId, MAX_ACTIVITY_ENTRIES)
@@ -82,6 +84,7 @@ export async function readTableSlice(campaignId, want = {}) {
     /* The shelf. What is INSIDE waits on it — the ids are the query — so
        that is fetched below rather than here. */
     want.containers ? listCampaignContainers(supabase, campaignId) : null,
+    want.features ? listPartyFeatures(supabase, ids) : null,
   ]);
 
   const shelf = slice("listCampaignContainers", containers);
@@ -97,6 +100,10 @@ export async function readTableSlice(campaignId, want = {}) {
     /* Which packs and books this answer speaks for. A row list alone cannot say
        that a pack is now EMPTY, so the ids come back beside it. */
     characterIds: ids,
+
+    /* What the party can do. Scoped to `ids` for bandwidth and never for
+       permission: the SELECT policy hands the whole table's over either way. */
+    features: slice("listPartyFeatures", features),
 
     // Read here rather than in the browser, as page.jsx does it: the payload is
     // jsonb, and the rules layer is what keeps a row written by an older

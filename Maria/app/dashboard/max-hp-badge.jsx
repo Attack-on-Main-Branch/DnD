@@ -14,6 +14,11 @@ import { surfaceClasses } from "@/app/components/ui/surface";
  * two columns of this grid stand at exactly the same height — see
  * `controlClasses`. The die and the modifier stack beside the number rather than
  * under it for the same reason: there is one line's worth of room.
+ *
+ * The two are pushed to opposite edges of the box: the figure is what the row
+ * is for and it keeps the left, where the label above it starts, and the die and
+ * the modifier — which say how the figure was arrived at rather than what it is
+ * — sit against the right edge, ranged right so their two lines end together.
  */
 export default function MaxHpBadge({ race, classId, level = 1, abilities }) {
   const faces = hitDie(classId);
@@ -33,7 +38,8 @@ export default function MaxHpBadge({ race, classId, level = 1, abilities }) {
       <div
         className={surfaceClasses({
           variant: "plain",
-          className: "flex items-center gap-2 rounded-lg px-3 py-2",
+          className:
+            "flex items-center justify-between gap-2 rounded-lg px-3 py-2",
         })}
       >
         <p
@@ -44,7 +50,7 @@ export default function MaxHpBadge({ race, classId, level = 1, abilities }) {
         </p>
 
         {/* Two 10px lines: together they are the 20px the number stands in. */}
-        <p className="min-w-0 truncate font-mono text-[0.6rem] leading-[0.625rem] text-ink/45">
+        <p className="min-w-0 truncate text-right font-mono text-[0.6rem] leading-[0.625rem] text-ink/45">
           {faces === null ? (
             <>
               pick

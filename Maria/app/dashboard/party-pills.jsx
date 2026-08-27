@@ -8,7 +8,11 @@ import {
 
 /**
  * The row of faces above a panel that can only hold one at a time — the pack's,
- * the sheet's beside it, and the spellbook's.
+ * the sheet's beside it, the spellbook's, and the campaign view's when a
+ * feature is being written onto somebody.
+ *
+ * ABOVE `play/` AND NOT IN IT, because the campaign page reaches for it too and
+ * a route folder is not a place its parent should be importing out of.
  *
  * `role="group"` rather than a tablist: these control no panel of their own,
  * they aim the one below. `children` come first, which is where the pack puts

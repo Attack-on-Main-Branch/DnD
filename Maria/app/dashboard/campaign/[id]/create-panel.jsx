@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { MAX_CAMPAIGN_CONTAINERS, readContainers } from "sina/rules/containers";
 import { MAX_CAMPAIGN_ITEMS } from "sina/rules/inventory";
+import { MAX_CHARACTER_FEATURES } from "sina/rules/features";
 import { MAX_CAMPAIGN_SPELLS } from "sina/rules/spells";
 
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
@@ -18,6 +19,8 @@ import {
   itemFactList,
   rowItem,
 } from "@/app/dashboard/inventory-presentation";
+import { removeCharacterFeature } from "@/app/actions/features";
+import FeatureGrid from "@/app/dashboard/feature-grid";
 import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 import {
   LEVEL_TAG_CLASSES,
@@ -26,6 +29,7 @@ import {
 } from "@/app/dashboard/spell-presentation";
 
 import ContainerForm from "./container-form";
+import CampaignFeatureForm from "./feature-form";
 import { strikeCampaignContainer } from "./container-actions";
 import ItemForm from "./item-form";
 import { strikeCampaignItem } from "./item-actions";
@@ -50,6 +54,7 @@ const KINDS = [
   { value: "item", label: "Item" },
   { value: "spell", label: "Spell" },
   { value: "container", label: "Container" },
+  { value: "feature", label: "Feature" },
 ];
 
 /** What the counter over each form says, and what the list under it is called. */
@@ -58,12 +63,17 @@ const WRITTEN = {
   spell: (counts) => `${counts.spell} of ${MAX_CAMPAIGN_SPELLS} written`,
   container: (counts) =>
     `${counts.container} of ${MAX_CAMPAIGN_CONTAINERS} on the table`,
+  /* Per CHARACTER rather than per campaign, which is where the limit is: a
+     party of six may hold six times this between them. */
+  feature: (counts) =>
+    `${counts.feature} granted · ${MAX_CHARACTER_FEATURES} a character`,
 };
 
 const LIST_TITLES = {
   item: "Your items",
   spell: "Your spells",
   container: "Your containers",
+  feature: "Your features",
 };
 
 export default function CreatePanel({
@@ -73,10 +83,36 @@ export default function CreatePanel({
   spells,
   containers,
   containerItems,
+  features,
 }) {
   const [kind, setKind] = useState("item");
   const [error, setError] = useState(null);
   const [isPending, startTransition] = useTransition();
+
+  /* THE FEATURES ARE HELD HERE and the other three lists are not, and the
+     difference is where the write lands: an item, a spell and a container are
+     the campaign's own rows and their actions revalidate this route, while a
+     feature belongs to a CHARACTER and asking a campaign to render again for
+     one would be the wrong page refetching itself. */
+  const [granted, setGranted] = useState(features);
+  const [striking, setStriking] = useState(() => new Set());
+
+  const adopted = useRef(features);
+
+  useEffect(() => {
+    if (adopted.current === features) {
+      return;
+    }
+
+    adopted.current = features;
+    setGranted(features);
+  }, [features]);
+
+  /** Whose it is, for the line under each card. */
+  const namesById = useMemo(
+    () => new Map(members.map((member) => [member.id, member.name])),
+    [members],
+  );
 
   /* Read once rather than per card: two shapes live in one table. */
   const shelf = useMemo(() => readContainers(containers), [containers]);
@@ -97,7 +133,41 @@ export default function CreatePanel({
     item: items.length,
     spell: spells.length,
     container: shelf.length,
+    feature: granted.length,
   };
+
+  function written(feature, refusal) {
+    setError(refusal);
+
+    if (feature) {
+      setGranted((standing) => [...standing, feature]);
+    }
+  }
+
+  async function strikeFeature(feature) {
+    setError(null);
+    setStriking((standing) => new Set(standing).add(feature.id));
+
+    const before = granted;
+
+    setGranted((standing) => standing.filter((one) => one.id !== feature.id));
+
+    const result = await removeCharacterFeature(
+      feature.id,
+      feature.character_id,
+    ).catch(() => null);
+
+    setStriking((standing) => {
+      const next = new Set(standing);
+      next.delete(feature.id);
+      return next;
+    });
+
+    if (!result || result.kind === "rejected") {
+      setGranted(before);
+      setError(result?.message ?? "That did not reach the table. Try again.");
+    }
+  }
 
   function strike(remove, id) {
     startTransition(async () => {
@@ -167,6 +237,14 @@ export default function CreatePanel({
             key="container"
             campaignId={campaignId}
             written={counts.container}
+          />
+        )}
+
+        {kind === "feature" && (
+          <CampaignFeatureForm
+            key="feature"
+            members={members}
+            onWritten={written}
           />
         )}
       </section>
@@ -252,6 +330,40 @@ export default function CreatePanel({
                 </li>
               ))}
             </ul>
+          ))}
+
+        {kind === "feature" &&
+          (granted.length === 0 ? (
+            <div className="mt-3">
+              <EmptyPack
+                title="Nothing granted"
+                description="Features you write onto this party are read from their sheets and from the scores drawer at the table."
+              />
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-col gap-4">
+              {members
+                .filter((member) =>
+                  granted.some((one) => one.character_id === member.id),
+                )
+                .map((member) => (
+                  <section key={member.id}>
+                    <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+                      {namesById.get(member.id)}
+                    </h3>
+
+                    <div className="mt-2">
+                      <FeatureGrid
+                        features={granted.filter(
+                          (one) => one.character_id === member.id,
+                        )}
+                        onRemove={strikeFeature}
+                        pending={striking}
+                      />
+                    </div>
+                  </section>
+                ))}
+            </div>
           ))}
 
         {error && (

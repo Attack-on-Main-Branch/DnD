@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { healthFraction, healthTier } from "sina/rules/health";
+import { isMassiveDamage } from "sina/rules/death";
+import { healthFraction, healthTier, MAX_HP } from "sina/rules/health";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
 import HealthBar from "@/app/components/ui/health-bar";
@@ -26,6 +27,12 @@ import { useTableDeed } from "./use-table-deed";
  * flight: a table calls out four damage and then six, and the second press must
  * not queue behind the first one's round trip. Two presses stack because the
  * store takes a change rather than a total.
+ *
+ * A BLOW CAN ALSO END SOMEBODY, which is why the answer carries more than a hit
+ * point now. `apply_damage` decides massive damage against the row it has
+ * locked; `isMassiveDamage` is the same arithmetic here, so the card goes dark
+ * on the press rather than a round trip later. The server's answer is laid over
+ * it either way.
  */
 export default function CardHealth({
   campaignId,
@@ -61,6 +68,17 @@ export default function CardHealth({
       return;
     }
 
+    /* The overflow past zero, measured against the maximum — 5e's massive
+       damage. Painted here so the card dims on the press; `apply_damage` reads
+       it again off the locked row, which is the run that counts. */
+    const killed =
+      delta < 0 &&
+      isMassiveDamage({ hitPoints: current, maxHp: ceiling, damage: -delta });
+
+    if (killed) {
+      store.setCondition(characterId, { isDead: true });
+    }
+
     run({
       /* Shown to whoever pressed, until the real list lands. The entry that is
          KEPT is written by a trigger on the bar, and its names come from rows. */
@@ -74,16 +92,15 @@ export default function CardHealth({
         },
       ],
 
-      /* THE CHANGE, not where it landed. A total posted a round trip later
-         undoes whatever else moved the bar in between — another chair's damage,
-         this browser's own second press. */
+      /* THE BLOW, and not what the bar had left to give. Both are changes
+         rather than totals — a total posted a round trip later undoes whatever
+         else moved the bar in between — but they are different changes, and the
+         difference is the whole of massive damage: twenty-four against a
+         twelve-point bar moves it by twelve and kills outright, and sending the
+         twelve would have `apply_damage` decide against a blow nobody struck.
+         The clamped figure stays where it belongs, painting. */
       work: () =>
-        changeCharacterHealth(
-          campaignId,
-          characterId,
-          moved.moved,
-          seatCharacterId,
-        ),
+        changeCharacterHealth(campaignId, characterId, delta, seatCharacterId),
 
       tell: (result) => {
         // Only while this press is still the last word: an older answer laid
@@ -94,8 +111,24 @@ export default function CardHealth({
           result.hitPoints,
         );
 
+        /* The flag and the tallies are not reconciled the way the bar is:
+           unlike a hit point they cannot stack, so the newest answer is simply
+           the truth. `apply_damage` clears the tallies whenever the bar reaches
+           zero, and `apply_heal` clears them whenever it leaves. */
+        store.setCondition(characterId, {
+          isDead: result.isDead,
+          deathSaves: result.deathSaves,
+        });
+
         if (settled) {
-          send({ kind: "health", characterId, hitPoints: result.hitPoints });
+          send({
+            kind: "condition",
+            characterId,
+            hitPoints: result.hitPoints,
+            isDead: result.isDead,
+            successes: result.deathSaves.successes,
+            failures: result.deathSaves.failures,
+          });
         }
       },
 
@@ -144,7 +177,7 @@ export default function CardHealth({
           inert={!open || undefined}
           className={`tray-fold ${open ? "" : "tray-folded"}`}
         >
-          <div className="min-h-0 overflow-hidden">
+          <div className="fold-body">
             {/* How much, then which way. */}
             <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2.5">
               {/* Width on the wrapper, not the input: `controlClasses`
@@ -154,7 +187,10 @@ export default function CardHealth({
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  max={ceiling}
+                  /* The bar's own ceiling would be the wrong bound: a blow
+                     large enough to kill outright is by definition larger than
+                     what the bar holds. */
+                  max={MAX_HP}
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
                   /* The unit rather than a number: "10" read as a value already

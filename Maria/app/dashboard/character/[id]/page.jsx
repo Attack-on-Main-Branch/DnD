@@ -3,8 +3,15 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { listCampaignsForCharacter } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
+import {
+  listCampaignContainers,
+  listContainerItems,
+} from "sina/data/containers";
+import { listCharacterFeatures } from "sina/data/features";
 import { listCharacterInventory } from "sina/data/inventory";
+import { listCharacterSpells } from "sina/data/spells";
 import { characterHandle } from "sina/rules/character";
+import { canOpenContainer, readContainers } from "sina/rules/containers";
 
 import {
   avatarColorClass,
@@ -19,9 +26,11 @@ import { campaignTablePath } from "@/lib/routes";
 import { createClient, currentUser } from "@/lib/supabase";
 
 import {
+  FeaturePanel,
   InventoryPanel,
   NotesPanel,
   OverviewPanel,
+  SpellsPanel,
   StoryPanel,
 } from "./character-panels";
 import EditCharacterPencil from "./edit-character-pencil";
@@ -32,12 +41,21 @@ import TabStrip from "@/app/components/ui/tab-strip";
  * the host, and this runs on the server and again in the browser, producing two
  * different strings for the same row — a hydration mismatch.
  */
-/** The sheet's sections, named here beside the panels they select. */
+/**
+ * The sheet's sections, named here beside the panels they select.
+ *
+ * Spells sit between the pack and the notes, which is the order the marks stand
+ * in above the map: what you carry, what you know, what you wrote down. A sheet
+ * that ordered them differently would be teaching a second layout for the same
+ * things.
+ */
 const SHEET_TABS = [
   { value: "overview", label: "Overview" },
   { value: "story", label: "Story" },
   { value: "inventory", label: "Inventory" },
+  { value: "spells", label: "Spells" },
   { value: "notes", label: "Notes" },
+  { value: "feature", label: "Feature" },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -65,7 +83,17 @@ export default async function CharacterPage({ params }) {
   const { id } = await params;
   // `user` is loaded too, for the guard inside the loader — the header that
   // used to need it here now comes from dashboard/layout.jsx.
-  const { character, campaigns, notes, items, error } = await loadCharacter(id);
+  const {
+    character,
+    campaigns,
+    notes,
+    items,
+    containers,
+    chestItems,
+    spells,
+    features,
+    error,
+  } = await loadCharacter(id);
 
   // A failed read is not a missing character, though `getCharacter` returns
   // null for both. `bad_id` is the exception: a uuid column rejects a junk id
@@ -213,8 +241,18 @@ export default async function CharacterPage({ params }) {
               />
             ),
             story: <StoryPanel character={character} />,
-            inventory: <InventoryPanel items={items} />,
+            inventory: (
+              <InventoryPanel
+                items={items}
+                containers={containers}
+                chestItems={chestItems}
+              />
+            ),
+            spells: <SpellsPanel character={character} spells={spells} />,
             notes: <NotesPanel notes={notes} />,
+            feature: (
+              <FeaturePanel characterId={character.id} features={features} />
+            ),
           }}
         />
       </div>
@@ -251,17 +289,30 @@ const loadCharacter = cache(async function loadCharacter(id) {
   }
 
   if (!data) {
-    return { character: null, campaigns: [], notes: [], error, user };
+    return {
+      character: null,
+      campaigns: [],
+      notes: [],
+      items: [],
+      containers: [],
+      chestItems: {},
+      spells: [],
+      features: [],
+      error,
+      user,
+    };
   }
 
-  // Where this character plays, and what its player wrote while playing: one
-  // round trip's worth of waiting rather than two. Both are logged rather than
-  // shown if they fail — the sheet is the page, and neither is a reason to
-  // replace it with an error.
-  const [campaigns, notes, items] = await Promise.all([
+  // Where this character plays, what its player wrote while playing, what it
+  // carries and what it knows: one round trip’s worth of waiting rather than
+  // four. All are logged rather than shown if they fail — the sheet is the
+  // page, and none of them is a reason to replace it with an error.
+  const [campaigns, notes, items, spells, features] = await Promise.all([
     listCampaignsForCharacter(supabase, id),
     listCharacterNotes(supabase, id),
     listCharacterInventory(supabase, id),
+    listCharacterSpells(supabase, id),
+    listCharacterFeatures(supabase, id),
   ]);
 
   if (campaigns.error) {
@@ -276,12 +327,95 @@ const loadCharacter = cache(async function loadCharacter(id) {
     logFailure("listCharacterInventory", items.error);
   }
 
+  if (spells.error) {
+    logFailure("listCharacterSpells", spells.error);
+  }
+
+  if (features.error) {
+    logFailure("listCharacterFeatures", features.error);
+  }
+
+  // A wave of its own, and it has to be: a container belongs to a campaign, so
+  // there is nothing to ask for until the list above has landed. A character at
+  // no table asks nothing at all.
+  const shelf = await loadShelf(
+    supabase,
+    id,
+    campaigns.error ? [] : campaigns.data,
+  );
+
   return {
     character: data,
     campaigns: campaigns.error ? [] : campaigns.data,
     notes: notes.error ? [] : notes.data,
     items: items.error ? [] : items.data,
+    containers: shelf.containers,
+    chestItems: shelf.chestItems,
+    spells: spells.error ? [] : spells.data,
+    features: features.error ? [] : features.data,
     error,
     user,
   };
 });
+
+/**
+ * The bags this character carries and the chests it has been shown, across
+ * every table it sits at, with what is inside the chests.
+ *
+ * RLS has already narrowed the shelf — it hands back a bag’s owner, a revealed
+ * chest’s audience, and every container at a table this account happens to run.
+ * `canOpenContainer` narrows it again to THIS character, which is the question
+ * the sheet is asking: an account with two characters at one table must not read
+ * one’s bag on the other’s sheet.
+ *
+ * A bag’s contents are rows of `character_inventory` and arrive with the pack;
+ * only the chests need a second read.
+ *
+ * Three fields cross to the browser and no more. `visible_to_character_ids` is
+ * the audience a Dungeon Master chose and is nobody else’s business — the same
+ * rule the `.select()` lists in the data layer are written under.
+ */
+async function loadShelf(supabase, characterId, campaigns) {
+  if (campaigns.length === 0) {
+    return { containers: [], chestItems: {} };
+  }
+
+  const shelves = await Promise.all(
+    campaigns.map((campaign) => listCampaignContainers(supabase, campaign.id)),
+  );
+
+  const rows = [];
+
+  for (const shelf of shelves) {
+    if (shelf.error) {
+      logFailure("listCampaignContainers", shelf.error);
+      continue;
+    }
+
+    rows.push(...shelf.data);
+  }
+
+  const reachable = readContainers(rows).filter((one) =>
+    canOpenContainer(one, characterId),
+  );
+
+  const contents = await listContainerItems(
+    supabase,
+    reachable.filter((one) => one.type === "chest").map((one) => one.id),
+  );
+
+  if (contents.error) {
+    logFailure("listContainerItems", contents.error);
+  }
+
+  const chestItems = {};
+
+  for (const row of contents.error ? [] : contents.data) {
+    (chestItems[row.container_id] ??= []).push(row);
+  }
+
+  return {
+    containers: reachable.map(({ id, name, type }) => ({ id, name, type })),
+    chestItems,
+  };
+}

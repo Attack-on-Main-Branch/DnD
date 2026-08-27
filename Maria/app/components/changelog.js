@@ -16,6 +16,28 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.16.0",
+    date: "2026-08-27",
+    title: "The rest of what a character is",
+    changes: [
+      "Death saves. A card at zero hit points shows three successes and three failures, and the player rolls their own — a blow big enough for massive damage skips them entirely.",
+      "An armour class under the level ring on every card. It starts where 5e says — ten plus Dexterity, plus Constitution for a Barbarian or Wisdom for a Monk — and follows the sheet until somebody types over it.",
+      "The fifteen conditions, in the session panel, for one character or the whole party. Whatever somebody is under is listed at the foot of their card.",
+      "Hit dice: one per level, of your class’s own size. A long rest hands half of them back and says how many.",
+      "A second page on the scores panel with initiative, speed, passive perception, size and the hit dice left, and the armour, weapon and tool proficiencies your class grants under them.",
+      "Saving throws on the ability cards, for the two your class is proficient in.",
+      "Features and feats. The owner writes their own from the sheet and the Dungeon Master writes them onto anybody at their table, and the whole party can read them.",
+      "The Dungeon Master can type over any ability score from the scores panel. Everything follows: the modifier, the save, every skill, passive perception, initiative, the spell save DC, the armour class and the hit-point bar.",
+      "Only the Dungeon Master can end a character, and only they can bring one back. Nobody rolls somebody else’s death saves.",
+      "Notes above the map can be edited and deleted now, not only written.",
+      "The character sheet page carries the table’s own panels: the pack, the spellbook, the experience bar and the features grid.",
+    ],
+    fixes: [
+      "Inspiration fills from the bottom up and empties from the top, rather than the other way round.",
+      "A new character starts with no inspiration. It is something a Dungeon Master hands you, and a row that began full had already spent the gesture.",
+    ],
+  },
+  {
     version: "0.15.0",
     date: "2026-08-26",
     title: "What a session costs",

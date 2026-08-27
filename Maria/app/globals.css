@@ -350,6 +350,39 @@ body {
   }
 
   /*
+   * The same lit edge in the two colours a party card can be in besides alive.
+   * `.lit-gold` above means somebody is sitting here; these say the seat is in
+   * trouble, and they REPLACE it rather than sitting beside it — one rim, one
+   * meaning, whichever of the three it is wearing.
+   *
+   * Written out at the same four strengths instead of a `--rim` variable each
+   * class sets, because that is how `.lit-cast` is written and a second idiom
+   * for one border buys nothing.
+   *
+   * STEADY AND NOT BREATHING. The card already carries its own entry animation,
+   * and `animation` is one property: a pulse declared here is a pulse the
+   * arrival shorthand overwrites, so it would have been a keyframe that never
+   * ran. Hue alone carries the state, which is what the rest of the rail does.
+   */
+  .lit-amber {
+    border-color: rgba(249, 115, 22, 0.75);
+    box-shadow:
+      inset 0 1px 0 rgba(249, 115, 22, 0.2),
+      0 0 0 1px rgba(249, 115, 22, 0.3),
+      0 0 28px -4px rgba(249, 115, 22, 0.6),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  .lit-rose {
+    border-color: rgba(225, 29, 72, 0.8);
+    box-shadow:
+      inset 0 1px 0 rgba(225, 29, 72, 0.2),
+      0 0 0 1px rgba(225, 29, 72, 0.35),
+      0 0 28px -4px rgba(225, 29, 72, 0.65),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
    * The secondary button's glow, on a box the shape of the envelope. A
    * box-shadow and not a drop-shadow: an outer box-shadow is clipped to outside
    * the border box, while a drop-shadow follows every stroke and lit the paper
@@ -526,6 +559,32 @@ body {
     transition:
       grid-template-rows 300ms var(--ease-tray-in),
       opacity 150ms ease-in;
+  }
+
+  /*
+   * The box inside a fold. It has to clip — a grid item will not shrink under
+   * its own content without `min-height: 0` and something to cut the overflow —
+   * and `overflow: hidden` cut the wrong thing: the health bar's aura is a
+   * 16px blur hanging off a 10px bar, and a row 25px tall sliced it into a
+   * rectangle with a hard edge. The same wall the experience bar hit.
+   *
+   * `clip` with a margin is what lets light out while the fold still folds:
+   * the glow leaves the box, the CONTENT does not, and the margin goes to zero
+   * the moment the row starts closing so a fold is still a fold.
+   *
+   * `relative` for the reason `.tab-clip` needs it — an absolutely positioned
+   * descendant whose containing block is above the clipper is not clipped by it
+   * at all, and its static position keeps contributing to the page's scroll.
+   */
+  .fold-body {
+    position: relative;
+    min-height: 0;
+    overflow: clip;
+    overflow-clip-margin: 1.5rem;
+  }
+
+  .tray-folded .fold-body {
+    overflow-clip-margin: 0;
   }
 
   /*
@@ -845,12 +904,41 @@ body {
    * content; `clip` keeps a collapsed panel out of the page's scrollable area,
    * which `clip-path` alone does not; the margin hands back room for the glow
    * and the path takes the block axis back.
+   *
+   * THE FOOT IS THE EXCEPTION, and it has to be: a panel's LAST child is 24px
+   * off that edge, and a blurred aura reaches three times its radius — so the
+   * experience bar at the bottom of a character sheet had its light cut off in
+   * a straight line while the same bar mid-panel looked right. The bottom is
+   * given the same 4rem the sides have.
+   *
+   * ONLY ONCE THE PANEL HAS SETTLED, which is what the delay is for. While the
+   * row is collapsing, the content inside keeps its own height and hangs out of
+   * the shrinking box — the very thing the block axis is clipped for — so the
+   * foot shuts the instant `collapsed` is set and reopens 420ms later, when the
+   * row has finished growing. `visibility` below is flipped on the same beat for
+   * the same reason, in the other direction.
+   *
+   * The head stays at 0. There is nothing at the top of a panel that glows, and
+   * the hairline the tabstrip and every popover draw above it is not something
+   * to bleed over.
    */
   .tab-clip {
     min-height: 0;
+    /* `relative` is load-bearing: `overflow: clip` does not clip an absolutely
+       positioned descendant whose containing block is above the clipper, so
+       every `.sr-only` span in a COLLAPSED panel was still contributing its
+       static position to the page's scroll height. A tab far down a long
+       Overview put a scrollbar on a page that visibly fit. */
+    position: relative;
     overflow: clip;
     overflow-clip-margin: 4rem;
+    clip-path: inset(0 -4rem -4rem);
+    transition: clip-path 0s 420ms;
+  }
+
+  .tab-shell[data-state="collapsed"] .tab-clip {
     clip-path: inset(0 -4rem);
+    transition: clip-path 0s;
   }
 
   .tab-shell[data-state="collapsed"] {
@@ -1030,30 +1118,22 @@ body {
   }
 
   /*
-   * EXPERIENCE, not health -- the fourth palette on the same object. The bar in
-   * the session panel is `HealthBar` with these underneath it rather than a
-   * second component that merely looks like one: everything that makes the
-   * health bar move is a custom property, so a hue is all a sibling needs.
-   *
-   * Tailwind's emerald ramp, warmest core to darkest floor: 100, 300, 500, 700,
-   * with 400 as the light coming off it. Solar's timings, because the two stand
-   * one above the other in the same panel and a bar breathing at a different
-   * rate reads as a different KIND of thing.
+   * EXPERIENCE points, not health.
    */
   .hp-verdant {
     --hp-base: #059669;
-    --hp-c1: #d1fae5;
-    --hp-c2: #6ee7b7;
-    --hp-c3: #10b981;
-    --hp-c4: #047857;
-    --hp-glow: #34d399;
-    --hp-breathe-min: 0.4;
-    --hp-breathe-max: 0.8;
+    --hp-c1: #36f793;
+    --hp-c2: #27b472;
+    --hp-c3: #0caa60;
+    --hp-c4: #00804b;
+    --hp-glow: #23da75;
+    --hp-breathe-min: 0.35;
+    --hp-breathe-max: 0.6;
     --hp-breathe-time: 6s;
     --hp-drift-time: 15s;
     --hp-shear-time: 9s;
-    --hp-flare-min: 1;
-    --hp-flare-max: 1.05;
+    --hp-flare-min: 1.2;
+    --hp-flare-max: 1.3;
     --hp-flare-time: 7s;
   }
 }
@@ -1610,6 +1690,8 @@ body {
   .hp-bar,
   .hp-fill,
   .tab-shell,
+  .tab-clip,
+  .tab-shell[data-state="collapsed"] .tab-clip,
   .tab-panel,
   .tab-shell[data-state="collapsed"] .tab-panel {
     transition: none;

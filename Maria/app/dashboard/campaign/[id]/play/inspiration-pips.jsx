@@ -76,8 +76,9 @@ export default function InspirationPips({
       className="absolute top-1/2 right-full z-0 mr-2.5 flex -translate-y-1/2 flex-col items-center gap-1.5"
     >
       {Array.from({ length: MAX_INSPIRATION }, (_, index) => {
-        // Full-first, so the column empties from the bottom.
-        const lit = index < held;
+        /* THE COLUMN FILLS FROM THE FLOOR: a mark given lights the lowest dark
+           pip, a mark spent puts out the highest lit one. */
+        const lit = index >= MAX_INSPIRATION - held;
 
         return (
           <Pip

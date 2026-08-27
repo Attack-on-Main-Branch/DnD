@@ -1,3 +1,7 @@
+import { CONDITIONS } from "sina/rules/conditions";
+
+import { conditionDress } from "@/app/dashboard/condition-presentation";
+
 import { coinName } from "@/app/dashboard/currency-presentation";
 import { spellLevelLabel } from "@/app/dashboard/spell-presentation";
 
@@ -73,6 +77,54 @@ const ACCENTS = {
      rest that fills every other bar on the page. */
   xp_change: "border-l-emerald-400",
   rest_taken: "border-l-emerald-700",
+
+  /*
+   * The four at zero hit points, on a ramp of their own: rose is the end of
+   * somebody, and nothing else in this panel is allowed near it.
+   *
+   *   bright rose — the blow that skipped the saves, which is the loudest
+   *   dark rose   — the third failure, which is quieter because it was coming
+   *   emerald     — the way back, the same green the bar fills in
+   *
+   * `death_save` has none here: a save is read by what it came to rather than
+   * by what it was, and `accentClass` looks inside for it.
+   */
+  instant_death: "border-l-rose-500",
+  character_died: "border-l-rose-900",
+  character_revived: "border-l-emerald-400",
+
+  /* The two that have no colour of their own here: a condition brings one, and
+     `accentClass` looks inside for it. Slate is the fallback for a key this
+     catalogue has lost. */
+  condition_applied: "border-l-slate-400",
+  condition_removed: "border-l-slate-600",
+};
+
+/**
+ * The stripe a condition line wears is the CONDITION's, which is the whole
+ * point of the catalogue carrying colours: "Frightened" reads purple in the
+ * badge on the card and purple down the edge of the line that applied it.
+ *
+ * Literal strings, one per condition, and they must stay so — a class built
+ * from a template is a class Tailwind's scanner never sees. Same rule the
+ * catalogue itself is written under.
+ */
+const CONDITION_ACCENTS = {
+  blinded: "border-l-slate-400",
+  charmed: "border-l-pink-400",
+  deafened: "border-l-sky-300",
+  frightened: "border-l-purple-400",
+  grappled: "border-l-orange-400",
+  incapacitated: "border-l-rose-500",
+  invisible: "border-l-cyan-300",
+  paralyzed: "border-l-yellow-400",
+  petrified: "border-l-stone-400",
+  poisoned: "border-l-emerald-400",
+  prone: "border-l-amber-500",
+  restrained: "border-l-zinc-400",
+  stunned: "border-l-amber-300",
+  unconscious: "border-l-indigo-400",
+  exhaustion: "border-l-red-500",
 };
 
 /**
@@ -85,10 +137,33 @@ const LEVEL_ACCENTS = {
   down: "border-l-amber-800",
 };
 
-/** The entry rather than its action: only the level's needs to look inside. */
+/**
+ * What a death save came to, which is the only thing about it worth a colour:
+ * standing up is the bar's emerald, and everything short of it is the amber a
+ * character on zero hit points is already wearing on the rail.
+ */
+const SAVE_ACCENTS = {
+  revived: "border-l-emerald-400",
+  success: "border-l-emerald-600",
+  failure: "border-l-amber-500",
+  critical_failure: "border-l-amber-700",
+};
+
+/** The entry rather than its action: two of these need to look inside. */
 export function accentClass(entry) {
   if (entry.action === "level_change") {
     return entry.delta > 0 ? LEVEL_ACCENTS.up : LEVEL_ACCENTS.down;
+  }
+
+  if (entry.action === "death_save") {
+    return SAVE_ACCENTS[entry.outcome] ?? ACCENTS.hp_change;
+  }
+
+  if (
+    entry.action === "condition_applied" ||
+    entry.action === "condition_removed"
+  ) {
+    return CONDITION_ACCENTS[entry.condition] ?? ACCENTS[entry.action];
   }
 
   return ACCENTS[entry.action] ?? "border-l-gold/70";
@@ -118,6 +193,30 @@ const COIN_PHRASES = {
 /** The container in a sentence, which is a name rather than a thing counted. */
 function Container({ name }) {
   return <span className={EMPHASIS_CLASSES}>{name}</span>;
+}
+
+/**
+ * What the table is told a face came to. "Stabilised" rather than "revived" for
+ * the third success and the natural 20 alike: what happened is that somebody
+ * stopped dying, and which of the two ways they got there is on the die beside
+ * it.
+ */
+const SAVE_WORDS = {
+  revived: "stabilised",
+  success: "success",
+  failure: "failure",
+  critical_failure: "critical failure",
+};
+
+/** One of the fifteen, wearing the colour the badge on the card wears. */
+function Condition({ held }) {
+  const dressed = conditionDress(held);
+
+  return (
+    <span className={`font-semibold ${dressed?.color ?? "text-ink"}`}>
+      {CONDITIONS[held]?.name ?? held}
+    </span>
+  );
 }
 
 /** A name other than the actor's: the same secondary gold the actor wears. */
@@ -218,7 +317,17 @@ function Coins({ amount, coin }) {
  * A rung climbed on somebody's OWN experience carries no target, and then the
  * actor is the character and the line opens with them like every other.
  */
-const ABOUT_THE_TARGET = new Set(["level_change", "max_hp_change"]);
+/* The three at zero hit points join them, and for the same reason: a Dungeon
+   Master calling out the blow is not the one it happened to. A revival is the
+   exception and stays out — "the Dungeon Master revived Frieren" is a sentence
+   about the person who did it. */
+const ABOUT_THE_TARGET = new Set([
+  "level_change",
+  "max_hp_change",
+  "instant_death",
+  "death_save",
+  "character_died",
+]);
 
 function opensWith(entry) {
   return ABOUT_THE_TARGET.has(entry.action) && entry.target
@@ -250,6 +359,61 @@ function Body({ entry }) {
       <>
         rolled <span className={EMPHASIS_CLASSES}>{entry.value}</span> with{" "}
         <Die die={entry.die} count={entry.count} />
+      </>
+    );
+  }
+
+  /*
+   * The four at zero. Each opens with the character it happened to — see
+   * `ABOUT_THE_TARGET` — except the last, which opens with whoever did it.
+   */
+  if (entry.action === "instant_death") {
+    return (
+      <>
+        suffered <span className={EMPHASIS_CLASSES}>massive damage</span> and
+        died instantly!
+      </>
+    );
+  }
+
+  if (entry.action === "death_save") {
+    return (
+      <>
+        rolled <span className={EMPHASIS_CLASSES}>{entry.roll}</span> on a{" "}
+        <Die die="d20" count={1} /> death save ({SAVE_WORDS[entry.outcome]})
+      </>
+    );
+  }
+
+  if (entry.action === "character_died") {
+    return <>succumbed to their wounds and died!</>;
+  }
+
+  /* The condition in its own colour, and the target named either way — a
+     Dungeon Master is never the one it happened to. */
+  if (entry.action === "condition_applied") {
+    return (
+      <>
+        applied <Condition held={entry.condition} /> to{" "}
+        <span className={NAME_CLASSES}>{entry.target}</span>
+      </>
+    );
+  }
+
+  if (entry.action === "condition_removed") {
+    return (
+      <>
+        removed <Condition held={entry.condition} /> from{" "}
+        <span className={NAME_CLASSES}>{entry.target}</span>
+      </>
+    );
+  }
+
+  if (entry.action === "character_revived") {
+    return (
+      <>
+        revived <span className={NAME_CLASSES}>{entry.target}</span> back to{" "}
+        <span className={EMPHASIS_CLASSES}>1</span> HP!
       </>
     );
   }

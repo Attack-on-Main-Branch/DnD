@@ -15,7 +15,7 @@ import { Action, Confirm } from "./pack-controls";
 import { moveSpellSlot, teachSpell, unlearnSpell } from "./spell-actions";
 import SpellCastControl from "./spell-cast-control";
 import SpellSearch from "./spell-search";
-import Shelf from "./spell-shelf";
+import Shelf from "@/app/dashboard/spell-shelf";
 import SpellSlotTracker from "./spell-slot-tracker";
 import {
   PopoverAside,

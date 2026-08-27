@@ -2,9 +2,9 @@
  * One shelf of a spellbook: the level's heading, and the rows under it.
  *
  * A heading rather than a tab strip, because a caster reads DOWN their list and
- * a tab would hide five shelves to show one. Shared by both drawers; the rows
- * arrive as children, since what can be done to a spell differs and where it
- * sits does not.
+ * a tab would hide five shelves to show one. Shared by both drawers and by the
+ * Spells tab on a character sheet; the rows arrive as children, since what can
+ * be done to a spell differs and where it sits does not.
  */
 export default function Shelf({ label, count, children }) {
   return (

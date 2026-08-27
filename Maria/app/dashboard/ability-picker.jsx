@@ -5,12 +5,14 @@ import {
   ABILITY_BUDGET,
   MAX_ABILITY,
   MIN_ABILITY,
+  abilityModifier,
   abilityPointsRemaining,
   abilityRaiseCost,
   canLowerAbility,
   canRaiseAbility,
   raceAbilityBonus,
 } from "sina/rules/character";
+import { getSavingThrowBonus } from "sina/rules/saving-throws";
 
 import {
   INVALID_GROUP_CLASSES,
@@ -18,6 +20,7 @@ import {
 } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 
+import { AbilityMeta } from "./ability-card";
 import { abilityEmblem, withAlpha } from "./character-presentation";
 
 /**
@@ -29,9 +32,17 @@ import { abilityEmblem, withAlpha } from "./character-presentation";
  * being *bought*, and folding the race in would make the next point's price
  * look wrong. Buttons rather than `<input type="number">`, which accepts typing
  * and pasting and so needs every keystroke validated and clamped mid-edit.
+ *
+ * THE META LINE UNDER EACH NAME IS THE SHEET'S OWN — see ability-card.jsx — and
+ * it reads the TOTAL, race included, because that is the modifier the finished
+ * character will roll with. It is the one place the two numbers stand together,
+ * and the distinction is what the badge beside the name is for. The save moves
+ * as the path is chosen above, which is the whole reason for showing it here.
  */
 export default function AbilityPicker({
   race,
+  classId,
+  level,
   scores,
   onChange,
   disabled,
@@ -87,6 +98,7 @@ export default function AbilityPicker({
         {ABILITIES.map((ability) => {
           const score = scores[ability.id];
           const bonus = raceAbilityBonus(race, ability.id);
+          const modifier = abilityModifier(score + bonus);
           const raiseCost = abilityRaiseCost(score);
           const canRaise = canRaiseAbility(scores, ability.id);
           const canLower = canLowerAbility(scores, ability.id);
@@ -138,27 +150,39 @@ export default function AbilityPicker({
                 read as a second column of its own and left CHARISMA looking
                 like it had nothing.
               */}
-              <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span
-                  className="truncate font-display text-base font-semibold tracking-wide text-ink uppercase"
-                  title={ability.name}
-                >
-                  {ability.name}
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className="truncate font-display text-base font-semibold tracking-wide text-ink uppercase"
+                    title={ability.name}
+                  >
+                    {ability.name}
+                  </span>
+
+                  {/*
+                    Shown only where there is one. A row of `+0` badges is six
+                    pieces of furniture carrying no information, and it makes the
+                    two that matter harder to find.
+                  */}
+                  {bonus > 0 && (
+                    <span
+                      className="shrink-0 rounded-full border border-gold/20 bg-gold/10 px-1.5 py-px font-mono text-xs leading-none text-gold/80"
+                      title={`${race} grants +${bonus} ${ability.name}`}
+                    >
+                      +{bonus}
+                    </span>
+                  )}
                 </span>
 
-                {/*
-                  Shown only where there is one. A row of `+0` badges is six
-                  pieces of furniture carrying no information, and it makes the
-                  two that matter harder to find.
-                */}
-                {bonus > 0 && (
-                  <span
-                    className="shrink-0 rounded-full border border-gold/20 bg-gold/10 px-1.5 py-px font-mono text-xs leading-none text-gold/80"
-                    title={`${race} grants +${bonus} ${ability.name}`}
-                  >
-                    +{bonus}
-                  </span>
-                )}
+                <AbilityMeta
+                  modifier={modifier}
+                  save={getSavingThrowBonus({
+                    className: classId,
+                    abilityName: ability.id,
+                    abilityMod: modifier,
+                    level,
+                  })}
+                />
               </span>
 
               {/* `items-center`, so the price sits under the middle of the

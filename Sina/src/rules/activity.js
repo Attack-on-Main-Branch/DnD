@@ -15,6 +15,8 @@
  */
 
 import { isCoin, MAX_COINS } from "./currency.js";
+import { isCondition } from "./conditions.js";
+import { deathSaveOutcome } from "./death.js";
 import { isDie, parseDiceCount, readDiceResult } from "./dice.js";
 import { MAX_HP, MIN_MAX_HP } from "./hp.js";
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
@@ -44,6 +46,20 @@ export const ACTION_TYPES = [
   "xp_change",
   "rest_taken",
   "max_hp_change",
+  "instant_death",
+  "death_save",
+  "character_died",
+  "character_revived",
+  "condition_applied",
+  "condition_removed",
+];
+
+/** What one face of the death save die was worth. Mirrors `deathSaveOutcome`. */
+export const DEATH_SAVE_OUTCOMES = [
+  "revived",
+  "success",
+  "failure",
+  "critical_failure",
 ];
 
 /** Mirrors the `actor_type` CHECK. */
@@ -210,6 +226,67 @@ export function readActivity(row) {
       level > MAX_LEVEL
       ? null
       : { ...entry, maxHp, level, target: text(payload.targetName) };
+  }
+
+  /**
+   * The blow that skipped the three saves. How much it was for, which is the
+   * whole of what makes it worth its own line rather than an `hp_change`.
+   */
+  if (action === "instant_death") {
+    const damage = whole(payload.damage);
+
+    return damage === null || damage < 1 || damage > MAX_HP
+      ? null
+      : { ...entry, damage, target: text(payload.targetName) };
+  }
+
+  /**
+   * One face of the die, and what it came to. The outcome is stored rather than
+   * re-derived so a row written under an older set of rules still reads as what
+   * the table was told at the time — but it has to AGREE with the face, or the
+   * row is one nothing in this schema could have written.
+   */
+  if (action === "death_save") {
+    const roll = whole(payload.roll);
+    const outcome = payload.outcome;
+
+    return roll === null ||
+      roll < 1 ||
+      roll > 20 ||
+      !DEATH_SAVE_OUTCOMES.includes(outcome) ||
+      outcome !== deathSaveOutcome(roll)
+      ? null
+      : { ...entry, roll, outcome, target: text(payload.targetName) };
+  }
+
+  /* The third failure, and the head of the table undoing it. Neither carries a
+     payload: who it happened to is the whole sentence. */
+  if (action === "character_died") {
+    return { ...entry, target: text(payload.targetName) };
+  }
+
+  if (action === "character_revived") {
+    const target = text(payload.targetName);
+
+    return target ? { ...entry, target } : null;
+  }
+
+  /**
+   * One of the fifteen, on or off. The key rather than the name: Maria's
+   * activity-presentation.jsx dresses it, and a row carrying English would be a
+   * row that could not be recoloured.
+   *
+   * `targetName` is always there — `write_table_log` fills it for a character
+   * and `log_condition` writes "the party" for the other branch — because the
+   * sentence is about whoever it happened to.
+   */
+  if (action === "condition_applied" || action === "condition_removed") {
+    const condition = payload.condition;
+    const target = text(payload.targetName);
+
+    return isCondition(condition) && target
+      ? { ...entry, condition, target }
+      : null;
   }
 
   /**

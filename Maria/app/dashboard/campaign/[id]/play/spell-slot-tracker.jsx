@@ -3,20 +3,17 @@
 import { readSpellSlots } from "sina/rules/spellcasting";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
-import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
-import {
-  slotClusterLabel,
-  slotPipClasses,
-} from "@/app/dashboard/spell-presentation";
+import { slotPipClasses } from "@/app/dashboard/spell-presentation";
+import SpellSlotBar from "@/app/dashboard/spell-slot-bar";
 
 import { moveSpellSlot } from "./spell-actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 
 /**
- * The slot bar: ruled off from the shelves and standing in the purse's own box
- * at the foot of the book, always in view. One cluster per slot level the class
- * and the level grant, so a 5th-level Fighter gets no bar at all.
+ * The slot bar at the foot of the book, always in view. The clusters and the
+ * pips are SpellSlotBar's — the character sheet reads the same bar — and what is
+ * here is the chair: whose slots, and whether this one may move them.
  *
  * It is pinned by LAYOUT and not by `position: sticky`, and the difference is
  * the whole reason it stopped reading as a dark slab. A sticky bar sits inside
@@ -55,8 +52,6 @@ export default function SpellSlotTracker({
     return null;
   }
 
-  const left = shelves.reduce((total, shelf) => total + shelf.remaining, 0);
-
   /**
    * Which way it goes is which pip it was, so the bar has no mode to be in.
    *
@@ -82,55 +77,33 @@ export default function SpellSlotTracker({
       {/* The line that makes this the foot of the book. */}
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
-      <section
-        aria-label="Spell slots"
-        className={`mx-5 mt-4 mb-5 ${COIN_PANEL_CLASSES}`}
-      >
-        <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
-          Slots
-          <span className="ml-2 text-gold/80 tabular-nums">{left}</span> left
-        </h3>
-
-        <ul className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2.5">
-          {shelves.map((shelf) => (
-            <li key={shelf.level} className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] tracking-[0.12em] text-ink/50 tabular-nums">
-                {slotClusterLabel(shelf.level)}
-              </span>
-
-              <span className="flex items-center gap-1">
-                {Array.from({ length: shelf.max }, (_, index) => (
-                  <Pip
-                    key={index}
-                    // Full-first, so the row empties from the right.
-                    available={index < shelf.remaining}
-                    editable={editable}
-                    level={shelf.level}
-                    onToggle={() => toggle(shelf, index)}
-                  />
-                ))}
-              </span>
-
-              <span className="sr-only">
-                {shelf.remaining} of {shelf.max} remaining
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SpellSlotBar
+        shelves={shelves}
+        className="mx-5 mt-4 mb-5"
+        renderPip={
+          editable
+            ? (shelf, index) => (
+                <Pip
+                  key={index}
+                  // Full-first, so the row empties from the right.
+                  available={index < shelf.remaining}
+                  level={shelf.level}
+                  onToggle={() => toggle(shelf, index)}
+                />
+              )
+            : undefined
+        }
+      />
     </div>
   );
 }
 
 /**
  * A real `<button>` only where it can be pressed: a disabled one still takes a
- * tab stop, which on thirty pips is thirty promises a player cannot keep.
+ * tab stop, which on thirty pips is thirty promises a player cannot keep — so
+ * everybody else gets SpellSlotBar's own inert pip instead of this.
  */
-function Pip({ available, editable, level, onToggle }) {
-  if (!editable) {
-    return <span aria-hidden="true" className={slotPipClasses(available)} />;
-  }
-
+function Pip({ available, level, onToggle }) {
   return (
     <button
       type="button"

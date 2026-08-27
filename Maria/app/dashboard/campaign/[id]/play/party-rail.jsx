@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useTransition } from "react";
+import { parseArmorClass, readDeathSaves } from "sina/rules/death";
+import { readConditions } from "sina/rules/conditions";
+import { readFeatures } from "sina/rules/features";
 import { parseHitPoints } from "sina/rules/health";
 import { parseInspiration } from "sina/rules/inspiration";
 import { parseLevel } from "sina/rules/level";
@@ -68,6 +71,24 @@ export default function PartyRail({
     refresh();
   });
 
+  /* A FEATURE WRITTEN SOMEWHERE THIS TABLE CANNOT HEAR: the sheet's own tab,
+     or the Dungeon Master's Create tab, both of which are other routes with no
+     socket of their own. `character_features` is on the publication for exactly
+     this — the payload is discarded and the change is answered by re-reading,
+     the rule `useLiveRefresh` is written under. */
+  useLiveRefresh({
+    channel: `features:${campaignId}`,
+    table: "character_features",
+    onChange: useCallback(
+      () =>
+        resync({
+          features: true,
+          characterIds: members.map((member) => member.id),
+        }),
+      [members, resync],
+    ),
+  });
+
   useLiveRefresh({
     channel: `party:${campaignId}`,
     table: "campaign_members",
@@ -84,6 +105,74 @@ export default function PartyRail({
   useWireMessage("health", (message) => {
     store.setHealth(message.characterId, parseHitPoints(message.hitPoints));
   });
+
+  /* EVERYTHING ZERO HIT POINTS DECIDES, in one message. The bar, the flag and
+     the two tallies move together in the database — `apply_damage` and
+     `roll_death_save` each write all three in one statement — so they travel
+     together too, and `setCondition` lays them down in one commit. Read on the
+     same rails as everything else here: through the rules that bound the
+     sender's own write, into a slot this rail was already seeded with. */
+  useWireMessage("condition", (message) => {
+    store.setCondition(message.characterId, {
+      hitPoints: parseHitPoints(message.hitPoints),
+      isDead: Boolean(message.isDead),
+      deathSaves: readDeathSaves({
+        successes: message.successes,
+        failures: message.failures,
+      }),
+    });
+  });
+
+  /* ONE FEATURE, EITHER WAY. A name and a description are TEXT off the socket,
+     which nothing else at this table takes — so it goes through the rules layer
+     that bound the sender's own write, and into a slot this rail was seeded
+     with. A struck-out one carries an id alone. */
+  useWireMessage("feature", (message) => {
+    if (message.gone) {
+      store.dropFeature(message.characterId, message.featureId);
+      return;
+    }
+
+    const [read] = readFeatures([message.feature]);
+
+    if (read) {
+      store.addFeature(message.characterId, {
+        ...read,
+        character_id: message.characterId,
+      });
+    }
+  });
+
+  /* WHAT SOMEBODY IS UNDER. A list of keys off the socket, put through the
+     catalogue that bound the sender's own write — `readConditions` drops
+     anything it does not know — and into a slot this rail was seeded with. */
+  useWireMessage("conditions", (message) => {
+    for (const [characterId, held] of Object.entries(
+      message.byCharacter ?? {},
+    )) {
+      store.setConditions(characterId, readConditions(held));
+    }
+  });
+
+  /* A hit die spent. The bar it turned into arrives as its own `condition`
+     message — `spend_hit_die` heals through `apply_heal` — so this carries the
+     tally alone. `parseHitPoints` bounds it: a pool is never longer than a
+     level, and `hitDicePool` holds it inside one when it is read. */
+  useWireMessage("hitdice", (message) => {
+    store.setHitDice(message.characterId, parseHitPoints(message.spent));
+  });
+
+  /* The shield. Nothing else follows from it, so it needs no refresh — and a
+     card this viewer may not read one for was seeded with null, which
+     `setArmor` will not write into. */
+  useWireMessage("armor", (message) => {
+    store.setArmor(message.characterId, parseArmorClass(message.armorClass));
+  });
+
+  /* A SCORE THE HEAD OF THE TABLE SET. Same reasoning as the level below and
+     rarer still — see ability-score-field.jsx. The message carries no number,
+     only the news that there is one to go and read. */
+  useWireMessage("sheet", refresh);
 
   /* A LEVEL ALSO REFRESHES THE ROUTE, where a hit point does not: the ability
      sheet's panels are built in page.jsx, and every proficient skill on them is
@@ -174,6 +263,11 @@ export default function PartyRail({
             // The seat, not the deed — see inspiration-pips.jsx for why the
             // database cannot draw this line on its own.
             showsInspiration={isDungeonMaster || member.id === seatCharacterId}
+            // And the shield, on the same line and for the same reason: an
+            // account holding two characters at this table is handed both their
+            // armour classes by `campaign_party`, because "owner" there is the
+            // ACCOUNT. Which of them is sitting down is the seat's question.
+            showsArmor={isDungeonMaster || member.id === seatCharacterId}
             isDungeonMaster={isDungeonMaster}
             seatCharacterId={seatCharacterId}
             // Only ever read back to the person who pressed, on the line the

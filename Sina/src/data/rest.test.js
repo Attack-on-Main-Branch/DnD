@@ -8,7 +8,7 @@ const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
 const CHARACTER = "6f1c3d2e-0000-4000-8000-000000000000";
 
 const RESTED = {
-  data: [{ id: CHARACTER, current_hp: 30, spell_slots: {} }],
+  data: [{ id: CHARACTER, current_hp: 30, spell_slots: {}, hit_dice_spent: 1 }],
   error: null,
 };
 
@@ -86,7 +86,9 @@ describe("the two rests", () => {
     });
 
     assert.equal(error, null);
-    assert.deepEqual(data, [{ id: CHARACTER, currentHp: 30, spellSlots: {} }]);
+    assert.deepEqual(data, [
+      { id: CHARACTER, currentHp: 30, spellSlots: {}, hitDiceSpent: 1 },
+    ]);
   });
 
   it("reads no rows as a refusal rather than a failure", async () => {

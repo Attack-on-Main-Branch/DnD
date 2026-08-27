@@ -8,6 +8,7 @@ import {
   listPartySheets,
 } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
+import { listPartyFeatures } from "sina/data/features";
 import {
   listCampaignContainers,
   listContainerItems,
@@ -64,6 +65,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       purses: [],
       activity: [],
       sheets: [],
+      features: [],
       containers: [],
       containerItems: [],
       seat: null,
@@ -115,7 +117,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
   /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs, books, sheets, held] = await Promise.all([
+  const [seat, packs, books, sheets, held, features] = await Promise.all([
     readSeat(supabase, campaign, members, requestedSeat, user.id),
     listPartyInventory(
       supabase,
@@ -141,6 +143,13 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       supabase,
       shelf.map((container) => container.id),
     ),
+    /* The whole party's, and RLS hands over everybody's: a feature is what a
+       character can do, and the table finds that out the first time they do it.
+       Only the ids this read already has — see listPartyFeatures. */
+    listPartyFeatures(
+      supabase,
+      members.map((member) => member.id),
+    ),
   ]);
 
   if (packs.error) {
@@ -153,6 +162,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
 
   if (sheets.error) {
     logFailure("listPartySheets", sheets.error);
+  }
+
+  if (features.error) {
+    logFailure("listPartyFeatures", features.error);
   }
 
   if (held.error) {
@@ -170,6 +183,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     purses: purses.error ? [] : purses.data,
     activity: log.error ? [] : log.data,
     sheets: sheets.error ? [] : sheets.data,
+    features: features.error ? [] : features.data,
     containers: shelf,
     containerItems: held.error ? [] : held.data,
     seat,

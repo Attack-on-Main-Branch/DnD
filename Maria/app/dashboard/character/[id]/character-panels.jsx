@@ -5,18 +5,26 @@ import {
   healthTier,
   MAX_HP,
 } from "sina/rules/character";
+import { readSpellSlots } from "sina/rules/spellcasting";
 
 import HealthBar from "@/app/components/ui/health-bar";
 import NoteList from "@/app/components/ui/note-list";
 import { CharacterStats } from "@/app/dashboard/character-stats";
-import { rowItem } from "@/app/dashboard/inventory-presentation";
-import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
+import { spellsByShelf } from "@/app/dashboard/spell-presentation";
+import SpellSlotBar from "@/app/dashboard/spell-slot-bar";
+import XpMeter from "@/app/dashboard/xp-meter";
+
+import SheetFeatures from "./sheet-features";
+import SheetPack from "./sheet-pack";
+import SheetSpellbook from "./sheet-spellbook";
 
 /**
- * The four tab panels, as Server Components — none needs the browser. Inside
- * the client component all four shipped so one could be visible, and took
- * `sina/rules/character` with them; the tabstrip receives them rendered.
+ * The six tab panels, as Server Components — none of them needs the browser,
+ * and the two that open something under a press hand that much over to a client
+ * component of its own. Inside the client component all of them shipped so one
+ * could be visible, and took `sina/rules/character` with them; the tabstrip
+ * receives them rendered.
  *
  * The scores and the skills live in character-stats.jsx, because the table
  * reads the same two sections — see play/ability-sheet.jsx.
@@ -45,6 +53,17 @@ export function OverviewPanel({ character, createdLabel }) {
       />
 
       <CharacterStats character={character} />
+
+      {/* Last on the tab, under the skills, which is exactly where the table
+          puts it on the scores sheet — see play/page.jsx. A read-out here as
+          much as there: experience is awarded by whoever runs the session.
+
+          Zero for a row written before the column existed. */}
+      <XpMeter
+        xp={character.xp ?? 0}
+        level={character.level}
+        name={character.name}
+      />
     </div>
   );
 }
@@ -86,29 +105,50 @@ function Prose({ title, body }) {
 }
 
 /**
- * Read-only, deliberately: an item is used, dropped or handed over at a table,
- * in front of whoever is running it. The pack above the map has the verbs.
+ * What this character carries, and the bags and chests it can reach. The
+ * drawing is the table's own — see sheet-pack.jsx — and read-only for the
+ * reason given there.
  */
-export function InventoryPanel({ items }) {
-  if (items.length === 0) {
-    return (
-      <EmptyPack description="What you are given or pick up at a table will be here." />
-    );
-  }
+export function InventoryPanel({ items, containers, chestItems }) {
+  return (
+    <SheetPack items={items} containers={containers} chestItems={chestItems} />
+  );
+}
+
+/**
+ * What this character knows, and how many slots are left to cast it with.
+ *
+ * Both are worked out here rather than in the browser: `spellsByShelf` reads
+ * every row's whole SRD entry to sort it, and `readSpellSlots` reaches through
+ * the 5e casting matrix. Neither has any business travelling to a page that
+ * only reads them out.
+ */
+export function SpellsPanel({ character, spells }) {
+  const shelves = readSpellSlots(
+    character.spell_slots,
+    character.class_id,
+    character.level,
+  );
 
   return (
-    <ul className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((row, index) => (
-        <li key={row.id} className="flex">
-          <PackItemCard
-            item={rowItem(row)}
-            index={index}
-            quantity={row.quantity}
-          />
-        </li>
-      ))}
-    </ul>
+    <SheetSpellbook
+      shelves={spellsByShelf(spells)}
+      known={spells.length}
+      /* Nothing at all for a path that casts nothing, which is what an empty
+         shelf list means — a 5th-level Fighter gets no bar rather than an
+         empty box. */
+      slots={shelves.length > 0 ? <SpellSlotBar shelves={shelves} /> : null}
+    />
   );
+}
+
+/**
+ * What this character can do that no other tab describes. A Client Component
+ * whole: the list is written to and struck from without the route rendering
+ * again — see sheet-features.jsx.
+ */
+export function FeaturePanel({ characterId, features }) {
+  return <SheetFeatures characterId={characterId} features={features} />;
 }
 
 /** What this character's player wrote at the table. */

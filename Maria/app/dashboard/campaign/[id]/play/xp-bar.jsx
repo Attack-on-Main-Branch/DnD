@@ -1,17 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { MAX_LEVEL } from "sina/rules/level";
-import { MAX_XP_AWARD, parseXpDelta, xpFraction } from "sina/rules/xp";
+import { MAX_XP_AWARD, parseXpDelta } from "sina/rules/xp";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
-import PlasmaBar from "@/app/components/ui/plasma-bar";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
-import {
-  XP_BAR_CLASS,
-  xpReadout,
-  xpValueText,
-} from "@/app/dashboard/xp-presentation";
+import XpMeter from "@/app/dashboard/xp-meter";
 
 import { adjustCharacterXp } from "./session-actions";
 import {
@@ -22,69 +16,19 @@ import {
 import { useTableDeed } from "./use-table-deed";
 
 /**
- * What a character has earned towards their next level. A read-out; the presses
- * that move it are `XpStepper` below, which only the session panel mounts.
+ * The table's own reading of the bar: the figure and the rung come out of the
+ * browser's copy, because a press at this table moves both before the server
+ * has answered. Everything drawn is XpMeter's — see the note there.
  *
- * It stands under the skills on the scores sheet and again in that panel, which
- * is what `compact` is: there the heading is written over the whole section.
- *
- * THE BAR IS THE HEALTH BAR — `PlasmaBar` with `.hp-verdant` under it, since
- * everything that makes that one breathe is a custom property.
+ * It stands under the skills on the scores sheet and again in the session
+ * panel, which is what `compact` is: there the heading is written over the
+ * whole section.
  */
 export default function XpBar({ characterId, name, compact = false }) {
   const xp = useCharacterXp(characterId);
   const level = useCharacterLevel(characterId);
 
-  const readout = xpReadout(xp, level);
-
-  return (
-    <section aria-label={`${name}'s experience`}>
-      {!compact && (
-        /* The scores sheet's own section heading, beside Ability scores and
-           Skills — it stands among them and has to be read as one of them. */
-        <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-          Experience
-        </h3>
-      )}
-
-      <div
-        className={`flex items-baseline justify-between gap-4 ${compact ? "" : "mt-3"}`}
-      >
-        <p className="min-w-0 truncate font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
-          Level <span className="text-gold tabular-nums">{level}</span>
-        </p>
-
-        <p className="shrink-0 font-mono text-xs text-ink/50 tabular-nums">
-          {readout ? (
-            <>
-              <span className="text-sm text-emerald-300">{readout.held}</span> /{" "}
-              {readout.target} XP
-            </>
-          ) : (
-            /* Nothing left to progress towards, and `12700 / 12700` would be a
-               sentence about a threshold nobody can spend. */
-            <span className="text-sm text-emerald-300">Maxed</span>
-          )}
-        </p>
-      </div>
-
-      <PlasmaBar
-        fraction={xpFraction(xp, level)}
-        toneClass={XP_BAR_CLASS}
-        label={`${name}'s experience`}
-        valueNow={xp}
-        valueMax={readout?.target ?? xp}
-        valueText={xpValueText(xp, level)}
-        className="mt-2"
-      />
-
-      {level >= MAX_LEVEL && (
-        <p className="mt-1.5 text-right text-[11px] text-ink/40">
-          The top of the ladder.
-        </p>
-      )}
-    </section>
-  );
+  return <XpMeter xp={xp} level={level} name={name} compact={compact} />;
 }
 
 /**

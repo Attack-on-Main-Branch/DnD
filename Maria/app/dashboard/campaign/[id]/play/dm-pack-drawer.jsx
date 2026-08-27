@@ -13,7 +13,7 @@ import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
 import { Action } from "./pack-controls";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
-import PartyPills, { Pill } from "./party-pills";
+import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import {
   PopoverAside,
   POPOVER_BODY_CLASSES,

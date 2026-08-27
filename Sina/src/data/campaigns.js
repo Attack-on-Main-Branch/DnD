@@ -434,6 +434,53 @@ export async function insertCampaignNote(supabase, { campaignId, body }) {
 }
 
 /**
+ * One note rewritten — `updateCharacterNote`'s twin, and the reasoning is the
+ * same one table up: `body` alone, `created_at` left where it was, and a row
+ * that is not the caller's refused as no row rather than as a failure.
+ */
+export async function updateCampaignNote(supabase, { id, campaignId, body }) {
+  const { data, error } = await supabase
+    .from("campaign_notes")
+    .update({ body })
+    .eq("id", id)
+    // A second lock on the same door, the way every read here carries one.
+    .eq("campaign_id", campaignId)
+    .select("id, body, created_at")
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/** The same door the other way. A note struck out is gone, not hidden. */
+export async function deleteCampaignNote(supabase, { id, campaignId }) {
+  const { data, error } = await supabase
+    .from("campaign_notes")
+    .delete()
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/**
  * Every mark on this campaign's map. One per seat, so a full table is seven
  * rows at the outside — no order, no limit, nothing worth paginating.
  *

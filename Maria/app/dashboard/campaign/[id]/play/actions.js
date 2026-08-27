@@ -3,19 +3,32 @@
 import { listCampaignActivity } from "sina/data/activity";
 import {
   clearCampaignMark,
+  deleteCampaignNote,
   insertCampaignNote,
   listCampaignNotes,
   placeCampaignMark,
+  updateCampaignNote,
 } from "sina/data/campaigns";
 import {
+  applyDamage,
+  applyHeal,
+  deleteCharacterNote,
   insertCharacterNote,
   listCharacterNotes,
-  updateCharacterHealth,
+  killCharacter as strikeCharacterDown,
+  reviveCharacter,
+  rollDeathSave,
+  spendHitDie,
+  updateAbilityScore,
+  updateArmorClass,
+  updateCharacterNote,
 } from "sina/data/characters";
 import { moveCharacterInspiration } from "sina/data/inspiration";
+import { isAbilityId, parseAbilityTotal } from "sina/rules/ability-scores";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import { parseMarkPoint } from "sina/rules/campaign";
 import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
+import { parseArmorClass } from "sina/rules/death";
 import { MAX_HP } from "sina/rules/health";
 
 import { logFailure, logUncovered } from "@/lib/errors";
@@ -97,12 +110,24 @@ export async function changeCharacterHealth(
     return sessionRejection("changeCharacterHealth", authError);
   }
 
-  const { data, error } = await updateCharacterHealth(supabase, {
-    id: characterId,
-    delta,
-    campaignId,
-    seatCharacterId,
-  });
+  /* Two doors and not one, because a hit point going down carries rules a hit
+     point going up does not — massive damage, and the tallies a character
+     collects at zero. `apply_damage` and `apply_heal` are the halves; the sign
+     is what decides which. */
+  const { data, error } =
+    delta < 0
+      ? await applyDamage(supabase, {
+          id: characterId,
+          damage: -delta,
+          campaignId,
+          seatCharacterId,
+        })
+      : await applyHeal(supabase, {
+          id: characterId,
+          heal: delta,
+          campaignId,
+          seatCharacterId,
+        });
 
   if (error) {
     const copy = TABLE_COPY[error.reason];
@@ -116,8 +141,266 @@ export async function changeCharacterHealth(
     // Where the bar ended up, by the row's own arithmetic: ten damage against
     // seven hit points is a change of seven.
     hitPoints: data.currentHp,
+    ...condition(data),
     activity: await freshLog(supabase, campaignId),
   };
+}
+
+/**
+ * The three things zero hit points decides, on every answer that could have
+ * moved one of them. They travel together for the reason `setCondition` lays
+ * them down together: a card drawn from two of the three is a card drawn
+ * halfway through an event.
+ */
+function condition(data) {
+  return {
+    isDead: data.isDead,
+    deathSaves: data.deathSaves,
+    instantDeath: Boolean(data.instantDeath),
+  };
+}
+
+/**
+ * One death save, against the face the table's own d20 came to rest on.
+ *
+ * THE NUMBER IS THE BOARD'S. The dice are a physics simulation and cannot be
+ * told what to land on, so the roll travels here rather than being generated —
+ * one die, thrown once, seen by every chair, and the rules applied to it inside
+ * `roll_death_save`. A caller with no board sends null and the database rolls.
+ *
+ * `null` from the function is a save nobody was entitled to ask for: a character
+ * on their feet, one already gone, or a chair with no business at this card.
+ */
+export async function rollDeathSaveFor(
+  campaignId,
+  characterId,
+  roll = null,
+  seatCharacterId = null,
+) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("rollDeathSaveFor", authError);
+  }
+
+  const { data, error } = await rollDeathSave(supabase, {
+    id: characterId,
+    roll,
+    campaignId,
+    seatCharacterId,
+  });
+
+  if (error) {
+    const copy = DEATH_COPY[error.reason] ?? TABLE_COPY[error.reason];
+
+    logUncovered("rollDeathSaveFor", error, copy);
+    return rejected(copy ?? "Could not roll that. Try again.");
+  }
+
+  return {
+    kind: "success",
+    roll: data.roll,
+    outcome: data.outcome,
+    revived: data.revived,
+    hitPoints: data.currentHp,
+    ...condition(data),
+    activity: await freshLog(supabase, campaignId),
+  };
+}
+
+/**
+ * The blow that finishes somebody already at zero.
+ *
+ * THE HEAD OF THE TABLE'S ALONE, and only on a character who is DOWN — a player
+ * must not be able to end their own from a card any more than they may undo it,
+ * and `kill_character` asks `owns_campaign` for exactly that reason. It is what
+ * that chair gets instead of somebody else's death saves: the three rolls are
+ * the one thing a dying character still does for themselves.
+ */
+export async function killCharacter(campaignId, characterId) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("killCharacter", authError);
+  }
+
+  const { data, error } = await strikeCharacterDown(supabase, {
+    id: characterId,
+    campaignId,
+  });
+
+  if (error) {
+    const copy = DEATH_COPY[error.reason] ?? TABLE_COPY[error.reason];
+
+    logUncovered("killCharacter", error, copy);
+    return rejected(copy ?? "Could not do that. Try again.");
+  }
+
+  return {
+    kind: "success",
+    hitPoints: data.currentHp,
+    ...condition(data),
+    activity: await freshLog(supabase, campaignId),
+  };
+}
+
+/**
+ * Back on their feet at one hit point. The head of the table's alone, and
+ * `revive_character` is where that is decided — it asks `owns_campaign` rather
+ * than `may_move_character`, so a player cannot undo their own death.
+ */
+export async function reviveDownedCharacter(campaignId, characterId) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("reviveDownedCharacter", authError);
+  }
+
+  const { data, error } = await reviveCharacter(supabase, {
+    id: characterId,
+    campaignId,
+  });
+
+  if (error) {
+    const copy = DEATH_COPY[error.reason] ?? TABLE_COPY[error.reason];
+
+    logUncovered("reviveDownedCharacter", error, copy);
+    return rejected(copy ?? "Could not bring them back. Try again.");
+  }
+
+  return {
+    kind: "success",
+    hitPoints: data.currentHp,
+    ...condition(data),
+    activity: await freshLog(supabase, campaignId),
+  };
+}
+
+/**
+ * One hit die out of the pool, spent on hit points.
+ *
+ * THE NUMBER IS THE BOARD'S, exactly as a death save's is: the dice cannot be
+ * told what to land on, so the face travels here and `spend_hit_die` does the
+ * arithmetic against it. The heal it turns into goes through `apply_heal`, so
+ * the bar and the log answer as they do for any other one.
+ *
+ * `null` is a die nobody had to spend — an empty pool, a path that rolls none,
+ * or a chair with no business at this card.
+ */
+export async function spendHitDieFor(
+  campaignId,
+  characterId,
+  roll = null,
+  seatCharacterId = null,
+) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("spendHitDieFor", authError);
+  }
+
+  const { data, error } = await spendHitDie(supabase, {
+    id: characterId,
+    roll,
+    campaignId,
+    seatCharacterId,
+  });
+
+  if (error) {
+    const copy = HIT_DICE_COPY[error.reason] ?? TABLE_COPY[error.reason];
+
+    logUncovered("spendHitDieFor", error, copy);
+    return rejected(copy ?? "Could not spend that. Try again.");
+  }
+
+  return {
+    kind: "success",
+    ...data,
+    activity: await freshLog(supabase, campaignId),
+  };
+}
+
+/** An empty pool and a chair with no business here read back the same way. */
+const HIT_DICE_COPY = {
+  not_found: "There is no hit die left to spend.",
+  bad_id: "That character is no longer at this table.",
+};
+
+/**
+ * The shield. No line in the log and nothing to reconcile beyond the number
+ * itself: an armour class is a fact about a character rather than something
+ * that happens at a table.
+ */
+export async function setArmorClass(campaignId, characterId, value) {
+  const armorClass = parseArmorClass(value);
+
+  if (armorClass === null) {
+    return rejected("Armour class has to be a number.");
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("setArmorClass", authError);
+  }
+
+  const { data, error } = await updateArmorClass(supabase, {
+    id: characterId,
+    armorClass,
+    campaignId,
+  });
+
+  if (error) {
+    const copy = TABLE_COPY[error.reason];
+
+    logUncovered("setArmorClass", error, copy);
+    return rejected(copy ?? "Could not set that. Try again.");
+  }
+
+  return { kind: "success", armorClass: data.armorClass };
+}
+
+/**
+ * One of the six scores, written by the head of the table. `value` is the TOTAL
+ * the card prints; the column behind it holds the difference.
+ *
+ * ONLY THE DUNGEON MASTER, and not because of anything here: the function asks
+ * whether the caller owns a campaign this character is playing in.
+ */
+export async function setAbilityScore(campaignId, characterId, ability, value) {
+  const total = parseAbilityTotal(value);
+
+  if (total === null || !isAbilityId(ability)) {
+    return rejected("An ability score has to be a number.");
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("setAbilityScore", authError);
+  }
+
+  const { data, error } = await updateAbilityScore(supabase, {
+    id: characterId,
+    ability,
+    total,
+    campaignId,
+  });
+
+  if (error) {
+    const copy = TABLE_COPY[error.reason];
+
+    logUncovered("setAbilityScore", error, copy);
+    return rejected(copy ?? "Could not set that. Try again.");
+  }
+
+  return { kind: "success", total: data.total };
 }
 
 /**
@@ -132,6 +415,15 @@ function parseHealthChange(value) {
     ? delta
     : null;
 }
+
+/**
+ * A save asked for by somebody who had none to make, and a revival asked for by
+ * anybody but the head of the table, both read back as no row.
+ */
+const DEATH_COPY = {
+  not_found: "That is not yours to do at this card.",
+  bad_id: "That character is no longer at this table.",
+};
 
 /**
  * A mark is spent by whoever holds it and given by whoever runs the session, so
@@ -217,6 +509,71 @@ export async function writeTableNote(campaignId, characterId, value) {
     return rejected(copy ?? "Could not write that down. Try again.");
   }
 
+  return noteLedger(supabase, campaignId, characterId);
+}
+
+/**
+ * A note rewritten. Which book it is in is the seat's, exactly as it is above,
+ * and the id is checked against that book rather than trusted — `not_found`
+ * here is "that is not yours to rewrite" as much as "that is gone", and the two
+ * must not be told apart.
+ *
+ * `not_found` gets a wording of its own: TABLE_COPY speaks about a character,
+ * and the thing that went missing is a line somebody wrote.
+ */
+export async function reviseTableNote(campaignId, characterId, noteId, value) {
+  const body = parseNote(value);
+
+  if (!body) {
+    return rejected(`A note is 1 to ${MAX_NOTE_LENGTH} characters.`);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("reviseTableNote", authError);
+  }
+
+  const { error } = characterId
+    ? await updateCharacterNote(supabase, { id: noteId, characterId, body })
+    : await updateCampaignNote(supabase, { id: noteId, campaignId, body });
+
+  if (error) {
+    const copy = NOTE_COPY[error.reason] ?? TABLE_COPY[error.reason];
+
+    logUncovered("reviseTableNote", error, copy);
+    return rejected(copy ?? "Could not rewrite that. Try again.");
+  }
+
+  return noteLedger(supabase, campaignId, characterId);
+}
+
+/** The same door the other way. A note struck out is gone, not hidden. */
+export async function eraseTableNote(campaignId, characterId, noteId) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("eraseTableNote", authError);
+  }
+
+  const { error } = characterId
+    ? await deleteCharacterNote(supabase, { id: noteId, characterId })
+    : await deleteCampaignNote(supabase, { id: noteId, campaignId });
+
+  if (error) {
+    const copy = NOTE_COPY[error.reason] ?? TABLE_COPY[error.reason];
+
+    logUncovered("eraseTableNote", error, copy);
+    return rejected(copy ?? "Could not strike that out. Try again.");
+  }
+
+  return noteLedger(supabase, campaignId, characterId);
+}
+
+/** What the two above and `writeTableNote` all hand back: the book, re-read. */
+async function noteLedger(supabase, campaignId, characterId) {
   const ledger = characterId
     ? await listCharacterNotes(supabase, characterId)
     : await listCampaignNotes(supabase, campaignId);
@@ -230,6 +587,15 @@ export async function writeTableNote(campaignId, characterId, value) {
 
   return { kind: "success", notes: ledger.error ? undefined : ledger.data };
 }
+
+/**
+ * A note is refused rather than failed when the book is not the caller's, so
+ * `not_found` here is "that line is not yours" as much as "that line is gone".
+ */
+const NOTE_COPY = {
+  not_found: "That note is no longer there.",
+  bad_id: "That note is no longer there.",
+};
 
 /**
  * A mark is refused rather than failed when the chair is not the caller's, so

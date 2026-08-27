@@ -101,7 +101,7 @@ export function useDiceRoll({ onStart, onFinish }) {
    * sends no seed, and then its number is the only number there is.
    */
   const roll = useCallback(
-    async (die, count) => {
+    async (die, count, options) => {
       if (rolling.current) {
         return;
       }
@@ -118,8 +118,11 @@ export function useDiceRoll({ onStart, onFinish }) {
       }
 
       if (seed === null) {
+        const value = rollDice(die, count);
+
         onStart({ die, count, secret: kept, seed: null });
-        onFinish({ die, count, value: rollDice(die, count), secret: kept });
+        onFinish({ die, count, value, secret: kept, quiet: options?.quiet });
+        options?.onLanded?.(value);
         rolling.current = false;
         return;
       }
@@ -133,12 +136,15 @@ export function useDiceRoll({ onStart, onFinish }) {
       }
 
       // The number as the dice stop, the dice a beat longer to read it against.
-      onFinish({
-        die,
-        count,
-        value: settled ?? rollDice(die, count),
-        secret: kept,
-      });
+      const value = settled ?? rollDice(die, count);
+
+      onFinish({ die, count, value, secret: kept, quiet: options?.quiet });
+
+      /* Whoever asked for this throw, handed the face it came to rest on. A
+         death save is the one roll at this table whose number decides something
+         in the database, and the board is a physics simulation — so the number
+         travels from here rather than being generated at the other end. */
+      options?.onLanded?.(value);
 
       await wait(settled === null ? 0 : READ_MS);
       await sweep();

@@ -7,6 +7,7 @@ import {
   listCampaignContainers,
   listContainerItems,
 } from "sina/data/containers";
+import { listPartyFeatures } from "sina/data/features";
 import { listCampaignItems } from "sina/data/inventory";
 import { listCampaignSpells } from "sina/data/spells";
 import { cache } from "react";
@@ -57,6 +58,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       spells: [],
       containers: [],
       containerItems: [],
+      features: [],
       error: realFailure,
     };
   }
@@ -91,15 +93,27 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   }
 
   const shelf = containers.error ? [] : containers.data;
+  const roster = party.error ? [] : party.data;
 
-  /* After the shelf rather than beside it: the ids are the query. */
-  const held = await listContainerItems(
-    supabase,
-    shelf.map((container) => container.id),
-  );
+  /* After the shelf and the party rather than beside them: both are queries
+     whose ids come out of the wave above. One wait for the two. */
+  const [held, features] = await Promise.all([
+    listContainerItems(
+      supabase,
+      shelf.map((container) => container.id),
+    ),
+    listPartyFeatures(
+      supabase,
+      roster.map((member) => member.id),
+    ),
+  ]);
 
   if (held.error) {
     logFailure("listContainerItems", held.error);
+  }
+
+  if (features.error) {
+    logFailure("listPartyFeatures", features.error);
   }
 
   // Logged rather than thrown on: the campaign is the page, and a party or a
@@ -112,6 +126,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     spells: spells.error ? [] : spells.data,
     containers: shelf,
     containerItems: held.error ? [] : held.data,
+    features: features.error ? [] : features.data,
     error: null,
   };
 });

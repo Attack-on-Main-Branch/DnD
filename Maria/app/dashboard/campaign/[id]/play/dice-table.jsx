@@ -111,6 +111,15 @@ export default function DiceTable({
     (entry) => {
       finish(mine, entry);
 
+      /* A QUIET ROLL LEAVES NO LINE OF ITS OWN. The dice still fly on every
+         board — that is `finish` above, and the seed went out with `start` — but
+         a death save is written down by `roll_death_save`, in the sentence that
+         says what the face came to. Two entries for one throw would read as two
+         throws. */
+      if (entry.quiet) {
+        return;
+      }
+
       /* The third argument is the line the panel shows until the database's own
          comes back — drawn on the roller's screen alone and never sent. A kept
          roll has no branch in `record_campaign_activity` that could store a

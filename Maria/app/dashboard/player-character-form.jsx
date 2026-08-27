@@ -259,10 +259,13 @@ export default function PlayerCharacterForm({
         about temperament.
 
         `race` goes in for the bonus badges only — the scores themselves are
-        bought free of it.
+        bought free of it. The path and the rung go in for the saving throws
+        under each name, which are derived and asked for nowhere.
       */}
       <AbilityPicker
         race={race}
+        classId={classId}
+        level={character?.level ?? MIN_LEVEL}
         scores={abilities}
         onChange={setAbilities}
         disabled={isPending}

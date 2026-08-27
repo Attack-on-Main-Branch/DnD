@@ -9,7 +9,8 @@
  * the base ones, so the sheet prints the number Postgres would sort by.
  */
 const COLUMNS =
-  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, current_hp, max_hp, " +
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, color_theme, level, xp, current_hp, max_hp, " +
+  "armor_class, death_saves, is_dead, hit_dice_spent, custom_proficiencies, conditions, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
   "skills, spell_slots, backstory, personality, created_at";
@@ -260,6 +261,248 @@ export async function updateCharacterHealth(
   return { data: { currentHp: data }, error: null };
 }
 
+/**
+ * What happens at zero hit points, and the shield that decides how often you get
+ * there. Five doors, all of them RPCs, all of them definers — see
+ * 20260909090000 for why each is a function rather than a policy.
+ *
+ * The campaign and the chair ride along on every one: a character sits at more
+ * than one table, so "may the Dungeon Master do this" is never a question about
+ * a character alone, and the log needs both to leave a line.
+ *
+ * NULL FROM ANY OF THEM IS A REFUSAL, and it reads the same as a character
+ * deleted between the press and the call. A caller must not be able to tell
+ * those apart.
+ */
+async function deed(supabase, name, args, shape) {
+  const { data, error } = await supabase.rpc(name, args);
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (data === null || data === undefined) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: shape(data), error: null };
+}
+
+/** A hit point figure and the two flags that go with it, off a jsonb answer. */
+function readState(answer) {
+  return {
+    currentHp: answer.current_hp,
+    isDead: Boolean(answer.is_dead),
+    deathSaves: {
+      successes: answer.successes ?? 0,
+      failures: answer.failures ?? 0,
+    },
+    instantDeath: Boolean(answer.instant_death),
+  };
+}
+
+export async function applyDamage(
+  supabase,
+  { id, damage, campaignId, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "apply_damage",
+    {
+      p_char_id: id,
+      p_damage: damage,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
+    readState,
+  );
+}
+
+export async function applyHeal(
+  supabase,
+  { id, heal, campaignId, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "apply_heal",
+    {
+      p_char_id: id,
+      p_heal: heal,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
+    readState,
+  );
+}
+
+/**
+ * One death save. `roll` is the face the table's own d20 came to rest on — the
+ * board is a physics simulation and cannot be told what to land on, so the
+ * number it produced is what the rules are applied to. Null lets the database
+ * roll its own, which is what a table with the board switched off gets.
+ */
+export async function rollDeathSave(
+  supabase,
+  { id, roll = null, campaignId, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "roll_death_save",
+    {
+      p_char_id: id,
+      p_roll_override: roll,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
+    (answer) => ({
+      ...readState(answer),
+      roll: answer.roll,
+      outcome: answer.outcome,
+      revived: Boolean(answer.revived),
+    }),
+  );
+}
+
+/**
+ * The blow that finishes somebody already at zero. The head of the table's
+ * alone, and only on a character who is down — `kill_character` refuses the rest.
+ */
+export async function killCharacter(supabase, { id, campaignId }) {
+  return deed(
+    supabase,
+    "kill_character",
+    { p_char_id: id, p_campaign: campaignId },
+    readState,
+  );
+}
+
+/** The head of the table's alone — `revive_character` refuses anybody else. */
+export async function reviveCharacter(supabase, { id, campaignId }) {
+  return deed(
+    supabase,
+    "revive_character",
+    { p_char_id: id, p_campaign: campaignId },
+    readState,
+  );
+}
+
+/**
+ * One hit die out of the pool, at the face the table's own die came to rest on.
+ * `spend_hit_die` turns it into hit points through `apply_heal`, so the bar, the
+ * death saves and the log all move the way they do for any other heal.
+ */
+export async function spendHitDie(
+  supabase,
+  { id, roll = null, campaignId, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "spend_hit_die",
+    {
+      p_char_id: id,
+      p_roll_override: roll,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
+    (answer) => ({
+      roll: answer.roll,
+      faces: answer.faces,
+      modifier: answer.modifier,
+      gained: answer.gained,
+      hitDiceSpent: answer.hit_dice_spent,
+      currentHp: answer.current_hp,
+    }),
+  );
+}
+
+/**
+ * One condition on or off, decided against the row the function has locked. The
+ * answer says which way it went: neither the log line nor the toast can work
+ * that out from an array.
+ */
+export async function toggleCondition(
+  supabase,
+  { id, key, campaignId, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "toggle_character_condition",
+    {
+      p_char_id: id,
+      p_key: key,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
+    (answer) => ({
+      applied: Boolean(answer.applied),
+      conditions: answer.conditions ?? [],
+      characterIds: answer.characterIds ?? [],
+    }),
+  );
+}
+
+/**
+ * The same for everybody at a table. One direction for the whole party — see
+ * `toggle_party_condition`, which decides it — so the answer carries no list of
+ * conditions, only who it reached.
+ */
+export async function togglePartyCondition(
+  supabase,
+  { campaignId, key, characterIds = null, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "toggle_party_condition",
+    {
+      p_campaign: campaignId,
+      p_key: key,
+      p_char_ids: characterIds,
+      p_seat: seatCharacterId,
+    },
+    (answer) => ({
+      applied: Boolean(answer.applied),
+      characterIds: answer.characterIds ?? [],
+    }),
+  );
+}
+
+export async function updateArmorClass(
+  supabase,
+  { id, armorClass, campaignId },
+) {
+  return deed(
+    supabase,
+    "update_armor_class",
+    { p_char_id: id, p_ac: armorClass, p_campaign: campaignId },
+    (landed) => ({ armorClass: landed }),
+  );
+}
+
+/**
+ * One of the six, set by the head of the table. `total` is the number on the
+ * card and the column holds the award alone; `set_ability_score` does that
+ * subtraction against the row it locks, so what comes back is what landed.
+ *
+ * THE DUNGEON MASTER'S ALONE, unlike `update_armor_class` next door: a player
+ * raising their own Strength is the fifteen-point budget being walked around.
+ */
+export async function updateAbilityScore(
+  supabase,
+  { id, ability, total, campaignId },
+) {
+  return deed(
+    supabase,
+    "set_ability_score",
+    {
+      p_char_id: id,
+      p_ability: ability,
+      p_total: total,
+      p_campaign: campaignId,
+    },
+    (landed) => ({ total: landed }),
+  );
+}
+
 /** Newest first: the table shows the last thing written at the top. */
 export async function listCharacterNotes(supabase, characterId) {
   const { data, error } = await supabase
@@ -289,6 +532,61 @@ export async function insertCharacterNote(supabase, { characterId, body }) {
 
   // RLS refuses an insert for somebody else's character by returning no row
   // rather than by failing.
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/**
+ * One note rewritten. `body` and nothing else — `character_id` is what decides
+ * whose the row is, and the UPDATE policy in 20260908090000 checks the same
+ * predicate before and after, so it could not be moved anyway.
+ *
+ * `created_at` is left where it was: the note is when it was written, not when
+ * it was last touched, and a ledger that reordered itself under a typo fix
+ * would lose the thread of the session it belongs to.
+ *
+ * A row the caller does not own is refused by RLS as no row rather than as a
+ * failure, which is the same answer a note somebody has already struck out
+ * gives — and a caller must not be able to tell those apart.
+ */
+export async function updateCharacterNote(supabase, { id, characterId, body }) {
+  const { data, error } = await supabase
+    .from("character_notes")
+    .update({ body })
+    .eq("id", id)
+    // A second lock on the same door, the way every read here carries one.
+    .eq("character_id", characterId)
+    .select("id, body, created_at")
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/** The same door the other way. A note struck out is gone, not hidden. */
+export async function deleteCharacterNote(supabase, { id, characterId }) {
+  const { data, error } = await supabase
+    .from("character_notes")
+    .delete()
+    .eq("id", id)
+    .eq("character_id", characterId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
   if (!data) {
     return { data: null, error: { reason: "not_found", detail: null } };
   }

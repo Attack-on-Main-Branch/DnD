@@ -46,6 +46,12 @@ describe("the catalogue", () => {
       "xp_change",
       "rest_taken",
       "max_hp_change",
+      "instant_death",
+      "death_save",
+      "character_died",
+      "character_revived",
+      "condition_applied",
+      "condition_removed",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -692,5 +698,78 @@ describe("readActivityLog", () => {
   it("answers an empty log with an empty list, not null", () => {
     assert.deepEqual(readActivityLog(null), []);
     assert.deepEqual(readActivityLog(undefined), []);
+  });
+});
+
+describe("readActivity, at zero hit points", () => {
+  function entry(action, payload) {
+    return row({ action_type: action, payload });
+  }
+
+  it("reads the blow that skipped the three saves", () => {
+    assert.deepEqual(
+      entry("instant_death", { damage: 40, targetName: "Frieren" }),
+      entry("instant_death", { damage: 40, targetName: "Frieren" }),
+    );
+
+    const read = readActivity(
+      entry("instant_death", { damage: 40, targetName: "Frieren" }),
+    );
+
+    assert.equal(read.damage, 40);
+    assert.equal(read.target, "Frieren");
+  });
+
+  it("refuses a blow that is no blow at all", () => {
+    for (const damage of [0, -3, null, "hard"]) {
+      assert.equal(readActivity(entry("instant_death", { damage })), null);
+    }
+  });
+
+  it("reads a save, the face and what it came to", () => {
+    const read = readActivity(
+      entry("death_save", { roll: 17, outcome: "success" }),
+    );
+
+    assert.equal(read.roll, 17);
+    assert.equal(read.outcome, "success");
+  });
+
+  it("refuses a save whose outcome disagrees with its own face", () => {
+    assert.equal(
+      readActivity(entry("death_save", { roll: 3, outcome: "success" })),
+      null,
+    );
+
+    assert.equal(
+      readActivity(entry("death_save", { roll: 20, outcome: "success" })),
+      null,
+    );
+  });
+
+  it("refuses a face no d20 has", () => {
+    for (const roll of [0, 21, null]) {
+      assert.equal(
+        readActivity(entry("death_save", { roll, outcome: "success" })),
+        null,
+      );
+    }
+  });
+
+  it("reads the end, and the way back from it", () => {
+    assert.equal(
+      readActivity(entry("character_died", { targetName: "Frieren" })).target,
+      "Frieren",
+    );
+
+    assert.equal(
+      readActivity(entry("character_revived", { targetName: "Frieren" }))
+        .target,
+      "Frieren",
+    );
+  });
+
+  it("refuses a revival with nobody at the other end of it", () => {
+    assert.equal(readActivity(entry("character_revived", {})), null);
   });
 });
