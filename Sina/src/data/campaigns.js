@@ -213,7 +213,7 @@ export async function removeCampaignMap(supabase, path) {
 /** `campaign_id` stays out: every read is already scoped to one campaign. */
 const MAP_COLUMNS =
   "id, name, url, is_world_map, sort_order, grid_enabled, grid_size, " +
-  "grid_luminance, created_at";
+  "grid_luminance, fog_enabled, fog_mask_url, created_at";
 
 /**
  * Every map this campaign keeps, world map first.
@@ -551,75 +551,6 @@ export async function deleteCampaignNote(supabase, { id, campaignId }) {
   }
 
   return { data, error: null };
-}
-
-/**
- * Every mark on this campaign's map. One per seat, so a full table is seven
- * rows at the outside — no order, no limit, nothing worth paginating.
- *
- * A plain select rather than an RPC, unlike `campaign_party` above, because
- * there is no column here to withhold: a campaign, a character and a point are
- * all already on the board. The SELECT policy answers for the whole party.
- */
-export async function listCampaignMarks(supabase, campaignId) {
-  const { data, error } = await supabase
-    .from("campaign_marks")
-    .select("character_id, map_id, x, y, hex_q, hex_r, placed_at")
-    .eq("campaign_id", campaignId);
-
-  return error ? failure(error) : { data: data ?? [], error: null };
-}
-
-/**
- * One seat's mark, moved to a new point or placed for the first time. A null
- * `characterId` is the Dungeon Master's chair, as everywhere at this table.
- *
- * `false` is a refusal, not a failure: the function writes nothing for a caller
- * who is not in that chair, which reads here as `not_found` — the same answer a
- * character who has left the party gives.
- */
-export async function placeCampaignMark(
-  supabase,
-  { campaignId, characterId, mapId, x, y, q, r },
-) {
-  const { data, error } = await supabase.rpc("place_campaign_mark", {
-    target_campaign: campaignId,
-    target_character: characterId,
-    target_map: mapId ?? null,
-    mark_x: x,
-    mark_y: y,
-    // Null for a map with no grid: the point is where the token IS, and the
-    // cell is which square it is standing in. A board with no squares has none.
-    cell_q: Number.isInteger(q) ? q : null,
-    cell_r: Number.isInteger(r) ? r : null,
-  });
-
-  if (error) {
-    return failure(error);
-  }
-
-  return data
-    ? { data: { characterId, mapId: mapId ?? null, x, y }, error: null }
-    : { data: null, error: { reason: "not_found", detail: null } };
-}
-
-export async function clearCampaignMark(
-  supabase,
-  { campaignId, characterId, mapId },
-) {
-  const { data, error } = await supabase.rpc("clear_campaign_mark", {
-    target_campaign: campaignId,
-    target_character: characterId,
-    target_map: mapId ?? null,
-  });
-
-  if (error) {
-    return failure(error);
-  }
-
-  return data
-    ? { data: { characterId, mapId: mapId ?? null }, error: null }
-    : { data: null, error: { reason: "not_found", detail: null } };
 }
 
 /**

@@ -15,6 +15,13 @@ import { useTableMaps } from "./table-maps";
  * locally and the RELEASE writes — `onPointerUp` for a pointer, `onKeyUp` for
  * the arrow keys, which would otherwise never commit. The toggle does both at
  * once, a press being its own release.
+ *
+ * ONLY THE INK IS THE GRID'S. Size used to be locked with it, and that stopped
+ * being right when a piece took its size from the cell whether or not the cell
+ * is drawn — see the `cell` prop in table-map.jsx. The number is what the map
+ * IS; the toggle only decides whether you can see it. Ink stays behind the
+ * toggle because ink is the colour of a line, and with no lines there is
+ * nothing for it to be.
  */
 
 /** Short of the column's ceiling: past this a hex outgrows most maps. */
@@ -51,13 +58,7 @@ export default function GridRibbon() {
         Hex grid
       </button>
 
-      {/* Dimmed rather than removed: a ribbon that changed height when it was
-          switched on would move the whole shelf under it. */}
-      <div
-        className={`flex min-w-0 flex-1 flex-wrap items-center gap-4 transition-opacity duration-300 ${
-          grid.enabled ? "opacity-100" : "pointer-events-none opacity-40"
-        }`}
-      >
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4">
         <label className="flex min-w-40 flex-1 items-center gap-2">
           <span className="shrink-0 font-mono text-[10px] tracking-[0.16em] text-ink/50 uppercase">
             Size
@@ -69,13 +70,13 @@ export default function GridRibbon() {
             max={MAX_SLIDER_SIZE}
             step={1}
             value={grid.size}
-            disabled={!grid.enabled}
             onChange={(event) =>
               ruleGrid({ grid_size: Number(event.target.value) })
             }
             onPointerUp={settle}
             onKeyUp={settle}
-            aria-label="Hex size"
+            // What it sizes is the cell AND the pieces standing in one.
+            aria-label="Hex and token size"
             className="range-gold min-w-0 flex-1"
           />
 
@@ -84,7 +85,13 @@ export default function GridRibbon() {
           </span>
         </label>
 
-        <label className="flex min-w-40 flex-1 items-center gap-2">
+        {/* Dimmed rather than removed: a ribbon that changed height when it was
+            switched on would move the whole shelf under it. */}
+        <label
+          className={`flex min-w-40 flex-1 items-center gap-2 transition-opacity duration-300 ${
+            grid.enabled ? "opacity-100" : "pointer-events-none opacity-40"
+          }`}
+        >
           <span className="shrink-0 font-mono text-[10px] tracking-[0.16em] text-ink/50 uppercase">
             Ink
           </span>

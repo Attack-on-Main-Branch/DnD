@@ -10,8 +10,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { markKey } from "sina/rules/campaign";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
+import { readCombat } from "sina/rules/combat";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
 import { parseArmorClass, readDeathSaves } from "sina/rules/death";
@@ -19,6 +19,7 @@ import { readConditions } from "sina/rules/conditions";
 import { readFeatures } from "sina/rules/features";
 import { parseInspiration, steppedInspiration } from "sina/rules/inspiration";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
+import { readPlacedTokens } from "sina/rules/tokens";
 import { steppedXp } from "sina/rules/xp";
 
 /**
@@ -103,26 +104,17 @@ function byContainer(rows) {
 }
 
 /**
- * Where every token stands, by the seat that owns it. A Map, because `null` is a
- * real key here — the head of the table's own chair.
+ * Every piece on every map, by its own id. A Map rather than a list: a drag
+ * moves one of them thirty times a second, and rebuilding an array each time is
+ * a fresh reference for everything watching the board.
+ *
+ * KEYED ON THE ROW AND NOT ON THE SEAT, which is what the marks were. A map can
+ * carry nine copies of one invented piece, so nothing shorter than the row's own
+ * id can tell them apart. Read through the rules layer, which drops anything
+ * that does not hold together — see readPlacedToken.
  */
-function readMarks(rows) {
-  return new Map(
-    (rows ?? []).map((mark) => [
-      // A seat has a token on every map it has stood on, so the seat alone is
-      // no longer the key — see `markKey`, which the unique index in
-      // 20260921090000 spells out the same way.
-      markKey(mark.map_id, mark.character_id),
-      {
-        characterId: mark.character_id,
-        mapId: mark.map_id ?? null,
-        x: mark.x,
-        y: mark.y,
-        q: mark.hex_q,
-        r: mark.hex_r,
-      },
-    ]),
-  );
+function readTokens(rows) {
+  return new Map(readPlacedTokens(rows).map((token) => [token.id, token]));
 }
 
 /**
@@ -132,7 +124,9 @@ function readMarks(rows) {
 function readSeed({
   members,
   activity,
-  marks,
+  combat,
+  tokens,
+  templates,
   inventory,
   spells,
   purses,
@@ -208,7 +202,13 @@ function readSeed({
       })),
     ),
     log: readLog(activity ?? [], new Map(), new Set()),
-    marks: readMarks(marks),
+    /* One object: every chair reads all three together. */
+    combat: readCombat(combat),
+    tokens: readTokens(tokens),
+    /* The hand the pieces are drawn from. Held beside the board rather than
+       derived from it: a placement names a template id and nothing else, so
+       without the list there is no picture to put on it. */
+    templates: templates ?? [],
     packs: byCharacter(members, inventory),
     books: byCharacter(members, spells),
     purses: wallets,
@@ -791,24 +791,91 @@ function createTableStore(seed) {
     },
 
     /* ---------------------------------------------------------------------
+     * The fight.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Replaced whole rather than patched: that is how it arrives, one row or one
+     * message, both through `readCombat`.
+     *
+     * COMPARED BEFORE IT IS COMMITTED. A `campaigns` doorbell rings for every
+     * column on that row, and re-reading it must not re-render every card
+     * watching the turn.
+     */
+    setCombat(next) {
+      const asked = readCombat(next);
+      const standing = state.combat;
+
+      if (
+        standing.inCombat === asked.inCombat &&
+        standing.activeTokenId === asked.activeTokenId &&
+        standing.round === asked.round
+      ) {
+        return;
+      }
+
+      commit({ ...state, combat: asked });
+    },
+
+    /* ---------------------------------------------------------------------
      * The board.
      * ------------------------------------------------------------------ */
 
     /**
-     * A token put down, moved, or lifted — `null` for the last of those. A seat
-     * has one mark, so placing and moving are the same line. Whether it may be
-     * DRAWN is use-table-marks.js's question, out of the faces the server sent.
+     * A piece put down, moved, hidden, killed or lifted — `null` for the last of
+     * those. Placing and moving are one line because the key is the row.
+     *
+     * Whether it may be DRAWN is use-map-tokens.js's question, out of the faces
+     * and the hand the server sent.
      */
-    setMark(characterId, point) {
-      const marks = new Map(state.marks);
-
-      if (point) {
-        marks.set(characterId, point);
-      } else if (!marks.delete(characterId)) {
+    setToken(id, token) {
+      if (!id) {
         return;
       }
 
-      commit({ ...state, marks });
+      const tokens = new Map(state.tokens);
+
+      if (token) {
+        tokens.set(id, token);
+      } else if (!tokens.delete(id)) {
+        return;
+      }
+
+      commit({ ...state, tokens });
+    },
+
+    /**
+     * A piece the database has now named, replacing the one drawn under the
+     * pointer. Two writes for one placement would draw it twice for a frame —
+     * which is why this is a swap rather than a set and a delete.
+     */
+    settleToken(pendingId, token) {
+      const tokens = new Map(state.tokens);
+
+      tokens.delete(pendingId);
+
+      if (token) {
+        tokens.set(token.id, token);
+      }
+
+      commit({ ...state, tokens });
+    },
+
+    /** Every piece off one map: what ruling a free-form board does. */
+    sweepTokens(mapId) {
+      const tokens = new Map(state.tokens);
+      let swept = false;
+
+      for (const [id, token] of tokens) {
+        if (token.mapId === mapId) {
+          tokens.delete(id);
+          swept = true;
+        }
+      }
+
+      if (swept) {
+        commit({ ...state, tokens });
+      }
     },
 
     /* ---------------------------------------------------------------------
@@ -1108,10 +1175,30 @@ function createTableStore(seed) {
         };
       }
 
+      /* Compared rather than assigned — see `setCombat`. */
+      if (slices.combat) {
+        const asked = readCombat(slices.combat);
+
+        if (
+          next.combat.inCombat !== asked.inCombat ||
+          next.combat.activeTokenId !== asked.activeTokenId ||
+          next.combat.round !== asked.round
+        ) {
+          next = { ...next, combat: asked };
+        }
+      }
+
       // The whole board, because a row list is also how an absence arrives: a
-      // token lifted is a row that is no longer in it.
-      if (slices.marks) {
-        next = { ...next, marks: readMarks(slices.marks) };
+      // piece lifted — or hidden from this chair — is a row that is no longer
+      // in it.
+      if (slices.tokens) {
+        next = { ...next, tokens: readTokens(slices.tokens) };
+      }
+
+      // Beside the board, always: a piece invented since this page rendered is
+      // one a placement would otherwise name with no picture to draw.
+      if (slices.templates) {
+        next = { ...next, templates: slices.templates };
       }
 
       if (slices.party) {
@@ -1388,8 +1475,61 @@ export function useActivityEntries() {
   return useTableValue(selectActivity);
 }
 
-export function useMarkPoints() {
-  return useTableValue(selectMarks);
+/** Every piece on every map, by row id. See `readTokens`. */
+export function usePlacedTokens() {
+  return useTableValue(selectTokens);
+}
+
+/** Whether the party is fighting, whose turn it is, and which round. */
+export function useCombatState() {
+  return useTableValue(selectCombat);
+}
+
+/**
+ * A BOOLEAN and not the cursor, which is the point: six cards subscribing to the
+ * turn would each re-render on every step, and this way five read `false` before
+ * and after and do not.
+ *
+ * The cursor names a ROW, so a character with no piece on the picture that is on
+ * the table cannot have the turn — they are standing somewhere else.
+ */
+export function useIsActiveTurn(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => {
+        const { inCombat, activeTokenId } = state.combat;
+
+        if (!inCombat || !activeTokenId || !characterId) {
+          return false;
+        }
+
+        return state.tokens.get(activeTokenId)?.characterId === characterId;
+      },
+      [characterId],
+    ),
+  );
+}
+
+/** The hand a Dungeon Master invented, which the palette deals and the board
+    draws from. */
+export function useTokenTemplates() {
+  return useTableValue(selectTemplates);
+}
+
+/**
+ * Who is dead and what everybody is under, for the BOARD — which draws six
+ * faces at once and cannot call a per-character hook in a loop.
+ *
+ * A character's token wears their card's state and keeps none of its own: one
+ * character is one fact, whether it is read off the rail or off the map. See
+ * use-map-tokens.js.
+ */
+export function useAllDead() {
+  return useTableValue(selectDead);
+}
+
+export function useAllConditions() {
+  return useTableValue(selectAllConditions);
 }
 
 /**
@@ -1423,7 +1563,11 @@ export function useChestItems() {
 }
 
 const selectActivity = (state) => state.log.shown;
-const selectMarks = (state) => state.marks;
+const selectCombat = (state) => state.combat;
+const selectTokens = (state) => state.tokens;
+const selectTemplates = (state) => state.templates;
+const selectDead = (state) => state.dead;
+const selectAllConditions = (state) => state.conditions;
 const selectLevels = (state) => state.levels;
 const selectPacks = (state) => state.packs;
 const selectPurses = (state) => state.purses;

@@ -5,6 +5,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
 import { MAP_HEIGHT_CLASS, MAP_MAX_WIDTH_CLASS } from "./map-height";
 import TableMap from "./table-map";
+import { useCombatState } from "./table-state";
 import { useTableMaps } from "./table-maps";
 
 /**
@@ -53,6 +54,7 @@ export default function MapStage({
   children,
 }) {
   const { activeUrl } = useTableMaps();
+  const { inCombat } = useCombatState();
 
   const url = activeUrl ?? served;
 
@@ -89,11 +91,19 @@ export default function MapStage({
       className={`relative w-fit min-w-0 ${MAP_MAX_WIDTH_CLASS}`}
     >
       {/* No `glow`: the rim would light under the pointer, which promises a
-          control where there is only a picture. */}
+          control where there is only a picture.
+
+          THE MAT IS WHAT SAYS THE PARTY IS FIGHTING. Utilities rather than a
+          `.lit-*` class — these have to OUTRANK `.glass`'s own border and
+          shadow, which is the way round `.lit-cast` in globals.css warns of. */}
       <span
         aria-hidden="true"
         className={surfaceClasses({
-          className: `pointer-events-none absolute -inset-6 rounded-[2.25rem] ${FRAME_CLASSES}`,
+          className: `pointer-events-none absolute -inset-6 rounded-[2.25rem] transition-[border-color,box-shadow] duration-300 ${FRAME_CLASSES} ${
+            inCombat
+              ? "border-2 border-rose-600 shadow-[0_0_20px_rgba(225,29,72,0.8),inset_0_0_15px_rgba(225,29,72,0.3)]"
+              : ""
+          }`,
         })}
         style={FRAME_DELAY}
       />

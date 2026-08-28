@@ -8,6 +8,7 @@ import { updateCampaign } from "@/app/actions/campaigns";
 import Button, { buttonClasses } from "@/app/components/ui/button";
 import {
   CHOICE_CARD_FOCUS_CLASSES,
+  PROSE_FIELD_HEIGHT_CLASS,
   INVALID_BORDER_CLASSES,
   LABEL_CLASSES,
 } from "@/app/components/ui/field-styles";
@@ -16,7 +17,7 @@ import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 import TextAreaField from "@/app/components/ui/textarea-field";
 import TextField from "@/app/components/ui/text-field";
 import { useFormAction } from "@/app/components/use-form-action";
-import { compressImage, MAX_EDGE } from "@/lib/image-compression";
+import { compressMap, MAX_EDGE } from "@/lib/image-compression";
 
 import {
   formatBytes,
@@ -299,7 +300,11 @@ function MapField({
     onBusyChange(true);
 
     try {
-      const result = await compressImage(file);
+      /* THE CAP GOES IN, and this line is the fix for a real regression: it
+         called `compressImage` bare, so when the ceiling rose from 2560 to 4096
+         this one zone kept encoding once and refused maps every other zone
+         accepted. See `compressToFit`. */
+      const result = await compressMap(file, MAX_MAP_BYTES);
 
       // A newer pick started while this one was encoding; it owns the field.
       if (run !== runId.current) {
@@ -386,7 +391,10 @@ function MapField({
         // to the base `cursor-pointer` on emit order. `has-focus-visible`
         // rather than `focus-within`, or clicking the label lights the zone up
         // for a mouse user.
-        className={`flex flex-col items-center gap-3 rounded-lg border border-dashed p-6 text-center transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
+        /* `justify-center` and a floor on the height: the zone stands as tall
+           as the world lore field above it, and what is written in it sits in
+           the middle rather than against the top edge. */
+        className={`flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-6 text-center transition duration-300 ${PROSE_FIELD_HEIGHT_CLASS} ${CHOICE_CARD_FOCUS_CLASSES} ${
           disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         } ${zone}`}
         aria-invalid={invalid || undefined}

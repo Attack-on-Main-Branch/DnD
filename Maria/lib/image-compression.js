@@ -15,8 +15,17 @@
  */
 export const MAX_EDGE = 4096;
 
-/** Where a map that would not fit under its byte cap is tried again. */
-const FALLBACK_EDGE = 2560;
+/**
+ * Where a picture that would not fit under its byte cap is tried again: five
+ * eighths of its own ceiling.
+ *
+ * A RATIO AND NOT A LENGTH, so every kind of picture gets the retry rather than
+ * only the one it was written for. Five eighths of a map's 4096 is the 2560 this
+ * was a hard-coded constant for, and the reason for that number is measured: a
+ * 6000px hand-drawn map re-encodes to something over `MAX_MAP_BYTES` at 4096 and
+ * comfortably under it at 2560.
+ */
+const FALLBACK_RATIO = 0.625;
 
 /**
  * The same, for a portrait. Small because of where one is looked at: the
@@ -37,36 +46,54 @@ export const AVATAR_EDGE = 512;
 export const QUALITY = 0.9;
 
 /**
- * A portrait, at the size a face is worth storing. Same encoder, same "keep
- * whichever is smaller" bargain — see `compressImage` below.
- */
-export function compressAvatar(file) {
-  return compressImage(file, { maxEdge: AVATAR_EDGE });
-}
-
-/**
- * A map, at the largest edge worth keeping — and at a smaller one if that did
- * not fit.
+ * A picture re-encoded to fit under a byte cap: at its own ceiling first, and at
+ * `FALLBACK_RATIO` of it if that did not fit.
  *
- * The ceiling and the byte cap are two different promises, and only the second
- * is enforced by anything: a 6000px hand-drawn map re-encodes to something over
- * `MAX_MAP_BYTES` at 4096 and comfortably under it at 2560. Reporting that as a
- * refusal would be telling a Dungeon Master their map is too big when what is
- * actually true is that this page did not try hard enough.
+ * THE CEILING AND THE CAP ARE TWO DIFFERENT PROMISES, and only the second is
+ * enforced by anything. Reporting a miss as a refusal would be telling somebody
+ * their picture is too big when what is actually true is that this page did not
+ * try hard enough — which is exactly what happened to the campaign sheet the day
+ * `MAX_EDGE` went from 2560 to 4096 and that one caller kept encoding once. A
+ * 26MB map that used to arrive at 1.8MB started arriving at 4.7MB and being
+ * refused for it.
  *
- * One retry and no more. A file still over the cap at 2560 is one there is
- * genuinely nothing to be done about from here, and the caller says so.
+ * SO EVERY KIND OF PICTURE GOES THROUGH HERE, and the three below are the same
+ * routine with their own ceiling. A caller that passes no cap gets one pass, as
+ * before.
+ *
+ * One retry and no more: a file still over its cap at five eighths is one there
+ * is genuinely nothing to be done about from here, and the caller says so.
  */
-export async function compressMap(file, byteCap) {
-  const full = await compressImage(file);
+async function compressToFit(file, maxEdge, byteCap) {
+  const full = await compressImage(file, { maxEdge });
 
   if (full.decodable === false || !byteCap || full.file.size <= byteCap) {
     return full;
   }
 
-  const smaller = await compressImage(file, { maxEdge: FALLBACK_EDGE });
+  const smaller = await compressImage(file, {
+    maxEdge: Math.round(maxEdge * FALLBACK_RATIO),
+  });
 
   return smaller.file.size < full.file.size ? smaller : full;
+}
+
+/** A map, at the largest edge worth keeping. */
+export function compressMap(file, byteCap) {
+  return compressToFit(file, MAX_EDGE, byteCap);
+}
+
+/** A portrait, at the size a face is worth storing. */
+export function compressAvatar(file, byteCap) {
+  return compressToFit(file, AVATAR_EDGE, byteCap);
+}
+
+/**
+ * A piece on the board, at the size one is ever drawn: a token covers a single
+ * hexagon, which is never wider than a portrait's own ceiling.
+ */
+export function compressToken(file, byteCap) {
+  return compressToFit(file, AVATAR_EDGE, byteCap);
 }
 
 /**

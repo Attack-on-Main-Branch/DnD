@@ -5,6 +5,7 @@ import { MAX_CAMPAIGN_CONTAINERS, readContainers } from "sina/rules/containers";
 import { MAX_CAMPAIGN_ITEMS } from "sina/rules/inventory";
 import { MAX_CHARACTER_FEATURES } from "sina/rules/features";
 import { MAX_CAMPAIGN_SPELLS } from "sina/rules/spells";
+import { MAX_CAMPAIGN_TOKENS } from "sina/rules/tokens";
 
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 import {
@@ -20,6 +21,7 @@ import {
   rowItem,
 } from "@/app/dashboard/inventory-presentation";
 import { removeCharacterFeature } from "@/app/actions/features";
+import { strikeCampaignToken } from "@/app/actions/campaign-tokens";
 import FeatureGrid from "@/app/dashboard/feature-grid";
 import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
 import {
@@ -35,6 +37,7 @@ import ItemForm from "./item-form";
 import { strikeCampaignItem } from "./item-actions";
 import SpellForm from "./spell-form";
 import { strikeCampaignSpell } from "./spell-actions";
+import TokenForm from "./token-form";
 
 /**
  * Where homebrew is invented, all three kinds of it. Written here rather than
@@ -55,6 +58,7 @@ const KINDS = [
   { value: "spell", label: "Spell" },
   { value: "container", label: "Container" },
   { value: "feature", label: "Feature" },
+  { value: "token", label: "Token" },
 ];
 
 /** What the counter over each form says, and what the list under it is called. */
@@ -67,6 +71,9 @@ const WRITTEN = {
      party of six may hold six times this between them. */
   feature: (counts) =>
     `${counts.feature} granted · ${MAX_CHARACTER_FEATURES} a character`,
+  /* Slots rather than a count, because five is few enough to be worth watching
+     fill: a piece is a picture in a bucket, not a line in a catalogue. */
+  token: (counts) => `${counts.token} / ${MAX_CAMPAIGN_TOKENS} tokens created`,
 };
 
 const LIST_TITLES = {
@@ -74,6 +81,7 @@ const LIST_TITLES = {
   spell: "Your spells",
   container: "Your containers",
   feature: "Your features",
+  token: "Your tokens",
 };
 
 export default function CreatePanel({
@@ -84,6 +92,7 @@ export default function CreatePanel({
   containers,
   containerItems,
   features,
+  tokens,
 }) {
   const [kind, setKind] = useState("item");
   const [error, setError] = useState(null);
@@ -134,6 +143,7 @@ export default function CreatePanel({
     spell: spells.length,
     container: shelf.length,
     feature: granted.length,
+    token: tokens.length,
   };
 
   function written(feature, refusal) {
@@ -245,6 +255,14 @@ export default function CreatePanel({
             key="feature"
             members={members}
             onWritten={written}
+          />
+        )}
+
+        {kind === "token" && (
+          <TokenForm
+            key="token"
+            campaignId={campaignId}
+            written={counts.token}
           />
         )}
       </section>
@@ -366,6 +384,28 @@ export default function CreatePanel({
             </div>
           ))}
 
+        {kind === "token" &&
+          (tokens.length === 0 ? (
+            <div className="mt-3">
+              <EmptyPack
+                title="Nothing in your hand"
+                description="Pieces you draw here are dealt from the palette at the table — as many copies of each as the encounter needs."
+              />
+            </div>
+          ) : (
+            <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {tokens.map((token) => (
+                <li key={token.id} className="flex">
+                  <TokenEntry
+                    token={token}
+                    disabled={isPending}
+                    onStrike={() => strike(strikeCampaignToken, token.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
+
         {error && (
           <p role="alert" className="mt-3 text-xs text-red-300">
             {error}
@@ -461,6 +501,43 @@ function ContainerEntry({ container, members, inside, disabled, onStrike }) {
           onClick={onStrike}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * A piece in the hand: the picture as the board will draw it, and its name.
+ *
+ * Round and full-bleed, because that is what it becomes — a square thumbnail
+ * here would promise a crop the map never makes. The `<img>` is plain for the
+ * reason avatar.jsx gives: the source is a Supabase public URL whose host is an
+ * environment variable.
+ */
+function TokenEntry({ token, disabled, onStrike }) {
+  return (
+    <div
+      className={`flex h-full w-full items-center gap-3.5 rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES}`}
+    >
+      <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-surface ring-2 ring-white/20">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={token.image_url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+        />
+      </span>
+
+      <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
+        {token.name}
+      </p>
+
+      <StrikeButton
+        label={`Remove ${token.name}`}
+        disabled={disabled}
+        onClick={onStrike}
+      />
     </div>
   );
 }

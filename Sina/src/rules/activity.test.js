@@ -53,12 +53,43 @@ describe("the catalogue", () => {
       "character_revived",
       "condition_applied",
       "condition_removed",
+      "combat_started",
+      "combat_ended",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
 
   it("holds the ceiling the purge trigger keeps", () => {
     assert.equal(MAX_ACTIVITY_ENTRIES, 10);
+  });
+});
+
+describe("readActivity, on a fight", () => {
+  const called = row({
+    actor_character: null,
+    actor_name: "Dungeon Master",
+    actor_type: "dm",
+    action_type: "combat_started",
+    payload: {},
+  });
+
+  it("reads both, neither carrying anything but that it happened", () => {
+    assert.deepEqual(readActivity(called), {
+      id: called.id,
+      action: "combat_started",
+      actor: "Dungeon Master",
+      seat: null,
+      head: true,
+    });
+
+    assert.equal(
+      readActivity(row({ ...called, action_type: "combat_ended" })).action,
+      "combat_ended",
+    );
+  });
+
+  it("still wants a payload object, as every row does", () => {
+    assert.equal(readActivity({ ...called, payload: null }), null);
   });
 });
 

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
-import { useRailMarks } from "./rail-marks";
+import { TRAY_WIDTH, useRailMarks } from "./rail-marks";
 
 /**
  * One mark on the rail, and the panel it opens: the drawing stays in the column,
@@ -23,8 +23,8 @@ export default function RailTray({
   title,
   meta,
   dialogLabel,
-  /* How wide the shared box stands while THIS tray owns it. Undefined leaves
-     the rail's own default — see rail-marks.jsx. */
+  /* How wide the shared box stands while THIS tray owns it, as a CSS length.
+     Undefined leaves the rail's own default — see rail-marks.jsx. */
   width,
   children,
 }) {
@@ -110,11 +110,22 @@ export default function RailTray({
           towards. */}
       {body &&
         createPortal(
-          <div className="tab-shell" data-state={isOpen ? "open" : "collapsed"}>
+          /* `tab-shell-across`: these hang off the SIDE of the board and go
+             back the way they came — see globals.css. The marks above the map
+             use the same shell folding the other way. */
+          <div
+            className="tab-shell tab-shell-across"
+            data-state={isOpen ? "open" : "collapsed"}
+          >
             <div className="tab-clip">
               <div
                 ref={panelRef}
                 id={panelId}
+                /* ITS OWN WIDTH, and not the fold's. These trays close along
+                   the inline axis, so a panel sized by the collapsing track
+                   would re-wrap every line of text on the way out instead of
+                   being cut. See `.tab-shell-across` in globals.css. */
+                style={{ width: width ?? TRAY_WIDTH }}
                 role="dialog"
                 aria-label={dialogLabel}
                 tabIndex={-1}

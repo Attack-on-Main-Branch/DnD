@@ -16,6 +16,31 @@
  */
 export const CHANGELOG = [
   {
+    version: "0.18.0",
+    date: "2026-08-28",
+    title: "Roll for initiative, and a light to carry into the dark",
+    changes: [
+      "Combat, called from a new mark at the top of the Dungeon Master’s rail. It opens an initiative ladder above the activity log, and the log keeps the half it had.",
+      "The ladder is one order read down the middle: the party down the left, whatever the table invented down the right, each on the rung its number puts it on. Type a number beside any piece standing on the board.",
+      "Start combat, then Next turn walks the order and counts the rounds. Off the bottom is the top again.",
+      "Whose turn it is glows amber — on the rung, and around that character’s portrait on the party rail. Every chair sees it, not the Dungeon Master alone.",
+      "The frame around the board burns red while a fight is running, and the log says when one begins and ends.",
+      "Fog of war. Every map is pitch black to the party until somebody opens it, and only the Dungeon Master can.",
+      "Reveal and Hide are brushes, with a width beside them. Paint on the board and the party sees it once both brushes are put down — never mid-stroke.",
+      "The Dungeon Master sees through their own fog, so there is something to aim a brush at.",
+      "The party’s marker is a gold pin now rather than a lettered disc, and it appears on the world map under the world lore as well as on the board — so a player can check where the party is without taking the fight off the table.",
+      "Gnome, Half-Orc and Halfling have their artwork. All nine races have one now.",
+      "A campaign can invent five pieces of its own — a picture and a name each, made on the campaign sheet — and the Dungeon Master deals them onto any battle map from the rail. As many copies as the encounter needs; a coloured rim tells them apart.",
+      "Right-click a piece on the board for what can be done to it: put it out of sight, strike it down, say what it is suffering, or take it off. A press that goes nowhere no longer lifts one.",
+      "A hidden piece is the Dungeon Master’s alone. It is not sent to a player’s browser at all, so there is nothing faint on their board to give the surprise away.",
+      "A character’s piece wears their card. Kill them anywhere and the rail and the board say it in the same breath.",
+    ],
+    fixes: [
+      "The trays on the rail beside the board no longer spill their contents over the map while opening and closing.",
+      "An armour class set by hand follows the sheet again. Raising Dexterity used to move it only until somebody typed a number over it, and then never again.",
+    ],
+  },
+  {
     version: "0.17.0",
     date: "2026-08-27",
     title: "A face, a shelf of maps, and a grid to stand on",

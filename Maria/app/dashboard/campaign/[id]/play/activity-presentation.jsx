@@ -98,6 +98,11 @@ const ACCENTS = {
      catalogue has lost. */
   condition_applied: "border-l-slate-400",
   condition_removed: "border-l-slate-600",
+
+  /* Brighter than `character_died`'s deep rose on purpose: that line is quiet
+     because it was coming, and this is the red the frame has just put on. */
+  combat_started: "border-l-rose-500",
+  combat_ended: "border-l-emerald-600",
 };
 
 /**
@@ -387,6 +392,28 @@ function Body({ entry }) {
 
   if (entry.action === "character_died") {
     return <>succumbed to their wounds and died!</>;
+  }
+
+  /* Both open on "Dungeon Master", the only chair that can have written
+     either. */
+  if (entry.action === "combat_started") {
+    return (
+      <>
+        called for{" "}
+        <span className="font-semibold text-rose-300">initiative</span> — the
+        fight begins!
+      </>
+    );
+  }
+
+  if (entry.action === "combat_ended") {
+    return (
+      <>
+        called the fight —{" "}
+        <span className="font-semibold text-emerald-300">combat has ended</span>
+        .
+      </>
+    );
   }
 
   /* The condition in its own colour, and the target named either way — a

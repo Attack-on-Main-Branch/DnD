@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   CHOICE_CARD_FOCUS_CLASSES,
+  PROSE_FIELD_HEIGHT_CLASS,
   controlClasses,
   INVALID_BORDER_CLASSES,
   LABEL_CLASSES,
@@ -161,11 +162,14 @@ export default function MapSlots({
               key={slot.key}
               className={`flex gap-3 rounded-lg border p-2 ${NESTED_CARD_CLASSES}`}
             >
+              {/* THE PICTURE IS WHAT THE ROW IS FOR. A name can be read at a
+                  glance and a map cannot, so the thumbnail takes the space the
+                  name field was holding — see the field's own half-width. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={slot.url}
                 alt=""
-                className="h-14 w-20 shrink-0 rounded-md border border-gold/15 object-cover"
+                className="h-20 w-28 shrink-0 rounded-md border border-gold/15 object-cover"
               />
 
               <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -190,9 +194,24 @@ export default function MapSlots({
                 onClick={() => drop(slot.key)}
                 disabled={disabled}
                 aria-label={`Remove ${slot.name || DEFAULT_MAP_NAME}`}
-                className="size-6 shrink-0 cursor-pointer self-start rounded-full border border-gold/25 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                /* `grid place-items-center` and a DRAWN cross. It was the `×`
+                   character sitting on a baseline in a box with no centring at
+                   all, which put it high and to the left of the circle; a glyph
+                   is also as big as its font says and no bigger. Two strokes in
+                   a viewBox are centred by construction and sized on their own. */
+                className="grid size-6 shrink-0 cursor-pointer place-items-center self-start rounded-full border border-gold/25 text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                ×
+                <svg
+                  viewBox="0 0 10 10"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  className="size-3.5"
+                >
+                  <path d="M1 1 9 9M9 1 1 9" />
+                </svg>
               </button>
 
               {/* A stored slot names itself; a new one carries its file. */}
@@ -228,7 +247,9 @@ export default function MapSlots({
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`flex flex-col items-center gap-1 rounded-lg border border-dashed p-4 text-center transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
+        /* The world map's zone above, to the pixel: same height, same padding,
+           same centring — the two are one control read twice. */
+        className={`flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-6 text-center transition duration-300 ${PROSE_FIELD_HEIGHT_CLASS} ${CHOICE_CARD_FOCUS_CLASSES} ${
           disabled || full ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         } ${zone}`}
       >
@@ -242,7 +263,7 @@ export default function MapSlots({
           className="sr-only"
         />
 
-        <span className="font-display text-sm font-semibold tracking-wide text-ink">
+        <span className="font-display text-base font-semibold tracking-wide text-ink">
           {busy > 0
             ? "Compressing…"
             : full

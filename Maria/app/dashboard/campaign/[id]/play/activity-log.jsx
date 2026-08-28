@@ -16,16 +16,6 @@ import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
 
 /**
- * As tall as the dice rail down the other side of the board, so the two
- * straddle it at a matching height whatever the map turns out to be.
- *
- * A literal, and a flat one: the rail's height is its seven glyphs, its rule
- * and its veil switch stacked up, which no expression here can derive — and a
- * class assembled from a template is one Tailwind's scanner never sees.
- */
-const LOG_HEIGHT_CLASS = "h-[518px]";
-
-/**
  * The last ten things this table has seen, newest at the top, standing opposite
  * the dice rail at the same height.
  *
@@ -60,8 +50,15 @@ const LOG_HEIGHT_CLASS = "h-[518px]";
  *
  * NOT `memo` — see table-map.jsx. A remount replayed the entrance on every
  * refresh, as though ten things had just happened.
+ *
+ * Where it stands and how tall it is are the COLUMN's — see
+ * activity-column.jsx. This is the log and knows nothing about a fight.
  */
-export default function ActivityLog({ campaignId, faces = [] }) {
+export default function ActivityLog({
+  campaignId,
+  faces = [],
+  className = "",
+}) {
   const entries = useActivityEntries();
   const { resync } = useTableDeed(campaignId);
 
@@ -96,11 +93,8 @@ export default function ActivityLog({ campaignId, faces = [] }) {
       data-fold
       aria-label="Activity log"
       style={logEntrance()}
-      /* `hidden lg:flex`, exactly as the balancing column it replaces was:
-         below that width the table is one stack, and a panel the height of the
-         board would stand between the reader and the board itself. */
       className={surfaceClasses({
-        className: `hidden w-full flex-col overflow-hidden rounded-2xl lg:flex ${LOG_HEIGHT_CLASS} ${LOG_CLASSES}`,
+        className: `flex w-full flex-col overflow-hidden rounded-2xl ${LOG_CLASSES} ${className}`,
       })}
     >
       {/* One element child, which is what panel-fold.js fades before it folds

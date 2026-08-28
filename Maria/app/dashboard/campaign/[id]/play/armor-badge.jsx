@@ -39,6 +39,10 @@ import { useTableDeed } from "./use-table-deed";
  *
  * ITS NUMBERS ARE THE RING'S, and level-armor.jsx is where they are held to.
  * Move one and the other file moves with it.
+ *
+ * THE FIGURE SITS 21px DOWN AND NOT 23. The shield tapers to a point, so its
+ * optical centre is above its geometric one — a number centred by measurement
+ * reads as sitting low in it.
  */
 const SHIELD_FILL = "#082f49";
 const SHIELD_LINE = "#38bdf8";
@@ -152,7 +156,7 @@ export default function ArmorBadge({ campaignId, characterId, name, canEdit }) {
             }
           }}
           aria-label={`${name} armour class`}
-          className="no-spin absolute inset-x-1 top-[23px] z-10 h-4 border-none bg-transparent p-0 text-center font-display text-[12px] leading-none font-bold text-sky-200 shadow-none tabular-nums outline-none"
+          className="no-spin absolute inset-x-1 top-[21px] z-10 h-4 border-none bg-transparent p-0 text-center font-display text-[12px] leading-none font-bold text-sky-200 shadow-none tabular-nums outline-none"
         />
       ) : (
         /* Somebody else's card: a figure, and the sentence that says what it
@@ -160,7 +164,7 @@ export default function ArmorBadge({ campaignId, characterId, name, canEdit }) {
         <>
           <span
             aria-hidden="true"
-            className="absolute inset-x-1 top-[23px] z-10 grid h-4 place-items-center font-display text-[12px] leading-none font-bold text-sky-200 tabular-nums"
+            className="absolute inset-x-1 top-[21px] z-10 grid h-4 place-items-center font-display text-[12px] leading-none font-bold text-sky-200 tabular-nums"
           >
             {armorClass}
           </span>

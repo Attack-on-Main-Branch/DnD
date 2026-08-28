@@ -3,7 +3,6 @@ import { listCampaignActivity } from "sina/data/activity";
 import {
   getCampaignTable,
   listCampaignMaps,
-  listCampaignMarks,
   listCampaignNotes,
   listPartyMembers,
   listPartySheets,
@@ -17,6 +16,10 @@ import {
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
 import { listPartySpells } from "sina/data/spells";
+import {
+  listCampaignTokenTemplates,
+  listMapPlacedTokens,
+} from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 
 import { logFailure } from "@/lib/errors";
@@ -61,7 +64,8 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       campaign: null,
       members: [],
       maps: [],
-      marks: [],
+      templates: [],
+      tokens: [],
       inventory: [],
       spells: [],
       purses: [],
@@ -79,9 +83,12 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
      Not only the first paint: every doorbell here is answered by re-rendering
      the whole route. The seat still waits for the party, being chosen out of
      it. */
-  const [party, tokens, log, purses, containers, maps] = await Promise.all([
+  const [party, templates, log, purses, containers, maps] = await Promise.all([
     listPartyMembers(supabase, id),
-    listCampaignMarks(supabase, id),
+    /* The hand a Dungeon Master invented on the campaign sheet. Every chair is
+       handed it, not only the one that deals: a player's board draws the
+       monster standing in front of them from the same list. */
+    listCampaignTokenTemplates(supabase, id),
     listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
     /* Beside the party rather than after it: `campaign_purses` is asked about
        the campaign, and it decides for itself whose purses the caller may
@@ -109,8 +116,8 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listCampaignMaps", maps.error);
   }
 
-  if (tokens.error) {
-    logFailure("listCampaignMarks", tokens.error);
+  if (templates.error) {
+    logFailure("listCampaignTokenTemplates", templates.error);
   }
 
   if (log.error) {
@@ -123,44 +130,54 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
 
   const members = party.error ? [] : party.data;
   const shelf = containers.error ? [] : containers.data;
+  const pictures = maps.error ? [] : maps.data;
 
   /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs, books, sheets, held, features] = await Promise.all([
-    readSeat(supabase, campaign, members, requestedSeat, user.id),
-    listPartyInventory(
-      supabase,
-      members.map((member) => member.id),
-    ),
-    /* The same boundary over `character_spells`: the head of the table reads
-       the party's books, a player their own. */
-    listPartySpells(
-      supabase,
-      members.map((member) => member.id),
-    ),
-    /* The party's scores and skills. `campaign_sheets` answers the owner
-       alone, so this is asked on the deed rather than on the chair — which
-       chair they are in is settled a step below, and an owner sitting as a
-       character reads their own sheet through readSeat. One stable RPC over
-       six rows at most, rather than a second round trip after the seat. */
-    campaign.is_owner
-      ? listPartySheets(supabase, id)
-      : { data: [], error: null },
-    /* What is in the containers nobody is carrying. The ids are the query, so
-       this waits on the shelf and on nothing else. */
-    listContainerItems(
-      supabase,
-      shelf.map((container) => container.id),
-    ),
-    /* The whole party's, and RLS hands over everybody's: a feature is what a
-       character can do, and the table finds that out the first time they do it.
-       Only the ids this read already has — see listPartyFeatures. */
-    listPartyFeatures(
-      supabase,
-      members.map((member) => member.id),
-    ),
-  ]);
+  const [seat, packs, books, sheets, held, features, placed] =
+    await Promise.all([
+      readSeat(supabase, campaign, members, requestedSeat, user.id),
+      listPartyInventory(
+        supabase,
+        members.map((member) => member.id),
+      ),
+      /* The same boundary over `character_spells`: the head of the table reads
+         the party's books, a player their own. */
+      listPartySpells(
+        supabase,
+        members.map((member) => member.id),
+      ),
+      /* The party's scores and skills. `campaign_sheets` answers the owner
+         alone, so this is asked on the deed rather than on the chair — which
+         chair they are in is settled a step below, and an owner sitting as a
+         character reads their own sheet through readSeat. One stable RPC over
+         six rows at most, rather than a second round trip after the seat. */
+      campaign.is_owner
+        ? listPartySheets(supabase, id)
+        : { data: [], error: null },
+      /* What is in the containers nobody is carrying. The ids are the query, so
+         this waits on the shelf and on nothing else. */
+      listContainerItems(
+        supabase,
+        shelf.map((container) => container.id),
+      ),
+      /* The whole party's, and RLS hands over everybody's: a feature is what a
+         character can do, and the table finds that out the first time they do
+         it. Only the ids this read already has — see listPartyFeatures. */
+      listPartyFeatures(
+        supabase,
+        members.map((member) => member.id),
+      ),
+      /* EVERY MAP'S PIECES, not only the one on the table: switching pictures
+         is then a filter in the browser rather than a round trip. A hidden one
+         is not in this list for anybody but the Dungeon Master — the SELECT
+         policy decides that, not the columns. */
+      listMapPlacedTokens(
+        supabase,
+        pictures.map((map) => map.id),
+      ),
+    ]);
 
   if (packs.error) {
     logFailure("listPartyInventory", packs.error);
@@ -182,13 +199,18 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listContainerItems", held.error);
   }
 
+  if (placed.error) {
+    logFailure("listMapPlacedTokens", placed.error);
+  }
+
   // Logged rather than thrown on: the map is the page, and neither a party nor
-  // a set of marks that could not load is a reason to replace it with an error.
+  // a board that could not load is a reason to replace it with an error.
   return {
     campaign,
     members,
-    maps: maps.error ? [] : maps.data,
-    marks: tokens.error ? [] : tokens.data,
+    maps: pictures,
+    templates: templates.error ? [] : templates.data,
+    tokens: placed.error ? [] : placed.data,
     inventory: packs.error ? [] : packs.data,
     spells: books.error ? [] : books.data,
     purses: purses.error ? [] : purses.data,

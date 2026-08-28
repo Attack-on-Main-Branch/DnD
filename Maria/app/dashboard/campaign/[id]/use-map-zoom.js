@@ -44,6 +44,9 @@ const ZOOM_HINT = {
  *                  the left button belongs to the tokens. Enter still works.
  * @param onTap     offered the point of every press that was not a drag, before
  *                  the zoom toggles. Returning true claims it.
+ * @param keyboard  whether the frame is a focusable control that answers Enter,
+ *                  Space and the arrow keys. The modal's map is; the table's
+ *                  board is not — see `frameProps`.
  */
 export function useMapZoom({
   frameRef,
@@ -51,6 +54,7 @@ export function useMapZoom({
   wheel = false,
   pointerZoom = true,
   onTap,
+  keyboard = true,
 }) {
   /* The scale itself, because the wheel walks it rather than switching it: a
      click still only knows two values, and both live in here. */
@@ -365,11 +369,14 @@ export function useMapZoom({
      * absent — it names the map, and only the caller knows which one — and
      * `touch-none` belongs on the same element, or a drag on a touchscreen
      * scrolls the page out from under the map.
+     *
+     * `keyboard: false` takes the whole control away, `role` and `tabIndex`
+     * with it: a frame that answers Space and the arrow keys but is not a button
+     * is a trap, and one that is a button hides everything inside it from a
+     * screen reader. THE TABLE'S BOARD TAKES THAT OPTION — see table-map.jsx.
      */
     frameProps: {
-      role: "button",
-      tabIndex: 0,
-      onKeyDown,
+      ...(keyboard ? { role: "button", tabIndex: 0, onKeyDown } : null),
       onPointerDown,
       onPointerMove,
       onPointerUp,

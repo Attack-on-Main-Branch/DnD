@@ -13,7 +13,7 @@ import DiceCapsule from "./dice-capsule";
 import { CARD_CLASSES, cardEntrance } from "./entrance";
 import InspirationPips from "./inspiration-pips";
 import LevelArmor from "./level-armor";
-import { useHitPoints, useIsDead } from "./table-state";
+import { useHitPoints, useIsActiveTurn, useIsDead } from "./table-state";
 
 /**
  * One chair on the rail: a face, a name, the ring, and the bar under it — with
@@ -55,6 +55,11 @@ function PartyCard({
   const hitPoints = useHitPoints(member.id);
   const dead = useIsDead(member.id);
   const dying = isDying(hitPoints, dead);
+
+  /* The one thing on this card the RIM does not say: it is already three states
+     deep, so the turn is a halo round the PORTRAIT instead, matching the rung
+     the tracker lights. Every chair sees it, not only the head of the table. */
+  const myTurn = useIsActiveTurn(member.id);
 
   /* Rose for gone, amber and breathing for down, and otherwise the gold that
      means somebody is sitting here. The two states outrank the seat: a player
@@ -100,10 +105,18 @@ function PartyCard({
         }`}
       >
         <div className="flex items-center gap-3">
-          <Avatar
-            src={member.avatar_url}
-            colorClass={diceColorClass(member.dice_color)}
-          />
+          {/* The wrapper's and not the portrait's: `Avatar` clips its picture
+              with `overflow-hidden`, so a shadow on it is drawn inside. */}
+          <span
+            className={`inline-flex rounded-full transition-shadow duration-300 ${
+              myTurn ? "turn-lit" : ""
+            }`}
+          >
+            <Avatar
+              src={member.avatar_url}
+              colorClass={diceColorClass(member.dice_color)}
+            />
+          </span>
 
           <div className="min-w-0 flex-1">
             <p className="truncate font-display text-lg font-semibold tracking-wide text-ink">

@@ -11,6 +11,7 @@ import {
 import { listPartyFeatures } from "sina/data/features";
 import { listCampaignItems } from "sina/data/inventory";
 import { listCampaignSpells } from "sina/data/spells";
+import { listCampaignTokenTemplates } from "sina/data/tokens";
 import { cache } from "react";
 
 import { logFailure } from "@/lib/errors";
@@ -61,19 +62,22 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       containers: [],
       containerItems: [],
       features: [],
+      tokens: [],
       error: realFailure,
     };
   }
 
-  // Together rather than one after the other: six round trips, one wait.
-  const [party, notes, maps, items, spells, containers] = await Promise.all([
-    listPartyMembers(supabase, id),
-    listCampaignNotes(supabase, id),
-    listCampaignMaps(supabase, id),
-    listCampaignItems(supabase, id),
-    listCampaignSpells(supabase, id),
-    listCampaignContainers(supabase, id),
-  ]);
+  // Together rather than one after the other: seven round trips, one wait.
+  const [party, notes, maps, items, spells, containers, tokens] =
+    await Promise.all([
+      listPartyMembers(supabase, id),
+      listCampaignNotes(supabase, id),
+      listCampaignMaps(supabase, id),
+      listCampaignItems(supabase, id),
+      listCampaignSpells(supabase, id),
+      listCampaignContainers(supabase, id),
+      listCampaignTokenTemplates(supabase, id),
+    ]);
 
   if (party.error) {
     logFailure("listPartyMembers", party.error);
@@ -97,6 +101,10 @@ export const loadCampaign = cache(async function loadCampaign(id) {
 
   if (containers.error) {
     logFailure("listCampaignContainers", containers.error);
+  }
+
+  if (tokens.error) {
+    logFailure("listCampaignTokenTemplates", tokens.error);
   }
 
   const shelf = containers.error ? [] : containers.data;
@@ -135,6 +143,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     containers: shelf,
     containerItems: held.error ? [] : held.data,
     features: features.error ? [] : features.data,
+    tokens: tokens.error ? [] : tokens.data,
     error: null,
   };
 });

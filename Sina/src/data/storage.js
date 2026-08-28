@@ -37,12 +37,20 @@ function classifyStorage(error, subject) {
  * `upsert: false` because every path carries a fresh name, so something already
  * there is a reused id. `contentType` is explicit: Storage otherwise infers it
  * from the extension, and a FormData filename need not match.
+ *
+ * `rewritable` is for the one object that is NOT written once: a map's fog mask,
+ * repainted every time a brush is put down. It keeps one path for the life of
+ * the map, so it has to land on itself — and it must not be cached, the URL it
+ * is served from not changing with it. See fog.js for the other half.
  */
-export async function uploadObject(supabase, { bucket, path, file, subject }) {
+export async function uploadObject(
+  supabase,
+  { bucket, path, file, subject, rewritable = false },
+) {
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     contentType: file.type,
-    upsert: false,
-    cacheControl: `${IMMUTABLE_SECONDS}`,
+    upsert: rewritable,
+    cacheControl: rewritable ? "0" : `${IMMUTABLE_SECONDS}`,
   });
 
   if (error) {

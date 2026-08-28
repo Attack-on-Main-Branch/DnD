@@ -5,7 +5,6 @@ import { listCampaignActivity } from "sina/data/activity";
 import {
   getCampaignTable,
   listCampaignMaps,
-  listCampaignMarks,
   listPartyMembers,
   listPartySheets,
 } from "sina/data/campaigns";
@@ -17,6 +16,10 @@ import {
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
 import { listPartySpells } from "sina/data/spells";
+import {
+  listCampaignTokenTemplates,
+  listMapPlacedTokens,
+} from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 
 import { logFailure } from "@/lib/errors";
@@ -58,7 +61,7 @@ export async function readTableSlice(campaignId, want = {}) {
   const [
     activity,
     party,
-    marks,
+    templates,
     inventory,
     purses,
     spells,
@@ -73,7 +76,9 @@ export async function readTableSlice(campaignId, want = {}) {
       ? listCampaignActivity(supabase, campaignId, MAX_ACTIVITY_ENTRIES)
       : null,
     want.party ? listPartyMembers(supabase, campaignId) : null,
-    want.marks ? listCampaignMarks(supabase, campaignId) : null,
+    /* The hand, beside the board rather than after it: a piece invented since
+       this page rendered is one the palette has no picture for. */
+    want.tokens ? listCampaignTokenTemplates(supabase, campaignId) : null,
     want.inventory ? listPartyInventory(supabase, ids) : null,
     want.purses ? listPartyPurses(supabase, campaignId) : null,
     want.spells ? listPartySpells(supabase, ids) : null,
@@ -91,19 +96,35 @@ export async function readTableSlice(campaignId, want = {}) {
     want.features ? listPartyFeatures(supabase, ids) : null,
     /* The shelf of maps and what is standing on the table. Both together or
        neither: a switcher that knew the pictures but not which one is up would
-       show the party's own board as unlit. */
-    want.maps ? listCampaignMaps(supabase, campaignId) : null,
-    want.maps ? getCampaignTable(supabase, campaignId) : null,
+       show the party's own board as unlit.
+
+       The shelf is also read for the pieces, whose query is `map_id in (…)` —
+       so a board asked for on its own still pays for it. */
+    want.maps || want.tokens ? listCampaignMaps(supabase, campaignId) : null,
+    /* One row, two answers: which picture is on the table, and whether the
+       party is fighting over it. Asked for either — a `campaigns` doorbell
+       rings for both, and the second query would be the same query. */
+    want.maps || want.combat ? getCampaignTable(supabase, campaignId) : null,
   ]);
 
   const shelf = slice("listCampaignContainers", containers);
+  const pictures = slice("listCampaignMaps", maps);
 
-  const containerItems = shelf
-    ? await listContainerItems(
-        supabase,
-        shelf.map((container) => container.id),
-      )
-    : null;
+  /* Both wait on a list of ids from the wave above. One wait for the two. */
+  const [containerItems, placed] = await Promise.all([
+    shelf
+      ? listContainerItems(
+          supabase,
+          shelf.map((container) => container.id),
+        )
+      : null,
+    want.tokens && pictures
+      ? listMapPlacedTokens(
+          supabase,
+          pictures.map((map) => map.id),
+        )
+      : null,
+  ]);
 
   return {
     /* Which packs and books this answer speaks for. A row list alone cannot say
@@ -119,7 +140,6 @@ export async function readTableSlice(campaignId, want = {}) {
     // migration from reaching the panel as "undefined × undefined".
     activity: slice("listCampaignActivity", activity, readActivityLog),
     party: slice("listPartyMembers", party),
-    marks: slice("listCampaignMarks", marks),
     inventory: slice("listPartyInventory", inventory),
     purses: slice("listPartyPurses", purses),
     spells: slice("listPartySpells", spells),
@@ -133,14 +153,24 @@ export async function readTableSlice(campaignId, want = {}) {
     // seat's own row and a party sheet both carry an `id` and `spell_slots`.
     sheets: sheetRows(sheets, seat),
 
+    /* What is on the board, and the pieces it is drawn from. Both together or
+       neither, for the reason the shelf and the active map are: a placement
+       naming a piece this chair has no picture for draws nothing. */
+    tokens: slice("listMapPlacedTokens", placed),
+    templates: slice("listCampaignTokenTemplates", templates),
+
     /* The backstop behind the switcher's own broadcast: a chair that missed
        the message, or joined after it, asks the database instead. */
-    maps: slice("listCampaignMaps", maps),
+    maps: want.maps ? pictures : undefined,
     activeMapId: slice(
       "getCampaignTable",
       table,
       (row) => row?.active_map_id ?? null,
     ),
+
+    /* The whole of the fight, off the same row. Read through the rules layer in
+       the store rather than here — see `setCombat` in table-state.jsx. */
+    combat: slice("getCampaignTable", table, (row) => row ?? undefined),
   };
 }
 

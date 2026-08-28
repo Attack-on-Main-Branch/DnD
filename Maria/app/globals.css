@@ -650,6 +650,18 @@ body {
   /* The contrast slider paints its own track — black through grey to white, so
      the handle stands on the ink it is about to draw with. The runnable track
      gets out of its way. */
+
+  /*
+   * THE GRADIENT HAS TO SPAN THE BORDER BOX. Its default origin is the PADDING
+   * box while its clip is the border box, so the strip under the gold rim falls
+   * outside the gradient's own area and is painted with a REPEAT of it — which
+   * showed as a sliver of the white end appearing at the black end, and a
+   * capsule whose two edges looked cut off.
+   */
+  .range-greyscale {
+    background-origin: border-box;
+  }
+
   .range-greyscale::-webkit-slider-runnable-track {
     background: transparent;
   }
@@ -1030,6 +1042,86 @@ body {
   }
 
   /*
+   * SIDEWAYS, for the trays on the rail beside the board.
+   *
+   * THE FOLD IS THE BOX'S WIDTH, and it is the only motion there is: the marks
+   * above the map unfold DOWNWARD out of a row and fold back up into it, and
+   * these hang off the SIDE, so they unfold outward and fold back into the rail.
+   * rail-marks.jsx takes the box from its full width to nought; the panel keeps
+   * a width of its own (rail-tray.jsx) so it is CUT rather than re-wrapped, and
+   * `.tab-clip` is what cuts it.
+   *
+   * WHAT THE ROWS ARE STILL FOR, and it is not the animation. Every tray on this
+   * rail is portalled into ONE shared box, so a closed panel has to stop taking
+   * up height or the box stands as tall as all of them at once.
+   *
+   * OVERLAID AND NOT STACKED — `grid-area: 1 / 1` — which is the thing two
+   * earlier attempts got wrong. Stacked, a tray opening while another closed
+   * made the box briefly as tall as BOTH, and it grew and then shrank back. In
+   * one cell the box is the taller of the two and settles onto the new one.
+   *
+   * Three cases, and each wants its rows timed differently:
+   *
+   *   opening      at once. The box is still folded shut at that moment, so
+   *                there is nothing to see and nothing to ease.
+   *   between two  eased, so the box travels from one panel's height to the
+   *                next — the morph the shared box exists for.
+   *   the last one out of the flow only once the fold has finished — all 420ms
+   *                of it. A height shrinking while the box folds away sideways
+   *                IS the vertical collapse this was written to get rid of.
+   */
+  /*
+   * THE FOLD AND THE FADE ARE TIMED APART, and that is the whole of what makes
+   * the marks above the map read as "fully shut" while this one used to read as
+   * "gave up halfway".
+   *
+   * Up there the fold is 420ms on `--ease-tray`, which is fast out of the gate,
+   * while the box fades over 300ms on `--ease-tray-in`, which is slow out of it.
+   * The fold LEADS: it is all but finished by the time anything has faded. Down
+   * here both were one `transition-[opacity,width] duration-300` on one element,
+   * so they moved together and the box went invisible while still a third open.
+   *
+   * Same two curves, same two durations, on the two properties.
+   */
+  .rail-tray-box {
+    transition:
+      width 420ms var(--ease-tray),
+      opacity 300ms var(--ease-tray);
+  }
+
+  .rail-tray-box[data-rail-shut] {
+    transition:
+      width 420ms var(--ease-tray),
+      opacity 300ms var(--ease-tray-in);
+  }
+
+  .tab-shell-across {
+    grid-area: 1 / 1;
+    transition: grid-template-rows 0s;
+  }
+
+  .tab-shell-across[data-state="collapsed"] {
+    transition: grid-template-rows 300ms var(--ease-tray);
+  }
+
+  [data-rail-shut] .tab-shell-across[data-state="collapsed"] {
+    transition: grid-template-rows 0s 420ms;
+  }
+
+  /*
+   * The panel is cut against the folding box. `overflow-clip-margin` goes to
+   * nought — the 4rem the block-axis fold allows for a glow would leave four
+   * rems of panel standing beside a box that is nought wide — and the
+   * `clip-path` with it, that one being shaped for the other axis.
+   */
+  .tab-shell-across .tab-clip {
+    min-width: 0;
+    overflow-clip-margin: 0;
+    clip-path: none;
+    transition: none;
+  }
+
+  /*
    * The board's rim, at rest and while a die is on it.
    *
    * A component class and not `border` plus `transition-*` utilities: those sit
@@ -1091,6 +1183,38 @@ body {
    */
   .map-leaving {
     animation: map-leaving 420ms var(--ease-tray) forwards;
+  }
+
+  /*
+   * Whose turn it is, round a portrait — the same amber the tracker's active
+   * rung wears. AMBER AND NOT GOLD: gold means "somebody is sitting here" and is
+   * already on the rim of the card this sits inside.
+   *
+   * One shadow list rather than a ring utility, so the edge and the two blooms
+   * arrive and leave together. It does NOT breathe — `.lit-amber` on the rim
+   * already does, and that means a character is down.
+   */
+  .turn-lit {
+    box-shadow:
+      0 0 0 2px #fbbf24,
+      0 0 12px rgba(251, 191, 36, 0.9),
+      0 0 26px -4px rgba(251, 191, 36, 0.5);
+  }
+
+  /*
+   * The party's pin — see party-mark.jsx.
+   *
+   * A FILTER AND NOT A BOX-SHADOW: an outer box-shadow is clipped to the border
+   * BOX, so on a drawing with no background it draws a rectangle instead of
+   * following the outline. Filters chain front to back, so the gold is first.
+   *
+   * FOUR AND NOT THREE because `drop-shadow` has no spread: one near-opaque pass
+   * hugging the strokes and one softer behind it is how that is said without.
+   */
+  .party-mark {
+    filter: drop-shadow(0 0 1px var(--gold-35))
+      drop-shadow(0 0 3px var(--gold-60)) drop-shadow(0 0 2px rgba(0, 0, 0, 1))
+      drop-shadow(0 0 4px rgba(0, 0, 0, 0.85));
   }
 
   /* The dice leaving the board. The canvas is never a click target, rolling or

@@ -2,11 +2,9 @@
 
 import { listCampaignActivity } from "sina/data/activity";
 import {
-  clearCampaignMark,
   deleteCampaignNote,
   insertCampaignNote,
   listCampaignNotes,
-  placeCampaignMark,
   updateCampaignNote,
   updateMapGridSettings,
 } from "sina/data/campaigns";
@@ -25,13 +23,22 @@ import {
   updateCharacterNote,
 } from "sina/data/characters";
 import { moveCharacterInspiration } from "sina/data/inspiration";
+import {
+  clearMapPlacedTokens,
+  moveMapToken,
+  placeMapToken,
+  removeMapToken,
+  setMapTokenState,
+} from "sina/data/tokens";
 import { isAbilityId, parseAbilityTotal } from "sina/rules/ability-scores";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import { parseMarkPoint } from "sina/rules/campaign";
+import { readConditions } from "sina/rules/conditions";
 import { clampGridLuminance, clampGridSize } from "sina/rules/grid";
 import { MAX_NOTE_LENGTH, parseNote } from "sina/rules/character";
 import { parseArmorClass } from "sina/rules/death";
 import { MAX_HP } from "sina/rules/health";
+import { DEFAULT_RING_COLOR, isRingColor } from "sina/rules/tokens";
 
 import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
@@ -600,27 +607,52 @@ const NOTE_COPY = {
 };
 
 /**
- * A mark is refused rather than failed when the chair is not the caller's, so
- * `not_found` here is "that is not your seat" rather than "that is gone".
+ * A piece is refused rather than failed when the board is not the caller's to
+ * reach across, so `not_found` here is "that is not yours to move" as much as
+ * "that is gone". The two are deliberately one answer: a player probing which
+ * map is the world map learns nothing either way.
  */
-const MARK_COPY = {
-  not_found: "That is not yours to mark.",
+const TOKEN_COPY = {
+  not_found: "That is not yours to move.",
   invalid_value: "That is not a place on the map.",
+  already_placed: "Something is already standing there.",
   missing_function: "That part of the app is not ready yet.",
   missing_table: "That part of the app is not ready yet.",
+  missing_column: "That part of the app is not ready yet.",
   bad_id: "That table is no longer there.",
 };
 
+function refusedToken(action, error, fallback) {
+  const copy = TOKEN_COPY[error.reason];
+
+  logUncovered(action, error, copy);
+  return rejected(copy ?? fallback);
+}
+
 /**
- * A token on the board, at a point given as fractions of the picture. A seat
- * has one mark, so this both places and moves it.
+ * A piece put down, at a point given as fractions of the picture.
  *
- * `characterId` is the seat, not the account: `null` is the Dungeon Master's
- * chair. `place_campaign_mark` asks `my_seat_at_table` and writes nothing for
- * anybody else, so an account holding two chairs here cannot place the other
- * one's token by naming it.
+ * WHICH KIND OF PIECE MAY GO ON WHICH MAP is `place_map_token`'s question and
+ * not this function's — the world map takes the party's marker alone, every
+ * other map takes the faces and the invented pieces. The browser knows the same
+ * rule and does not offer what would be refused; the database is what holds.
+ *
+ * `characterId` is the seat, not the account. An account holding two chairs
+ * here cannot place the other one's piece by naming it: the function asks
+ * `my_seat_at_table` for anybody who is not the head of the table.
+ *
+ * The new row's ID comes back, because the board drew this piece under the
+ * pointer before the call was made and has been holding it under a name of its
+ * own since. See use-map-tokens.js.
  */
-export async function placeTableMark(campaignId, characterId, mapId, point) {
+export async function placeMapPiece(
+  mapId,
+  { characterId, templateId, isPartyMarker, point, ringColor },
+) {
+  if (typeof mapId !== "string" || mapId.length === 0) {
+    return rejected("Missing map id.");
+  }
+
   const spot = parseMarkPoint(point?.x, point?.y);
 
   if (!spot) {
@@ -631,13 +663,14 @@ export async function placeTableMark(campaignId, characterId, mapId, point) {
   const { user, error: authError } = await getCurrentUser(supabase);
 
   if (!user) {
-    return sessionRejection("placeTableMark", authError);
+    return sessionRejection("placeMapPiece", authError);
   }
 
-  const { error } = await placeCampaignMark(supabase, {
-    campaignId,
-    characterId,
+  const { data, error } = await placeMapToken(supabase, {
     mapId,
+    characterId: characterId ?? null,
+    templateId: templateId ?? null,
+    isPartyMarker: Boolean(isPartyMarker),
     x: spot.x,
     y: spot.y,
     // The cell the point fell in, or nothing for a board with no grid. The
@@ -645,40 +678,125 @@ export async function placeTableMark(campaignId, characterId, mapId, point) {
     // the answer beside the point rather than instead of it.
     q: point?.q,
     r: point?.r,
+    // A swatch off a fixed palette, checked here as well as by the CHECK
+    // constraint and by the function that falls back between them.
+    ringColor: isRingColor(ringColor) ? ringColor : DEFAULT_RING_COLOR,
   });
 
   if (error) {
-    const copy = MARK_COPY[error.reason];
-
-    logUncovered("placeTableMark", error, copy);
-    return rejected(copy ?? "Could not mark the map. Try again.");
+    return refusedToken("placeMapPiece", error, "Could not place that piece.");
   }
 
-  // The board holds its own tokens — see use-table-marks.js — and the one this
-  // describes was drawn under the pointer before the call was made.
-  return { kind: "success" };
+  return { kind: "success", id: data.id };
 }
 
-/** The token off again — your own, or any of them if you run this table. */
-export async function clearTableMark(campaignId, characterId, mapId) {
+/** One already down, moved. The id names the row, so the rule is asked from
+    the other end: your own face, or anything at a table you run. */
+export async function moveMapPiece(tokenId, point) {
+  const spot = parseMarkPoint(point?.x, point?.y);
+
+  if (!spot) {
+    return rejected("That is not a place on the map.");
+  }
+
   const supabase = await createClient();
   const { user, error: authError } = await getCurrentUser(supabase);
 
   if (!user) {
-    return sessionRejection("clearTableMark", authError);
+    return sessionRejection("moveMapPiece", authError);
   }
 
-  const { error } = await clearCampaignMark(supabase, {
-    campaignId,
-    characterId,
-    mapId,
+  const { error } = await moveMapToken(supabase, {
+    tokenId,
+    x: spot.x,
+    y: spot.y,
+    q: point?.q,
+    r: point?.r,
   });
 
   if (error) {
-    const copy = MARK_COPY[error.reason];
+    return refusedToken("moveMapPiece", error, "Could not move that piece.");
+  }
 
-    logUncovered("clearTableMark", error, copy);
-    return rejected(copy ?? "Could not clear that mark. Try again.");
+  return { kind: "success" };
+}
+
+/**
+ * Hidden, killed and what it is suffering — together, because the menu that
+ * sets them is one menu. An absent field leaves that column where it stands.
+ *
+ * THE HEAD OF THE TABLE'S ALONE, decided in `set_map_token_state`. Hiding is
+ * the whole of the surprise, and a hidden row is one a player's `select()` no
+ * longer returns — so revealing it again is what puts it back on their board.
+ */
+export async function markMapPiece(tokenId, { isHidden, isDead, conditions }) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("markMapPiece", authError);
+  }
+
+  const { error } = await setMapTokenState(supabase, {
+    tokenId,
+    isHidden: typeof isHidden === "boolean" ? isHidden : null,
+    isDead: typeof isDead === "boolean" ? isDead : null,
+    // Through the catalogue, which drops what the rulebook has never heard of
+    // and deduplicates — the same list `conditions_are_valid` will accept.
+    conditions: conditions === undefined ? null : readConditions(conditions),
+  });
+
+  if (error) {
+    return refusedToken("markMapPiece", error, "Could not change that piece.");
+  }
+
+  return { kind: "success" };
+}
+
+/** One piece off the board. */
+export async function removeMapPiece(tokenId) {
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("removeMapPiece", authError);
+  }
+
+  const { error } = await removeMapToken(supabase, { tokenId });
+
+  if (error) {
+    return refusedToken(
+      "removeMapPiece",
+      error,
+      "Could not remove that piece.",
+    );
+  }
+
+  return { kind: "success" };
+}
+
+/**
+ * Every piece off one map, which is what ruling a free-form board does: the
+ * pieces on it were put down at points the new grid knows nothing about, and
+ * scattering them across the nearest cells would be the app guessing at
+ * positions the Dungeon Master is about to set deliberately.
+ */
+export async function sweepMapPieces(mapId) {
+  if (typeof mapId !== "string" || mapId.length === 0) {
+    return rejected("Missing map id.");
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("sweepMapPieces", authError);
+  }
+
+  const { error } = await clearMapPlacedTokens(supabase, { mapId });
+
+  if (error) {
+    return refusedToken("sweepMapPieces", error, "Could not clear the board.");
   }
 
   return { kind: "success" };
@@ -716,10 +834,7 @@ export async function ruleMapGrid(mapId, { enabled, size, luminance }) {
   });
 
   if (error) {
-    const copy = MARK_COPY[error.reason];
-
-    logUncovered("ruleMapGrid", error, copy);
-    return rejected(copy ?? "Could not change the grid. Try again.");
+    return refusedToken("ruleMapGrid", error, "Could not change the grid.");
   }
 
   return { kind: "success" };

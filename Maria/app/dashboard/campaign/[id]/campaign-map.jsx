@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import PartyMark from "@/app/components/ui/party-mark";
 import {
   MAP_VIGNETTE_SCALED_STYLE,
   MAP_VIGNETTE_STYLE,
@@ -135,8 +136,12 @@ function unlockScroll() {
  * The full-resolution `<img>` mounts when the visitor first reaches for the
  * map rather than on page load — an `<img>` in the DOM downloads whether or not
  * it is visible — and stays mounted after, or every reopen is a fresh request.
+ *
+ * `mark` is where the party is standing, in the picture's own fractions, or null
+ * — the campaign sheet passes none. Drawn on the FULL map alone: the thumbnail
+ * is cropped to 16:9, so a pin on it would name a point nobody can see.
  */
-export default function CampaignMap({ url, title }) {
+export default function CampaignMap({ url, title, mark = null }) {
   const [open, setOpen] = useState(false);
   // Sticky: the full image is mounted from the first reach onwards. See above.
   const [ready, setReady] = useState(false);
@@ -458,6 +463,19 @@ export default function CampaignMap({ url, title }) {
           event.preventDefault();
           close();
         }}
+        /*
+         * A MODAL OWNS THE KEYBOARD WHILE IT IS UP, and it has to say so: the
+         * browser traps focus in the top layer, but the keydown still bubbles
+         * out through whatever this is rendered inside. At the table that is a
+         * popover with an Escape-closes and a Tab-loop of its own, so one
+         * Escape shut the map AND the panel behind it, and Tab pulled focus
+         * back out to a control the modal is covering.
+         *
+         * Nothing below is lost: `useMapZoom`'s handlers sit on the frame
+         * INSIDE this, so they run first and this only stops the climb. The
+         * campaign sheet has nothing above it to stop it reaching.
+         */
+        onKeyDown={(event) => event.stopPropagation()}
         className="map-dialog m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 text-ink backdrop:bg-black/85"
       >
         <div
@@ -513,6 +531,7 @@ export default function CampaignMap({ url, title }) {
                   url={url}
                   title={title}
                   ratio={ratio}
+                  mark={mark}
                   frameRef={mapRef}
                   pictureRef={pictureRef}
                   veilRef={veilRef}
@@ -536,6 +555,7 @@ function ZoomableMap({
   url,
   title,
   ratio,
+  mark,
   frameRef,
   pictureRef,
   veilRef,
@@ -544,7 +564,7 @@ function ZoomableMap({
   const ownFrameRef = useRef(null);
   const imageRef = useRef(null);
 
-  const { zoomed, frameProps, imageStyle, hint } = useMapZoom({
+  const { zoomed, frameProps, imageStyle, scale, hint } = useMapZoom({
     frameRef: ownFrameRef,
     imageRef,
   });
@@ -584,6 +604,35 @@ function ZoomableMap({
             className="absolute inset-0 size-full object-contain"
             style={imageStyle}
           />
+
+          {/*
+           * `inset-0` is exactly what the picture paints, the frame being cut to
+           * the map's own ratio — WHICH IS WHY IT WAITS FOR `ratio`: until the
+           * thumbnail has reported one the frame is 16:9, and the pin would name
+           * a point inside the black bands.
+           *
+           * Inside the picture's own layer, so it rides the reveal's
+           * counter-scale. `1 / scale` keeps it one size at every step.
+           */}
+          {mark && ratio && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={imageStyle}
+            >
+              <span
+                className={`absolute ${mark.isHidden ? "opacity-50" : ""}`}
+                style={{
+                  left: `${mark.x * 100}%`,
+                  top: `${mark.y * 100}%`,
+                  transform: `translate(-50%, -50%) scale(${1 / scale})`,
+                  transition: "transform 250ms ease",
+                }}
+              >
+                <PartyMark className="size-7" />
+              </span>
+            </span>
+          )}
         </div>
 
         {/* Masks the swap from the cropped preview to the whole picture. The

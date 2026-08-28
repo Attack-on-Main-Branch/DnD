@@ -52,6 +52,8 @@ export const ACTION_TYPES = [
   "character_revived",
   "condition_applied",
   "condition_removed",
+  "combat_started",
+  "combat_ended",
 ];
 
 /** What one face of the death save die was worth. Mirrors `deathSaveOutcome`. */
@@ -346,6 +348,12 @@ export function readActivity(row) {
           save: text(payload.spellSave),
         }
       : null;
+  }
+
+  // A fight beginning and ending. Neither carries a payload: that it happened
+  // is the whole sentence.
+  if (action === "combat_started" || action === "combat_ended") {
+    return entry;
   }
 
   /* The three a container can be the subject of. The name comes off the ROW,

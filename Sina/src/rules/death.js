@@ -56,9 +56,12 @@ const UNARMORED_DEFENSE = {
  * prints a modifier from, and counting the racial bonus twice is the mistake
  * `AbilityScores` was already written around.
  *
- * A BASE AND NOT A VALUE. It is what a new row starts at and what an untouched
- * one follows; the moment somebody sets an armour class by hand, that is theirs
- * and this stops answering for it. See `sync_armor_class`.
+ * A BASE AND NOT A VALUE. It is what a new row starts at, and what every row
+ * goes on being measured from: a figure set by hand is this plus an offset, and
+ * `sync_armor_class` carries that offset across every change to the sheet. So a
+ * chosen twelve over a base of ten becomes fourteen when the base does — the
+ * table said what they are WEARING, not that dexterity stopped counting. See
+ * 20260925090000.
  */
 export function baseArmorClass({ className, dexTotal, conTotal, wisTotal }) {
   const path = String(className ?? "")

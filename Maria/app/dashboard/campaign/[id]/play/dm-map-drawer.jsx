@@ -1,7 +1,10 @@
 "use client";
 
+import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
+
 import MapCard from "../map-card";
 
+import FogRibbon from "./fog-ribbon";
 import GridRibbon from "./grid-ribbon";
 
 /**
@@ -26,9 +29,15 @@ export default function DmMapDrawer({ campaignId, maps, activeId, onChoose }) {
 
   return (
     <>
-      {/* Above the shelf, because it rules whichever map is ON THE TABLE rather
-          than whichever card is under the pointer. */}
+      {/* Above the shelf, because both rule whichever map is ON THE TABLE
+          rather than whichever card is under the pointer. No rule between the
+          two — they are one set of controls, and the hairline underneath is what
+          separates those from the shelf they apply to. */}
       <GridRibbon />
+
+      <FogRibbon />
+
+      <div aria-hidden="true" className={`${FADED_RULE_CLASSES} mb-4`} />
 
       <div className="grid grid-cols-2 gap-4">
         {maps.map((map) => (

@@ -7,14 +7,16 @@ import { hexToPixel, pixelToHex } from "@/lib/hex-math";
 import { useMapZoom } from "../use-map-zoom";
 
 import { holdTray } from "./dice-engine";
-import DragArrow from "./drag-arrow";
+import DragArrow, { DragDistance } from "./drag-arrow";
+import FogOverlay from "./fog-overlay";
 import HexGridOverlay from "./hex-grid-overlay";
 import { HEAD_OF_TABLE } from "./dice-table";
 import { useTableMaps } from "./table-maps";
 import { useTableWire, useWireMessage } from "./table-wire";
-import MapMarks, { MarkRoll } from "./map-marks";
+import MapTokens, { TokenRoll } from "./map-tokens";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { MAP_MAX_HEIGHT_CLASS } from "./map-height";
-import { useTableMarks } from "./use-table-marks";
+import { useMapTokens } from "./use-map-tokens";
 
 /**
  * The board, and the two hands over it.
@@ -24,12 +26,14 @@ import { useTableMarks } from "./use-table-marks";
  * click, having nothing standing on it to fight for the press.
  *
  * The frame clips the zoom and shrink-wraps the picture, so the glass mat round
- * it stays the same rim at every size and the marks lie over it on a plain
+ * it stays the same rim at every size and the pieces lie over it on a plain
  * `inset-0`. The entrance rides on the frame rather than the image, which is
  * already carrying the pan and the scale.
  *
- * THE RIGHT BUTTON IS A RULER: held down it measures, and letting go does
- * nothing. It exists so the rest of the table can watch — see `announce`.
+ * THE RIGHT BUTTON IS A RULER over bare map, and the piece's own menu over a
+ * piece — see map-token.jsx, which stops the press before it reaches here. Held
+ * down the ruler measures, and letting go does nothing. It exists so the rest of
+ * the table can watch — see `announce`.
  *
  * It also announces the picture's own size: the dice tray IS this picture, and
  * `naturalWidth` is a property of the file rather than of the box it is drawn
@@ -63,7 +67,7 @@ export default function TableMap({
      the box it is drawn in, which differs on every chair and at every step. */
   const [natural, setNatural] = useState(null);
 
-  /* The cell under the pointer while a token is being carried, so whoever is
+  /* The cell under the pointer while a piece is being carried, so whoever is
      carrying it can see where it will land before letting go. */
   const [hover, setHover] = useState(null);
 
@@ -71,11 +75,29 @@ export default function TableMap({
      is the other way in — see `carrying`, which is either of them. */
   const [lifted, setLifted] = useState(null);
 
-  const { activeId, grid, holding, hold } = useTableMaps();
+  /* A brush on the board. State because it arms the listeners below; where it
+     last stamped is a ref, moving thirty times a second. */
+  const [stroking, setStroking] = useState(false);
+  const strokeAt = useRef(null);
 
-  const { marks, ownMark, mayPlaceOwn, place, clear } = useTableMarks({
+  const {
+    activeId,
+    isWorldMap,
+    grid,
+    holding,
+    hold,
+    fog,
+    brush,
+    fogSize,
+    paintFog,
+    mask,
+    reportNatural,
+  } = useTableMaps();
+
+  const { tokens, ownToken, ownPiece, place, move, lift, mark } = useMapTokens({
     campaignId,
     mapId: activeId,
+    isWorldMap,
     ruled: grid.enabled,
     faces,
     seat,
@@ -124,19 +146,34 @@ export default function TableMap({
   /**
    * WHAT IS IN THE HAND: lifted off the board, or picked out of the palette.
    * One thing carried, so the arrow, the lit cell and the drop are written
-   * once. `from` is null for a piece that has never been put down.
+   * once.
+   *
+   * `token` is the row it came from and null for a piece that has never been
+   * put down — which is what decides whether letting go MOVES or PLACES. A
+   * character's face and the party's marker are one to a map, so picking either
+   * out of the palette while it is already on the board picks THAT one up; an
+   * invented piece is dealt fresh every time, which is the point of having it.
    */
-  const carrying = useMemo(
-    () =>
-      lifted ??
-      (holding === null
+  const carrying = useMemo(() => {
+    if (lifted) {
+      return lifted;
+    }
+
+    if (!holding) {
+      return null;
+    }
+
+    const already =
+      holding.kind === "template"
         ? null
-        : {
-            characterId: holding,
-            from: marks.find((mark) => mark.characterId === holding) ?? null,
-          }),
-    [holding, lifted, marks],
-  );
+        : (tokens.find((token) =>
+            holding.kind === "party"
+              ? token.isPartyMarker
+              : token.characterId === holding.characterId,
+          ) ?? null);
+
+    return { piece: holding, token: already, from: already };
+  }, [holding, lifted, tokens]);
 
   /**
    * A point pulled onto the nearest cell centre. Free placement is locked while
@@ -166,6 +203,23 @@ export default function TableMap({
     [grid.enabled, grid.size, natural],
   );
 
+  /* `onTap` runs from the FRAME'S own pointerup, and the document listener
+     further down is about to see that same event: without this the hand is put
+     down twice, which for an invented piece means two of it on the board. */
+  const handled = useRef(false);
+
+  /** Letting go, wherever the hand happens to be holding something from. */
+  const put = useCallback(
+    (hand, point) => {
+      if (hand.token) {
+        move?.(hand.token.id, point);
+      } else {
+        place?.(point, hand.piece);
+      }
+    },
+    [move, place],
+  );
+
   /**
    * A left click on bare map. A piece in the hand goes down there; otherwise a
    * chair with nothing on the board puts its own out. A chair that already has
@@ -178,23 +232,24 @@ export default function TableMap({
         return false;
       }
 
-      if (holding !== null) {
-        place(snap(point), holding);
+      if (holding) {
+        put(carrying, snap(point));
         setHover(null);
         hold(null);
+        handled.current = true;
 
         return true;
       }
 
-      if (mayPlaceOwn && !ownMark) {
-        place(snap(point));
+      if (ownPiece && !ownToken) {
+        place(snap(point), ownPiece);
 
         return true;
       }
 
       return false;
     },
-    [hold, holding, mayPlaceOwn, ownMark, place, snap],
+    [carrying, hold, holding, ownPiece, ownToken, place, put, snap],
   );
 
   const { zoomed, frameProps, imageStyle, scale, pointAt } = useMapZoom({
@@ -202,8 +257,13 @@ export default function TableMap({
     imageRef,
     // Turn to zoom, about whatever is under the pointer.
     wheel: true,
-    // And not on a click: that press is a token's.
+    // And not on a click: that press is a piece's.
     pointerZoom: false,
+    /* NOT A KEYBOARD CONTROL. The board answered Space, Enter and the four
+       arrows, which is a surprise on a surface whose whole job is where a
+       pointer lands — and being a `role="button"` to do it hid every piece on
+       it from a screen reader. The modal on the campaign sheet keeps both. */
+    keyboard: false,
     onTap,
   });
 
@@ -239,7 +299,15 @@ export default function TableMap({
   const latest = useRef(null);
 
   useEffect(() => {
-    latest.current = { pointAt, snap, place, clear, marks, announce };
+    latest.current = {
+      pointAt,
+      snap,
+      put,
+      announce,
+      paintFog,
+      brush,
+      fogSize,
+    };
   });
 
   /**
@@ -254,9 +322,7 @@ export default function TableMap({
        arrow is drawn from coordinates, and a `to` without them is a line of
        NaNs — invisible, while the distance beside it still reads right. */
     setHover((standing) =>
-      standing?.q === point?.q && standing?.r === point?.r
-        ? standing
-        : (point ?? null),
+      settled(standing, point) ? standing : (point ?? null),
     );
 
     return point;
@@ -268,7 +334,8 @@ export default function TableMap({
    * lifted piece goes back and a palette selection stays in the hand.
    *
    * One set of listeners for both hands. The ruler puts nothing down, and a
-   * piece pressed but never carried is a CLICK, which lifts it off.
+   * piece pressed but never carried does nothing at all — taking one off the
+   * board is the menu's, and only the menu's.
    */
   useEffect(() => {
     const hand = carrying ?? measure;
@@ -279,47 +346,53 @@ export default function TableMap({
 
     function follow(event) {
       const point = aimAt(event);
+
+      /* A HIDDEN PIECE DRAGS IN SILENCE. Its row is withheld from every player,
+         so an arrow tracking it across their board would be the one thing that
+         gave it away. The head of the table still sees their own. */
+      if (carrying?.token?.isHidden) {
+        return;
+      }
+
       const anchor = carrying ? carrying.from : measure.from;
 
       latest.current.announce(anchor && latest.current.snap(anchor), point);
     }
 
     function release(event) {
-      const {
-        pointAt: at,
-        snap: pull,
-        place: put,
-        clear: lift,
-      } = latest.current;
+      const { pointAt: at, snap: pull } = latest.current;
 
       if (measure) {
         // A ruler measures and lets go. Nothing moves.
         setMeasure(null);
+      } else if (handled.current) {
+        // The frame's own pointerup already put this down — see `onTap`.
+        setLifted(null);
       } else {
         const point = pull(at(event));
+
+        /* A piece picked out of the PALETTE has no origin: the press that chose
+           it happened on the rail, so its release is always a placement. */
         const travelled =
+          !carrying.origin ||
           Math.hypot(
             event.clientX - carrying.origin.clientX,
             event.clientY - carrying.origin.clientY,
           ) > TAP_SLOP_PX;
 
-        if (!travelled && lifted) {
-          // Pressed and released on the spot: a click, which lifts it off.
-          const standing = latest.current.marks.find(
-            (mark) => mark.characterId === carrying.characterId,
-          );
-
-          if (standing?.removable) {
-            lift(carrying.characterId);
-          }
-        } else if (point) {
-          put(point, carrying.characterId);
+        /* A PRESS THAT WENT NOWHERE NOW DOES NOTHING. It used to lift the piece
+           off the board, which meant every misjudged drag — and every press
+           that only meant to check what a piece was — took a token off. It
+           comes off through the menu instead: see token-menu.jsx. */
+        if (travelled && point) {
+          latest.current.put(carrying, point);
           hold(null);
         }
 
         setLifted(null);
       }
 
+      handled.current = false;
       latest.current.announce(null, null);
       setHover(null);
     }
@@ -335,19 +408,117 @@ export default function TableMap({
     };
   }, [aimAt, carrying, hold, lifted, measure]);
 
+  /**
+   * On the document rather than the frame, as the piece-carrying hand above is:
+   * a stroke that runs off the edge of the map is still a stroke.
+   *
+   * THE RELEASE ENDS THE STROKE AND WRITES NOTHING. The mask reaches the bucket
+   * when the BRUSH is put down — see `takeBrush` in table-maps.jsx.
+   */
+  useEffect(() => {
+    if (!stroking) {
+      return undefined;
+    }
+
+    function follow(event) {
+      const at = latest.current;
+      const point = at.pointAt(event);
+
+      if (!point) {
+        return;
+      }
+
+      at.paintFog(strokeAt.current, point, at.brush, at.fogSize);
+      strokeAt.current = point;
+    }
+
+    function release() {
+      strokeAt.current = null;
+      setStroking(false);
+    }
+
+    document.addEventListener("pointermove", follow);
+    document.addEventListener("pointerup", release);
+    document.addEventListener("pointercancel", release);
+
+    return () => {
+      document.removeEventListener("pointermove", follow);
+      document.removeEventListener("pointerup", release);
+      document.removeEventListener("pointercancel", release);
+    };
+  }, [stroking]);
+
   /* `onLoad` below never fires for a picture that was already in the cache when
      this mounted, and that is the common case on the second visit. */
   useEffect(() => {
     const image = imageRef.current;
 
     if (image?.complete && image.naturalWidth) {
-      holdTray(image.naturalWidth, image.naturalHeight);
-      setNatural({ width: image.naturalWidth, height: image.naturalHeight });
+      const size = { width: image.naturalWidth, height: image.naturalHeight };
+
+      holdTray(size.width, size.height);
+      setNatural(size);
+      // The mask is held in the provider and wants this picture's ratio.
+      reportNatural(size);
     }
-  }, [url]);
+  }, [reportNatural, url]);
+
+  /**
+   * EVERY ARROW ON THE BOARD, this chair's and the rest, worked out once so the
+   * line and the figure over it are drawn from the same pair of points.
+   *
+   * A CHAIR'S OWN DICE COLOUR, which is what marks everything else a person does
+   * at this table. The head of the table rolls the house's dice and has none, so
+   * theirs is gold — the colour that chair already wears everywhere else.
+   */
+  const beams = useMemo(() => {
+    if (!natural) {
+      return [];
+    }
+
+    const drawn = [];
+
+    // The ruler measures for whoever is holding it; a carried piece points from
+    // where it stands. A stored point is already at a centre; `snap` names it.
+    if (hover && (carrying?.from || measure)) {
+      drawn.push({
+        key: "mine",
+        from: snap(measure ? measure.from : carrying.from),
+        to: hover,
+        color: seatColor(seat, faces),
+      });
+    }
+
+    // And everybody else's, drawn from the cells they named. Cells only: that
+    // is all the wire carries.
+    if (grid.enabled) {
+      for (const [at, beam] of Object.entries(aims)) {
+        drawn.push({
+          key: at,
+          from: pointOfCell(beam.from, grid.size, natural),
+          to: pointOfCell(beam.to, grid.size, natural),
+          color: chairColor(at, faces),
+        });
+      }
+    }
+
+    return drawn;
+  }, [
+    aims,
+    carrying,
+    faces,
+    grid.enabled,
+    grid.size,
+    hover,
+    measure,
+    natural,
+    seat,
+    snap,
+  ]);
 
   /* The ruler is a held right button, so the menu under it is refused — over
-     the picture and on a ruled board only. */
+     the picture and on a ruled board only. A press that started on a PIECE
+     never reaches this: map-token.jsx stops both halves. */
   function onContextMenu(event) {
     if (grid.enabled && pointAt(event)) {
       event.preventDefault();
@@ -358,10 +529,25 @@ export default function TableMap({
     <>
       <div
         ref={frameRef}
-        aria-label={`Map of ${title}. ${zoomed ? "Zoomed in" : "Zoomed out"}.`}
         {...frameProps}
         onContextMenu={onContextMenu}
         onPointerDown={(event) => {
+          /* THE BRUSH OUTRANKS EVERYTHING: it takes the press before the pan,
+             the pieces and the ruler have a chance at it. */
+          if (brush && event.button === 0 && event.isPrimary) {
+            const point = pointAt(event);
+
+            if (point) {
+              event.preventDefault();
+
+              strokeAt.current = point;
+              paintFog(null, point, brush, fogSize);
+              setStroking(true);
+            }
+
+            return;
+          }
+
           // The ruler, and only on a ruled board: what it measures is cells.
           if (event.button === 2 && grid.enabled) {
             const from = snap(pointAt(event));
@@ -382,7 +568,7 @@ export default function TableMap({
         onPointerMove={(event) => {
           frameProps.onPointerMove?.(event);
 
-          if (holding === null || !grid.enabled) {
+          if (!holding) {
             return;
           }
 
@@ -396,8 +582,11 @@ export default function TableMap({
         style={style}
         // `touch-none` so a drag on a touchscreen pans the map instead of
         // scrolling the page out from under it.
-        className={`group relative w-fit touch-none overflow-hidden rounded-xl select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 ${
-          zoomed ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
+        /* NO MAGNIFIER. A click on the board does not zoom — the wheel does —
+           so a cursor promising one was pointing at a control that is not
+           there. Zoomed in it is a hand, because then it pans. */
+        className={`group relative w-fit touch-none overflow-hidden rounded-xl select-none ${
+          zoomed ? "cursor-grab active:cursor-grabbing" : "cursor-default"
         } ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -412,11 +601,14 @@ export default function TableMap({
           className={`block max-w-full ${MAP_MAX_HEIGHT_CLASS}`}
           style={imageStyle}
           onLoad={(event) => {
-            holdTray(event.target.naturalWidth, event.target.naturalHeight);
-            setNatural({
+            const size = {
               width: event.target.naturalWidth,
               height: event.target.naturalHeight,
-            });
+            };
+
+            holdTray(size.width, size.height);
+            setNatural(size);
+            reportNatural(size);
           }}
         />
 
@@ -447,64 +639,80 @@ export default function TableMap({
           />
         )}
 
-        {/* This chair's own arrow: a carried piece, or the ruler. */}
-        {natural && hover && (carrying?.from || measure) && (
+        {/* UNDER THE PIECES: an arrow across a crowded board runs behind the
+            faces rather than over them. The figures go over — see below. */}
+        {beams.map((beam) => (
           <DragArrow
+            key={beam.key}
             width={natural.width}
             height={natural.height}
-            // A stored point is already at a centre; `snap` names which.
-            from={snap(measure ? measure.from : carrying.from)}
-            to={hover}
-            size={grid.enabled ? grid.size : natural.width / 40}
-            scale={scale}
+            from={beam.from}
+            to={beam.to}
+            // The cell, ruled or not — the piece it points at is that size too.
+            size={grid.size}
+            color={beam.color}
             layerStyle={imageStyle}
           />
-        )}
+        ))}
 
-        {/* And everybody else's, drawn from the cells they named. */}
-        {natural &&
-          grid.enabled &&
-          Object.entries(aims).map(([at, beam]) => (
-            <DragArrow
-              key={at}
-              width={natural.width}
-              height={natural.height}
-              from={pointOfCell(beam.from, grid.size, natural)}
-              to={pointOfCell(beam.to, grid.size, natural)}
-              size={grid.size}
-              scale={scale}
-              layerStyle={imageStyle}
-            />
-          ))}
-
-        <MapMarks
-          marks={marks}
+        <MapTokens
+          tokens={tokens}
           scale={scale}
           layerStyle={imageStyle}
-          // As a fraction of the layer, so it scales with the board.
-          cell={
-            grid.enabled && natural
-              ? (TOKEN_OF_A_CELL * grid.size) / natural.width
-              : null
-          }
+          /* Deaf while a brush is held, or the first piece the stroke crosses
+             swallows the press. */
+          muted={Boolean(brush)}
+          /* As a fraction of the layer, so it scales with the board.
+             FROM `grid.size` WHETHER OR NOT THE GRID IS DRAWN. The ruling is a
+             thing you can see; the scale it sets is a thing the map HAS, and a
+             piece that changed size when the lines were switched off was the
+             board telling you the world had resized. Null only until the
+             picture has reported how big it is. */
+          cell={natural ? (TOKEN_OF_A_CELL * grid.size) / natural.width : null}
           /* Where the press began travels with it: a press that goes nowhere
-             is a click, and a click lifts the piece off. */
+             is not a drag, and now does nothing at all. */
           onGrab={
             place
-              ? (characterId, event) =>
+              ? (token, event) =>
                   setLifted({
-                    characterId,
+                    piece: pieceOf(token),
+                    token,
+                    from: token,
                     origin: { clientX: event.clientX, clientY: event.clientY },
-                    from:
-                      marks.find((mark) => mark.characterId === characterId) ??
-                      null,
                   })
               : null
           }
+          onMark={mark ? (token, patch) => mark(token, patch) : null}
+          onLift={lift ? (token) => lift(token.id) : null}
         />
+        {/* AND THE DISTANCES OVER THEM. A move of one cell puts the midpoint
+            of the arrow on the piece that is moving, so the figure was drawn
+            behind a face; nothing but tree order lifts it clear. */}
+        {beams.map((beam) => (
+          <DragDistance
+            key={beam.key}
+            width={natural.width}
+            height={natural.height}
+            from={beam.from}
+            to={beam.to}
+            size={grid.size}
+            layerStyle={imageStyle}
+          />
+        ))}
+
+        {/* LAST, AND OVER EVERYTHING: a piece standing in a room nobody has
+            opened is part of what the darkness is hiding. */}
+        {fog.enabled && (
+          <FogOverlay
+            maskRef={mask.maskRef}
+            subscribe={mask.subscribe}
+            seeThrough={canSweep}
+            style={imageStyle}
+          />
+        )}
       </div>
 
-      <MarkRoll marks={marks} />
+      <TokenRoll tokens={tokens} />
     </>
   );
 }
@@ -517,6 +725,54 @@ const TOKEN_OF_A_CELL = 1.4;
 
 /** How far a press may drift and still be a click rather than a carry. */
 const TAP_SLOP_PX = 4;
+
+/** A piece already on the board, described the way the palette describes one. */
+function pieceOf(token) {
+  if (token.isPartyMarker) {
+    return { kind: "party" };
+  }
+
+  return token.characterId
+    ? { kind: "character", characterId: token.characterId }
+    : { kind: "template", templateId: token.templateId };
+}
+
+/**
+ * Whether a moving hand is still where it was.
+ *
+ * ON A RULED BOARD that is the CELL: a pointer fires dozens of moves a second
+ * and the board would re-render on every one of them, which is what made
+ * aiming stutter.
+ *
+ * OFF IT, THE POINT ITSELF — and this is what was missing. Comparing `q` and
+ * `r` on a board that has none is `undefined === undefined` on both, so every
+ * move read as "still there", the hover was never set, and the arrow had no far
+ * end to be drawn to. Free placement re-renders per move because free placement
+ * has no coarser answer.
+ */
+function settled(standing, point) {
+  if (!standing || !point) {
+    return standing === point;
+  }
+
+  return Number.isInteger(standing.q) && Number.isInteger(point.q)
+    ? standing.q === point.q && standing.r === point.r
+    : standing.x === point.x && standing.y === point.y;
+}
+
+/**
+ * The colour a chair draws in. Gold for the head of the table, whose seat has no
+ * dice colour of its own — `markFace` in page.jsx carries the rest across.
+ */
+function seatColor(seat, faces) {
+  return chairColor(seat?.characterId ?? HEAD_OF_TABLE, faces);
+}
+
+function chairColor(at, faces) {
+  const face = faces.find((one) => one.characterId === at);
+
+  return face?.diceColor ? diceColorHex(face.diceColor) : "var(--color-gold)";
+}
 
 /** A cell off the wire, believed only as far as its shape. */
 function cell(value) {

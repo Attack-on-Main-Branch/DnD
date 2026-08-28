@@ -96,7 +96,7 @@ export default function AvatarField({
     onBusyChange(true);
 
     try {
-      const result = await compressAvatar(file);
+      const result = await compressAvatar(file, MAX_AVATAR_BYTES);
 
       // A newer pick started while this one was encoding; it owns the field.
       if (run !== runId.current) {

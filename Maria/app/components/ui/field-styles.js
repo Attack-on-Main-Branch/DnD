@@ -50,3 +50,14 @@ export const CHOICE_CARD_FOCUS_CLASSES =
 
 /** The invalid state for a radio *group*, the counterpart to `BORDER.invalid`. */
 export const INVALID_GROUP_CLASSES = "ring-2 ring-red-500/40";
+
+/**
+ * How tall a six-row prose field stands, for the drop zones under the campaign
+ * sheet's world lore to match it: six lines of `text-sm` at its 1.25rem
+ * line-height, plus BASE's `py-2` and the 1px rim on each edge. 138px.
+ *
+ * A MEASUREMENT AND NOT A GUESS, which is why it is here rather than written
+ * out at each zone — change the field's padding or type scale and this is the
+ * one place that has to follow. A literal, or Tailwind's scanner never sees it.
+ */
+export const PROSE_FIELD_HEIGHT_CLASS = "min-h-[138px]";

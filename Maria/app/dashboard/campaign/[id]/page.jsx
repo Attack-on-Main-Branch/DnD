@@ -77,6 +77,7 @@ export default async function CampaignPage({ params }) {
     containers,
     containerItems,
     features,
+    tokens,
   } = loaded;
 
   // Resolved here rather than in PartyPanel: `classLabel` reaches through
@@ -173,6 +174,7 @@ export default async function CampaignPage({ params }) {
                 containers={containers}
                 containerItems={containerItems}
                 features={features}
+                tokens={tokens}
               />
             ),
           }}

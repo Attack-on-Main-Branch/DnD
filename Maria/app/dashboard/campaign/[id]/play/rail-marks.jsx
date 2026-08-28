@@ -38,11 +38,16 @@ export function useRailMarks() {
 }
 
 /**
- * How wide the panel stands. A literal, or Tailwind's scanner never sees it.
- * Narrower than the marks' own box above the board: this one hangs off the side
- * of the map rather than under it, and has the whole board to clear.
+ * How wide the panel stands. Narrower than the marks' own box above the board:
+ * this one hangs off the side of the map rather than under it, and has the whole
+ * board to clear.
+ *
+ * A CSS LENGTH RATHER THAN A UTILITY, because it is needed in two places now:
+ * the box wears it, and so does the panel inside — which folds along this very
+ * axis and would re-wrap its own text on the way out if it took its width from
+ * the fold. See `.tab-shell-across` in globals.css and rail-tray.jsx.
  */
-const TRAY_WIDTH_CLASSES = "w-[min(26rem,calc(100vw-6rem))]";
+export const TRAY_WIDTH = "min(26rem, calc(100vw - 6rem))";
 
 export default function RailMarks({ children }) {
   const railRef = useRef(null);
@@ -148,16 +153,29 @@ export default function RailMarks({ children }) {
         {children}
 
         <div
+          /*
+           * THE BOX IS THE FOLD. Nought wide when nothing is open, its own width
+           * when something is: these trays hang off the SIDE of the board, so
+           * they go back the way they came rather than folding upward like the
+           * marks above it. The panel inside keeps a width of its own and is cut
+           * against this one — see `.tab-shell-across` in globals.css.
+           *
+           * A definite length at both ends either way, so moving between two
+           * trays of different widths travels rather than jumping.
+           */
+          style={{ width: open ? (width ?? TRAY_WIDTH) : 0 }}
+          /* Which of the two closes this is: the last tray out, or one making
+             way for another. Their rows are timed differently — see the CSS. */
+          data-rail-shut={open ? undefined : ""}
           className={[
             "absolute top-1/2 left-full z-40 ml-4 -translate-y-1/2",
-            (open && width) || TRAY_WIDTH_CLASSES,
-            /* Width as well as opacity: both ends are definite lengths, so
-               morphing from a list to a grid of maps travels rather than
-               jumping halfway through the panel's own transition. */
-            "transition-[opacity,width] duration-300",
-            open
-              ? "ease-tray opacity-100"
-              : "pointer-events-none ease-tray-in opacity-0",
+            /* The fold and the fade are timed apart in there, the way the marks
+               above the board time theirs — see globals.css. */
+            "rail-tray-box",
+            /* On the box and not the glass: the arrow is a sibling of the
+               glass rather than a child — see below. */
+            "group",
+            open ? "opacity-100" : "pointer-events-none opacity-0",
             "motion-reduce:transition-none",
           ].join(" ")}
         >
@@ -172,25 +190,45 @@ export default function RailMarks({ children }) {
                 // beside the map.
                 "glass-unfiltered",
                 "rounded-2xl text-left",
+                /*
+                 * AND THIS IS WHERE THE PANEL IS CUT. It keeps a width of its
+                 * own — a tray sized by the folding track would re-wrap its text
+                 * on the way out — so mid-fold there is more panel than box.
+                 *
+                 * Clipping deeper in, at `.tab-clip`, was not enough: that is a
+                 * grid item, and a grid track will not shrink below its
+                 * content's minimum, so mid-fold it stood WIDER than the box and
+                 * the cards spilled over the board. Cut here, against the very
+                 * box whose width is animating, and against its rounded corners.
+                 *
+                 * `clip` and not `hidden`, which is a scrolling value. An
+                 * element's overflow clips its CHILDREN, never its own shadow.
+                 */
+                "overflow-clip",
                 // `.glow-gold` declares its own `transition` and a `transition-*`
                 // utility replaces it wholesale, so only these two are named.
-                "group transition-[border-color,box-shadow] duration-300",
+                "transition-[border-color,box-shadow] duration-300",
                 "motion-reduce:transition-none",
               ].join(" "),
             })}
           >
-            {/* The pointer across at whichever mark is open. `border-b border-l`
-                meet at the corner a 45° rotation puts on the left. Its
-                `translate` is set from script, so the centring is in there too
-                rather than in a utility that would overwrite it. */}
-            <span
-              ref={arrowRef}
-              aria-hidden="true"
-              className="absolute top-1/2 left-0 size-2.5 rotate-45 border-b border-l border-gold/25 bg-[var(--surface-96)] transition-[translate,border-color] duration-300 ease-tray group-focus-within:border-gold/60 group-hover:border-gold/60 motion-reduce:transition-none"
-            />
-
-            <div ref={setBody} />
+            {/* One cell, and every tray in it: overlaid rather than stacked,
+                or the box is as tall as all of them at once. See the CSS. */}
+            <div ref={setBody} className="grid" />
           </div>
+
+          {/* The pointer across at whichever mark is open. Its `translate` is
+              set from script, so the centring is in there too.
+
+              OUTSIDE THE GLASS, and after it: half of this notch stands off the
+              panel's left edge, and the clip above would have taken that half
+              away. The box is positioned, so it is the same rect to measure
+              against, and coming last it paints over the glass. */}
+          <span
+            ref={arrowRef}
+            aria-hidden="true"
+            className="absolute top-1/2 left-0 size-2.5 rotate-45 border-b border-l border-gold/25 bg-[var(--surface-96)] transition-[translate,border-color] duration-300 ease-tray group-focus-within:border-gold/60 group-hover:border-gold/60 motion-reduce:transition-none"
+          />
         </div>
       </div>
     </RailContext.Provider>

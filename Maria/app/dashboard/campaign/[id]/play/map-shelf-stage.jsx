@@ -17,8 +17,8 @@ import { useTableMaps } from "./table-maps";
  * rail's own 26rem a two-column grid of 16:9 cards is two stamps.
  */
 
-/** A literal, or Tailwind's scanner never sees it. See rail-marks.jsx. */
-const SHELF_WIDTH_CLASSES = "w-[min(42.5rem,calc(100vw-6rem))]";
+/** A CSS length, for the reason `TRAY_WIDTH` is one — see rail-marks.jsx. */
+const SHELF_WIDTH = "min(42.5rem, calc(100vw - 6rem))";
 
 export default function MapShelfStage({ campaignId }) {
   const { maps, activeId, choose } = useTableMaps();
@@ -30,7 +30,7 @@ export default function MapShelfStage({ campaignId }) {
       markLabel={`Maps, ${maps.length}`}
       title="Maps"
       meta={maps.length}
-      width={SHELF_WIDTH_CLASSES}
+      width={SHELF_WIDTH}
       dialogLabel="Maps at this table"
     >
       {/* The shelf can be long, so it scrolls at the height the trays under it
