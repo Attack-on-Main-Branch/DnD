@@ -265,14 +265,136 @@ function alsoSettled(settled, server, count) {
   return marked;
 }
 
+/**
+ * The slices held one entry per character or per piece. Everything else is read
+ * whole, so a stale server copy replaces all of it or none.
+ */
+const KEYED = new Set([
+  "levels",
+  "xp",
+  "inspiration",
+  "health",
+  "armor",
+  "saves",
+  "dead",
+  "hitDice",
+  "conditions",
+  "features",
+  "packs",
+  "books",
+  "purses",
+  "slots",
+  "chests",
+  "tokens",
+]);
+
+/**
+ * How long this browser's own copy of a value outranks the server's.
+ *
+ * A ROUTE RENDER READS THE DATABASE BEFORE IT LANDS, and at a busy table things
+ * move in between — so adopting its answer whole put a dragged token, a spent
+ * hit point and a written line back where they had been and forward again a
+ * moment later. A value touched more recently than this is kept instead, which
+ * costs nothing and waits for nobody.
+ */
+const HELD_MS = 2500;
+
 function createTableStore(seed) {
   let state = readSeed(seed);
   const listeners = new Set();
 
+  /** Path -> when this browser last wrote it. */
+  const touched = new Map();
+
+  function mark(before, after) {
+    const at = Date.now();
+
+    for (const slice of Object.keys(after)) {
+      // The log is never held: it is append-only, `readLog` merges the pending
+      // lines into whatever the server sends, and holding it would stall the
+      // panel at a table where somebody is always doing something.
+      if (slice === "log" || before[slice] === after[slice]) {
+        continue;
+      }
+
+      if (!KEYED.has(slice)) {
+        touched.set(slice, at);
+        continue;
+      }
+
+      const was = before[slice];
+      const now = after[slice];
+      const keys =
+        now instanceof Map
+          ? new Set([...was.keys(), ...now.keys()])
+          : new Set([...Object.keys(was ?? {}), ...Object.keys(now ?? {})]);
+
+      for (const key of keys) {
+        const mine = now instanceof Map ? now.get(key) : now?.[key];
+        const theirs = was instanceof Map ? was.get(key) : was?.[key];
+
+        if (mine !== theirs) {
+          touched.set(`${slice}\u0000${key}`, at);
+        }
+      }
+    }
+  }
+
+  /** Server data with anything this browser has just written left standing. */
+  function preserve(next) {
+    const now = Date.now();
+    let held = next;
+
+    for (const [path, at] of touched) {
+      if (now - at > HELD_MS) {
+        touched.delete(path);
+        continue;
+      }
+
+      const [slice, key] = path.split("\u0000");
+
+      if (key === undefined) {
+        held = { ...held, [slice]: state[slice] };
+        continue;
+      }
+
+      const mine = state[slice];
+      const theirs = held[slice];
+
+      if (mine instanceof Map && theirs instanceof Map) {
+        const copy = new Map(theirs);
+
+        if (mine.has(key)) {
+          copy.set(key, mine.get(key));
+        } else {
+          copy.delete(key);
+        }
+
+        held = { ...held, [slice]: copy };
+      } else if (mine && theirs) {
+        const copy = { ...theirs };
+
+        if (key in mine) {
+          copy[key] = mine[key];
+        } else {
+          delete copy[key];
+        }
+
+        held = { ...held, [slice]: copy };
+      }
+    }
+
+    return held;
+  }
+
   /** Ephemeral ids for what the log shows before the database has a row. */
   let drawn = 0;
 
-  function commit(next) {
+  function commit(next, own = true) {
+    if (own) {
+      mark(state, next);
+    }
+
     state = next;
 
     for (const listener of listeners) {
@@ -1308,12 +1430,24 @@ function createTableStore(seed) {
         next = { ...next, slots, hitDice: dice };
       }
 
-      commit(next);
+      commit(preserve(next), false);
     },
 
-    /** The whole board again, from a route render. The server wins here. */
+    /**
+     * The whole board again, from a route render — except for what this browser
+     * has written since the render was asked for, and the lines still waiting
+     * on the database.
+     */
     reseed(seed) {
-      commit(readSeed(seed));
+      const fresh = readSeed(seed);
+
+      commit(
+        preserve({
+          ...fresh,
+          log: readLog(fresh.log.server, state.log.pending, state.log.settled),
+        }),
+        false,
+      );
     },
   };
 }

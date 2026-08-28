@@ -5,7 +5,13 @@ import { readDiceResult, rollDice } from "sina/rules/dice";
 
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 
-import { clearDice, diceEngine, releaseDice, throwDie } from "./dice-engine";
+import {
+  clearDice,
+  DICE_LANES,
+  diceEngine,
+  releaseDice,
+  throwDie,
+} from "./dice-engine";
 import { diceMaterial, dieNotation } from "./dice-presentation";
 
 /**
@@ -21,9 +27,9 @@ import { diceMaterial, dieNotation } from "./dice-presentation";
  *
  * TWO KINDS OF BUSY, and telling them apart is most of this file.
  *
- *   THE BOARD is busy while dice are on it. There is one engine, one canvas and
- *   one physics world, so throws take it in turn — `onBoard` is that turn, and
- *   `stage` is what the arena reads to know whether to be lit.
+ *   A LANE is busy while dice are on it. Each is a physics world of its own, so
+ *   `DICE_LANES` throws can be in the air together — `onLane` is one lane's
+ *   turn, and `stages` is what each arena reads to know whether to be lit.
  *
  *   THE CHAIR is busy while ITS OWN throw is unfinished. That is `throwing`,
  *   and it is the only thing the rail and the death-save button disable on.
@@ -34,12 +40,15 @@ import { diceMaterial, dieNotation } from "./dice-presentation";
  * nobody had asked for. A roll is now refused only to the chair already making
  * one — a real table lets everybody pick up their own dice at once.
  *
- * What one board still cannot do is animate two throws at the same moment. A
- * mirror that arrives while the board is occupied is not shown; its number
- * comes off the wire a beat later, and the capsule beside that chair says
- * "Rolling…" throughout either way. A throw of this chair's OWN is never
- * dropped like that — this is the only board that can produce its number — so
- * it waits its turn instead.
+ * WHICH LANE A THROW TAKES IS THIS BROWSER'S BUSINESS. The lanes are identical
+ * worlds, and everything that makes a throw the throw it is — die, count, seed,
+ * and the corner the seed picks — travels with it, so two chairs loaded
+ * differently still watch the same tumble and read the same number.
+ *
+ * A mirror is dropped when every lane is occupied: a picture four seconds late
+ * is worse than none, and the number is already on its way over the wire. This
+ * chair's OWN throw is never dropped — only this board can produce its number —
+ * so it waits its turn instead.
  *
  * The waits below are the CSS durations in globals.css written out again —
  * change one and change the other, as entrance.js warns next door.
@@ -64,9 +73,11 @@ function newSeed() {
   return draw[0];
 }
 
+const IDLE_LANES = Array.from({ length: DICE_LANES }, () => "idle");
+
 export function useDiceRoll({ color = null, onStart, onFinish }) {
-  /** The BOARD: "idle", "rolling", "settling". */
-  const [stage, setStage] = useState("idle");
+  /** EACH LANE: "idle", "rolling", "settling". */
+  const [stages, setStages] = useState(IDLE_LANES);
 
   /** THE CHAIR: whether this browser has a throw of its own unfinished. */
   const [throwing, setThrowing] = useState(false);
@@ -76,11 +87,35 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
   const own = useRef(false);
   const alive = useRef(true);
 
-  /* How many throws the board owes, waiting or in flight. A counter and not a
-     boolean: the chain below is written to before the work it schedules begins,
-     so two mirrors arriving in one tick would both find a free board. */
-  const owed = useRef(0);
-  const turns = useRef(Promise.resolve());
+  /* How many throws each lane owes, waiting or in flight. Counters and not
+     booleans: a chain is written to before the work it schedules begins, so two
+     mirrors arriving in one tick would both find the same lane free. */
+  const owed = useRef(IDLE_LANES.map(() => 0));
+  const turns = useRef(IDLE_LANES.map(() => Promise.resolve()));
+
+  const setLaneStage = useCallback((lane, value) => {
+    setStages((current) =>
+      current[lane] === value
+        ? current
+        : current.map((was, at) => (at === lane ? value : was)),
+    );
+  }, []);
+
+  /** A lane with nothing on it, or -1 when every world is occupied. */
+  const freeLane = useCallback(
+    () => owed.current.findIndex((count) => count === 0),
+    [],
+  );
+
+  /** The shortest queue, for a throw that may not be dropped. */
+  const shortestLane = useCallback(
+    () =>
+      owed.current.reduce(
+        (best, count, at) => (count < owed.current[best] ? at : best),
+        0,
+      ),
+    [],
+  );
 
   /* The engine outlives no route: it holds a WebGL context and two threads,
      and dice-box offers no way to hand them back except this. */
@@ -99,21 +134,29 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
    * warms it with and nobody should be watching.
    */
   const warm = useCallback(() => {
-    diceEngine().catch(() => {});
+    // The first lane on its own, and the rest behind it: a chair that rolls on
+    // arrival should wait for one world rather than for three.
+    diceEngine(0)
+      .then(() => {
+        for (let lane = 1; lane < DICE_LANES; lane += 1) {
+          diceEngine(lane).catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  /** The board, taken in turn. A throw that fails does not stop the next. */
-  const onBoard = useCallback((run) => {
-    owed.current += 1;
+  /** One lane, taken in turn. A throw that fails does not stop the next. */
+  const onLane = useCallback((lane, run) => {
+    owed.current[lane] += 1;
 
-    const next = turns.current.then(run, run);
+    const next = turns.current[lane].then(run, run);
 
-    turns.current = next.then(spent, spent);
+    turns.current[lane] = next.then(spent, spent);
 
     return next;
 
     function spent() {
-      owed.current -= 1;
+      owed.current[lane] -= 1;
     }
   }, []);
 
@@ -125,37 +168,41 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
    * of all that — the number is what the table is waiting for, and the second
    * the dice hold is only for whoever is watching them.
    */
-  const turn = useCallback(async (die, count, cast, seed, report) => {
-    try {
-      setStage("rolling");
+  const turn = useCallback(
+    async (lane, die, count, cast, seed, report) => {
+      try {
+        setLaneStage(lane, "rolling");
 
-      const thrown = await throwDie({
-        notation: dieNotation(die, count),
-        ...diceMaterial(cast),
-        seed,
-      }).catch(() => null);
+        const thrown = await throwDie({
+          notation: dieNotation(die, count),
+          ...diceMaterial(cast),
+          seed,
+          lane,
+        }).catch(() => null);
 
-      report(alive.current ? readDiceResult(die, count, thrown) : null);
+        report(alive.current ? readDiceResult(die, count, thrown) : null);
 
-      if (!alive.current) {
-        return;
+        if (!alive.current) {
+          return;
+        }
+
+        await wait(thrown === null ? 0 : READ_MS);
+
+        setLaneStage(lane, "settling");
+        await wait(DICE_OUT_MS);
+
+        if (!alive.current) {
+          return;
+        }
+
+        setLaneStage(lane, "idle");
+      } finally {
+        // Whatever happened, the next throw starts on an empty lane.
+        clearDice(lane);
       }
-
-      await wait(thrown === null ? 0 : READ_MS);
-
-      setStage("settling");
-      await wait(DICE_OUT_MS);
-
-      if (!alive.current) {
-        return;
-      }
-
-      setStage("idle");
-    } finally {
-      // Whatever happened, the next throw starts on an empty board.
-      clearDice();
-    }
-  }, []);
+    },
+    [setLaneStage],
+  );
 
   /**
    * This browser starting a roll. The engine is waited for BEFORE the table is
@@ -196,8 +243,13 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
 
         onStart({ die, count, secret: kept, seed, color });
 
-        await onBoard(() =>
-          turn(die, count, { secret: kept, color }, seed, (settled) => {
+        /* A free world if there is one, and the shortest queue if there is not.
+           Never dropped: this is the only board that can produce this number. */
+        const free = freeLane();
+        const lane = free === -1 ? shortestLane() : free;
+
+        await onLane(lane, () =>
+          turn(lane, die, count, { secret: kept, color }, seed, (settled) => {
             const value = settled ?? rollDice(die, count);
 
             onFinish({
@@ -224,7 +276,7 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
         }
       }
     },
-    [color, onBoard, onFinish, onStart, secret, turn],
+    [color, freeLane, onFinish, onLane, onStart, secret, shortestLane, turn],
   );
 
   /**
@@ -239,16 +291,18 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
    */
   const mirror = useCallback(
     async (die, count, seed, cast, land) => {
-      if (owed.current > 0 || own.current || prefersReducedMotion()) {
+      const lane = freeLane();
+
+      if (lane === -1 || prefersReducedMotion()) {
         return;
       }
 
-      await onBoard(() =>
-        turn(die, count, { secret: false, color: cast }, seed, land),
+      await onLane(lane, () =>
+        turn(lane, die, count, { secret: false, color: cast }, seed, land),
       );
     },
-    [onBoard, turn],
+    [freeLane, onLane, turn],
   );
 
-  return { stage, throwing, secret, setSecret, roll, mirror, warm };
+  return { stages, throwing, secret, setSecret, roll, mirror, warm };
 }

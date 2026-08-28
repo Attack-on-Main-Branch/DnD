@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { parseAbilityTotal } from "sina/rules/ability-scores";
+
+import { useRouteRefresh } from "@/app/components/use-route-refresh";
 
 import { setAbilityScore } from "./actions";
 import { useTableDeed } from "./use-table-deed";
@@ -25,8 +26,7 @@ export default function AbilityScoreField({
   name,
   total,
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+  const refresh = useRouteRefresh();
   const { run, send } = useTableDeed(campaignId);
 
   /** What is half-typed, and null whenever nothing is. */
@@ -63,7 +63,7 @@ export default function AbilityScoreField({
         // What LANDED: the subtraction runs against the row the database locks.
         setWritten(result.total);
         send({ kind: "sheet", characterId });
-        startTransition(() => router.refresh());
+        refresh();
       },
 
       want: { party: true },

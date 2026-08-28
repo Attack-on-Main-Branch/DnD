@@ -207,9 +207,18 @@ export default function TableWire({
     return set;
   }, [seated, told]);
 
+  /* Who this browser speaks as, for anything that has to be filed under a
+     chair — the log's pending lines, in use-table-deed.js. */
   const wire = useMemo(
-    () => ({ seated: here, send, listen, leave }),
-    [here, leave, listen, send],
+    () => ({
+      seated: here,
+      seat: seatCharacterId ?? null,
+      head: Boolean(seatId) && !seatCharacterId,
+      send,
+      listen,
+      leave,
+    }),
+    [here, leave, listen, seatCharacterId, seatId, send],
   );
 
   return <WireContext.Provider value={wire}>{children}</WireContext.Provider>;

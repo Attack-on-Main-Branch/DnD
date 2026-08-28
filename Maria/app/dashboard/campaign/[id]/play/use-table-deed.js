@@ -32,7 +32,7 @@ import { useTableWire } from "./table-wire";
  */
 export function useTableDeed(campaignId) {
   const store = useTableStore();
-  const { send } = useTableWire();
+  const { send, seat, head } = useTableWire();
   const { show } = useToast();
 
   /** The database's own answer, for whichever slices the caller can be wrong about. */
@@ -52,7 +52,11 @@ export function useTableDeed(campaignId) {
     ({ note, paint, work, tell, want }) => {
       paint?.();
 
-      const ticket = note?.length ? store.noteEntries(note) : null;
+      /* Stamped with the chair, so a line waiting on the database wears the
+         same face as the row that replaces it. A caller may say otherwise. */
+      const ticket = note?.length
+        ? store.noteEntries(note.map((entry) => ({ seat, head, ...entry })))
+        : null;
 
       return Promise.resolve()
         .then(work)
@@ -80,7 +84,7 @@ export function useTableDeed(campaignId) {
           return null;
         });
     },
-    [resync, show, store],
+    [head, resync, seat, show, store],
   );
 
   return useMemo(() => ({ run, resync, send }), [resync, run, send]);

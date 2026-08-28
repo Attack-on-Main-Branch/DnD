@@ -432,23 +432,17 @@ export function useMapTokens({
   );
 
   /**
-   * The piece a click on bare map puts down for this chair, or null where there
-   * is none. On the world map that is the party's marker for the Dungeon
-   * Master; anywhere else it is the viewer's own face.
+   * The piece a click on bare map puts down for this chair: the party's marker
+   * on the world map, and nothing anywhere else.
+   *
+   * A PLAYER PUTS NOTHING DOWN. Their face is the Dungeon Master's to deal off
+   * the palette; a player moves it once it is there and takes it off through
+   * the menu. The database asks the same question again — see place_map_token.
    */
-  const ownPiece = useMemo(() => {
-    if (!seat) {
-      return null;
-    }
-
-    if (isWorldMap) {
-      return canSweep ? { kind: "party" } : null;
-    }
-
-    return seat.characterId
-      ? { kind: "character", characterId: seat.characterId }
-      : null;
-  }, [canSweep, isWorldMap, seat]);
+  const ownPiece = useMemo(
+    () => (seat && isWorldMap && canSweep ? { kind: "party" } : null),
+    [canSweep, isWorldMap, seat],
+  );
 
   return {
     tokens,
@@ -534,11 +528,7 @@ function mayPlace(piece, { isWorldMap, canSweep, seat }) {
     return false;
   }
 
-  if (piece.kind === "template") {
-    return canSweep;
-  }
-
-  return canSweep || piece.characterId === seat.characterId;
+  return canSweep;
 }
 
 /** Whether this board has a face for the piece a message just named. */

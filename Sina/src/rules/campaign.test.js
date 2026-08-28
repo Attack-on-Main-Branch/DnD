@@ -7,6 +7,7 @@ import {
   MAX_LORE_LENGTH,
   MAX_MAP_BYTES,
   MAX_TITLE_LENGTH,
+  MAX_UPLOAD_BYTES,
   mapObjectPath,
   MIN_SEARCH_LENGTH,
   parseCharacterQuery,
@@ -18,6 +19,7 @@ import {
   MAX_EXTRA_MAPS,
   MAX_MAP_NAME_LENGTH,
   readCampaignMaps,
+  uploadedBytes,
   validateCampaignMaps,
   markKey,
 } from "./campaign.js";
@@ -168,6 +170,81 @@ describe("validateCampaign", () => {
         "map",
       );
     });
+  });
+
+  describe("what one save carries", () => {
+    it("accepts a body at exactly the ceiling", () => {
+      assert.equal(
+        validateCampaign(validValues({ uploadBytes: MAX_UPLOAD_BYTES })),
+        null,
+      );
+    });
+
+    it("rejects one byte over", () => {
+      assert.equal(
+        validateCampaign(validValues({ uploadBytes: MAX_UPLOAD_BYTES + 1 }))
+          .field,
+        "map",
+      );
+    });
+
+    it("refuses a shelf of pictures that are each small enough", () => {
+      // The case the ceiling exists for: nothing here is an oversized map, and
+      // together they are a request the framework would refuse unread.
+      assert.notEqual(
+        validateCampaign(
+          validValues({
+            map: imageFile({ bytes: MAX_MAP_BYTES }),
+            uploadBytes: MAX_MAP_BYTES * 3,
+          }),
+        ),
+        null,
+      );
+    });
+
+    it("names the oversized picture rather than the heavy save", () => {
+      // Both are wrong at once; the specific sentence is the useful one.
+      assert.match(
+        validateCampaign(
+          validValues({
+            map: imageFile({ bytes: MAX_MAP_BYTES + 1 }),
+            uploadBytes: MAX_UPLOAD_BYTES + 1,
+          }),
+        ).message,
+        /once compressed/,
+      );
+    });
+  });
+});
+
+describe("uploadedBytes", () => {
+  it("weighs every file in the body, not only the world map", () => {
+    const data = new FormData();
+
+    data.append("title", "The Sunless Citadel");
+    data.append("map", imageFile({ bytes: 300 }));
+    data.append("mapFile", imageFile({ bytes: 200 }));
+    data.append("mapFile", imageFile({ bytes: 100 }));
+
+    assert.equal(uploadedBytes(data), 600);
+  });
+
+  it("ignores the zero-byte file an empty input still submits", () => {
+    const data = new FormData();
+
+    data.append("map", new File([], "", { type: "application/octet-stream" }));
+
+    assert.equal(uploadedBytes(data), 0);
+  });
+
+  it("reaches validateCampaign through readCampaignValues", () => {
+    const data = new FormData();
+
+    data.append("title", "The Sunless Citadel");
+    data.append("worldDescription", "");
+    data.append("mapFile", imageFile({ bytes: MAX_UPLOAD_BYTES + 1 }));
+
+    assert.equal(validateCampaign(readCampaignValues(data)).field, "map");
   });
 });
 

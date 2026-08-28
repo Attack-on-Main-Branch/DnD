@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useTransition } from "react";
+import { useCallback } from "react";
 import { parseArmorClass, readDeathSaves } from "sina/rules/death";
 import { readConditions } from "sina/rules/conditions";
 import { readFeatures } from "sina/rules/features";
@@ -11,6 +10,7 @@ import { parseLevel } from "sina/rules/level";
 import { parseXp } from "sina/rules/xp";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
+import { useRouteRefresh } from "@/app/components/use-route-refresh";
 
 import PartyCard from "./party-card";
 import { useTableStore } from "./table-state";
@@ -48,16 +48,12 @@ export default function PartyRail({
   seatCharacterId = null,
   seatTitle = null,
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
   const store = useTableStore();
   const { seated } = useTableWire();
   const { resync } = useTableDeed(campaignId);
 
   /* The whole route, and only for the two things that actually change it. */
-  const refresh = useCallback(() => {
-    startTransition(() => router.refresh());
-  }, [router]);
+  const refresh = useRouteRefresh();
 
   useWireMessage("seat", (message) => {
     if (typeof message.characterId !== "string") {

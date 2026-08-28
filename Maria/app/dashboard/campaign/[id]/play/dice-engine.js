@@ -1,5 +1,7 @@
 "use client";
 
+import { DICE_CORNERS, diceCorner } from "sina/rules/dice";
+
 import {
   DICE_ASSET_PATH,
   DICE_BODY_THEME,
@@ -24,17 +26,47 @@ import {
  */
 
 /**
+ * How many worlds this page keeps, and so how many throws can be in the air at
+ * once. Each costs a WebGL context, two threads and a copy of ammo.wasm.
+ *
+ * A LANE IS NOT PART OF A ROLL: every lane is the same arena built from the
+ * same tray, so which one a throw lands in is this browser's own business. What
+ * the chairs must agree on is the corner, and that is `diceCorner` on the seed.
+ */
+export const DICE_LANES = 3;
+
+/**
  * dice-box takes a CSS SELECTOR for its container and refuses an element, so a
  * fixed id is honest — `useId` would give `:r1:`, which is not a selector
  * without escaping every colon in it.
  */
-export const DICE_STAGE_ID = "dice-arena-stage";
+export function diceStageId(lane) {
+  return `dice-arena-stage-${lane}`;
+}
 
 /** The arena's own world, in dice-box's units. Its walls are built from this. */
 const ARENA_SIZE = 9.5;
 
 /** How far into the corner a die starts, as a fraction of the arena's half. */
 const CORNER = 0.86;
+
+/**
+ * Where the corners are, as the sign of each on x and z. The first is the one
+ * every throw used to come from, which keeps `warmWorld` the throw it was.
+ */
+const CORNERS = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+];
+
+// A corner named in the rules and never placed here would throw from nowhere.
+if (CORNERS.length !== DICE_CORNERS) {
+  throw new Error(
+    `The arena places ${CORNERS.length} of ${DICE_CORNERS} corners.`,
+  );
+}
 
 /** How long a die that will not lie down is given before it is put down. */
 const SETTLE_MS = 4000;
@@ -226,16 +258,20 @@ const PRELUDE = `(function () {
 })();
 `;
 
-let pending = null;
-let live = null;
-
 /**
- * Which arena the engine belongs to. Bumped by every release and checked when a
- * build lands: leaving the table while the library is still loading is a couple
- * of seconds wide, and an engine that finishes after its stage has gone is one
- * nothing can hand back.
+ * One record per lane: the engine it is holding, the build that will become
+ * one, and which arena either belongs to.
+ *
+ * `arena` is bumped by every release and checked when a build lands: leaving
+ * the table while the library is still loading is a couple of seconds wide, and
+ * an engine that finishes after its stage has gone is one nothing can hand
+ * back.
  */
-let arena = 0;
+const lanes = Array.from({ length: DICE_LANES }, () => ({
+  pending: null,
+  live: null,
+  arena: 0,
+}));
 
 /**
  * The tray, in the map picture's own pixels — the one measurement every chair
@@ -266,7 +302,9 @@ let seededBlob = null;
  */
 export function holdTray(width, height) {
   if (tray && (tray.width !== width || tray.height !== height)) {
-    discardDice();
+    for (let lane = 0; lane < DICE_LANES; lane += 1) {
+      discardDice(lane);
+    }
   }
 
   tray = { width, height };
@@ -287,21 +325,22 @@ function theTray() {
 }
 
 /**
- * The corner the dice come from, in world units.
+ * One of the four corners, in world units.
  *
- * BOTH terms are negative because of how the camera is hung: dice-box looks
- * straight down from (0, 36.5, 0), and `Matrix.LookAtLH` derives its right axis
- * as -x and its up axis as -z for a straight-down look. So the top-right of the
- * picture is the far negative corner of the world.
+ * WHICH PICTURE CORNER EACH IS depends on how the camera is hung: dice-box
+ * looks straight down from (0, 36.5, 0), and `Matrix.LookAtLH` derives its
+ * right axis as -x and its up as -z, so `CORNERS[0]` is the picture's TOP-RIGHT
+ * and the rest read round the opposite way to the one an eye expects.
  *
  * `newStartPoint: false` on every roll is what stops the library picking a
  * random edge of its own — and keeps the five draws that would spend out of the
  * sequence the seed is counting.
  */
-function startCorner(ratio) {
+function startCorner(ratio, corner) {
   const half = ARENA_SIZE / 2;
+  const [x, z] = CORNERS[corner];
 
-  return [-half * ratio * CORNER, CONFIG.startingHeight, -half * CORNER];
+  return [x * half * ratio * CORNER, CONFIG.startingHeight, z * half * CORNER];
 }
 
 /**
@@ -362,7 +401,7 @@ async function warmWorld(box, physics, start) {
   await box.updateConfig({ startPosition: start, settleTimeout: SETTLE_MS });
 }
 
-async function build() {
+async function build(lane) {
   const { width, height } = await theTray();
 
   const NativeBlob = window.Blob;
@@ -436,7 +475,7 @@ async function build() {
   try {
     const { default: DiceBox } = await import("@3d-dice/dice-box");
 
-    const box = new DiceBox({ ...CONFIG, container: `#${DICE_STAGE_ID}` });
+    const box = new DiceBox({ ...CONFIG, container: `#${diceStageId(lane)}` });
 
     await box.init();
 
@@ -452,9 +491,13 @@ async function build() {
        nothing to draw — a white board. */
     await box.loadThemeQueue.flush();
 
-    await warmWorld(box, physics, startCorner(width / height));
+    const ratio = width / height;
 
-    return { box, physics, workers };
+    await warmWorld(box, physics, startCorner(ratio, 0));
+
+    // The ratio outlives the build: every throw sets its own corner, and the
+    // tray is what turns a corner into a place in the world.
+    return { box, physics, workers, ratio };
   } finally {
     window.Blob = NativeBlob;
     window.Worker = NativeWorker;
@@ -490,8 +533,8 @@ function queued(step) {
  * simulating perfectly into a detached box. True only when there IS a stage and
  * this is not in it: a table with no map has no board to miss.
  */
-function stranded(built) {
-  const stage = document.getElementById(DICE_STAGE_ID);
+function stranded(built, lane) {
+  const stage = document.getElementById(diceStageId(lane));
 
   return Boolean(stage) && built?.box?.canvas?.parentElement !== stage;
 }
@@ -503,40 +546,42 @@ function stranded(built) {
  * has been overtaken is taken down before the next is started rather than
  * during it.
  */
-export function diceEngine() {
-  if (live) {
-    if (!stranded(live)) {
-      return Promise.resolve(live);
+export function diceEngine(lane = 0) {
+  const held = lanes[lane];
+
+  if (held.live) {
+    if (!stranded(held.live, lane)) {
+      return Promise.resolve(held.live);
     }
 
     // One roll without dice, then it builds again.
-    discardDice();
+    discardDice(lane);
   }
 
-  const mine = arena;
+  const mine = held.arena;
 
-  pending ??= queued(async () => {
-    const built = await build();
+  held.pending ??= queued(async () => {
+    const built = await build(lane);
 
-    if (mine !== arena) {
+    if (mine !== held.arena) {
       tearDown(built);
       throw new Error("The dice arena went away while it was being built.");
     }
 
-    live = built;
+    held.live = built;
 
     return built;
   }).catch((error) => {
     // Only if nothing has moved on: a release has already cleared this, and
     // whatever is being built now is not ours to throw away.
-    if (mine === arena) {
-      pending = null;
+    if (mine === held.arena) {
+      held.pending = null;
     }
 
     throw error;
   });
 
-  return pending;
+  return held.pending;
 }
 
 /**
@@ -549,8 +594,21 @@ export function diceEngine() {
  * already totalled — which is the whole answer for a d100, rolled the way a
  * table rolls percentile. Reading the first die alone would report the tens.
  */
-export async function throwDie({ notation, theme, themeColor, seed }) {
-  const { box, physics } = await diceEngine();
+export async function throwDie({
+  notation,
+  theme,
+  themeColor,
+  seed,
+  lane = 0,
+}) {
+  const { box, physics, ratio } = await diceEngine(lane);
+
+  /* Every throw and not once at build: the corner belongs to the ROLL, and a
+     board must make the same calls for a seed whichever world is free. */
+  await box.updateConfig({
+    startPosition: startCorner(ratio, diceCorner(seed)),
+    settleTimeout: SETTLE_MS,
+  });
 
   await sow(physics, seed, bodies(notation));
 
@@ -570,9 +628,9 @@ export async function throwDie({ notation, theme, themeColor, seed }) {
   return group?.value ?? null;
 }
 
-/** The board swept, with the engine left standing for the next roll. */
-export function clearDice() {
-  live?.box.clear();
+/** One lane swept, with its engine left standing for the next roll. */
+export function clearDice(lane = 0) {
+  lanes[lane].live?.box.clear();
 }
 
 /**
@@ -580,12 +638,13 @@ export function clearDice() {
  * and the map has not moved, so clearing it would strand the next build on a
  * `holdTray` that only fires when the picture mounts.
  */
-function discardDice() {
-  const held = live;
+function discardDice(lane) {
+  const record = lanes[lane];
+  const held = record.live;
 
-  arena += 1;
-  live = null;
-  pending = null;
+  record.arena += 1;
+  record.live = null;
+  record.pending = null;
 
   if (held) {
     tearDown(held);
@@ -618,8 +677,11 @@ function tearDown({ box, workers }) {
   box.canvas.remove();
 }
 
-/** The arena leaving, and everything it was holding with it — the tray too. */
+/** Every arena leaving, and everything they were holding — the tray too. */
 export function releaseDice() {
-  discardDice();
+  for (let lane = 0; lane < DICE_LANES; lane += 1) {
+    discardDice(lane);
+  }
+
   tray = null;
 }

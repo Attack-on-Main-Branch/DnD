@@ -32,13 +32,15 @@ const nextConfig = {
   experimental: {
     /*
      * Maps travel in a Server Action's form body, because an `httpOnly` session
-     * cookie is invisible to a browser Supabase client. One step above
-     * MAX_MAP_BYTES in Sina/src/rules/campaign.js, and the gap is the point: a
-     * body over this limit is refused before our code runs, so the user would
-     * get a stack trace instead of a sentence.
+     * cookie is invisible to a browser Supabase client.
+     *
+     * THREE CEILINGS, AND THE LOWEST HAS TO BE OURS: MAX_UPLOAD_BYTES in
+     * Sina/src/rules/campaign.js sits under this, and this under the 4.5MB a
+     * Vercel function accepts. A body over either of the two above is refused
+     * before our code runs, and answered with a stack trace or a 413.
      */
     serverActions: {
-      bodySizeLimit: "5mb",
+      bodySizeLimit: "4.5mb",
     },
   },
 };

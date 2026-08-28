@@ -3,12 +3,52 @@ import { describe, it } from "node:test";
 
 import {
   DICE,
+  DICE_CORNERS,
+  diceCorner,
   isDie,
   MAX_DICE_COUNT,
   parseDiceCount,
   readDiceResult,
   rollDice,
 } from "./dice.js";
+
+describe("diceCorner", () => {
+  it("gives the same corner for the same seed", () => {
+    // The whole point: every chair works this out for itself and has to agree.
+    assert.equal(diceCorner(1234567), diceCorner(1234567));
+  });
+
+  it("stays inside the corners the arena has places for", () => {
+    for (let seed = 0; seed < 500; seed += 1) {
+      const corner = diceCorner(seed * 7919);
+
+      assert.ok(Number.isInteger(corner));
+      assert.ok(corner >= 0 && corner < DICE_CORNERS);
+    }
+  });
+
+  it("uses every corner", () => {
+    const seen = new Set();
+
+    for (let seed = 0; seed < DICE_CORNERS; seed += 1) {
+      seen.add(diceCorner(seed));
+    }
+
+    assert.equal(seen.size, DICE_CORNERS);
+  });
+
+  it("does not fall off the end of a negative seed", () => {
+    // Nothing sends one, but a number off the wire is a number off the wire,
+    // and a negative index would throw the dice from nowhere at all.
+    assert.equal(diceCorner(-1), DICE_CORNERS - 1);
+  });
+
+  it("falls back to the first corner for anything that is not a seed", () => {
+    for (const value of [null, undefined, "3", 1.5, Number.NaN]) {
+      assert.equal(diceCorner(value), 0);
+    }
+  });
+});
 
 describe("the catalogue", () => {
   it("holds the seven dice a table uses", () => {

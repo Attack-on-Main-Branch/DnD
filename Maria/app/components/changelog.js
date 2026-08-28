@@ -16,6 +16,22 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.0.0",
+    date: "2026-08-28",
+    title: "The whole table rolls at once",
+    changes: [
+      "Several people can roll at the same time. The board keeps three sets of dice now, so a throw no longer waits for whoever pressed first — only your own rail stays shut until your dice have stopped.",
+      "Throws come in from whichever corner the roll picks, so two in the air together land where they can be told apart. Every chair still watches the same tumble and reads the same number.",
+      "The Dungeon Master deals every piece onto the board. A player moves their own once it is down and takes it off through its menu, but putting it out is the head of the table’s.",
+      "A campaign save carries 4 MB of pictures. Hang more maps than that and it says so before anything is uploaded, rather than failing on the way.",
+    ],
+    fixes: [
+      "The arrow that follows a token being dragged is visible to the whole table on a map with no grid on it. It only ever travelled in cells, and an unruled board has none.",
+      "Hit points, tokens and everything else that moves live stop snapping back to where they were and forward again when several changes land at once.",
+      "A log line waiting on the database wears the portrait of whoever wrote it — hit points, chests, packs and purses all showed a blank disc until the real line arrived.",
+    ],
+  },
+  {
     version: "0.18.0",
     date: "2026-08-28",
     title: "Roll for initiative, and a light to carry into the dark",

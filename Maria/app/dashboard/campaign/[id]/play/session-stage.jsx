@@ -1,9 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useTransition } from "react";
-
 import SettingsMark from "@/app/components/ui/settings-mark";
+import { useRouteRefresh } from "@/app/components/use-route-refresh";
 
 import RailTray from "./rail-tray";
 import SessionSettingsDrawer from "./session-settings-drawer";
@@ -20,16 +18,11 @@ import SessionSettingsDrawer from "./session-settings-drawer";
  * whether or not this panel exists on it, so they sit in party-rail.jsx.
  */
 export default function SessionStage({ campaignId, members }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
-
   /* A RUNG MOVED ALSO REFRESHES THE ROUTE, where a figure does not: the scores
      sheet's panels are built in page.jsx, and every proficient skill on them is
      read off the proficiency bonus a level decides. The party rail says the same
      thing about an award — see the `level` listener there. */
-  const refresh = useCallback(() => {
-    startTransition(() => router.refresh());
-  }, [router]);
+  const refresh = useRouteRefresh();
 
   return (
     <RailTray

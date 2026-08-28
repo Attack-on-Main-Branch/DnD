@@ -1,7 +1,9 @@
 "use client";
 
-import { DICE_STAGE_ID } from "./dice-engine";
+import { DICE_LANES, diceStageId } from "./dice-engine";
 import { useBoardCast, useDiceTable } from "./dice-table";
+
+const LANES = Array.from({ length: DICE_LANES }, (_, lane) => lane);
 
 /**
  * The board the dice land on, which is the map itself.
@@ -23,7 +25,7 @@ import { useBoardCast, useDiceTable } from "./dice-table";
  * into a box no longer on the page: the dice rolled where nobody could see them.
  */
 export default function DiceBoard() {
-  const { stage, board } = useDiceTable();
+  const { stages, board } = useDiceTable();
   const cast = useBoardCast();
 
   return (
@@ -34,15 +36,23 @@ export default function DiceBoard() {
         }`}
       />
 
-      {/* The roller writes its canvas in here on first use and leaves it there;
-          `overflow-hidden` and the picture's own radius are what keep a die
-          that rolls into the corner inside the frame. */}
-      <div
-        id={DICE_STAGE_ID}
-        className={`dice-stage pointer-events-none absolute inset-0 overflow-hidden rounded-xl ${
-          stage === "rolling" ? "opacity-100" : "opacity-0"
-        }`}
-      />
+      {/* One box per lane, laid over each other on the same picture. They fade
+          separately because they finish separately: a throw that has come to
+          rest should be taken away on its own beat, not held on the board until
+          somebody else's dice have stopped too.
+
+          The roller writes its canvas into one of these on first use and leaves
+          it there; `overflow-hidden` and the picture's own radius are what keep
+          a die that rolls into the corner inside the frame. */}
+      {LANES.map((lane) => (
+        <div
+          key={lane}
+          id={diceStageId(lane)}
+          className={`dice-stage pointer-events-none absolute inset-0 overflow-hidden rounded-xl ${
+            stages[lane] === "rolling" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      ))}
     </div>
   );
 }

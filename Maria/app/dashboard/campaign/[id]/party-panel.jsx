@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { MAX_PARTY, parseCharacterQuery } from "sina/rules/campaign";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
+import { useRouteRefresh } from "@/app/components/use-route-refresh";
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
 import {
@@ -40,14 +40,11 @@ const DEBOUNCE_MS = 250;
 
 const NOTHING = { term: null, characters: [] };
 export default function PartyPanel({ campaignId, members }) {
-  const router = useRouter();
   const [error, setError] = useState(null);
   const [invited, setInvited] = useState(() => new Set());
   const [isPending, startTransition] = useTransition();
 
-  const refresh = useCallback(() => {
-    startTransition(() => router.refresh());
-  }, [router]);
+  const refresh = useRouteRefresh();
 
   useLiveRefresh({
     channel: `party:${campaignId}`,

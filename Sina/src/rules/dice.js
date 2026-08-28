@@ -50,6 +50,24 @@ export function parseDiceCount(value) {
     : null;
 }
 
+/**
+ * How many places at the edge of a board a throw can come in from. A rule and
+ * not a picture: where they are is the arena's business, but WHICH one a roll
+ * uses must be the same answer on every screen, or two chairs are running two
+ * different simulations of it.
+ */
+export const DICE_CORNERS = 4;
+
+/** Which of them, from the seed the throw is already carrying. */
+export function diceCorner(seed) {
+  // Not coerced: a seed is a number or it is nothing.
+  if (!Number.isInteger(seed)) {
+    return 0;
+  }
+
+  return ((seed % DICE_CORNERS) + DICE_CORNERS) % DICE_CORNERS;
+}
+
 const DRAW_RANGE = 2 ** 32;
 
 /**

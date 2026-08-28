@@ -28,12 +28,31 @@ const MIN_TITLE_LENGTH = 2;
 export const MAX_TITLE_LENGTH = 80;
 export const MAX_LORE_LENGTH = 2000;
 
-/**
- * Must stay under `serverActions.bodySizeLimit` in next.config.mjs: a body over
- * that limit is refused by the framework before this code runs, and the user
- * gets a stack trace instead of a sentence.
- */
+/** What ONE picture may weigh. */
 export const MAX_MAP_BYTES = 4 * 1024 * 1024;
+
+/**
+ * What one save may weigh, every file in it together — the shelf posts its
+ * cards in the same body as the world map.
+ *
+ * Must stay under `serverActions.bodySizeLimit` in next.config.mjs, which is
+ * itself under the 4.5MB a Vercel function accepts: a body over either is
+ * refused before this code runs, and the user gets a stack trace.
+ */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+/** Every file one submit carries, read off the form rather than any one field. */
+export function uploadedBytes(formData) {
+  let total = 0;
+
+  for (const value of formData.values()) {
+    if (isUploadedFile(value)) {
+      total += value.size;
+    }
+  }
+
+  return total;
+}
 
 /** For the file picker's `accept`, which takes a comma-separated list. */
 export const MAP_ACCEPT_ATTRIBUTE = IMAGE_ACCEPT_ATTRIBUTE;
@@ -52,11 +71,20 @@ export function readCampaignValues(formData) {
        "leave the map alone" and "take it away" both arrive as no file, and
        this is the whole of what tells them apart. Creation never sends it. */
     keepMap: formData.get("keepMap") === "1",
+
+    // The shelf's files as well as the world map's: the sheet posts them in one
+    // body and it is the body that has a ceiling.
+    uploadBytes: uploadedBytes(formData),
   };
 }
 
 /** `null` when well-formed. Says nothing about whether the upload will succeed. */
-export function validateCampaign({ title, worldDescription, map }) {
+export function validateCampaign({
+  title,
+  worldDescription,
+  map,
+  uploadBytes = 0,
+}) {
   const titleLength = countCharacters(title);
 
   if (titleLength < MIN_TITLE_LENGTH) {
@@ -95,6 +123,14 @@ export function validateCampaign({ title, worldDescription, map }) {
         message: `The map must be under ${formatBytes(MAX_MAP_BYTES)} once compressed.`,
       };
     }
+  }
+
+  // Last, so one oversized picture is named rather than reported as a heavy save.
+  if (uploadBytes > MAX_UPLOAD_BYTES) {
+    return {
+      field: "map",
+      message: `One save can carry ${formatBytes(MAX_UPLOAD_BYTES)} of pictures. Hang the rest on a second save.`,
+    };
   }
 
   return null;

@@ -20,8 +20,8 @@ import { useTableRolls } from "./use-table-rolls";
  * so the state has to be above all of them and the layout has to stay in
  * page.jsx — hence a provider that renders no element of its own.
  *
- * Two halves meet here. use-dice-roll.js owns the one roller on the page and
- * knows nothing about who asked it to throw; use-table-rolls.js holds what the
+ * Two halves meet here. use-dice-roll.js owns this page’s rollers and knows
+ * nothing about who asked them to throw; use-table-rolls.js holds what the
  * whole table is doing, this browser's own roll included, and is the only thing
  * that touches the socket. They need each other in both directions — a roll
  * here has to reach the table, and a roll announced at the table has to be
@@ -34,7 +34,7 @@ import { useTableRolls } from "./use-table-rolls";
  */
 
 const RESTING = {
-  stage: "idle",
+  stages: [],
   throwing: false,
   secret: false,
   setSecret: () => {},

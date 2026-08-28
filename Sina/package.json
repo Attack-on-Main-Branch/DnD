@@ -1,6 +1,6 @@
 {
   "name": "sina",
-  "version": "0.18.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",

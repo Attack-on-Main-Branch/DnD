@@ -109,8 +109,8 @@ export default function TableMap({
   /* The ruler: where the right button was pressed, and nothing else. */
   const [measure, setMeasure] = useState(null);
 
-  /* Everybody else's arrows, by seat. Two whole cells off the wire, turned
-     back into points from this board's own grid. */
+  /* Everybody else's arrows, by seat. A ruled board names cells and an unruled
+     one names points; `anchorOf` takes whichever it can use. */
   const [aims, setAims] = useState({});
 
   useWireMessage(
@@ -123,7 +123,7 @@ export default function TableMap({
       }
 
       setAims((standing) => {
-        if (!cell(message.from) || !cell(message.to)) {
+        if (!aimed(message.from) || !aimed(message.to)) {
           const { [at]: gone, ...rest } = standing;
 
           return gone === undefined ? standing : rest;
@@ -268,27 +268,42 @@ export default function TableMap({
   });
 
   /**
-   * This chair's arrow, told to the table — and only when it reaches a
-   * different CELL. A pointer fires dozens of moves a second, and a message
-   * per move is a socket carrying nothing anybody could see.
+   * This chair's arrow, told to the table. A pointer fires dozens of moves a
+   * second, so a ruled board speaks only when the hand reaches a different
+   * CELL — and an unruled one, which has no cells to wait for, no more often
+   * than AIM_QUIET_MS.
    */
   const told = useRef(null);
+  const spoke = useRef(0);
 
   const announce = useCallback(
     (from, to) => {
-      const next = from && to ? `${from.q},${from.r}:${to.q},${to.r}` : null;
+      const ruled = cell(from) && cell(to);
+      const next =
+        !from || !to
+          ? null
+          : ruled
+            ? `${from.q},${from.r}:${to.q},${to.r}`
+            : `${to.x.toFixed(4)},${to.y.toFixed(4)}`;
 
       if (told.current === next) {
         return;
       }
 
+      const now = Date.now();
+
+      if (next && !ruled && now - spoke.current < AIM_QUIET_MS) {
+        return;
+      }
+
       told.current = next;
+      spoke.current = now;
 
       send({
         kind: "aim",
         seat: seat?.characterId ?? HEAD_OF_TABLE,
-        from: from && { q: from.q, r: from.r },
-        to: to && { q: to.q, r: to.r },
+        from: from && named(from),
+        to: to && named(to),
       });
     },
     [seat, send],
@@ -489,16 +504,14 @@ export default function TableMap({
       });
     }
 
-    // And everybody else's, drawn from the cells they named. Cells only: that
-    // is all the wire carries.
-    if (grid.enabled) {
-      for (const [at, beam] of Object.entries(aims)) {
-        drawn.push({
-          key: at,
-          from: pointOfCell(beam.from, grid.size, natural),
-          to: pointOfCell(beam.to, grid.size, natural),
-          color: chairColor(at, faces),
-        });
+    // And everybody else's, from the cell they named on a ruled board or the
+    // point they named on one without lines.
+    for (const [at, beam] of Object.entries(aims)) {
+      const from = anchorOf(beam.from, grid.enabled, grid.size, natural);
+      const to = anchorOf(beam.to, grid.enabled, grid.size, natural);
+
+      if (from && to) {
+        drawn.push({ key: at, from, to, color: chairColor(at, faces) });
       }
     }
 
@@ -724,6 +737,9 @@ export default function TableMap({
 const TOKEN_OF_A_CELL = 1.4;
 
 /** How far a press may drift and still be a click rather than a carry. */
+/** How often an unruled board may say where a hand is pointing. */
+const AIM_QUIET_MS = 80;
+
 const TAP_SLOP_PX = 4;
 
 /** A piece already on the board, described the way the palette describes one. */
@@ -779,6 +795,39 @@ function cell(value) {
   return Boolean(
     value && Number.isInteger(value.q) && Number.isInteger(value.r),
   );
+}
+
+function fraction(value) {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+/** A point on the picture, whether or not it also names a cell. */
+function spot(value) {
+  return Boolean(value && fraction(value.x) && fraction(value.y));
+}
+
+/** Enough off the wire to draw an end of an arrow from. */
+function aimed(value) {
+  return cell(value) || spot(value);
+}
+
+/** The pair as this chair sends them: the point always, the cell where there is one. */
+function named(at) {
+  return {
+    x: at.x,
+    y: at.y,
+    q: Number.isInteger(at.q) ? at.q : null,
+    r: Number.isInteger(at.r) ? at.r : null,
+  };
+}
+
+/** And back again, on the board that received them. */
+function anchorOf(named, ruled, size, natural) {
+  if (ruled && cell(named)) {
+    return pointOfCell(named, size, natural);
+  }
+
+  return spot(named) ? named : null;
 }
 
 /** And the point it names, in this board's own fractions. */
