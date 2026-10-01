@@ -6,6 +6,7 @@ import {
   listCampaignTokenTemplates,
   removeTokenImage,
   removeTokenTemplate,
+  updateTokenTemplate,
   uploadTokenImage,
 } from "sina/data/tokens";
 import {
@@ -135,6 +136,105 @@ export async function writeCampaignToken(campaignId, formData) {
     await sweep(supabase, upload.data.url, "writeCampaignToken/rollback");
 
     return refused("writeCampaignToken", error, "Could not make that piece.");
+  }
+
+  revalidateBoth(campaignId);
+
+  return { kind: "success", token: data };
+}
+
+/**
+ * A piece renamed, and redrawn if a new picture came with it.
+ *
+ * A new picture goes up under a name of its own before the row is pointed at
+ * it — the old object is never overwritten, so a refused update leaves the
+ * piece exactly as it was. The old picture is swept only once nothing points
+ * at it; the new one, if the row refused it.
+ */
+export async function editCampaignToken(campaignId, id, formData) {
+  if (typeof campaignId !== "string" || campaignId.length === 0) {
+    return rejected("Missing campaign id.");
+  }
+
+  const image = formData.get("image");
+  const { values, errors } = validateTokenTemplate(
+    { name: formData.get("name"), image },
+    { requireImage: false },
+  );
+
+  if (errors) {
+    return rejected(
+      errors.name ?? errors.image,
+      errors.name ? "name" : "image",
+    );
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("editCampaignToken", authError);
+  }
+
+  const { data: hand, error: readError } = await listCampaignTokenTemplates(
+    supabase,
+    campaignId,
+  );
+
+  if (readError) {
+    return refused("editCampaignToken/read", readError, "Could not save that.");
+  }
+
+  const standing = hand.find((one) => one.id === id);
+
+  if (!standing) {
+    return rejected("That piece is no longer in your hand.");
+  }
+
+  const redrawn = image && typeof image === "object" && image.size > 0;
+  let imageUrl = null;
+
+  if (redrawn) {
+    const upload = await uploadTokenImage(supabase, {
+      path: tokenImageObjectPath({
+        userId: user.id,
+        campaignId,
+        templateId: crypto.randomUUID(),
+        type: image.type,
+      }),
+      file: image,
+    });
+
+    if (upload.error) {
+      return refused(
+        "editCampaignToken/upload",
+        upload.error,
+        "The picture could not be uploaded. Try again.",
+      );
+    }
+
+    imageUrl = upload.data.url;
+  }
+
+  const { data, error } = await updateTokenTemplate(supabase, {
+    id,
+    campaignId,
+    name: values.name,
+    imageUrl,
+  });
+
+  if (error) {
+    if (imageUrl) {
+      await sweep(supabase, imageUrl, "editCampaignToken/rollback");
+    }
+
+    return error.reason === "not_found"
+      ? rejected("That piece is no longer in your hand.")
+      : refused("editCampaignToken", error, "Could not save that piece.");
+  }
+
+  if (imageUrl) {
+    await sweep(supabase, standing.image_url, "editCampaignToken/stale");
   }
 
   revalidateBoth(campaignId);

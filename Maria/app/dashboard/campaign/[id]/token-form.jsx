@@ -9,9 +9,13 @@ import {
   TOKEN_ACCEPT_ATTRIBUTE,
 } from "sina/rules/tokens";
 
-import { writeCampaignToken } from "@/app/actions/campaign-tokens";
-import Button from "@/app/components/ui/button";
+import {
+  editCampaignToken,
+  writeCampaignToken,
+} from "@/app/actions/campaign-tokens";
+import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
 import { CHOICE_CARD_FOCUS_CLASSES } from "@/app/components/ui/field-styles";
+import FormActions from "@/app/components/ui/form-actions";
 import FormAlert from "@/app/components/ui/form-alert";
 import TextField from "@/app/components/ui/text-field";
 import { AVATAR_EDGE, compressToken } from "@/lib/image-compression";
@@ -31,22 +35,36 @@ import { AVATAR_EDGE, compressToken } from "@/lib/image-compression";
 
 const FEEDBACK_ID = "campaign-token-feedback";
 
-export default function TokenForm({ campaignId, written }) {
-  const [name, setName] = useState("");
-  const [image, setImage] = useState(null);
+/**
+ * `editing` is the piece being redrawn, or null for a new one; the caller keys
+ * this form on it. Its picture stands in the disc until another is chosen, and
+ * only a new one is uploaded.
+ */
+export default function TokenForm({
+  campaignId,
+  written,
+  editing = null,
+  onDone,
+  notice = null,
+}) {
+  const [name, setName] = useState(editing?.name ?? "");
+  const [image, setImage] = useState(() =>
+    editing ? { preview: editing.image_url } : null,
+  );
   const [error, setError] = useState(null);
   const [field, setField] = useState(null);
-  const [note, setNote] = useState(null);
+  const [note, setNote] = useState(notice);
   const [busy, setBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const full = written >= MAX_CAMPAIGN_TOKENS;
+  const full = !editing && written >= MAX_CAMPAIGN_TOKENS;
   const blocked = isPending || busy || full;
 
   function make(event) {
     event.preventDefault();
 
-    if (blocked || !image?.file || name.trim().length === 0) {
+    if (blocked || !image || name.trim().length === 0) {
+      stopNavigationProgress();
       return;
     }
 
@@ -55,17 +73,30 @@ export default function TokenForm({ campaignId, written }) {
        assigned a File — only a DataTransfer's list. */
     const body = new FormData();
     body.set("name", name);
-    body.set("image", image.file);
+
+    if (image.file) {
+      body.set("image", image.file);
+    }
 
     startTransition(async () => {
-      const result = await writeCampaignToken(campaignId, body).catch(
-        () => null,
-      );
+      const result = await (
+        editing
+          ? editCampaignToken(campaignId, editing.id, body)
+          : writeCampaignToken(campaignId, body)
+      ).catch(() => null);
+
+      // A submit arms the loading bar, and nothing here navigates.
+      stopNavigationProgress();
 
       if (!result || result.kind === "rejected") {
         setError(result?.message ?? "That did not reach the table. Try again.");
         setField(result?.field ?? null);
         setNote(null);
+        return;
+      }
+
+      if (editing) {
+        onDone(`${result.token.name} is saved.`);
         return;
       }
 
@@ -114,14 +145,14 @@ export default function TokenForm({ campaignId, written }) {
       <FormAlert id={FEEDBACK_ID}>{error}</FormAlert>
       <FormAlert tone="success">{note}</FormAlert>
 
-      <div className="flex justify-end">
-        <Button
-          type="submit"
-          disabled={blocked || !image || name.trim().length === 0}
-        >
-          {isPending ? "Drawing…" : "Create token"}
-        </Button>
-      </div>
+      <FormActions
+        editing={Boolean(editing)}
+        pending={isPending}
+        disabled={blocked || !image || name.trim().length === 0}
+        label="Create token"
+        pendingLabel="Drawing…"
+        onCancel={() => onDone(null)}
+      />
     </form>
   );
 }
@@ -295,7 +326,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
         </p>
       ) : (
         <p className="font-mono text-[10px] text-ink/40">
-          {image ? formatBytes(image.bytes) : `${AVATAR_EDGE}px WebP`}
+          {image?.bytes ? formatBytes(image.bytes) : `${AVATAR_EDGE}px WebP`}
         </p>
       )}
     </div>

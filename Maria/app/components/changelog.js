@@ -16,6 +16,33 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.2.0",
+    date: "2026-10-01",
+    title: "The 2024 rules on the shelf",
+    changes: [
+      "Spell and item search draws on the 2024 rules. Spells and gear already in a spellbook or a pack keep the text they were added with.",
+      "A spell’s damage stands on its own line under its casting time, range and duration — “8d6 Fire · DEX save” — and casting it from a higher slot, or a cantrip at a higher level, still rolls the bigger dice.",
+      "A cantrip’s upgrade and a spell’s higher-slot casting are lifted out of the description into the At Higher Levels box.",
+      "A reaction or bonus action spell opens with what triggers it, rather than cramming it into the casting time.",
+      "Pneumancy joins the schools a Dungeon Master can file a homebrew spell under.",
+      "The site header folds away when you sit down at the table, and the board grows into the room it leaves.",
+      "Everything on a campaign’s Create tab can be edited: press Edit beside Remove and the form above fills with it, and Save edits changes it in place. Cancel leaves it as it was, and the card being edited glows while you work.",
+    ],
+    fixes: [
+      "The Dungeon Master’s view of a character’s pack shows their bags too, opened the way the player sees them.",
+      "Writing or saving something on the Create tab no longer leaves the loading bar crawling across the top of the page for fifteen seconds.",
+    ],
+  },
+  {
+    version: "1.1.0",
+    date: "2026-10-01",
+    title: "Three more faces at the table",
+    changes: [
+      "Three new races join character creation: Changeling, Erina, and Kipir.",
+      "Racial ability score bonuses are calculated automatically into your bought totals the moment they take the table.",
+    ],
+  },
+  {
     version: "1.0.0",
     date: "2026-08-28",
     title: "The whole table rolls at once",

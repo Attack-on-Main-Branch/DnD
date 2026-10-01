@@ -6,6 +6,7 @@ import { shouldAnnounce } from "sina/rules/notifications";
 
 import ChangelogEntries from "@/app/components/changelog-entries";
 import ChangelogPanel from "@/app/components/changelog-panel";
+import HeaderFold from "@/app/components/header-fold";
 import { CURRENT_RELEASE } from "@/app/components/notifications/version-notice";
 import SiteHeader from "@/app/components/site-header";
 import { logFailure } from "@/lib/errors";
@@ -50,13 +51,15 @@ export default async function DashboardLayout({ children }) {
       {/* The flex column, and every move between these pages — the wordmark
           inside the bar among them. */}
       <NavTransition className="flex flex-1 flex-col">
-        <SiteHeader
-          displayName={user?.user_metadata?.display_name ?? null}
-          email={user?.email}
-          userId={user?.id ?? null}
-          notifications={inbox.notifications}
-          announce={inbox.announce}
-        />
+        <HeaderFold>
+          <SiteHeader
+            displayName={user?.user_metadata?.display_name ?? null}
+            email={user?.email}
+            userId={user?.id ?? null}
+            notifications={inbox.notifications}
+            announce={inbox.announce}
+          />
+        </HeaderFold>
 
         {children}
       </NavTransition>

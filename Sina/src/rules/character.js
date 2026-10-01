@@ -81,6 +81,9 @@ export const RACES = [
   "Half-Orc",
   "Halfling",
   "Tiefling",
+  "Changeling",
+  "Erina",
+  "Kipir",
 ];
 
 /** Five archetypes, each holding its paths. Both halves are stored. */
@@ -466,6 +469,9 @@ export const RACE_ABILITY_BONUSES = {
   "Half-Orc": { str: 2, con: 1 },
   Halfling: { dex: 2, cha: 1 },
   Tiefling: { cha: 2, int: 1 },
+  Changeling: { cha: 2, int: 1 },
+  Erina: { dex: 2, wis: 1 },
+  Kipir: { str: 1, con: 1, cha: 1 },
 };
 
 export function raceAbilityBonus(race, abilityId) {

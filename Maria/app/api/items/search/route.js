@@ -16,12 +16,12 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * free API, the answers arrive unchecked into a form that writes to our
  * columns, and the site would need a `connect-src` for a third-party host.
  *
- * `/api/2014/...` and not `/api/...`: the bare path is a 301 to it.
+ * `/api/2024/...` for the 2024 rules; the bare path is a 301 to the 2014 ones.
  *
  * The campaign's own items are not cached at all — there are at most sixty, one
  * indexed read away, and unlike the SRD they change.
  */
-const API = "https://www.dnd5eapi.co/api/2014";
+const API = "https://www.dnd5eapi.co/api/2024";
 
 /** Each carries the category to file a result under when the detail has none. */
 const SOURCES = [
@@ -60,15 +60,15 @@ let loading = null;
 const details = new Map();
 
 /**
- * The eleven weapon properties and what each one MEANS, by name.
+ * The ten weapon properties and what each one MEANS, by name.
  *
- * Most equipment carries no `desc` at all — the rulebook writes nothing about a
- * longsword beyond its numbers — so the only prose 5e attaches to a weapon is
- * the rule behind Versatile, Thrown, Ammunition and the rest. That is what an
- * item's panel prints where a spell prints its own text, and it is the answer a
- * player actually wants when they see the tag.
+ * Most equipment carries no description at all — the rulebook writes nothing
+ * about a longsword beyond its numbers — so the only prose 5e attaches to a
+ * weapon is the rule behind Versatile, Thrown, Ammunition and the rest. That is
+ * what an item's panel prints where a spell prints its own text, and it is the
+ * answer a player actually wants when they see the tag.
  *
- * Eleven entries, fetched once and kept: the same per-instance memory the
+ * Ten entries, fetched once and kept: the same per-instance memory the
  * catalogue lives in.
  */
 let rules = null;
@@ -81,7 +81,7 @@ async function propertyRules() {
           (list?.results ?? []).map(async (one) => {
             const rule = await upstream(`weapon-properties/${one.index}`);
 
-            return [one.name, (rule?.desc ?? []).join(" ").trim()];
+            return [one.name, paragraphsOf(rule?.description).join(" ")];
           }),
         );
 
@@ -159,9 +159,60 @@ async function catalogue() {
  * longsword has nothing written about it beyond its numbers.
  */
 function describe(item) {
-  const prose = (item?.desc ?? []).join(" ").replace(/\s+/g, " ").trim();
+  const prose = proseOf(item).join("\n\n");
 
   return prose ? clip(prose) : "";
+}
+
+/** A string in one 2024 endpoint, an array of paragraphs in the next. */
+function paragraphsOf(value) {
+  return (Array.isArray(value) ? value : [value])
+    .map((line) =>
+      String(line ?? "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean);
+}
+
+/** Equipment writes `description`, magic items still write `desc`. */
+function proseOf(item) {
+  const written = paragraphsOf(item?.description);
+
+  return written.length > 0 ? written : paragraphsOf(item?.desc);
+}
+
+/** Broadest first: a longsword is filed under all four of its weapon groups. */
+const SHELVES = ["weapons", "armor", "tools", "ammunition", "adventuring-gear"];
+
+/** The groupings between "Weapons" and "Martial Melee Weapons" that add nothing to either. */
+const WEAPON_GROUPINGS = /^(?:simple|martial|melee|ranged)-weapons$/;
+
+function categoriesOf(item) {
+  return (
+    item?.equipment_categories ??
+    (item?.equipment_category ? [item.equipment_category] : [])
+  );
+}
+
+function shelfOf(categories) {
+  return (
+    SHELVES.map((index) => categories.find((one) => one.index === index)).find(
+      Boolean,
+    ) ?? categories[0]
+  );
+}
+
+/** "Martial Melee", "Heavy", "Artisan's Tools" — the shelf's own word dropped. */
+function kindOf(categories, shelf) {
+  const narrower = categories.filter(
+    (one) => one !== shelf && !WEAPON_GROUPINGS.test(one.index),
+  );
+
+  const kind =
+    narrower.find((one) => one.index.endsWith(shelf?.index)) ?? narrower[0];
+
+  return kind?.name?.replace(/\s+(?:Weapons|Armor)$/, "") ?? "";
 }
 
 /**
@@ -177,15 +228,11 @@ function describe(item) {
 function factsOf(item) {
   const facts = {};
 
-  const kind =
-    item?.category_range ??
-    item?.armor_category ??
-    item?.gear_category?.name ??
-    item?.tool_category ??
-    item?.vehicle_category;
+  const categories = categoriesOf(item);
+  const kind = kindOf(categories, shelfOf(categories));
 
   if (kind) {
-    facts.kind = String(kind);
+    facts.kind = kind;
   }
 
   if (item?.rarity?.name) {
@@ -213,10 +260,9 @@ function factsOf(item) {
   /* A melee weapon's `range.normal` is its reach, which is 5 for almost all of
      them and worth nothing on a card. A distance is only a distance when the
      weapon is ranged or the range has a long end. */
-  if (
-    item?.range?.normal &&
-    (item.weapon_range === "Ranged" || item.range.long)
-  ) {
+  const ranged = categories.some((one) => one.index === "ranged-weapons");
+
+  if (item?.range?.normal && (ranged || item.range.long)) {
     facts.range = span(item.range);
   }
 
@@ -248,9 +294,11 @@ function factsOf(item) {
     facts.weight = `${item.weight} lb`;
   }
 
-  // 5e writes attunement into the prose rather than into a field of its own,
-  // and a chip is what a table wants rather than a sentence to find it in.
-  if (/requires attunement/i.test((item?.desc ?? []).join(" "))) {
+  // A field of its own in 2024; the 2014 rules only wrote it into the prose.
+  if (
+    item?.attunement === true ||
+    /requires attunement/i.test(proseOf(item).join(" "))
+  ) {
     facts.attunement = true;
   }
 
@@ -325,7 +373,7 @@ async function detail(entry) {
     slug: entry.slug,
     name: item?.name ?? entry.name,
     category:
-      item?.equipment_category?.name ?? item?.rarity?.name ?? entry.fallback,
+      shelfOf(categoriesOf(item))?.name ?? item?.rarity?.name ?? entry.fallback,
     description: describe(item) || propertyText(item, known),
     facts: factsOf(item),
   };

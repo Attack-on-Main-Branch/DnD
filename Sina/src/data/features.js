@@ -127,6 +127,33 @@ export async function insertCharacterFeature(
 }
 
 /**
+ * Rewritten in place. The same two writers the insert has, and the same answer
+ * — no row — for one the caller may not touch or that is already gone.
+ */
+export async function updateCharacterFeature(
+  supabase,
+  { id, characterId, feature },
+) {
+  const { data, error } = await supabase
+    .from("character_features")
+    .update({ name: feature.name, description: feature.description })
+    .eq("id", id)
+    .eq("character_id", characterId)
+    .select(COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/**
  * One struck out. `character_id` rides along as a second lock on the same door,
  * the way every read in this layer carries one — and a row the caller may not
  * touch comes back as no row rather than as a failure, which is the same answer

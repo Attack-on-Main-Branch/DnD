@@ -12,6 +12,7 @@ import {
   stockContainerItem,
   takeChestItem,
   transferContainer,
+  updateContainer,
 } from "./containers.js";
 
 const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
@@ -335,5 +336,48 @@ describe("takeChestItem", () => {
 
     assert.equal(refused.data, null);
     assert.equal(refused.error.reason, "not_found");
+  });
+});
+
+describe("updateContainer", () => {
+  it("sets the name and the kind and nothing else", async () => {
+    const query = stubQuery({ data: { id: CONTAINER }, error: null });
+    await updateContainer(query, {
+      campaignId: CAMPAIGN,
+      id: CONTAINER,
+      container: { name: "Crypt Chest", type: "chest" },
+    });
+
+    assert.deepEqual(query.lastUpdate, { name: "Crypt Chest", type: "chest" });
+    assert.deepEqual(query.filters, [
+      ["id", CONTAINER],
+      ["campaign_id", CAMPAIGN],
+    ]);
+  });
+
+  it("reads an RLS refusal on the update as a miss", async () => {
+    const { error } = await updateContainer(
+      stubQuery({ data: null, error: null }),
+      {
+        campaignId: CAMPAIGN,
+        id: CONTAINER,
+        container: { name: "Crypt Chest", type: "chest" },
+      },
+    );
+
+    assert.equal(error.reason, "not_found");
+  });
+
+  it("names a carried bag turned into a chest as the bounds refusing it", async () => {
+    const { error } = await updateContainer(
+      stubQuery(postgrestError("23514")),
+      {
+        campaignId: CAMPAIGN,
+        id: CONTAINER,
+        container: { name: "Pack", type: "chest" },
+      },
+    );
+
+    assert.equal(error.reason, "invalid_value");
   });
 });

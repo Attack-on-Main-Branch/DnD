@@ -28,12 +28,12 @@ const COLUMN_HEIGHT_CLASS = "h-[518px]";
  * And how tall while the ladder is out: THE COLUMN GROWS RATHER THAN THE LOG
  * SHRINKING, because an encounter grows with the fight and ten log lines do not.
  *
- * Bounded by the board's own reserve — `100vh - 20rem` is the middle term of the
+ * Bounded by the board's own reserve — `100vh - 15rem` is the middle term of the
  * map's ceiling in map-height.js, measured there against the header, the title,
  * the marks and the mat. A column held to that can never stand taller than the
  * board beside it is already allowed to.
  */
-const COLUMN_SPLIT_CLASS = "h-[clamp(518px,100vh_-_20rem,660px)]";
+const COLUMN_SPLIT_CLASS = "h-[clamp(518px,100vh_-_15rem,660px)]";
 
 /** The log's half of the ORIGINAL column, flat and not a fraction: a percentage
     would follow the column as it grows, which is the one thing it must not do.

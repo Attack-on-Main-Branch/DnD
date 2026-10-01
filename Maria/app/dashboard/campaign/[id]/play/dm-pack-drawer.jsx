@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { parseQuantity } from "sina/rules/inventory";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
+import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
+import {
+  containerTagClasses,
+  containerTypeLabel,
+  CONTAINER_CARD_CLASSES,
+} from "@/app/dashboard/container-presentation";
 import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
 import ItemDetail from "@/app/dashboard/item-detail";
 import ItemRow from "@/app/dashboard/item-row";
@@ -20,7 +26,7 @@ import {
   POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
-import { useTableStore } from "./table-state";
+import { useContainers, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 
 /**
@@ -51,30 +57,56 @@ export default function DmPackDrawer({
 }) {
   const [target, setTarget] = useState(EVERYONE);
   const [reading, setReading] = useState(null);
+  const [openBag, setOpenBag] = useState(null);
   const [typed, setTyped] = useState("");
   const [note, setNote] = useState(null);
 
   const store = useTableStore();
+  const containers = useContainers();
   const { run, send } = useTableDeed(campaignId);
 
   const selected = members.find((member) => member.id === target) ?? null;
   const targets = selected ? [selected.id] : members.map((member) => member.id);
 
-  /* The pack ITSELF, and not the bags hanging off it. A stack is keyed on
-     `(character, slug, container)` since 20260831090000, so a character can
-     hold rope in two places and a list mixing them would show two rows of one
-     name with no way to tell which a press meant. What is in a bag is worked
-     from the chest drawer beside the board, where the bag is named. */
-  const pack = selected
-    ? (packs.get(selected.id) ?? []).filter((row) => !row.container_id)
-    : [];
+  /* The pack itself and each bag apart, as the player's own drawer shows
+     them: a stack is keyed on `(character, slug, container)`, so rope in a bag
+     and rope in the pack are two rows. An item opened from a bag is given into
+     and taken out of that bag; one from the pack or the search, the pack. */
+  const rows = useMemo(
+    () => (selected ? (packs.get(selected.id) ?? []) : []),
+    [packs, selected],
+  );
+
+  const pack = rows.filter((row) => !row.container_id);
+
+  const bags = useMemo(
+    () =>
+      selected
+        ? containers.filter(
+            (one) => one.type === "bag" && one.ownerCharacterId === selected.id,
+          )
+        : [],
+    [containers, selected],
+  );
 
   /* An empty purse for a character `campaign_purses` returned no row for. Null
      for "all party": there is no one balance to hold up as a placeholder. */
   const purse = selected ? (purses.get(selected.id) ?? null) : null;
 
-  const held = pack.find((row) => row.item_slug === reading?.slug) ?? null;
-  const open = held ? rowItem(held) : reading;
+  const held =
+    rows.find(
+      (row) =>
+        row.item_slug === reading?.item.slug &&
+        (row.container_id ?? null) === (reading?.containerId ?? null),
+    ) ?? null;
+
+  const open = held ? rowItem(held) : (reading?.item ?? null);
+
+  /* Which bag the deeds below work, null being the pack itself. */
+  const bag = selected
+    ? (bags.find((one) => one.id === reading?.containerId) ?? null)
+    : null;
+  const bagId = bag?.id ?? null;
 
   const count = parseQuantity(typed) ?? 0;
   const usable = count >= 1;
@@ -91,10 +123,15 @@ export default function DmPackDrawer({
     setReading(null);
   }
 
-  function show(item) {
+  function show(item, containerId = null) {
     setTyped("");
     setNote(null);
-    setReading((standing) => (standing?.slug === item.slug ? null : item));
+    setReading((standing) =>
+      standing?.item.slug === item.slug &&
+      (standing.containerId ?? null) === containerId
+        ? null
+        : { item, containerId },
+    );
   }
 
   /** Every pack this deed reaches, told once the server has taken it. */
@@ -118,8 +155,9 @@ export default function DmPackDrawer({
   function give() {
     const item = open;
     const giving = count;
+    const into = bagId;
     const said = selected
-      ? `${giving} × ${item.name} to ${selected.name}.`
+      ? `${giving} × ${item.name} to ${bag?.name ?? selected.name}.`
       : `${giving} × ${item.name} to each of ${targets.length}.`;
 
     setTyped("");
@@ -140,11 +178,14 @@ export default function DmPackDrawer({
 
       paint: () => {
         for (const id of targets) {
-          store.movePack(id, item, giving);
+          store.movePack(id, item, giving, into);
         }
       },
 
-      work: () => grantPackItems(campaignId, targets, item, giving),
+      work: () =>
+        into
+          ? adjustPackItem(campaignId, selected.id, item, giving, into)
+          : grantPackItems(campaignId, targets, item, giving),
       tell: () => toldPacks(targets),
       want: { inventory: true, activity: true, characterIds: targets },
     }).then(said);
@@ -157,10 +198,11 @@ export default function DmPackDrawer({
     const item = open;
     const who = selected;
     const taking = Math.min(count, held.quantity);
+    const from = held.container_id ?? null;
 
     setTyped("");
     setReading(null);
-    setNote(`${taking} × ${item.name} from ${who.name}.`);
+    setNote(`${taking} × ${item.name} from ${bag?.name ?? who.name}.`);
 
     run({
       note: [
@@ -173,9 +215,9 @@ export default function DmPackDrawer({
         },
       ],
 
-      paint: () => store.movePack(who.id, item, -taking),
+      paint: () => store.movePack(who.id, item, -taking, from),
 
-      work: () => adjustPackItem(campaignId, who.id, item, -taking),
+      work: () => adjustPackItem(campaignId, who.id, item, -taking, from),
       tell: () => toldPacks([who.id]),
       want: { inventory: true, activity: true, characterIds: [who.id] },
     }).then(said);
@@ -253,13 +295,13 @@ export default function DmPackDrawer({
           <div className="mt-4">
             <ItemSearch
               campaignId={campaignId}
-              openSlug={open?.slug ?? null}
+              openSlug={open && !reading?.containerId ? open.slug : null}
               onOpen={show}
             />
           </div>
 
           {selected &&
-            (pack.length === 0 ? (
+            (pack.length === 0 && bags.length === 0 ? (
               <p className="mt-5 text-center text-sm text-ink/50 italic">
                 {selected.name} is carrying nothing.
               </p>
@@ -269,18 +311,40 @@ export default function DmPackDrawer({
                   {selected.name} · {pack.length} carried
                 </p>
 
-                <ul className="mt-2.5 grid grid-cols-3 gap-2">
-                  {pack.map((row) => (
-                    <li key={row.id} className="flex">
-                      <ItemRow
-                        item={rowItem(row)}
-                        quantity={row.quantity}
-                        open={open?.slug === row.item_slug}
-                        onOpen={() => show(rowItem(row))}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                {pack.length === 0 ? (
+                  <p className="mt-2.5 text-xs text-ink/50 italic">
+                    Nothing in hand — it is all in the bags below.
+                  </p>
+                ) : (
+                  <ul className="mt-2.5 grid grid-cols-3 gap-2">
+                    {pack.map((row) => (
+                      <li key={row.id} className="flex">
+                        <ItemRow
+                          item={rowItem(row)}
+                          quantity={row.quantity}
+                          open={held?.id === row.id}
+                          onOpen={() => show(rowItem(row), null)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {bags.map((bag) => (
+                  <BagSection
+                    key={bag.id}
+                    bag={bag}
+                    inside={rows.filter((row) => row.container_id === bag.id)}
+                    unfolded={openBag === bag.id}
+                    onFold={() =>
+                      setOpenBag((standing) =>
+                        standing === bag.id ? null : bag.id,
+                      )
+                    }
+                    openId={held?.id ?? null}
+                    onOpen={(row) => show(rowItem(row), bag.id)}
+                  />
+                ))}
               </>
             ))}
         </>
@@ -322,7 +386,7 @@ export default function DmPackDrawer({
                   onClick={take}
                   disabled={!usable}
                   tone="danger"
-                  label={`Take ${count} ${open.name} from ${selected.name}`}
+                  label={`Take ${count} ${open.name} from ${bag?.name ?? selected.name}`}
                 >
                   Take it back
                 </Action>
@@ -334,7 +398,7 @@ export default function DmPackDrawer({
                 tone="gold"
                 label={
                   selected
-                    ? `Give ${count} ${open.name} to ${selected.name}`
+                    ? `Give ${count} ${open.name} to ${bag?.name ?? selected.name}`
                     : `Give ${count} ${open.name} to everyone`
                 }
               >
@@ -345,5 +409,59 @@ export default function DmPackDrawer({
         </PopoverAside>
       )}
     </div>
+  );
+}
+
+/** One of the character's bags as the player sees it, without the hand-over. */
+function BagSection({ bag, inside, unfolded, onFold, openId, onOpen }) {
+  return (
+    <section
+      aria-label={bag.name}
+      className={`mt-3 transition duration-300 ${CONTAINER_CARD_CLASSES} ${
+        unfolded ? NESTED_CARD_SELECTED_CLASSES : ""
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onFold}
+        aria-expanded={unfolded}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
+          {bag.name}
+        </span>
+
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-[10px] text-ink/45 tabular-nums">
+            {inside.length}
+          </span>
+
+          <span className={containerTagClasses(bag.type)}>
+            {containerTypeLabel(bag.type)}
+          </span>
+        </span>
+      </button>
+
+      {unfolded && (
+        <div className="mt-3 border-t border-gold/15 pt-3">
+          {inside.length === 0 ? (
+            <p className="text-xs text-ink/50 italic">Nothing in it yet.</p>
+          ) : (
+            <ul className="grid grid-cols-3 gap-2">
+              {inside.map((row) => (
+                <li key={row.id} className="flex">
+                  <ItemRow
+                    item={rowItem(row)}
+                    quantity={row.quantity}
+                    open={openId === row.id}
+                    onOpen={() => onOpen(row)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

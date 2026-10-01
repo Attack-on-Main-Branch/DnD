@@ -14,15 +14,16 @@ import {
   SPELL_SCHOOLS,
 } from "sina/rules/spells";
 
-import Button from "@/app/components/ui/button";
+import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
 import CheckField from "@/app/components/ui/check-field";
+import FormActions from "@/app/components/ui/form-actions";
 import FormAlert from "@/app/components/ui/form-alert";
 import SelectMenu from "@/app/components/ui/select-menu";
 import TextAreaField from "@/app/components/ui/textarea-field";
 import TextField from "@/app/components/ui/text-field";
 import { spellLevelLabel } from "@/app/dashboard/spell-presentation";
 
-import { writeCampaignSpell } from "./spell-actions";
+import { editCampaignSpell, writeCampaignSpell } from "./spell-actions";
 
 /**
  * A spell written down in full: every field the SRD's own entries arrive with,
@@ -63,13 +64,46 @@ const EMPTY = {
   classes: "",
 };
 
-export default function SpellForm({ campaignId, written }) {
-  const [values, setValues] = useState(EMPTY);
+/** A catalogue row back in the boxes it was written from. */
+function fromRow(row) {
+  return {
+    name: row.name ?? "",
+    level: String(row.level ?? 0),
+    school: row.school ?? "",
+    castingTime: row.casting_time ?? "",
+    range: row.range_text ?? "",
+    duration: row.duration ?? "",
+    components: row.components ?? "",
+    material: row.material ?? "",
+    concentration: Boolean(row.concentration),
+    ritual: Boolean(row.ritual),
+    attackSave: row.attack_save ?? "",
+    damage: row.damage ?? "",
+    description: row.description ?? "",
+    higherLevel: row.higher_level ?? "",
+    classes: row.classes ?? "",
+  };
+}
+
+/**
+ * `editing` is the row being rewritten, or null for a new one; the caller keys
+ * this form on it, so the boxes start from that row. `onDone` ends the edit.
+ */
+export default function SpellForm({
+  campaignId,
+  written,
+  editing = null,
+  onDone,
+  notice = null,
+}) {
+  const [values, setValues] = useState(() =>
+    editing ? fromRow(editing) : EMPTY,
+  );
   const [error, setError] = useState(null);
-  const [note, setNote] = useState(null);
+  const [note, setNote] = useState(notice);
   const [isPending, startTransition] = useTransition();
 
-  const full = written >= MAX_CAMPAIGN_SPELLS;
+  const full = !editing && written >= MAX_CAMPAIGN_SPELLS;
   const blocked = isPending || full;
 
   const set = (field) => (event) =>
@@ -82,15 +116,26 @@ export default function SpellForm({ campaignId, written }) {
     event.preventDefault();
 
     if (blocked) {
+      stopNavigationProgress();
       return;
     }
 
     startTransition(async () => {
-      const result = await writeCampaignSpell(campaignId, values);
+      const result = editing
+        ? await editCampaignSpell(campaignId, editing.id, values)
+        : await writeCampaignSpell(campaignId, values);
+
+      // A submit arms the loading bar, and nothing here navigates.
+      stopNavigationProgress();
 
       if (result?.kind === "rejected") {
         setError(result.message);
         setNote(null);
+        return;
+      }
+
+      if (editing) {
+        onDone(`${result.name} is saved.`);
         return;
       }
 
@@ -252,14 +297,14 @@ export default function SpellForm({ campaignId, written }) {
       <FormAlert id={FEEDBACK_ID}>{error}</FormAlert>
       <FormAlert tone="success">{note}</FormAlert>
 
-      <div className="flex justify-end">
-        <Button
-          type="submit"
-          disabled={blocked || values.name.trim().length === 0}
-        >
-          {isPending ? "Writing…" : "Write it down"}
-        </Button>
-      </div>
+      <FormActions
+        editing={Boolean(editing)}
+        pending={isPending}
+        disabled={blocked || values.name.trim().length === 0}
+        label="Write it down"
+        pendingLabel="Writing…"
+        onCancel={() => onDone(null)}
+      />
     </form>
   );
 }

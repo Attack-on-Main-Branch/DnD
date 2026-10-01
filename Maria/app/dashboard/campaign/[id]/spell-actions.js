@@ -1,10 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { insertCampaignSpell, removeCampaignSpell } from "sina/data/spells";
+import {
+  insertCampaignSpell,
+  readCampaignSpell,
+  removeCampaignSpell,
+  rewriteCampaignSpellCopies,
+  updateCampaignSpell,
+} from "sina/data/spells";
 import { MAX_CAMPAIGN_SPELLS, validateSpell } from "sina/rules/spells";
 
-import { logUncovered } from "@/lib/errors";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
 import { campaignSheetPath, campaignTablePath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -22,8 +28,12 @@ const SPELL_COPY = {
   invalid_value: "That is outside what a spell can hold.",
   not_found: "That campaign is no longer yours.",
   missing_table: "That part of the app is not ready yet.",
+  missing_function: "That part of the app is not ready yet.",
   bad_id: "That campaign is no longer there.",
 };
+
+/** An edit that found no row: struck out meanwhile, or never this account's. */
+const GONE = "That is no longer written down. It may have been struck out.";
 
 /** The sheet shows the catalogue and the table searches it. */
 function revalidateBoth(campaignId) {
@@ -66,6 +76,66 @@ export async function writeCampaignSpell(campaignId, values) {
   }
 
   revalidateBoth(campaignId);
+  return { kind: "success", name: spell.name };
+}
+
+/**
+ * One rewritten in place, and every spellbook at this table that knows it
+ * changes to match — level, words and all, the prepared mark kept.
+ */
+export async function editCampaignSpell(campaignId, id, values) {
+  const { values: spell, errors } = validateSpell(values ?? {});
+
+  if (errors) {
+    return rejected(errors.name ?? errors.level ?? errors.description);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("editCampaignSpell", authError);
+  }
+
+  const { data: before, error: readError } = await readCampaignSpell(supabase, {
+    campaignId,
+    id,
+  });
+
+  if (readError) {
+    return readError.reason === "not_found"
+      ? rejected(GONE)
+      : refused("editCampaignSpell/read", readError, "Could not save that.");
+  }
+
+  const { data: row, error } = await updateCampaignSpell(supabase, {
+    campaignId,
+    id,
+    spell,
+  });
+
+  if (error) {
+    return error.reason === "not_found"
+      ? rejected(GONE)
+      : refused("editCampaignSpell", error, "Could not save that.");
+  }
+
+  const copies = await rewriteCampaignSpellCopies(supabase, {
+    campaignId,
+    oldSlug: before.spell_slug,
+    row,
+  });
+
+  revalidateBoth(campaignId);
+
+  if (copies.error) {
+    logFailure("editCampaignSpell/copies", copies.error);
+
+    return rejected(
+      `${spell.name} is saved, but the spellbooks that know it could not be changed.`,
+    );
+  }
+
   return { kind: "success", name: spell.name };
 }
 

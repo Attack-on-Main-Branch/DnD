@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { EDITING_CARD_CLASSES } from "@/app/components/ui/field-styles";
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 /**
@@ -22,7 +23,13 @@ import { surfaceClasses } from "@/app/components/ui/surface";
  * card near the foot of a drawer opens upward instead of off the bottom of it.
  * Absolutely positioned either way, so nothing on the page moves.
  */
-export default function FeatureCard({ feature, onRemove, disabled = false }) {
+export default function FeatureCard({
+  feature,
+  onRemove,
+  onEdit,
+  editing = false,
+  disabled = false,
+}) {
   const [above, setAbove] = useState(false);
   const card = useRef(null);
 
@@ -72,12 +79,28 @@ export default function FeatureCard({ feature, onRemove, disabled = false }) {
           variant: "plain",
           className:
             "flex items-center gap-2 rounded-lg border-gold/20 px-2.5 py-2 " +
-            "transition duration-300 group-hover/feature:border-gold/45",
+            "transition duration-300 group-hover/feature:border-gold/45 " +
+            (editing ? EDITING_CARD_CLASSES : ""),
         })}
       >
         <p className="min-w-0 flex-1 truncate font-display text-xs tracking-wide text-ink/85">
           {feature.name}
         </p>
+
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            disabled={disabled}
+            aria-pressed={editing}
+            aria-label={`Edit ${feature.name}`}
+            className={`shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[12px] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 ${
+              editing ? "text-gold" : "text-ink/50"
+            }`}
+          >
+            Edit
+          </button>
+        )}
 
         {onRemove && (
           /* The dashboard's Retire and Delete: ink at rest, red under the

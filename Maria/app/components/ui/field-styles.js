@@ -30,6 +30,14 @@ const BORDER = {
     "focus:shadow-[0_0_20px_-6px_rgba(248,113,113,0.55)]",
 };
 
+/**
+ * A focused field's rim and glow — BORDER.valid's `focus:` half, at rest — for
+ * a card whose contents the form above is editing. Important, because it is
+ * laid over a card's own border and shadow rather than replacing them.
+ */
+export const EDITING_CARD_CLASSES =
+  "border-gold/70! shadow-[0_0_0_1px_rgba(255,223,156,0.25),0_0_22px_-6px_rgba(255,223,156,0.55)]!";
+
 export function controlClasses({ invalid = false, className = "" } = {}) {
   return [BASE, invalid ? BORDER.invalid : BORDER.valid, className]
     .filter(Boolean)

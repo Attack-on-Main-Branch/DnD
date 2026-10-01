@@ -7,11 +7,11 @@ import {
 } from "sina/rules/features";
 import { countCharacters } from "sina/rules/text";
 
-import Button from "@/app/components/ui/button";
 import {
   controlClasses,
   LABEL_CLASSES,
 } from "@/app/components/ui/field-styles";
+import FormActions from "@/app/components/ui/form-actions";
 
 /**
  * A name and what it does. The two boxes every surface that writes a feature
@@ -25,14 +25,19 @@ import {
  * IT DOES NOT WRITE. `onWrite` is handed the two strings and answers with a
  * rejection or nothing; who the feature is FOR is the caller's question, and it
  * differs at every call site.
+ *
+ * `editing` is the feature being rewritten, which the caller keys this form on:
+ * the boxes start from it, and Cancel beside "Save edits" calls `onCancel`.
  */
 export default function FeatureForm({
   onWrite,
   disabled = false,
   children = null,
+  editing = null,
+  onCancel,
 }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [name, setName] = useState(editing?.name ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
   const [busy, setBusy] = useState(false);
 
   const nameLength = countCharacters(name);
@@ -118,15 +123,15 @@ export default function FeatureForm({
           Dungeon Master's is who this is for. */}
       {children}
 
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={write}
-          disabled={!ready || busy || disabled}
-        >
-          Write feature
-        </Button>
-      </div>
+      <FormActions
+        editing={Boolean(editing)}
+        pending={busy}
+        disabled={!ready || busy || disabled}
+        label="Write feature"
+        pendingLabel="Write feature"
+        onCancel={onCancel}
+        onSave={write}
+      />
     </div>
   );
 }

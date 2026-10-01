@@ -8,7 +8,10 @@ import {
   learnSpell,
   listCharacterSpells,
   listPartySpells,
+  readCampaignSpell,
   restoreSpellSlot,
+  rewriteCampaignSpellCopies,
+  updateCampaignSpell,
 } from "./spells.js";
 
 const CHARACTER = "6f1c3d2e-0000-4000-8000-000000000000";
@@ -252,5 +255,101 @@ describe("the slot functions", () => {
     );
 
     assert.equal(error.reason, "not_found");
+  });
+});
+
+describe("updateCampaignSpell", () => {
+  const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
+  const FROST = { slug: "custom:frost-lash", name: "Frost Lash", level: 1 };
+
+  it("rewrites the slug with the name, on one campaign's row", async () => {
+    const query = stubQuery({ data: { id: "row-1" }, error: null });
+    await updateCampaignSpell(query, {
+      campaignId: CAMPAIGN,
+      id: "row-1",
+      spell: FROST,
+    });
+
+    assert.equal(query.lastUpdate.spell_slug, FROST.slug);
+    assert.equal(query.lastUpdate.level, 1);
+    assert.equal(query.lastUpdate.description, "");
+    assert.equal("campaign_id" in query.lastUpdate, false);
+    assert.deepEqual(query.filters, [
+      ["id", "row-1"],
+      ["campaign_id", CAMPAIGN],
+    ]);
+  });
+
+  it("reads an RLS refusal on the update as a miss", async () => {
+    const { error } = await updateCampaignSpell(
+      stubQuery({ data: null, error: null }),
+      { campaignId: CAMPAIGN, id: "row-1", spell: FROST },
+    );
+
+    assert.equal(error.reason, "not_found");
+  });
+
+  it("tells a name already written down from a failure", async () => {
+    const { error } = await updateCampaignSpell(
+      stubQuery(postgrestError("23505")),
+      { campaignId: CAMPAIGN, id: "row-1", spell: FROST },
+    );
+
+    assert.equal(error.reason, "already_known");
+  });
+});
+
+describe("readCampaignSpell", () => {
+  const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
+
+  it("reads one row of one campaign, and no row as a miss", async () => {
+    const query = stubQuery({ data: null, error: null });
+    const { error } = await readCampaignSpell(query, {
+      campaignId: CAMPAIGN,
+      id: "row-1",
+    });
+
+    assert.deepEqual(query.filters, [
+      ["id", "row-1"],
+      ["campaign_id", CAMPAIGN],
+    ]);
+    assert.equal(error.reason, "not_found");
+  });
+});
+
+describe("rewriteCampaignSpellCopies", () => {
+  const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
+  const ROW = { spell_slug: "custom:frost-lash", name: "Frost Lash", level: 1 };
+
+  it("hands the catalogue row over as it stands", async () => {
+    const query = stubQuery({ data: 2, error: null });
+    const { data } = await rewriteCampaignSpellCopies(query, {
+      campaignId: CAMPAIGN,
+      oldSlug: "custom:frost-whip",
+      row: ROW,
+    });
+
+    assert.equal(query.lastRpc.name, "rewrite_campaign_spell_copies");
+    assert.equal(query.lastRpc.params.p_old_slug, "custom:frost-whip");
+    assert.deepEqual(query.lastRpc.params.p_spell, ROW);
+    assert.deepEqual(data, { rewritten: 2 });
+  });
+
+  it("reads a refusal as a miss", async () => {
+    const { error } = await rewriteCampaignSpellCopies(
+      stubQuery({ data: null, error: null }),
+      { campaignId: CAMPAIGN, oldSlug: "custom:frost-whip", row: ROW },
+    );
+
+    assert.equal(error.reason, "not_found");
+  });
+
+  it("names a function that was never pushed", async () => {
+    const { error } = await rewriteCampaignSpellCopies(
+      stubQuery(postgrestError("42883")),
+      { campaignId: CAMPAIGN, oldSlug: "custom:frost-whip", row: ROW },
+    );
+
+    assert.equal(error.reason, "missing_function");
   });
 });

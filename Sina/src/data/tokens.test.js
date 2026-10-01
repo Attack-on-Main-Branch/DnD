@@ -12,6 +12,7 @@ import {
   removeMapToken,
   removeTokenTemplate,
   setMapTokenState,
+  updateTokenTemplate,
 } from "./tokens.js";
 
 const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
@@ -261,5 +262,43 @@ describe("the board", () => {
 
     assert.equal(chain.lastRpc.name, "clear_map_placed_tokens");
     assert.deepEqual(chain.lastRpc.params, { p_map_id: MAP });
+  });
+});
+
+describe("updateTokenTemplate", () => {
+  it("leaves the picture alone on a rename", async () => {
+    const query = stubQuery({ data: [{ id: TEMPLATE }], error: null });
+    await updateTokenTemplate(query, {
+      id: TEMPLATE,
+      campaignId: CAMPAIGN,
+      name: "Hobgoblin",
+    });
+
+    assert.deepEqual(query.lastUpdate, { name: "Hobgoblin" });
+    assert.deepEqual(query.filters, [
+      ["id", TEMPLATE],
+      ["campaign_id", CAMPAIGN],
+    ]);
+  });
+
+  it("points the row at a new picture when there is one", async () => {
+    const query = stubQuery({ data: [{ id: TEMPLATE }], error: null });
+    await updateTokenTemplate(query, {
+      id: TEMPLATE,
+      campaignId: CAMPAIGN,
+      name: "Hobgoblin",
+      imageUrl: "https://example.test/new.webp",
+    });
+
+    assert.equal(query.lastUpdate.image_url, "https://example.test/new.webp");
+  });
+
+  it("reads an RLS refusal on the update as a miss", async () => {
+    const { error } = await updateTokenTemplate(
+      stubQuery({ data: [], error: null }),
+      { id: TEMPLATE, campaignId: CAMPAIGN, name: "Hobgoblin" },
+    );
+
+    assert.equal(error.reason, "not_found");
   });
 });

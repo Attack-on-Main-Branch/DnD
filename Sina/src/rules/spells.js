@@ -49,7 +49,7 @@ export const MAX_CAMPAIGN_SPELLS = 60;
 /** The prefix that tells a homebrew spell from one the SRD knows about. */
 export const CUSTOM_SLUG_PREFIX = "custom:";
 
-/** The eight schools, in the SRD's own order. A menu, not a free field. */
+/** The SRD's eight in its own order, then our own. A menu, not a free field. */
 export const SPELL_SCHOOLS = [
   "Abjuration",
   "Conjuration",
@@ -59,6 +59,7 @@ export const SPELL_SCHOOLS = [
   "Illusion",
   "Necromancy",
   "Transmutation",
+  "Pneumancy",
 ];
 
 /** Refused rather than clamped: a spell on the wrong shelf is a wrong spell. */

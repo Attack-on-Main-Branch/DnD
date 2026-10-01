@@ -7,7 +7,9 @@ import { MAX_CHARACTER_FEATURES } from "sina/rules/features";
 import { MAX_CAMPAIGN_SPELLS } from "sina/rules/spells";
 import { MAX_CAMPAIGN_TOKENS } from "sina/rules/tokens";
 
+import { EDITING_CARD_CLASSES } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
+import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 import {
   chestAudienceLine,
   containerTagClasses,
@@ -98,6 +100,12 @@ export default function CreatePanel({
   const [error, setError] = useState(null);
   const [isPending, startTransition] = useTransition();
 
+  /* What the form above is rewriting, by id, and what it said when it last
+     saved — shown by the fresh form that replaces it. */
+  const [editingId, setEditingId] = useState(null);
+  const [saved, setSaved] = useState(null);
+  const formRef = useRef(null);
+
   /* THE FEATURES ARE HELD HERE and the other three lists are not, and the
      difference is where the write lands: an item, a spell and a container are
      the campaign's own rows and their actions revalidate this route, while a
@@ -138,6 +146,61 @@ export default function CreatePanel({
     return counted;
   }, [containerItems]);
 
+  /* Looked up rather than held, so a row struck out mid-edit ends the edit. */
+  const editing =
+    editingId === null
+      ? null
+      : ({
+          item: items,
+          spell: spells,
+          container: shelf,
+          feature: granted,
+          token: tokens,
+        }[kind].find((one) => one.id === editingId) ?? null);
+
+  const editingContents = useMemo(
+    () =>
+      kind === "container" && editing
+        ? (containerItems ?? [])
+            .filter((row) => row.container_id === editing.id)
+            .map((row) => ({
+              slug: row.item_slug,
+              name: row.name,
+              category: row.category,
+              description: row.description,
+              facts: row.facts,
+              isCustom: row.is_custom,
+              quantity: row.quantity,
+            }))
+        : [],
+    [containerItems, editing, kind],
+  );
+
+  /* Keyed on, so starting, ending or switching an edit is a fresh form. */
+  const formKey = `${kind}:${editing?.id ?? "new"}`;
+
+  function choose(value) {
+    setKind(value);
+    setEditingId(null);
+    setSaved(null);
+  }
+
+  function startEditing(id) {
+    setError(null);
+    setSaved(null);
+    setEditingId((standing) => (standing === id ? null : id));
+
+    formRef.current?.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "start",
+    });
+  }
+
+  function finish(note) {
+    setEditingId(null);
+    setSaved(note);
+  }
+
   const counts = {
     item: items.length,
     spell: spells.length,
@@ -149,9 +212,19 @@ export default function CreatePanel({
   function written(feature, refusal) {
     setError(refusal);
 
-    if (feature) {
-      setGranted((standing) => [...standing, feature]);
+    if (!feature) {
+      return;
     }
+
+    if (granted.some((one) => one.id === feature.id)) {
+      setGranted((standing) =>
+        standing.map((one) => (one.id === feature.id ? feature : one)),
+      );
+      finish(null);
+      return;
+    }
+
+    setGranted((standing) => [...standing, feature]);
   }
 
   async function strikeFeature(feature) {
@@ -189,10 +262,10 @@ export default function CreatePanel({
 
   return (
     <div className="flex flex-col gap-8">
-      <section>
+      <section ref={formRef} className="scroll-mt-24">
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
           <h2 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-            Write something down
+            {editing ? `Edit ${editing.name}` : "Write something down"}
           </h2>
 
           <p className="font-sans text-xs tracking-wide text-ink/50 uppercase">
@@ -216,7 +289,7 @@ export default function CreatePanel({
             <button
               key={one.value}
               type="button"
-              onClick={() => setKind(one.value)}
+              onClick={() => choose(one.value)}
               aria-pressed={kind === one.value}
               className={`cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 ${
                 kind === one.value
@@ -229,40 +302,63 @@ export default function CreatePanel({
           ))}
         </div>
 
-        {/* Keyed, so switching kinds is a fresh form. */}
         {kind === "spell" && (
           <SpellForm
-            key="spell"
+            key={formKey}
             campaignId={campaignId}
             written={counts.spell}
+            editing={editing}
+            onDone={finish}
+            notice={saved}
           />
         )}
 
         {kind === "item" && (
-          <ItemForm key="item" campaignId={campaignId} written={counts.item} />
+          <ItemForm
+            key={formKey}
+            campaignId={campaignId}
+            written={counts.item}
+            editing={editing}
+            onDone={finish}
+            notice={saved}
+          />
         )}
 
         {kind === "container" && (
           <ContainerForm
-            key="container"
+            key={formKey}
             campaignId={campaignId}
             written={counts.container}
+            editing={editing}
+            initialContents={editingContents}
+            carrierName={
+              editing?.ownerCharacterId
+                ? (namesById.get(editing.ownerCharacterId) ?? null)
+                : null
+            }
+            onDone={finish}
+            notice={saved}
           />
         )}
 
         {kind === "feature" && (
           <CampaignFeatureForm
-            key="feature"
+            key={formKey}
             members={members}
             onWritten={written}
+            editing={editing}
+            onCancel={() => finish(null)}
           />
         )}
 
         {kind === "token" && (
           <TokenForm
-            key="token"
+            key={formKey}
             campaignId={campaignId}
             written={counts.token}
+            editing={editing}
+            onDone={finish}
+            notice={saved}
           />
         )}
       </section>
@@ -287,6 +383,8 @@ export default function CreatePanel({
                   <SpellEntry
                     spell={row}
                     disabled={isPending}
+                    editing={editingId === row.id}
+                    onEdit={() => startEditing(row.id)}
                     onStrike={() => strike(strikeCampaignSpell, row.id)}
                   />
                 </li>
@@ -307,11 +405,22 @@ export default function CreatePanel({
             <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((row, index) => (
                 <li key={row.id} className="flex">
-                  <PackItemCard item={rowItem(row)} index={index}>
+                  <PackItemCard
+                    item={rowItem(row)}
+                    index={index}
+                    editing={editingId === row.id}
+                  >
                     {/* What the panel at the table will print, on one line. */}
                     <ItemFacts row={row} />
 
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2 flex justify-end gap-1">
+                      <EditButton
+                        label={`Edit ${row.name}`}
+                        active={editingId === row.id}
+                        disabled={isPending}
+                        onClick={() => startEditing(row.id)}
+                      />
+
                       <StrikeButton
                         label={`Remove ${row.name}`}
                         disabled={isPending}
@@ -341,6 +450,8 @@ export default function CreatePanel({
                     members={members}
                     inside={inside.get(container.id) ?? 0}
                     disabled={isPending}
+                    editing={editingId === container.id}
+                    onEdit={() => startEditing(container.id)}
                     onStrike={() =>
                       strike(strikeCampaignContainer, container.id)
                     }
@@ -376,6 +487,8 @@ export default function CreatePanel({
                           (one) => one.character_id === member.id,
                         )}
                         onRemove={strikeFeature}
+                        onEdit={(feature) => startEditing(feature.id)}
+                        editingId={editingId}
                         pending={striking}
                       />
                     </div>
@@ -399,6 +512,8 @@ export default function CreatePanel({
                   <TokenEntry
                     token={token}
                     disabled={isPending}
+                    editing={editingId === token.id}
+                    onEdit={() => startEditing(token.id)}
                     onStrike={() => strike(strikeCampaignToken, token.id)}
                   />
                 </li>
@@ -420,10 +535,12 @@ export default function CreatePanel({
  * Built to PackItemCard's shape so the two lists read as one thing: the level
  * where a stack count goes, the school where a category tag goes.
  */
-function SpellEntry({ spell, disabled, onStrike }) {
+function SpellEntry({ spell, disabled, editing, onEdit, onStrike }) {
   return (
     <div
-      className={`flex h-full w-full flex-col rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES}`}
+      className={`flex h-full w-full flex-col rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES} ${
+        editing ? EDITING_CARD_CLASSES : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 flex-1 font-display text-sm font-semibold tracking-wide text-ink">
@@ -447,7 +564,14 @@ function SpellEntry({ spell, disabled, onStrike }) {
         </p>
       )}
 
-      <div className="mt-auto flex justify-end pt-3">
+      <div className="mt-auto flex justify-end gap-1 pt-3">
+        <EditButton
+          label={`Edit ${spell.name}`}
+          active={editing}
+          disabled={disabled}
+          onClick={onEdit}
+        />
+
         <StrikeButton
           label={`Remove ${spell.name}`}
           disabled={disabled}
@@ -462,13 +586,25 @@ function SpellEntry({ spell, disabled, onStrike }) {
  * The same card again, saying whose it is. What is INSIDE a carried bag is not
  * counted here: those rows are that character's pack's, read at the table.
  */
-function ContainerEntry({ container, members, inside, disabled, onStrike }) {
+function ContainerEntry({
+  container,
+  members,
+  inside,
+  disabled,
+  editing,
+  onEdit,
+  onStrike,
+}) {
   const carrier = members.find(
     (member) => member.id === container.ownerCharacterId,
   );
 
   return (
-    <div className={`flex h-full w-full flex-col ${CONTAINER_CARD_CLASSES}`}>
+    <div
+      className={`flex h-full w-full flex-col transition duration-300 ${CONTAINER_CARD_CLASSES} ${
+        editing ? EDITING_CARD_CLASSES : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 flex-1 font-display text-sm font-semibold tracking-wide text-ink">
           {container.name}
@@ -494,7 +630,14 @@ function ContainerEntry({ container, members, inside, disabled, onStrike }) {
         </p>
       )}
 
-      <div className="mt-auto flex justify-end pt-3">
+      <div className="mt-auto flex justify-end gap-1 pt-3">
+        <EditButton
+          label={`Edit ${container.name}`}
+          active={editing}
+          disabled={disabled}
+          onClick={onEdit}
+        />
+
         <StrikeButton
           label={`Remove ${container.name}`}
           disabled={disabled}
@@ -513,10 +656,12 @@ function ContainerEntry({ container, members, inside, disabled, onStrike }) {
  * reason avatar.jsx gives: the source is a Supabase public URL whose host is an
  * environment variable.
  */
-function TokenEntry({ token, disabled, onStrike }) {
+function TokenEntry({ token, disabled, editing, onEdit, onStrike }) {
   return (
     <div
-      className={`flex h-full w-full items-center gap-3.5 rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES}`}
+      className={`flex h-full w-full items-center gap-3.5 rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES} ${
+        editing ? EDITING_CARD_CLASSES : ""
+      }`}
     >
       <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-surface ring-2 ring-white/20">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -532,6 +677,13 @@ function TokenEntry({ token, disabled, onStrike }) {
       <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
         {token.name}
       </p>
+
+      <EditButton
+        label={`Edit ${token.name}`}
+        active={editing}
+        disabled={disabled}
+        onClick={onEdit}
+      />
 
       <StrikeButton
         label={`Remove ${token.name}`}
@@ -554,6 +706,24 @@ function ItemFacts({ row }) {
     <p className="font-mono text-[11px] text-ink/45 tabular-nums">
       {facts.map((fact) => fact.value).join(" · ")}
     </p>
+  );
+}
+
+/** Remove's neighbour: ink at rest, gold under the pointer and while editing. */
+function EditButton({ label, active, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={active}
+      className={`cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 ${
+        active ? "text-gold" : "text-ink/60"
+      }`}
+    >
+      Edit
+    </button>
   );
 }
 

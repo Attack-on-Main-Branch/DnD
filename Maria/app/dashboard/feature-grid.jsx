@@ -14,6 +14,8 @@ import FeatureCard from "./feature-card";
 export default function FeatureGrid({
   features,
   onRemove,
+  onEdit,
+  editingId = null,
   pending,
   emptyMessage = "Nothing written down yet.",
 }) {
@@ -28,6 +30,8 @@ export default function FeatureGrid({
           <FeatureCard
             feature={feature}
             onRemove={onRemove ? () => onRemove(feature) : undefined}
+            onEdit={onEdit ? () => onEdit(feature) : undefined}
+            editing={editingId === feature.id}
             disabled={pending?.has(feature.id)}
           />
         </li>

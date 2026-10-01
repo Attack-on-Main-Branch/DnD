@@ -156,6 +156,27 @@ export async function insertContainer(supabase, { campaignId, container }) {
 }
 
 /**
+ * The name and the kind, the only two columns 20261002090000 grants. A carried
+ * bag turned into a chest is refused by `containers_bounds_check`, and reads as
+ * `invalid_value`.
+ */
+export async function updateContainer(supabase, { campaignId, id, container }) {
+  const { data, error } = await supabase
+    .from("containers")
+    .update({ name: container.name, type: container.type })
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
+    .select(COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data ? { data, error: null } : REFUSED;
+}
+
+/**
  * `.select("id")` makes the DELETE report what it removed: RLS filters
  * silently, so without it somebody else's id looks like a successful delete.
  * What is inside goes with it — both tables cascade on `container_id`.

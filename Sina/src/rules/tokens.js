@@ -143,8 +143,12 @@ export function tokenImagePathFromUrl(url) {
  * party.
  *
  * `{ values, errors }`, the shape every validator in this layer answers with.
+ * An edit passes `requireImage: false`: no file there keeps the old picture.
  */
-export function validateTokenTemplate({ name, image }) {
+export function validateTokenTemplate(
+  { name, image },
+  { requireImage = true } = {},
+) {
   const errors = {};
   const trimmed = String(name ?? "").trim();
 
@@ -155,7 +159,9 @@ export function validateTokenTemplate({ name, image }) {
   }
 
   if (!isUploadedFile(image)) {
-    errors.image = "Choose a picture for the piece.";
+    if (requireImage) {
+      errors.image = "Choose a picture for the piece.";
+    }
   } else if (!isAcceptedImage(image.type)) {
     errors.image = "That file is not a picture we can use.";
   } else if (image.size > MAX_TOKEN_IMAGE_BYTES) {
