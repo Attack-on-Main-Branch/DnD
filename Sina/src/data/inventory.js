@@ -31,6 +31,9 @@ const UNDEFINED_TABLE = "42P01";
 const UNDEFINED_FUNCTION = "42883";
 const INVALID_TEXT_REPRESENTATION = "22P02";
 
+/** PostgREST's own code for a function it has no entry for. */
+const FUNCTION_CACHE_MISS = "PGRST202";
+
 function classify(error) {
   // A catalogue entry written twice under one name. The pack's own functions
   // swallow the ordinary case with `on conflict`; the catalogue means it.
@@ -61,7 +64,7 @@ function classify(error) {
 
   // A migration written but never pushed, which is what `npm run db:list` is
   // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION) {
+  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
     return "missing_function";
   }
 
@@ -150,6 +153,92 @@ export async function insertCampaignItem(supabase, { campaignId, item }) {
       armor_class: item.armorClass ?? 0,
       properties: item.properties ?? "",
     })
+    .select(CATALOGUE_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/** One entry, for an edit that has to know the slug it is moving away from. */
+export async function readCampaignItem(supabase, { campaignId, id }) {
+  const { data, error } = await supabase
+    .from("campaign_items")
+    .select(CATALOGUE_COLUMNS)
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/**
+ * The party's copies of an edited entry, made to match it: every pack of this
+ * campaign's members and every container on its table. The count is how many
+ * stacks changed; null from the function is a refusal, and reads as
+ * `not_found`. See 20261002120000.
+ */
+export async function rewriteCampaignItemCopies(
+  supabase,
+  { campaignId, oldSlug, item, facts },
+) {
+  const { data, error } = await supabase.rpc("rewrite_campaign_item_copies", {
+    p_campaign_id: campaignId,
+    p_old_slug: oldSlug,
+    p_new_slug: item.slug,
+    p_name: item.name,
+    p_category: item.category,
+    p_description: item.description ?? "",
+    p_facts: facts ?? {},
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data === null
+    ? { data: null, error: { reason: "not_found", detail: null } }
+    : { data: { rewritten: data }, error: null };
+}
+
+/**
+ * Every column the form writes, the slug re-derived from the new name. No row
+ * back is a policy that matched nothing — somebody else's entry, or one struck
+ * out meanwhile — and reads as `not_found`, as an insert's does.
+ */
+export async function updateCampaignItem(supabase, { campaignId, id, item }) {
+  const { data, error } = await supabase
+    .from("campaign_items")
+    .update({
+      item_slug: item.slug,
+      name: item.name,
+      category: item.category,
+      description: item.description ?? "",
+      cost_quantity: item.cost ?? 0,
+      cost_unit: item.costUnit ?? "",
+      weight: item.weight ?? 0,
+      damage_dice: item.damageDice ?? "",
+      damage_type: item.damageType ?? "",
+      armor_class: item.armorClass ?? 0,
+      properties: item.properties ?? "",
+    })
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
     .select(CATALOGUE_COLUMNS)
     .maybeSingle();
 

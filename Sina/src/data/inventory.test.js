@@ -9,9 +9,12 @@ import {
   listCharacterInventory,
   listPartyInventory,
   moveInventoryItem,
+  readCampaignItem,
   removeCampaignItem,
+  rewriteCampaignItemCopies,
   spendInventoryItem,
   transferInventoryItem,
+  updateCampaignItem,
 } from "./inventory.js";
 
 const CHARACTER = "6f1c3d2e-0000-4000-8000-000000000000";
@@ -506,5 +509,119 @@ describe("the table and the deed travel with the write", () => {
     assert.equal(q.lastRpc.params.p_seat, CHARACTER);
     // No deed: a transfer is the only thing that function does.
     assert.equal(q.lastRpc.params.p_deed, undefined);
+  });
+});
+
+describe("updateCampaignItem", () => {
+  const RUSTED = {
+    slug: "custom:rusted-key",
+    name: "Rusted Key",
+    category: "Quest Item",
+    description: "Green with age.",
+  };
+
+  it("rewrites the slug with the name, on one campaign's row", async () => {
+    const query = stubQuery({ data: { id: "row-1" }, error: null });
+    await updateCampaignItem(query, {
+      campaignId: CAMPAIGN,
+      id: "row-1",
+      item: RUSTED,
+    });
+
+    assert.equal(query.lastUpdate.item_slug, RUSTED.slug);
+    assert.equal(query.lastUpdate.name, RUSTED.name);
+    assert.equal("campaign_id" in query.lastUpdate, false);
+    assert.deepEqual(query.filters, [
+      ["id", "row-1"],
+      ["campaign_id", CAMPAIGN],
+    ]);
+  });
+
+  it("reads an RLS refusal on the update as a miss", async () => {
+    const { data, error } = await updateCampaignItem(
+      stubQuery({ data: null, error: null }),
+      { campaignId: CAMPAIGN, id: "row-1", item: RUSTED },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
+  });
+
+  it("tells a name already written down from a failure", async () => {
+    const { error } = await updateCampaignItem(
+      stubQuery(postgrestError("23505")),
+      { campaignId: CAMPAIGN, id: "row-1", item: RUSTED },
+    );
+
+    assert.equal(error.reason, "already_carried");
+  });
+});
+
+describe("readCampaignItem", () => {
+  it("reads one row of one campaign", async () => {
+    const query = stubQuery({ data: { id: "row-1" }, error: null });
+    await readCampaignItem(query, { campaignId: CAMPAIGN, id: "row-1" });
+
+    assert.deepEqual(query.filters, [
+      ["id", "row-1"],
+      ["campaign_id", CAMPAIGN],
+    ]);
+  });
+
+  it("reads no row as a miss", async () => {
+    const { error } = await readCampaignItem(
+      stubQuery({ data: null, error: null }),
+      { campaignId: CAMPAIGN, id: "row-1" },
+    );
+
+    assert.equal(error.reason, "not_found");
+  });
+});
+
+describe("rewriteCampaignItemCopies", () => {
+  const RENAMED = {
+    slug: "custom:iron-key",
+    name: "Iron Key",
+    category: "Quest Item",
+    description: "",
+  };
+
+  it("names both slugs and the copy's columns", async () => {
+    const query = stubQuery({ data: 3, error: null });
+    const { data } = await rewriteCampaignItemCopies(query, {
+      campaignId: CAMPAIGN,
+      oldSlug: "custom:rusted-key",
+      item: RENAMED,
+      facts: { weight: "1 lb" },
+    });
+
+    assert.equal(query.lastRpc.name, "rewrite_campaign_item_copies");
+    assert.equal(query.lastRpc.params.p_old_slug, "custom:rusted-key");
+    assert.equal(query.lastRpc.params.p_new_slug, "custom:iron-key");
+    assert.deepEqual(query.lastRpc.params.p_facts, { weight: "1 lb" });
+    assert.deepEqual(data, { rewritten: 3 });
+  });
+
+  it("tells a party with no copies from a refusal", async () => {
+    const none = await rewriteCampaignItemCopies(
+      stubQuery({ data: 0, error: null }),
+      { campaignId: CAMPAIGN, oldSlug: "custom:rusted-key", item: RENAMED },
+    );
+    const refused = await rewriteCampaignItemCopies(
+      stubQuery({ data: null, error: null }),
+      { campaignId: CAMPAIGN, oldSlug: "custom:rusted-key", item: RENAMED },
+    );
+
+    assert.deepEqual(none.data, { rewritten: 0 });
+    assert.equal(refused.error.reason, "not_found");
+  });
+
+  it("names a function that was never pushed", async () => {
+    const { error } = await rewriteCampaignItemCopies(
+      stubQuery(postgrestError("PGRST202")),
+      { campaignId: CAMPAIGN, oldSlug: "custom:rusted-key", item: RENAMED },
+    );
+
+    assert.equal(error.reason, "missing_function");
   });
 });

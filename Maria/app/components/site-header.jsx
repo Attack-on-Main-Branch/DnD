@@ -27,7 +27,8 @@ export default function SiteHeader({
   const initials = toInitials(displayName ?? email ?? "?");
 
   return (
-    <header data-bar className="bar-in sticky top-0 z-20">
+    // Sticky on HeaderFold, its wrapper, which is what scrolls with the page.
+    <header data-bar className="bar-in">
       {/*
         `border-b-0` as well as the other three. `.glass` sets a border on all
         sides, and leaving the bottom one on drew a second divider: a flat,

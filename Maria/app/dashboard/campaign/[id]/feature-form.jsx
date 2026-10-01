@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 
-import { addCharacterFeature } from "@/app/actions/features";
+import {
+  addCharacterFeature,
+  editCharacterFeature,
+} from "@/app/actions/features";
 import { LABEL_CLASSES } from "@/app/components/ui/field-styles";
 import SharedFeatureForm from "@/app/dashboard/feature-form";
 import PartyPills from "@/app/dashboard/party-pills";
@@ -21,15 +24,40 @@ import PartyPills from "@/app/dashboard/party-pills";
  * A CHOICE AND NOT A PERMISSION: the INSERT policy re-asks whether this account
  * runs a table the character plays at, so an id arriving from here decides
  * nothing.
+ *
+ * WHILE EDITING, whose it is stays put: the UPDATE grant does not reach
+ * `character_id`, so the pills give way to the one name it belongs to.
  */
-export default function CampaignFeatureForm({ members, onWritten }) {
-  const [target, setTarget] = useState(() => members[0]?.id ?? null);
+export default function CampaignFeatureForm({
+  members,
+  onWritten,
+  editing = null,
+  onCancel,
+}) {
+  const [target, setTarget] = useState(
+    () => editing?.character_id ?? members[0]?.id ?? null,
+  );
 
   const chosen = members.find((one) => one.id === target) ?? null;
 
   async function write({ name, description }) {
     if (!chosen) {
       return true;
+    }
+
+    if (editing) {
+      const result = await editCharacterFeature(editing.id, chosen.id, {
+        name,
+        description,
+      }).catch(() => null);
+
+      if (!result || result.kind === "rejected") {
+        onWritten(null, result?.message ?? "That did not reach the table.");
+        return true;
+      }
+
+      onWritten(result.feature, null);
+      return false;
     }
 
     const result = await addCharacterFeature(chosen.id, {
@@ -56,19 +84,30 @@ export default function CampaignFeatureForm({ members, onWritten }) {
   }
 
   return (
-    <SharedFeatureForm onWrite={write} disabled={!chosen}>
-      <fieldset className="min-w-0">
-        <legend className={LABEL_CLASSES}>Who it is for</legend>
+    <SharedFeatureForm
+      onWrite={write}
+      disabled={!chosen}
+      editing={editing}
+      onCancel={onCancel}
+    >
+      {editing ? (
+        <p className="text-xs text-ink/50">
+          Written for {chosen?.name ?? "somebody who has left the party"}.
+        </p>
+      ) : (
+        <fieldset className="min-w-0">
+          <legend className={LABEL_CLASSES}>Who it is for</legend>
 
-        <div className="mt-1.5">
-          <PartyPills
-            members={members}
-            chosen={target}
-            onChoose={setTarget}
-            label="Who it is for"
-          />
-        </div>
-      </fieldset>
+          <div className="mt-1.5">
+            <PartyPills
+              members={members}
+              chosen={target}
+              onChoose={setTarget}
+              label="Who it is for"
+            />
+          </div>
+        </fieldset>
+      )}
     </SharedFeatureForm>
   );
 }

@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import {
   insertContainer,
+  listCampaignContainers,
+  listContainerItems,
   removeContainer,
   stockContainerItem,
+  updateContainer,
 } from "sina/data/containers";
 import {
   MAX_CAMPAIGN_CONTAINERS,
@@ -139,6 +142,152 @@ export async function writeCampaignContainer(campaignId, values) {
 
     return rejected(
       `${container.name} is on the table, but not everything went into it.`,
+    );
+  }
+
+  return { kind: "success", name: container.name };
+}
+
+/** An edit that found no row: struck out meanwhile, or never this account's. */
+const GONE = "That container is no longer on the table.";
+
+/**
+ * The name, the kind, and — for one nobody is carrying — what is inside it.
+ *
+ * The kind only changes while nothing at the table depends on it: a carried
+ * bag or a chest already shown to somebody is refused here in words, before
+ * `containers_bounds_check` would refuse it without any.
+ *
+ * The contents are written as the difference from what is there now, through
+ * the same stepper the drawer at the table uses. A carried bag's contents are
+ * its carrier's pack rows and are changed at the table, so `items` is ignored.
+ */
+export async function editCampaignContainer(campaignId, id, values) {
+  const { values: container, errors } = validateContainer(values ?? {});
+
+  if (errors) {
+    return rejected(errors.name ?? errors.type);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("editCampaignContainer", authError);
+  }
+
+  const { data: shelf, error: readError } = await listCampaignContainers(
+    supabase,
+    campaignId,
+  );
+
+  if (readError) {
+    return refused(
+      "editCampaignContainer/read",
+      readError,
+      "Could not save that.",
+    );
+  }
+
+  const standing = shelf.find((one) => one.id === id);
+
+  if (!standing) {
+    return rejected(GONE);
+  }
+
+  const carried = Boolean(standing.owner_character_id);
+  const shown =
+    standing.is_revealed ||
+    (standing.visible_to_character_ids ?? []).length > 0;
+
+  if (container.type !== standing.type) {
+    if (carried) {
+      return rejected(
+        "A bag somebody is carrying cannot become a chest. Take it back at the table first.",
+      );
+    }
+
+    if (shown) {
+      return rejected(
+        "A chest the party has been shown cannot become a bag. Hide it at the table first.",
+      );
+    }
+  }
+
+  const { error } = await updateContainer(supabase, {
+    campaignId,
+    id,
+    container,
+  });
+
+  if (error) {
+    return error.reason === "not_found"
+      ? rejected(GONE)
+      : refused("editCampaignContainer", error, "Could not save that.");
+  }
+
+  if (carried) {
+    revalidateBoth(campaignId);
+    return { kind: "success", name: container.name };
+  }
+
+  const { data: inside, error: insideError } = await listContainerItems(
+    supabase,
+    [id],
+  );
+
+  if (insideError) {
+    logFailure("editCampaignContainer/contents", insideError);
+    revalidateBoth(campaignId);
+
+    return rejected(
+      `${container.name} is saved, but what is inside it could not be changed.`,
+    );
+  }
+
+  const wanted = readContents(values?.items);
+  const moves = [];
+
+  for (const { item, quantity } of wanted) {
+    const held = inside.find((row) => row.item_slug === item.slug);
+    const delta = quantity - (held?.quantity ?? 0);
+
+    if (delta !== 0) {
+      moves.push({ item, delta });
+    }
+  }
+
+  for (const row of inside) {
+    if (!wanted.some(({ item }) => item.slug === row.item_slug)) {
+      moves.push({
+        item: {
+          slug: row.item_slug,
+          name: row.name,
+          category: row.category,
+          description: row.description,
+          facts: row.facts,
+          isCustom: row.is_custom,
+        },
+        delta: -row.quantity,
+      });
+    }
+  }
+
+  const stocked = await Promise.all(
+    moves.map(({ item, delta }) =>
+      stockContainerItem(supabase, { containerId: id, item, delta }),
+    ),
+  );
+
+  const failed = stocked.find((result) => result.error);
+
+  revalidateBoth(campaignId);
+
+  if (failed) {
+    logFailure("editCampaignContainer/stock", failed.error);
+
+    return rejected(
+      `${container.name} is saved, but not everything inside it changed.`,
     );
   }
 

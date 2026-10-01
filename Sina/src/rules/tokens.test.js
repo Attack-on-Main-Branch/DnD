@@ -291,3 +291,24 @@ describe("the limit", () => {
     assert.equal(MAX_CAMPAIGN_TOKENS, 5);
   });
 });
+
+describe("validateTokenTemplate, for an edit", () => {
+  it("keeps the old picture when no new one is chosen", () => {
+    const { values, errors } = validateTokenTemplate(
+      { name: "Hobgoblin", image: null },
+      { requireImage: false },
+    );
+
+    assert.equal(errors, null);
+    assert.deepEqual(values, { name: "Hobgoblin" });
+  });
+
+  it("still judges a new picture that is chosen", () => {
+    const { errors } = validateTokenTemplate(
+      { name: "Hobgoblin", image: picture({ type: "application/pdf" }) },
+      { requireImage: false },
+    );
+
+    assert.ok(errors.image);
+  });
+});

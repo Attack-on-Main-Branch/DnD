@@ -3,6 +3,7 @@
 import {
   deleteCharacterFeature,
   insertCharacterFeature,
+  updateCharacterFeature,
 } from "sina/data/features";
 import { MAX_CHARACTER_FEATURES, validateFeature } from "sina/rules/features";
 
@@ -65,6 +66,45 @@ export async function addCharacterFeature(characterId, { name, description }) {
 
   // The row itself: the card that goes up is drawn from it, and the id is what
   // a Remove presses against a moment later.
+  return { kind: "success", feature: data };
+}
+
+/** Rewritten in place; the row comes back so the card can be redrawn from it. */
+export async function editCharacterFeature(
+  featureId,
+  characterId,
+  { name, description },
+) {
+  const { values, errors } = validateFeature({ name, description });
+
+  if (errors) {
+    return rejected(errors.name ?? errors.description);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("editCharacterFeature", authError);
+  }
+
+  const { data, error } = await updateCharacterFeature(supabase, {
+    id: featureId,
+    characterId,
+    feature: values,
+  });
+
+  if (error) {
+    if (error.reason === "not_found") {
+      return rejected("That feature is no longer there to change.");
+    }
+
+    const copy = FEATURE_COPY[error.reason];
+
+    logUncovered("editCharacterFeature", error, copy);
+    return rejected(copy ?? "Could not save that. Try again.");
+  }
+
   return { kind: "success", feature: data };
 }
 

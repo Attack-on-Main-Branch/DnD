@@ -15,13 +15,14 @@ import {
   MAX_ITEM_WEIGHT,
 } from "sina/rules/inventory";
 
-import Button from "@/app/components/ui/button";
+import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
+import FormActions from "@/app/components/ui/form-actions";
 import FormAlert from "@/app/components/ui/form-alert";
 import SelectMenu from "@/app/components/ui/select-menu";
 import TextAreaField from "@/app/components/ui/textarea-field";
 import TextField from "@/app/components/ui/text-field";
 
-import { writeCampaignItem } from "./item-actions";
+import { editCampaignItem, writeCampaignItem } from "./item-actions";
 
 /**
  * An item written down in full: the fields the SRD's own entries arrive with,
@@ -52,13 +53,41 @@ const EMPTY = {
   description: "",
 };
 
-export default function ItemForm({ campaignId, written }) {
-  const [values, setValues] = useState(EMPTY);
+/** A catalogue row back in the boxes it was written from; zero reads as empty. */
+function fromRow(row) {
+  return {
+    name: row.name ?? "",
+    category: row.category ?? "",
+    cost: row.cost_quantity ? String(row.cost_quantity) : "",
+    costUnit: row.cost_unit || "gp",
+    weight: Number(row.weight) ? String(row.weight) : "",
+    damageDice: row.damage_dice ?? "",
+    damageType: row.damage_type ?? "",
+    armorClass: row.armor_class ? String(row.armor_class) : "",
+    properties: row.properties ?? "",
+    description: row.description ?? "",
+  };
+}
+
+/**
+ * `editing` is the row being rewritten, or null for a new one; the caller keys
+ * this form on it, so the boxes start from that row. `onDone` ends the edit.
+ */
+export default function ItemForm({
+  campaignId,
+  written,
+  editing = null,
+  onDone,
+  notice = null,
+}) {
+  const [values, setValues] = useState(() =>
+    editing ? fromRow(editing) : EMPTY,
+  );
   const [error, setError] = useState(null);
-  const [note, setNote] = useState(null);
+  const [note, setNote] = useState(notice);
   const [isPending, startTransition] = useTransition();
 
-  const full = written >= MAX_CAMPAIGN_ITEMS;
+  const full = !editing && written >= MAX_CAMPAIGN_ITEMS;
   const blocked = isPending || full;
 
   const set = (field) => (event) =>
@@ -68,15 +97,26 @@ export default function ItemForm({ campaignId, written }) {
     event.preventDefault();
 
     if (blocked) {
+      stopNavigationProgress();
       return;
     }
 
     startTransition(async () => {
-      const result = await writeCampaignItem(campaignId, values);
+      const result = editing
+        ? await editCampaignItem(campaignId, editing.id, values)
+        : await writeCampaignItem(campaignId, values);
+
+      // A submit arms the loading bar, and nothing here navigates.
+      stopNavigationProgress();
 
       if (result?.kind === "rejected") {
         setError(result.message);
         setNote(null);
+        return;
+      }
+
+      if (editing) {
+        onDone(`${result.name} is saved.`);
         return;
       }
 
@@ -199,14 +239,14 @@ export default function ItemForm({ campaignId, written }) {
       <FormAlert id={FEEDBACK_ID}>{error}</FormAlert>
       <FormAlert tone="success">{note}</FormAlert>
 
-      <div className="flex justify-end">
-        <Button
-          type="submit"
-          disabled={blocked || values.name.trim().length === 0}
-        >
-          {isPending ? "Writing…" : "Write it down"}
-        </Button>
-      </div>
+      <FormActions
+        editing={Boolean(editing)}
+        pending={isPending}
+        disabled={blocked || values.name.trim().length === 0}
+        label="Write it down"
+        pendingLabel="Writing…"
+        onCancel={() => onDone(null)}
+      />
     </form>
   );
 }

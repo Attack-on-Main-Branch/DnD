@@ -1,3 +1,4 @@
+import { EDITING_CARD_CLASSES } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 
 import {
@@ -24,6 +25,7 @@ export default function PackItemCard({
   children,
   onSelect,
   selected = false,
+  editing = false,
 }) {
   const stack = stackLabel(quantity);
 
@@ -84,7 +86,9 @@ export default function PackItemCard({
   return (
     <div
       style={itemEntrance(index)}
-      className={`${shell} ${NESTED_CARD_CLASSES}`}
+      className={`${shell} ${NESTED_CARD_CLASSES} ${
+        editing ? EDITING_CARD_CLASSES : ""
+      }`}
     >
       {body}
       {children && <div className="mt-3">{children}</div>}

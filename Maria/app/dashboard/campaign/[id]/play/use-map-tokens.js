@@ -104,11 +104,22 @@ export function useMapTokens({
   /* Doorbells, not payloads: a row off the socket has not been through a
      `select()` list, so the answer is to go and ask. Per MAP rather than per
      campaign — the table only ever looks at one, and the filter is a column. */
+  const rereadTokens = useCallback(() => resync({ tokens: true }), [resync]);
+
   useLiveRefresh({
     channel: `tokens:${mapId ?? "none"}`,
     table: "map_placed_tokens",
     filter: `map_id=eq.${mapId ?? ""}`,
-    onChange: useCallback(() => resync({ tokens: true }), [resync]),
+    onChange: rereadTokens,
+  });
+
+  /* A piece renamed or redrawn on the campaign sheet: the palette and every
+     copy standing on a board wear the template's name and picture. */
+  useLiveRefresh({
+    channel: `token-pieces:${campaignId}`,
+    table: "campaign_token_templates",
+    filter: `campaign_id=eq.${campaignId}`,
+    onChange: rereadTokens,
   });
 
   /* A map put on the table is a board this chair may have been away from. The

@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   addCharacterFeature,
+  editCharacterFeature,
   removeCharacterFeature,
 } from "@/app/actions/features";
+import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 import FeatureForm from "@/app/dashboard/feature-form";
 import FeatureGrid from "@/app/dashboard/feature-grid";
 
@@ -26,6 +28,10 @@ export default function SheetFeatures({ characterId, features }) {
   const [held, setHeld] = useState(features);
   const [pending, setPending] = useState(() => new Set());
   const [error, setError] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const formRef = useRef(null);
+
+  const editing = held.find((one) => one.id === editingId) ?? null;
 
   /* A fresh array on every route render, which is the only time it should
      replace what this browser is holding. */
@@ -70,6 +76,51 @@ export default function SheetFeatures({ characterId, features }) {
     return false;
   }
 
+  /* Not one still on its way to the database: it has no id to update yet. */
+  function startEditing(feature) {
+    if (String(feature.id).startsWith("drawn:")) {
+      return;
+    }
+
+    setError(null);
+    setEditingId((standing) => (standing === feature.id ? null : feature.id));
+    formRef.current?.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "start",
+    });
+  }
+
+  /* The card changes on the press and changes back if it is refused. */
+  async function save({ name, description }) {
+    const feature = editing;
+    const before = held;
+
+    setError(null);
+    setHeld((standing) =>
+      standing.map((one) =>
+        one.id === feature.id ? { ...one, name, description } : one,
+      ),
+    );
+
+    const result = await editCharacterFeature(feature.id, characterId, {
+      name,
+      description,
+    }).catch(() => null);
+
+    if (!result || result.kind === "rejected") {
+      setHeld(before);
+      setError(result?.message ?? "That did not reach the sheet. Try again.");
+      return true;
+    }
+
+    setHeld((standing) =>
+      standing.map((one) => (one.id === feature.id ? result.feature : one)),
+    );
+    setEditingId(null);
+
+    return false;
+  }
+
   async function strike(feature) {
     setError(null);
     setPending((standing) => new Set(standing).add(feature.id));
@@ -97,9 +148,9 @@ export default function SheetFeatures({ characterId, features }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <section>
+      <section ref={formRef} className="scroll-mt-24">
         <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-          Write a feature
+          {editing ? `Edit ${editing.name}` : "Write a feature"}
         </h3>
 
         <p className="mt-1 text-xs text-ink/50">
@@ -107,7 +158,12 @@ export default function SheetFeatures({ characterId, features }) {
           trait, a feat, a boon somebody handed them.
         </p>
 
-        <FeatureForm onWrite={write} />
+        <FeatureForm
+          key={editing?.id ?? "new"}
+          onWrite={editing ? save : write}
+          editing={editing}
+          onCancel={() => setEditingId(null)}
+        />
       </section>
 
       <section>
@@ -119,6 +175,8 @@ export default function SheetFeatures({ characterId, features }) {
           <FeatureGrid
             features={held}
             onRemove={strike}
+            onEdit={startEditing}
+            editingId={editingId}
             pending={pending}
             emptyMessage="Nothing written down yet. Hover a card to read what it does."
           />

@@ -1,10 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { insertCampaignItem, removeCampaignItem } from "sina/data/inventory";
-import { MAX_CAMPAIGN_ITEMS, validateItem } from "sina/rules/inventory";
+import {
+  insertCampaignItem,
+  readCampaignItem,
+  removeCampaignItem,
+  rewriteCampaignItemCopies,
+  updateCampaignItem,
+} from "sina/data/inventory";
+import {
+  MAX_CAMPAIGN_ITEMS,
+  readItemFacts,
+  validateItem,
+} from "sina/rules/inventory";
 
-import { logUncovered } from "@/lib/errors";
+import { catalogueFacts } from "@/app/dashboard/inventory-presentation";
+import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
 import { campaignSheetPath, campaignTablePath } from "@/lib/routes";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -30,6 +41,9 @@ const ITEM_COPY = {
   missing_table: "That part of the app is not ready yet.",
   bad_id: "That campaign is no longer there.",
 };
+
+/** An edit that found no row: struck out meanwhile, or never this account's. */
+const GONE = "That is no longer written down. It may have been struck out.";
 
 /** The sheet shows the catalogue and the table searches it. */
 function revalidateBoth(campaignId) {
@@ -72,6 +86,75 @@ export async function writeCampaignItem(campaignId, values) {
   }
 
   revalidateBoth(campaignId);
+  return { kind: "success", name: item.name };
+}
+
+/**
+ * One rewritten in place, and the party's copies with it — every pack and
+ * container at this table holding it changes to match, renamed stacks folding
+ * into any already under the new name. The copies are written exactly as a
+ * grant from the table's search writes them: see `campaignItems` in
+ * api/items/search.
+ */
+export async function editCampaignItem(campaignId, id, values) {
+  const { values: item, errors } = validateItem({ ...values, quantity: 1 });
+
+  if (errors) {
+    return rejected(errors.name ?? errors.description ?? errors.quantity);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("editCampaignItem", authError);
+  }
+
+  const { data: before, error: readError } = await readCampaignItem(supabase, {
+    campaignId,
+    id,
+  });
+
+  if (readError) {
+    return readError.reason === "not_found"
+      ? rejected(GONE)
+      : refused("editCampaignItem/read", readError, "Could not save that.");
+  }
+
+  const { data: row, error } = await updateCampaignItem(supabase, {
+    campaignId,
+    id,
+    item,
+  });
+
+  if (error) {
+    return error.reason === "not_found"
+      ? rejected(GONE)
+      : refused("editCampaignItem", error, "Could not save that.");
+  }
+
+  const copies = await rewriteCampaignItemCopies(supabase, {
+    campaignId,
+    oldSlug: before.item_slug,
+    item: {
+      slug: row.item_slug,
+      name: row.name,
+      category: row.category,
+      description: String(row.description ?? "").trim(),
+    },
+    facts: readItemFacts(catalogueFacts(row)),
+  });
+
+  revalidateBoth(campaignId);
+
+  if (copies.error) {
+    logFailure("editCampaignItem/copies", copies.error);
+
+    return rejected(
+      `${item.name} is saved, but the copies the party holds could not be changed.`,
+    );
+  }
+
   return { kind: "success", name: item.name };
 }
 

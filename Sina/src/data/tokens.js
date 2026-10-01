@@ -142,6 +142,30 @@ export async function insertTokenTemplate(
 }
 
 /**
+ * A piece renamed, or redrawn. `imageUrl` is left out when the picture is kept,
+ * so a rename cannot point the row at nothing.
+ */
+export async function updateTokenTemplate(
+  supabase,
+  { id, campaignId, name, imageUrl },
+) {
+  const { data, error } = await supabase
+    .from("campaign_token_templates")
+    .update(imageUrl ? { name, image_url: imageUrl } : { name })
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
+    .select(TEMPLATE_COLUMNS);
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data?.length
+    ? { data: data[0], error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
+}
+
+/**
  * One piece out of it, and every copy standing on a board with it — the
  * placements cascade on `template_id`.
  *

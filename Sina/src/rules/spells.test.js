@@ -296,9 +296,10 @@ describe("validateSpell", () => {
     assert.equal(spellDiceAt(values, 5), "3d6");
   });
 
-  it("lists the eight schools, in the SRD's own order", () => {
-    assert.equal(SPELL_SCHOOLS.length, 8);
+  it("lists the SRD's eight schools in its own order, then Pneumancy", () => {
+    assert.equal(SPELL_SCHOOLS.length, 9);
     assert.equal(SPELL_SCHOOLS[0], "Abjuration");
     assert.equal(SPELL_SCHOOLS[7], "Transmutation");
+    assert.equal(SPELL_SCHOOLS[8], "Pneumancy");
   });
 });

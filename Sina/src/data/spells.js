@@ -30,10 +30,12 @@ const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
 const FOREIGN_KEY_VIOLATION = "23503";
 const UNDEFINED_TABLE = "42P01";
+const UNDEFINED_FUNCTION = "42883";
 const INVALID_TEXT_REPRESENTATION = "22P02";
 
-/** PostgREST's own code for a table it has no entry for — see activity.js. */
+/** PostgREST's own codes for a table or a function it has no entry for. */
 const SCHEMA_CACHE_MISS = "PGRST205";
+const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   // The spellbook is unique on `(character_id, spell_slug)`, so this is a spell
@@ -62,6 +64,11 @@ function classify(error) {
 
   if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
     return "missing_table";
+  }
+
+  // A migration written but never pushed.
+  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
+    return "missing_function";
   }
 
   // A malformed uuid: Postgres refuses the cast before considering a row, so it
@@ -260,6 +267,92 @@ export async function insertCampaignSpell(supabase, { campaignId, spell }) {
       higher_level: spell.higherLevel ?? "",
       classes: spell.classes ?? "",
     })
+    .select(CATALOGUE_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/** One entry, for an edit that has to know the slug it is moving away from. */
+export async function readCampaignSpell(supabase, { campaignId, id }) {
+  const { data, error } = await supabase
+    .from("campaign_spells")
+    .select(CATALOGUE_COLUMNS)
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data, error: null };
+}
+
+/**
+ * The spellbooks of this campaign's members, made to match an edited entry.
+ * `row` is the catalogue row as it now stands — the function reads its column
+ * names. Null from the function is a refusal. See 20261002120000.
+ */
+export async function rewriteCampaignSpellCopies(
+  supabase,
+  { campaignId, oldSlug, row },
+) {
+  const { data, error } = await supabase.rpc("rewrite_campaign_spell_copies", {
+    p_campaign_id: campaignId,
+    p_old_slug: oldSlug,
+    p_spell: row,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data === null
+    ? { data: null, error: { reason: "not_found", detail: null } }
+    : { data: { rewritten: data }, error: null };
+}
+
+/**
+ * Every column the form writes, the slug re-derived from the new name. No row
+ * back is a policy that matched nothing and reads as `not_found`.
+ * `rewriteCampaignSpellCopies` is what carries the edit into the spellbooks.
+ */
+export async function updateCampaignSpell(supabase, { campaignId, id, spell }) {
+  const { data, error } = await supabase
+    .from("campaign_spells")
+    .update({
+      spell_slug: spell.slug,
+      name: spell.name,
+      level: spell.level,
+      school: spell.school ?? "",
+      casting_time: spell.castingTime ?? "",
+      range_text: spell.range ?? "",
+      components: spell.components ?? "",
+      material: spell.material ?? "",
+      duration: spell.duration ?? "",
+      concentration: spell.concentration ?? false,
+      ritual: spell.ritual ?? false,
+      attack_save: spell.attackSave ?? "",
+      damage: spell.damage ?? "",
+      description: spell.description ?? "",
+      higher_level: spell.higherLevel ?? "",
+      classes: spell.classes ?? "",
+    })
+    .eq("id", id)
+    .eq("campaign_id", campaignId)
     .select(CATALOGUE_COLUMNS)
     .maybeSingle();
 

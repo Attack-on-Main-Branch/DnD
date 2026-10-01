@@ -1,5 +1,10 @@
 import { listCampaignSpells } from "sina/data/spells";
-import { MAX_SPELL_DESCRIPTION_LENGTH } from "sina/rules/spells";
+import {
+  CANTRIP_LEVEL,
+  MAX_SPELL_DESCRIPTION_LENGTH,
+  MAX_SPELL_HIGHER_LEVEL_LENGTH,
+  MAX_SPELL_LEVEL,
+} from "sina/rules/spells";
 
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -10,12 +15,12 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * The item search next door, for the same reasons: a route rather than a Server
  * Action because it is a READ on every keystroke, and proxied so thirty players
  * searching are not thirty browsers on somebody else's free API.
- * `/api/2014/...` because the bare path is a 301 to it.
+ * `/api/2024/...` for the 2024 rules; the bare path is a 301 to the 2014 ones.
  *
  * `campaign_spells` is not cached at all — at most sixty rows, one indexed read
  * away, and unlike the SRD they change.
  */
-const API = "https://www.dnd5eapi.co/api/2014";
+const API = "https://www.dnd5eapi.co/api/2024";
 
 /** How many cards the grid shows, and so how many details are fetched. */
 const RESULTS = 12;
@@ -99,24 +104,22 @@ async function catalogue() {
  * The column's bound, taken at the last word: a hard slice ends "must make a
  * Dexterity sav", which reads as a bug rather than a limit.
  */
-function clip(text) {
-  if (text.length <= MAX_SPELL_DESCRIPTION_LENGTH) {
+function clip(text, limit = MAX_SPELL_DESCRIPTION_LENGTH) {
+  if (text.length <= limit) {
     return text;
   }
 
-  const cut = text.slice(0, MAX_SPELL_DESCRIPTION_LENGTH - 1);
+  const cut = text.slice(0, limit - 1);
   const lastSpace = cut.lastIndexOf(" ");
 
-  return `${
-    lastSpace > MAX_SPELL_DESCRIPTION_LENGTH * 0.75
-      ? cut.slice(0, lastSpace)
-      : cut
-  }…`;
+  return `${lastSpace > limit * 0.75 ? cut.slice(0, lastSpace) : cut}…`;
 }
 
-/** The SRD writes a rule as an array of paragraphs. It is read as one. */
-function paragraphs(lines) {
-  return (lines ?? [])
+/** One string with newlines between paragraphs, or an array of them. */
+function paragraphs(text) {
+  const lines = Array.isArray(text) ? text : String(text ?? "").split("\n");
+
+  return lines
     .map((line) =>
       String(line)
         .replace(/[ \t]+/g, " ")
@@ -126,52 +129,179 @@ function paragraphs(lines) {
     .join("\n\n");
 }
 
-/**
- * "8d6 Fire" — the row at the spell's OWN level, which the SRD tabulates per
- * slot level for a levelled spell and per character level for a cantrip.
- */
-function damageLine(spell) {
-  const damage = spell?.damage;
+/** Cantrips and a few spells write their scaling into `description`, not `higher_level`. */
+const UPGRADE = /\s*(?:Cantrip Upgrade|Using a Higher-Level Spell Slot)\.\s*/;
 
-  if (!damage) {
-    return "";
-  }
+function ruleAndUpgrade(spell) {
+  const text = String(spell?.description ?? "");
+  const found = text.match(UPGRADE);
 
-  const bySlot = damage.damage_at_slot_level ?? {};
-  const byCharacter = damage.damage_at_character_level ?? {};
+  const rule = found ? text.slice(0, found.index) : text;
+  const inline = found ? text.slice(found.index + found[0].length) : "";
 
-  const dice =
-    bySlot[String(spell.level)] ??
-    byCharacter["1"] ??
-    Object.values(bySlot)[0] ??
-    Object.values(byCharacter)[0];
-
-  if (!dice) {
-    return "";
-  }
-
-  return `${dice} ${damage.damage_type?.name ?? ""}`.trim();
+  return {
+    rule: paragraphs(rule),
+    upgrade: paragraphs(
+      [spell?.higher_level, inline].filter(Boolean).join("\n"),
+    ),
+  };
 }
 
-/** "DEX save" or "Ranged spell attack". The SRD gives at most one. */
-function attackSaveLine(spell) {
-  const ability = spell?.dc?.dc_type;
+/** "Action" → "1 action"; a trigger after the comma is too long for its cell, so it opens the rule. */
+function castingOf(spell) {
+  const text = String(spell?.casting_time ?? "").trim();
+  const comma = text.indexOf(",");
 
-  if (ability) {
-    const abbr = String(ability.index ?? ability.name ?? "")
-      .slice(0, 3)
-      .toUpperCase();
+  const time = (comma === -1 ? text : text.slice(0, comma)).replace(
+    /^(?:Bonus Action|Reaction|Action)\b/i,
+    (word) => `1 ${word.toLowerCase()}`,
+  );
 
-    return abbr ? `${abbr} save` : "Saving throw";
+  const trigger = comma === -1 ? "" : text.slice(comma + 1).trim();
+
+  return {
+    castingTime: time,
+    trigger: trigger
+      ? `Cast as a ${time.replace(/^1 /, "")}, ${trigger.replace(/\.?$/, ".")}`
+      : "",
+  };
+}
+
+/** Some ranges arrive with the components glued on: "Touch Component: V, S". */
+function rangeOf(spell) {
+  return String(spell?.range ?? "")
+    .replace(/\s+Components?:.*$/i, "")
+    .trim();
+}
+
+function durationOf(spell) {
+  const text = String(spell?.duration ?? "").trim();
+
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+const DAMAGE_TYPE =
+  "(?:Acid|Bludgeoning|Cold|Fire|Force|Lightning|Necrotic|Piercing|Poison|Psychic|Radiant|Slashing|Thunder)";
+
+/** "Acid, Cold, Fire, Lightning, or Thunder" as well as a type alone. */
+const DAMAGE_TYPES = `${DAMAGE_TYPE}(?:,? (?:or )?${DAMAGE_TYPE})*`;
+
+/**
+ * Damage the prose states without a `damage` field: "10d6 + 40 Force damage",
+ * "Force damage equal to 4d12 plus …", "takes 3d8 damage of the chosen type".
+ */
+const PROSE_DAMAGE = [
+  [
+    new RegExp(`(\\d+d\\d+(?: ?\\+ ?\\d+)?) (${DAMAGE_TYPES}) damage`),
+    (found) => ({ dice: found[1], type: found[2] }),
+  ],
+  [
+    new RegExp(`(${DAMAGE_TYPES}) damage equal to (\\d+d\\d+)`),
+    (found) => ({ dice: found[2], type: found[1] }),
+  ],
+  [/tak(?:es|ing) (\d+d\d+) damage/, (found) => ({ dice: found[1], type: "" })],
+];
+
+/** The one row the 2024 SRD tabulates is the spell's own level ("0" for a cantrip). */
+function baseDamage(spell, rule) {
+  const bySlot = spell?.damage?.damage_at_slot_level ?? {};
+  const dice = bySlot[String(spell?.level)] ?? Object.values(bySlot)[0];
+
+  if (dice) {
+    return { dice, type: spell.damage.damage_type?.name ?? "" };
   }
 
+  const found = PROSE_DAMAGE.map(([pattern, read]) => {
+    const match = rule.match(pattern);
+
+    return match ? { index: match.index, ...read(match) } : null;
+  })
+    .filter(Boolean)
+    .sort((a, b) => a.index - b.index)[0];
+
+  return found ? { dice: found.dice, type: found.type } : null;
+}
+
+/** "Hit Points equal to 2d8 plus …" or "regain 2d8 Hit Points". */
+function baseHealing(rule) {
+  const found = rule.match(
+    /Hit Points equal to (\d+d\d+)|regains? (\d+d\d+) Hit Points/,
+  );
+
+  return found?.[1] ?? found?.[2] ?? "";
+}
+
+/**
+ * "increases by 1d6 for each spell slot level above 3". Takes the sentence's
+ * FIRST dice: Wall of Ice's second step is the frigid air's, not the wall's.
+ */
+const SLOT_STEP =
+  /increases? by (\d+)d(\d+)[^.]*?for (?:each|every) (?:spell )?slot level above (\d)/i;
+
+/**
+ * The step spelled out as `{ 3: "8d6", 4: "9d6", … }` so an upcast rolls the
+ * right dice. Empty when the step's die differs from the base's.
+ */
+function slotTable(base, upgrade, level) {
+  const from = String(base ?? "").match(/^(\d+)d(\d+)( ?\+ ?\d+)?$/);
+  const step = upgrade.match(SLOT_STEP);
+
+  if (!from || !step || step[2] !== from[2] || Number(step[3]) !== level) {
+    return {};
+  }
+
+  const table = {};
+
+  for (let slot = level; slot <= MAX_SPELL_LEVEL; slot++) {
+    const count = Number(from[1]) + Number(step[1]) * (slot - level);
+
+    table[slot] = `${count}d${from[2]}${from[3] ?? ""}`;
+  }
+
+  return table;
+}
+
+/** "levels 5 (2d10), 11 (3d10), and 17 (4d10)", keyed on character level. */
+function cantripTable(base, upgrade) {
+  if (!/^\d+d\d+$/.test(String(base ?? ""))) {
+    return {};
+  }
+
+  const rows = [...upgrade.matchAll(/\b(\d+) \((\d*)d(\d+)\)/g)];
+
+  if (rows.length === 0) {
+    return {};
+  }
+
+  const table = { 1: base };
+
+  for (const [, at, count, die] of rows) {
+    table[at] = `${count || 1}d${die}`;
+  }
+
+  return table;
+}
+
+const ABILITIES =
+  "Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma";
+
+/** A save the spell forces — Haste's "Advantage on Dexterity saving throws" is not one. */
+const FORCED_SAVE = new RegExp(
+  `(?:make|makes|making|succeed on|succeeds on|fail|fails) an? (${ABILITIES}) saving throw`,
+  "i",
+);
+
+/** "DEX save" or "Ranged spell attack". The 2024 SRD has no `dc` field. */
+function attackSaveLine(spell, rule) {
   if (spell?.attack_type) {
     const kind = String(spell.attack_type);
 
     return `${kind.charAt(0).toUpperCase()}${kind.slice(1)} spell attack`;
   }
 
-  return "";
+  const save = rule.match(FORCED_SAVE);
+
+  return save ? `${save[1].slice(0, 3).toUpperCase()} save` : "";
 }
 
 /** What the index alone already knows: enough to show and enough to shelve. */
@@ -210,34 +340,38 @@ async function detail(entry) {
 
   const spell = await upstream(entry.path);
 
+  const level = Number.isInteger(spell?.level) ? spell.level : entry.level;
+  const { rule, upgrade } = ruleAndUpgrade(spell);
+  const { castingTime, trigger } = castingOf(spell);
+  const damage = baseDamage(spell, rule);
+
   const card = {
     slug: entry.slug,
     name: spell?.name ?? entry.name,
-    level: Number.isInteger(spell?.level) ? spell.level : entry.level,
+    level,
     school: spell?.school?.name ?? "",
-    castingTime: spell?.casting_time ?? "",
-    range: spell?.range ?? "",
+    castingTime,
+    range: rangeOf(spell),
     components: (spell?.components ?? []).join(", "),
     material: spell?.material ?? "",
-    duration: spell?.duration ?? "",
+    duration: durationOf(spell),
     concentration: Boolean(spell?.concentration),
     ritual: Boolean(spell?.ritual),
-    attackSave: attackSaveLine(spell),
-    damage: damageLine(spell),
-    description: clip(paragraphs(spell?.desc)),
-    higherLevel: paragraphs(spell?.higher_level),
+    attackSave: attackSaveLine(spell, rule),
+    damage: damage ? `${damage.dice} ${damage.type}`.trim() : "",
+    description: clip([trigger, rule].filter(Boolean).join("\n\n")),
+    higherLevel: clip(upgrade, MAX_SPELL_HIGHER_LEVEL_LENGTH),
     classes: (spell?.classes ?? [])
       .map((one) => one?.name)
       .filter(Boolean)
       .join(", "),
-    // The scaling tables verbatim, so an upcast rolls what the SRD tabulates.
-    // A cantrip's are keyed on character level and a levelled spell's on slot
-    // level; `spellDiceAt` is what knows which.
+    // Keyed on character level for a cantrip and on slot level otherwise;
+    // `spellDiceAt` is what knows which.
     damageByLevel:
-      spell?.damage?.damage_at_slot_level ??
-      spell?.damage?.damage_at_character_level ??
-      {},
-    healByLevel: spell?.heal_at_slot_level ?? {},
+      level === CANTRIP_LEVEL
+        ? cantripTable(damage?.dice, upgrade)
+        : slotTable(damage?.dice, upgrade, level),
+    healByLevel: slotTable(baseHealing(rule), upgrade, level),
   };
 
   details.set(entry.slug, card);
