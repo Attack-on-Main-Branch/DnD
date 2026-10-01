@@ -26,10 +26,10 @@ export const DEFAULT_SPEED = 30;
 const SLOW_SPEED = 25;
 
 /** The stout and the small. Everybody else walks thirty. */
-const SLOW_RACES = ["Dwarf", "Halfling", "Gnome"];
+const SLOW_RACES = ["Dwarf", "Halfling", "Gnome", "Erina"];
 
 /** And the small. Everybody else is Medium. */
-const SMALL_RACES = ["Halfling", "Gnome"];
+const SMALL_RACES = ["Halfling", "Gnome", "Erina"];
 
 export const SIZES = ["Small", "Medium"];
 

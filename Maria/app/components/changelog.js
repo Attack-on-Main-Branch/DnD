@@ -16,6 +16,15 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.0.1",
+    date: "2026-10-01",
+    title: "Three more faces at the table",
+    changes: [
+      "Three new races join character creation: Changeling, Erina, and Kipir.",
+      "Racial ability score bonuses are calculated automatically into your bought totals the moment they take the table.",
+    ],
+  },
+  {
     version: "1.0.0",
     date: "2026-08-28",
     title: "The whole table rolls at once",
