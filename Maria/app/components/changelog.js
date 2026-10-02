@@ -16,6 +16,16 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.3.0",
+    date: "2026-10-02",
+    title: "A mage who builds",
+    changes: [
+      "The Artificer joins the Mage as a fourth path, beside the Warlock. All four Mage paths sit side by side when you choose one.",
+      "An Artificer is worked out the way the rulebook writes one: a d8 hit die, Constitution and Intelligence saves, light and medium armour, shields and simple weapons, thieves’ tools, tinker’s tools and one set of artisan’s tools, and spells cast with Intelligence.",
+      "Their spell slots follow the Artificer’s own table: two 1st-level slots from 1st level, climbing to 5th-level slots at 17th.",
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-10-01",
     title: "The 2024 rules on the shelf",

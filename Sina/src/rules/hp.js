@@ -26,6 +26,7 @@ const HIT_DICE = {
   wizard: 6,
   sorcerer: 6,
   warlock: 8,
+  artificer: 8,
   ranger: 10,
   arcane_archer: 10,
   rogue: 8,

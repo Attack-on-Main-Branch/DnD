@@ -18,6 +18,7 @@ const EXPECTED = {
   wizard: ["int", "wis"],
   sorcerer: ["con", "cha"],
   warlock: ["wis", "cha"],
+  artificer: ["con", "int"],
   ranger: ["str", "dex"],
   arcane_archer: ["str", "con"],
   rogue: ["dex", "int"],
@@ -78,7 +79,7 @@ describe("savingThrowsFor", () => {
   });
 
   it("is empty for a path it has never heard of", () => {
-    for (const value of [null, undefined, "", "artificer"]) {
+    for (const value of [null, undefined, "", "blood_hunter"]) {
       assert.deepEqual(savingThrowsFor(value), []);
     }
   });

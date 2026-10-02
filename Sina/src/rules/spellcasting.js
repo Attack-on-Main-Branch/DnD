@@ -2,8 +2,8 @@
  * The 5e spellcasting matrix: how many slots a class has at a level, which
  * ability it casts with, and the two numbers at the top of a caster's sheet.
  *
- * The four tables below are mirrored by `spell_slot_maximum` in
- * 20260826090000_spell_slots.sql. Changing one means changing both — the
+ * The five tables below are mirrored by `spell_slot_maximum` in
+ * 20261002150000_a_mage_who_builds.sql. Changing one means changing both — the
  * database derives a maximum for itself on every write, and a table that
  * disagreed would refuse casts the bar was still offering.
  */
@@ -68,6 +68,9 @@ const HALF_CASTER = [
   [4, 3, 3, 3, 2],
   [4, 3, 3, 3, 2],
 ];
+
+/** The Artificer: a half caster that rounds up, so two slots from 1st. */
+const HALF_CASTER_ROUNDED_UP = [[2], ...HALF_CASTER.slice(1)];
 
 /** Nothing until 3rd, and never past 4th-level slots. */
 const THIRD_CASTER = [
@@ -137,6 +140,7 @@ export const CASTER_KINDS = {
   bard: "full",
   paladin: "half",
   ranger: "half",
+  artificer: "half_up",
   arcane_archer: "third",
   warlock: "pact",
 };
@@ -144,11 +148,13 @@ export const CASTER_KINDS = {
 const TABLES = {
   full: FULL_CASTER,
   half: HALF_CASTER,
+  half_up: HALF_CASTER_ROUNDED_UP,
   third: THIRD_CASTER,
 };
 
 export const SPELLCASTING_ABILITIES = {
   wizard: "int",
+  artificer: "int",
   arcane_archer: "int",
   cleric: "wis",
   druid: "wis",

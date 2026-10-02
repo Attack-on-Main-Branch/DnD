@@ -47,7 +47,7 @@ export function abilityId(value) {
   return ABILITY_IDS.get(key(value)) ?? null;
 }
 
-/** The thirteen paths of ARCHETYPES, in the order that file lists them. */
+/** The fourteen paths of ARCHETYPES, in the order that file lists them. */
 const PROFICIENCIES = {
   barbarian: ["strength", "constitution"],
   fighter: ["strength", "constitution"],
@@ -55,6 +55,7 @@ const PROFICIENCIES = {
   wizard: ["intelligence", "wisdom"],
   sorcerer: ["constitution", "charisma"],
   warlock: ["wisdom", "charisma"],
+  artificer: ["constitution", "intelligence"],
   ranger: ["strength", "dexterity"],
   arcane_archer: ["strength", "constitution"],
   rogue: ["dexterity", "intelligence"],

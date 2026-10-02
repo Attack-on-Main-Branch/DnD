@@ -221,6 +221,11 @@ const PROFICIENCIES = {
     weapons: ["Simple Weapons"],
     tools: [],
   },
+  artificer: {
+    armor: ["Light Armor", "Medium Armor", "Shields"],
+    weapons: ["Simple Weapons"],
+    tools: ["Thieves’ Tools", "Tinker’s Tools", "One Type of Artisan’s Tools"],
+  },
 };
 
 /** The names a path is written under elsewhere. `hitDie` carries the same set. */

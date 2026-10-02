@@ -23,6 +23,7 @@ describe("the hit dice", () => {
     assert.equal(hitDie("wizard"), 6);
     assert.equal(hitDie("sorcerer"), 6);
     assert.equal(hitDie("warlock"), 8);
+    assert.equal(hitDie("artificer"), 8);
     assert.equal(hitDie("ranger"), 10);
     assert.equal(hitDie("arcane_archer"), 10);
     assert.equal(hitDie("rogue"), 8);
@@ -45,7 +46,7 @@ describe("the hit dice", () => {
   });
 
   it("has no die for a path nobody walks", () => {
-    assert.equal(hitDie("artificer"), null);
+    assert.equal(hitDie("blood_hunter"), null);
     assert.equal(hitDie(""), null);
     assert.equal(hitDie(null), null);
   });
@@ -163,7 +164,7 @@ describe("every level after it", () => {
 
   it("has no figure for a path or a score it cannot read", () => {
     assert.equal(
-      calculateMaxHP({ className: "artificer", level: 1, conScore: 10 }),
+      calculateMaxHP({ className: "blood_hunter", level: 1, conScore: 10 }),
       null,
     );
     assert.equal(

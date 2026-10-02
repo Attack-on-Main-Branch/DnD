@@ -6,10 +6,13 @@
  * Scoped to the one public bucket, not the whole origin: the optimiser fetches
  * whatever URL it is handed, so a wildcard would make it an open proxy for any
  * path on the storage host.
+ *
+ * Resolved against the URL rather than concatenated: a trailing slash in the
+ * env value made `//storage/…`, a pattern no real URL matches.
  */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const campaignMaps = supabaseUrl
-  ? [new URL(`${supabaseUrl}/storage/v1/object/public/campaign-maps/**`)]
+  ? [new URL("/storage/v1/object/public/campaign-maps/**", supabaseUrl)]
   : [];
 
 /** @type {import('next').NextConfig} */
