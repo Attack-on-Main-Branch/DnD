@@ -104,6 +104,21 @@ describe("getMaxSpellSlots, on the other three progressions", () => {
     assert.equal(getMaxSpellSlots("ranger", 20)[6], 0);
   });
 
+  it("starts an artificer at level 1, then follows the half caster", () => {
+    assert.deepEqual(availableSlotLevels("artificer", 1), [1]);
+    assert.equal(getMaxSpellSlots("artificer", 1)[1], 2);
+    assert.equal(getMaxSpellSlots("artificer", 2)[1], 2);
+
+    for (let level = 2; level <= MAX_LEVEL; level += 1) {
+      assert.deepEqual(
+        getMaxSpellSlots("artificer", level),
+        getMaxSpellSlots("paladin", level),
+      );
+    }
+
+    assert.deepEqual(availableSlotLevels("artificer", 17), [1, 2, 3, 4, 5]);
+  });
+
   it("starts a third caster at level 3 and stops at 4th-level slots", () => {
     assert.equal(getMaxSpellSlots("arcane_archer", 2)[1], 0);
     assert.equal(getMaxSpellSlots("arcane_archer", 3)[1], 2);
@@ -167,6 +182,7 @@ describe("readSpellcasting", () => {
     assert.equal(spellcastingAbility("cleric"), "wis");
     assert.equal(spellcastingAbility("warlock"), "cha");
     assert.equal(spellcastingAbility("arcane_archer"), "int");
+    assert.equal(spellcastingAbility("artificer"), "int");
 
     const cleric = readSpellcasting(
       caster({ class_id: "cleric", ability_wis_total: 16 }),

@@ -17,8 +17,8 @@ const RISE_STEP_MS = 65;
 const RISE_DELAY_MS = 60;
 
 /**
- * Class in two steps: archetype first, then the path within it, so thirteen
- * classes become five and then two or three.
+ * Class in two steps: archetype first, then the path within it, so fourteen
+ * classes become five and then two to four.
  *
  * Both halves are real radio inputs inside labels rather than `role="radio"`
  * divs — a native group gives arrow-key movement, the group name and the
@@ -204,10 +204,15 @@ export default function ClassPicker({
               three came out narrower than an Assassin's two, and neither
               matched the ability or alignment cards below. Fixed, an archetype
               with two paths leaves the third cell empty and every card on the
-              sheet is one size.
+              sheet is one size. The Mage's four are the one exception, kept on
+              a single row.
             */}
             <div
-              className={`grid grid-cols-1 gap-3 sm:grid-cols-3 ${
+              className={`grid grid-cols-1 gap-3 ${
+                (selected?.paths.length ?? 0) > 3
+                  ? "sm:grid-cols-2 lg:grid-cols-4"
+                  : "sm:grid-cols-3"
+              } ${
                 invalidField === "classId"
                   ? `rounded-lg ${INVALID_GROUP_CLASSES}`
                   : ""

@@ -130,7 +130,7 @@ describe("hitDicePool", () => {
   });
 
   it("has no pool for a path the catalogue does not hold", () => {
-    const pool = hitDicePool({ classId: "artificer", level: 4 });
+    const pool = hitDicePool({ classId: "blood_hunter", level: 4 });
 
     assert.equal(pool.die, null);
     assert.equal(hitDiceLabel(pool), null);
@@ -196,6 +196,18 @@ describe("proficienciesFor", () => {
     assert.deepEqual(held.tools, ["Thieves’ Tools"]);
   });
 
+  it("gives an Artificer shields, simple weapons and three kits", () => {
+    const held = proficienciesFor("artificer");
+
+    assert.deepEqual(held.armor, ["Light Armor", "Medium Armor", "Shields"]);
+    assert.deepEqual(held.weapons, ["Simple Weapons"]);
+    assert.deepEqual(held.tools, [
+      "Thieves’ Tools",
+      "Tinker’s Tools",
+      "One Type of Artisan’s Tools",
+    ]);
+  });
+
   it("reads a path under the name the sheet prints", () => {
     assert.deepEqual(
       proficienciesFor("Thief / Rogue").weapons,
@@ -219,7 +231,7 @@ describe("proficienciesFor", () => {
   });
 
   it("is empty for a path it has never heard of", () => {
-    const held = proficienciesFor("artificer");
+    const held = proficienciesFor("blood_hunter");
 
     assert.deepEqual([...held.armor, ...held.weapons, ...held.tools], []);
   });

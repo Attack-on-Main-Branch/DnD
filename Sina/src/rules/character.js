@@ -133,6 +133,12 @@ export const ARCHETYPES = [
         name: "Warlock",
         blurb: "A dark bargainer, bound by an otherworldly pact.",
       },
+      {
+        id: "artificer",
+        name: "Artificer",
+        blurb:
+          "An inventor who casts through tools and infuses gear with magic.",
+      },
     ],
   },
   {
