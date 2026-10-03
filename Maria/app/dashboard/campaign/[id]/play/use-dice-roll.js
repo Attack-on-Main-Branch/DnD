@@ -6,6 +6,7 @@ import { readDiceResult, rollDice } from "sina/rules/dice";
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 
 import {
+  abandonDice,
   clearDice,
   DICE_LANES,
   diceEngine,
@@ -62,6 +63,24 @@ const DICE_OUT_MS = 300;
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * HOW LONG A BOARD IS TRUSTED TO ANSWER. A world that has gone quiet — a GPU
+ * context lost, a tray never announced — used to be waited on for ever: the
+ * lane stayed busy, every throw after it queued behind it, and the chair's own
+ * dice would not roll again until the page was reloaded.
+ *
+ * Generous, because a throw is a build, a seed and four seconds of settling;
+ * past these the dice are given up and the number goes on without them.
+ */
+const ENGINE_WAIT_MS = 8000;
+const THROW_WAIT_MS = 12000;
+
+const GAVE_UP = Symbol("gave up");
+
+function within(ms, promise) {
+  return Promise.race([promise, wait(ms).then(() => GAVE_UP)]);
 }
 
 /** What the physics is thrown by, not what the die reads. */
@@ -173,12 +192,20 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
       try {
         setLaneStage(lane, "rolling");
 
-        const thrown = await throwDie({
-          notation: dieNotation(die, count),
-          ...diceMaterial(cast),
-          seed,
-          lane,
-        }).catch(() => null);
+        let thrown = await within(
+          THROW_WAIT_MS,
+          throwDie({
+            notation: dieNotation(die, count),
+            ...diceMaterial(cast),
+            seed,
+            lane,
+          }),
+        ).catch(() => null);
+
+        if (thrown === GAVE_UP) {
+          abandonDice(lane);
+          thrown = null;
+        }
 
         report(alive.current ? readDiceResult(die, count, thrown) : null);
 
@@ -226,7 +253,10 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
         const kept = secret;
         const seed = prefersReducedMotion()
           ? null
-          : await diceEngine().then(newSeed, () => null);
+          : await within(
+              ENGINE_WAIT_MS,
+              diceEngine().then(newSeed, () => null),
+            ).then((drawn) => (drawn === GAVE_UP ? null : drawn));
 
         if (!alive.current) {
           return;

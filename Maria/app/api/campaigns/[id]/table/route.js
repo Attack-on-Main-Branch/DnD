@@ -1,5 +1,3 @@
-"use server";
-
 import { listPartyFeatures } from "sina/data/features";
 import { listCampaignActivity } from "sina/data/activity";
 import {
@@ -24,36 +22,41 @@ import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
+import { readTableSliceQuery } from "@/lib/table-slices";
 
 /**
  * "Read me back the part of the table that just moved."
  *
- * The replacement for `router.refresh()` on this route, and the difference is
+ * The replacement for `router.refresh()` on the table, and the difference is
  * scope: a refresh re-runs `loadTable`'s nine or ten queries and re-renders
  * every Server Component on the page. This runs one auth call and the one or two
  * queries the caller needs, and renders nothing.
  *
- * NO `revalidatePath`, deliberately: calling it inside a Server Action makes the
- * response carry a re-rendered tree for the page the caller is standing on,
- * which is the cost this exists to avoid.
+ * A ROUTE AND NOT A SERVER ACTION, which it was, for the reason the searches
+ * are routes: Next dispatches a browser's Actions one at a time. Every doorbell
+ * at a busy table asks for a read, so the next token moved or hit point spent
+ * stood in line behind all of them — the lag everybody else saw before a move
+ * reached them, and the stale answers that put a piece back where it had been.
  *
  * Every list goes through the same definer functions and `select()` lists
  * `loadTable` uses, so RLS decides what comes back exactly as it does on a full
- * render. `characterIds` is a bandwidth measure and never a permission.
+ * render. `characters` is a bandwidth measure and never a permission.
  *
- * A failure comes back as an absent slice rather than a rejection: every caller
- * is reconciling after something that has already happened.
+ * A failure comes back as an absent slice rather than an error status: every
+ * caller is reconciling after something that has already happened.
  */
-export async function readTableSlice(campaignId, want = {}) {
-  if (!campaignId) {
-    return null;
-  }
+/** Behind a session, and stale the moment anybody at the table does anything. */
+const UNCACHED = { "cache-control": "private, no-store" };
+
+export async function GET(request, { params }) {
+  const { id: campaignId } = await params;
+  const want = readTableSliceQuery(request.nextUrl.searchParams);
 
   const supabase = await createClient();
   const { user } = await getCurrentUser(supabase);
 
   if (!user) {
-    return null;
+    return Response.json(null, { status: 401, headers: UNCACHED });
   }
 
   const ids = (want.characterIds ?? []).filter(Boolean);
@@ -126,52 +129,55 @@ export async function readTableSlice(campaignId, want = {}) {
       : null,
   ]);
 
-  return {
-    /* Which packs and books this answer speaks for. A row list alone cannot say
+  return Response.json(
+    {
+      /* Which packs and books this answer speaks for. A row list alone cannot say
        that a pack is now EMPTY, so the ids come back beside it. */
-    characterIds: ids,
+      characterIds: ids,
 
-    /* What the party can do. Scoped to `ids` for bandwidth and never for
+      /* What the party can do. Scoped to `ids` for bandwidth and never for
        permission: the SELECT policy hands the whole table's over either way. */
-    features: slice("listPartyFeatures", features),
+      features: slice("listPartyFeatures", features),
 
-    // Read here rather than in the browser, as page.jsx does it: the payload is
-    // jsonb, and the rules layer is what keeps a row written by an older
-    // migration from reaching the panel as "undefined × undefined".
-    activity: slice("listCampaignActivity", activity, readActivityLog),
-    party: slice("listPartyMembers", party),
-    inventory: slice("listPartyInventory", inventory),
-    purses: slice("listPartyPurses", purses),
-    spells: slice("listPartySpells", spells),
+      // Read here rather than in the browser, as page.jsx does it: the payload is
+      // jsonb, and the rules layer is what keeps a row written by an older
+      // migration from reaching the panel as "undefined × undefined".
+      activity: slice("listCampaignActivity", activity, readActivityLog),
+      party: slice("listPartyMembers", party),
+      inventory: slice("listPartyInventory", inventory),
+      purses: slice("listPartyPurses", purses),
+      spells: slice("listPartySpells", spells),
 
-    /* Both halves together, always: a chest that arrives without its rows is
+      /* Both halves together, always: a chest that arrives without its rows is
        a chest that opens onto nothing. */
-    containers: shelf,
-    containerItems: slice("listContainerItems", containerItems),
+      containers: shelf,
+      containerItems: slice("listContainerItems", containerItems),
 
-    // One shape for both, because the store reads one thing out of either: a
-    // seat's own row and a party sheet both carry an `id` and `spell_slots`.
-    sheets: sheetRows(sheets, seat),
+      // One shape for both, because the store reads one thing out of either: a
+      // seat's own row and a party sheet both carry an `id` and `spell_slots`.
+      sheets: sheetRows(sheets, seat),
 
-    /* What is on the board, and the pieces it is drawn from. Both together or
+      /* What is on the board, and the pieces it is drawn from. Both together or
        neither, for the reason the shelf and the active map are: a placement
        naming a piece this chair has no picture for draws nothing. */
-    tokens: slice("listMapPlacedTokens", placed),
-    templates: slice("listCampaignTokenTemplates", templates),
+      tokens: slice("listMapPlacedTokens", placed),
+      templates: slice("listCampaignTokenTemplates", templates),
 
-    /* The backstop behind the switcher's own broadcast: a chair that missed
+      /* The backstop behind the switcher's own broadcast: a chair that missed
        the message, or joined after it, asks the database instead. */
-    maps: want.maps ? pictures : undefined,
-    activeMapId: slice(
-      "getCampaignTable",
-      table,
-      (row) => row?.active_map_id ?? null,
-    ),
+      maps: want.maps ? pictures : undefined,
+      activeMapId: slice(
+        "getCampaignTable",
+        table,
+        (row) => row?.active_map_id ?? null,
+      ),
 
-    /* The whole of the fight, off the same row. Read through the rules layer in
+      /* The whole of the fight, off the same row. Read through the rules layer in
        the store rather than here — see `setCombat` in table-state.jsx. */
-    combat: slice("getCampaignTable", table, (row) => row ?? undefined),
-  };
+      combat: slice("getCampaignTable", table, (row) => row ?? undefined),
+    },
+    { headers: UNCACHED },
+  );
 }
 
 /** Absent for a slice nobody asked for, and for one that could not be read. */

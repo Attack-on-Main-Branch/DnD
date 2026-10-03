@@ -92,6 +92,11 @@ export function useMapTokens({
       return;
     }
 
+    // Only the head of the table may know where a hidden piece stands.
+    if (token.isHidden && !canSweep) {
+      return;
+    }
+
     store.setToken(token.id, token);
   });
 
@@ -239,8 +244,34 @@ export function useMapTokens({
     [canSweep, isWorldMap, mapId, run, seat, send, store],
   );
 
-  /** One already down, moved. The id names the row, so there is nothing to
-      settle and nothing to guess. */
+  /**
+   * One piece as the database has it, told to the table: the correction after
+   * a refused deed that had already been foretold. A piece that is gone, or
+   * hidden, is told as gone.
+   */
+  const retellToken = useCallback(
+    (tokenId) => {
+      const token = store.read().tokens.get(tokenId);
+
+      send(
+        token && !token.isHidden
+          ? { kind: "token", token }
+          : { kind: "token-gone", tokenId },
+      );
+    },
+    [send, store],
+  );
+
+  /**
+   * One already down, moved. The id names the row, so there is nothing to
+   * settle and nothing to guess.
+   *
+   * FORETOLD, NOT TOLD: the other chairs hear it as it is let go, beside the
+   * arrow they were already watching, rather than a round trip later. A move
+   * the database refuses is put right on every board by `retellToken`.
+   *
+   * A hidden piece moves in silence, as its arrow does — see table-map.jsx.
+   */
   const move = useCallback(
     (tokenId, point) => {
       const standing = placed.get(tokenId);
@@ -257,14 +288,17 @@ export function useMapTokens({
         r: point.r ?? null,
       };
 
+      const silent = moved.isHidden;
+
       run({
         paint: () => store.setToken(tokenId, moved),
+        foretell: () => !silent && send({ kind: "token", token: moved }),
         work: () => moveMapPiece(tokenId, point),
-        tell: () => send({ kind: "token", token: moved }),
+        retell: () => !silent && retellToken(tokenId),
         want: { tokens: true },
       });
     },
-    [placed, run, send, store],
+    [placed, retellToken, run, send, store],
   );
 
   /** One off the board, which is the menu's `Remove from map` and nothing
@@ -273,12 +307,13 @@ export function useMapTokens({
     (tokenId) => {
       run({
         paint: () => store.setToken(tokenId, null),
+        foretell: () => send({ kind: "token-gone", tokenId }),
         work: () => removeMapPiece(tokenId),
-        tell: () => send({ kind: "token-gone", tokenId }),
+        retell: () => retellToken(tokenId),
         want: { tokens: true },
       });
     },
-    [run, send, store],
+    [retellToken, run, send, store],
   );
 
   /**
@@ -378,20 +413,22 @@ export function useMapTokens({
 
       run({
         paint: () => store.setToken(token.id, next),
-        work: () => markMapPiece(token.id, written),
 
         /* HIDING IS TOLD AS A REMOVAL, and revealing as a placement: the piece
            has genuinely left every player's board, so that is both the honest
-           message and the one that paints correctly. */
-        tell: () =>
+           message and the one that paints correctly. Foretold, so a piece
+           pulled out of sight is gone from their boards as the press lands. */
+        foretell: () =>
           next.isHidden
             ? send({ kind: "token-gone", tokenId: token.id })
             : send({ kind: "token", token: next }),
 
+        work: () => markMapPiece(token.id, written),
+        retell: () => retellToken(token.id),
         want: { tokens: true },
       });
     },
-    [afflict, placed, run, send, store],
+    [afflict, placed, retellToken, run, send, store],
   );
 
   /**

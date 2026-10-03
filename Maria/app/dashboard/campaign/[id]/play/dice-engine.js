@@ -628,6 +628,15 @@ export async function throwDie({
   return group?.value ?? null;
 }
 
+/**
+ * A world that has stopped answering — a GPU context lost, a worker gone quiet —
+ * taken down, so the next throw on this lane builds a fresh one instead of
+ * waiting on it forever.
+ */
+export function abandonDice(lane = 0) {
+  discardDice(lane);
+}
+
 /** One lane swept, with its engine left standing for the next roll. */
 export function clearDice(lane = 0) {
   lanes[lane].live?.box.clear();

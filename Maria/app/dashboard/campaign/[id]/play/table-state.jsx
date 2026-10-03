@@ -289,22 +289,46 @@ const KEYED = new Set([
 ]);
 
 /**
- * How long this browser's own copy of a value outranks the server's.
+ * WHEN THIS BROWSER'S COPY OF A VALUE OUTRANKS THE SERVER'S.
  *
- * A ROUTE RENDER READS THE DATABASE BEFORE IT LANDS, and at a busy table things
- * move in between — so adopting its answer whole put a dragged token, a spent
+ * Every answer from the database was read before it landed, and at a busy table
+ * things move in between — so adopting one whole put a dragged token, a spent
  * hit point and a written line back where they had been and forward again a
- * moment later. A value touched more recently than this is kept instead, which
- * costs nothing and waits for nobody.
+ * moment later. Three things keep a value standing instead:
+ *
+ *   in the air    a deed's paint, until its own write has been answered — see
+ *                 `hold`. However slow the write, no read can undo it first.
+ *   newer         touched after the read was ASKED, which therefore cannot
+ *                 have seen it, however long it took to come back.
+ *   recent        touched within HELD_MS, for what cannot be ordered against a
+ *                 read: a value heard off the wire, whose write is another
+ *                 browser's, and every route render, which carries no time.
+ *
+ * A deed's own write, once answered, needs only the first two: a read asked
+ * after the answer has seen it, and is the truth.
  */
 const HELD_MS = 2500;
+
+/** A write unanswered this long has stopped being a reason to wait. */
+const PINNED_MS = 15000;
 
 function createTableStore(seed) {
   let state = readSeed(seed);
   const listeners = new Set();
 
-  /** Path -> when this browser last wrote it. */
+  /** Path -> when this browser last wrote it, and whether a write answered it. */
   const touched = new Map();
+
+  /** Path -> the deeds painted over it whose writes are still in the air. */
+  const pins = new Map();
+
+  /** The paths a deed's paint is touching, while it paints. */
+  let pinning = null;
+
+  function touch(path, at) {
+    touched.set(path, { at, exact: false });
+    pinning?.add(path);
+  }
 
   function mark(before, after) {
     const at = Date.now();
@@ -318,7 +342,7 @@ function createTableStore(seed) {
       }
 
       if (!KEYED.has(slice)) {
-        touched.set(slice, at);
+        touch(slice, at);
         continue;
       }
 
@@ -334,20 +358,38 @@ function createTableStore(seed) {
         const theirs = was instanceof Map ? was.get(key) : was?.[key];
 
         if (mine !== theirs) {
-          touched.set(`${slice}\u0000${key}`, at);
+          touch(`${slice}\u0000${key}`, at);
         }
       }
     }
   }
 
-  /** Server data with anything this browser has just written left standing. */
-  function preserve(next) {
+  /**
+   * Server data with anything it cannot have seen left standing. `askedAt` is
+   * when the read was asked for; a route render does not know, and is held to
+   * the clock alone.
+   */
+  function preserve(next, askedAt = Infinity) {
     const now = Date.now();
     let held = next;
 
-    for (const [path, at] of touched) {
-      if (now - at > HELD_MS) {
+    for (const [path, { at, exact }] of touched) {
+      const pin = pins.get(path);
+      const pinned = Boolean(pin) && now - pin.since <= PINNED_MS;
+      const newer = at >= askedAt;
+      const recent = now - at <= HELD_MS;
+
+      if (pin && !pinned) {
+        pins.delete(path);
+      }
+
+      if (!pinned && !newer && !recent) {
         touched.delete(path);
+        continue;
+      }
+
+      // Answered, and asked about since: what came back has seen it.
+      if (!pinned && !newer && exact && askedAt !== Infinity) {
         continue;
       }
 
@@ -416,6 +458,60 @@ function createTableStore(seed) {
 
     read() {
       return state;
+    },
+
+    /**
+     * A deed's paint, and every value it touched held against the database
+     * until the deed's write has been answered. Returns the answer: `true` for
+     * written, which hands the values back to the ordinary rules, and `false`
+     * for refused, which lets them go at once so the re-read that follows can
+     * put them back where they really are.
+     */
+    hold(paint) {
+      const painted = new Set();
+
+      pinning = painted;
+
+      try {
+        paint?.();
+      } finally {
+        pinning = null;
+      }
+
+      const since = Date.now();
+
+      for (const path of painted) {
+        pins.set(path, { count: (pins.get(path)?.count ?? 0) + 1, since });
+      }
+
+      let answered = false;
+
+      return (written) => {
+        if (answered) {
+          return;
+        }
+
+        answered = true;
+
+        const at = Date.now();
+
+        for (const path of painted) {
+          const pin = pins.get(path);
+          const left = (pin?.count ?? 1) - 1;
+
+          if (left > 0) {
+            pins.set(path, { ...pin, count: left });
+          } else {
+            pins.delete(path);
+          }
+
+          if (written) {
+            touched.set(path, { at, exact: true });
+          } else if (left <= 0) {
+            touched.delete(path);
+          }
+        }
+      };
     },
 
     /**
@@ -1282,8 +1378,9 @@ function createTableStore(seed) {
      * answered with: rather than unpicking a change that may have been stacked
      * on since, the store asks what is actually there. Only the slices that came
      * back are replaced, and only for characters this browser already has.
+     * `askedAt` is when the read was asked for — see `preserve`.
      */
-    sync(slices) {
+    sync(slices, askedAt) {
       if (!slices) {
         return;
       }
@@ -1430,7 +1527,7 @@ function createTableStore(seed) {
         next = { ...next, slots, hitDice: dice };
       }
 
-      commit(preserve(next), false);
+      commit(preserve(next, askedAt), false);
     },
 
     /**

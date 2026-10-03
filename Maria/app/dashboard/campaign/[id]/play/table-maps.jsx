@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -17,7 +18,7 @@ import { useToast } from "@/app/components/ui/toast";
 
 import { ruleMapGrid } from "./actions";
 import { paintMapFog, switchMapFog } from "./fog-actions";
-import { readTableSlice } from "./table-actions";
+import { gatherReads } from "./read-table";
 import { useFogMask } from "./use-fog";
 import { useWireMessage, useTableWire } from "./table-wire";
 
@@ -104,21 +105,25 @@ export default function TableMaps({
     );
   }, []);
 
-  /** The database's own answer, for a chair that cannot be sure. */
-  const resync = useCallback(() => {
-    readTableSlice(campaignId, { maps: true }).then(
-      (slices) => {
-        if (slices?.maps) {
+  /** The database's own answer, for a chair that cannot be sure. Gathered: a
+      switch rings both doorbells below at once. */
+  const reread = useMemo(
+    () =>
+      gatherReads(campaignId, (slices) => {
+        if (slices.maps) {
           setMaps(slices.maps);
         }
 
-        if (slices?.activeMapId !== undefined) {
+        if (slices.activeMapId !== undefined) {
           setActiveId(slices.activeMapId);
         }
-      },
-      () => {},
-    );
-  }, [campaignId]);
+      }),
+    [campaignId],
+  );
+
+  const resync = useCallback(() => {
+    reread({ maps: true });
+  }, [reread]);
 
   /* A map ruled. Believed only as far as its shape; `readGridSettings` bounds
      every value on the way in. */

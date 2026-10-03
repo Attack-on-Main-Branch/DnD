@@ -16,6 +16,22 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.3.2",
+    date: "2026-10-03",
+    title: "Everybody sees it as it happens",
+    changes: [
+      "A token reaches every other screen the moment it is let go, and glides along the arrow to where it was put rather than jumping there. The same goes for a piece taken off the board, hidden or revealed.",
+      "The table keeps up when several things happen at once. Looking things up again no longer waits in line behind your own moves, so a busy table stays quick for the Dungeon Master and the players alike.",
+    ],
+    fixes: [
+      "A token, hit point or anything else you change no longer jumps back to where it was before settling where you put it.",
+      "Dice thrown by somebody else show up again for players who had stepped away from the tab, or whose seat had changed, without reloading the page.",
+      "Dice that stop answering on one screen are given up after a few seconds, and the number goes on without them. They used to leave that player unable to roll again until they reloaded.",
+      "A change the table refuses is put back on every screen, not just yours.",
+      "Moving a hidden piece no longer flashes it onto the players’ boards.",
+    ],
+  },
+  {
     version: "1.3.1",
     date: "2026-10-02",
     title: "Faces for the newcomers",

@@ -8,6 +8,7 @@ import Avatar from "@/app/components/ui/avatar";
 import EyeIcon from "@/app/components/ui/eye-icon";
 import PartyMark from "@/app/components/ui/party-mark";
 import { surfaceClasses } from "@/app/components/ui/surface";
+import { useReducedMotion } from "@/app/components/use-reduced-motion";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
 
 import TokenMenu from "./token-menu";
@@ -59,6 +60,14 @@ const NOTE_GAP = 10;
 const MENU_HOLD_MS = 400;
 const MENU_SLOP_PX = 6;
 
+/**
+ * A move GLIDES rather than jumps, so a piece somebody else let go of travels
+ * the arrow they were just drawing instead of vanishing from one cell and
+ * appearing in another. Short, because it is also the hand that moved it.
+ */
+const SCALING = "transform 250ms ease";
+const STRIDE = `${SCALING}, left 180ms ease-out, top 180ms ease-out`;
+
 export default function MapToken({
   token,
   scale,
@@ -69,6 +78,7 @@ export default function MapToken({
   onLift,
 }) {
   const discRef = useRef(null);
+  const reduceMotion = useReducedMotion();
 
   /* Where the tooltip stands, in the VIEWPORT'S own pixels. Measured on the
      way in rather than laid out beside the piece: the layer around it carries
@@ -183,7 +193,7 @@ export default function MapToken({
         transform: cell
           ? "translate(-50%, -50%)"
           : `translate(-50%, -50%) scale(${1 / scale})`,
-        transition: "transform 250ms ease",
+        transition: reduceMotion ? SCALING : STRIDE,
         ...(cell ? { width: `${cell * 100}%`, aspectRatio: "1" } : null),
       }}
     >
