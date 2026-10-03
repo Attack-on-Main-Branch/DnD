@@ -16,6 +16,14 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.3.1",
+    date: "2026-10-02",
+    title: "Faces for the newcomers",
+    changes: [
+      "Changelings, Erinas and Kipirs now have their own artwork behind their cards when you choose a species, like every other species.",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-10-02",
     title: "A mage who builds",

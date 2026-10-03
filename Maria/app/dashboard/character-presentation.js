@@ -1,13 +1,16 @@
 import { DEFAULT_DICE_COLOR, DICE_COLOR_VALUES } from "sina/rules/character";
 
+import changelingArt from "./race-art/changeling.webp";
 import dragonbornArt from "./race-art/dragonborn.webp";
 import dwarfArt from "./race-art/dwarf.webp";
 import elfArt from "./race-art/elf.webp";
+import erinaArt from "./race-art/erina.webp";
 import gnomeArt from "./race-art/gnome.webp";
 import halfElfArt from "./race-art/half-elf.webp";
 import halfOrcArt from "./race-art/half-orc.webp";
 import halflingArt from "./race-art/halfling.webp";
 import humanArt from "./race-art/human.webp";
+import kipirArt from "./race-art/kipir.webp";
 import tieflingArt from "./race-art/tiefling.webp";
 
 /**
@@ -164,7 +167,7 @@ export function withAlpha(hex, alpha) {
 }
 
 /**
- * Artwork behind a character card, keyed by race. All nine of Sina's races have
+ * Artwork behind a character card, keyed by race. All twelve of Sina's races have
  * one now, and the card still works without: a race added to `RACES` before
  * anybody has drawn it falls back to no picture rather than to a broken one —
  * drop a file in ./race-art, add an import and an entry, and it appears.
@@ -186,6 +189,9 @@ const IMAGE_BY_RACE = {
   "Half-Orc": halfOrcArt,
   Halfling: halflingArt,
   Tiefling: tieflingArt,
+  Changeling: changelingArt,
+  Erina: erinaArt,
+  Kipir: kipirArt,
 };
 
 export function raceImage(race) {
