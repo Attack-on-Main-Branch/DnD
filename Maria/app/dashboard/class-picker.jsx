@@ -205,12 +205,15 @@ export default function ClassPicker({
               matched the ability or alignment cards below. Fixed, an archetype
               with two paths leaves the third cell empty and every card on the
               sheet is one size. The Mage's four are the one exception, kept on
-              a single row.
+              a single row once the sheet is wide enough for each to hold its
+              blurb in two lines — `xl`, not `lg`, where a quarter of the row
+              wrapped to three and the Mage's cards stood taller than anyone
+              else's.
             */}
             <div
               className={`grid grid-cols-1 gap-3 ${
                 (selected?.paths.length ?? 0) > 3
-                  ? "sm:grid-cols-2 lg:grid-cols-4"
+                  ? "sm:grid-cols-2 xl:grid-cols-4"
                   : "sm:grid-cols-3"
               } ${
                 invalidField === "classId"
@@ -263,7 +266,14 @@ export default function ClassPicker({
                       <SelectionDot selected={isSelected} />
                     </span>
 
-                    <span className="text-xs leading-relaxed text-pretty text-ink/50">
+                    {/*
+                      Two lines' worth of room, for the reason the archetype
+                      blurbs above reserve three: the Mage's four share a row
+                      and wrap where every other archetype's three do not, so
+                      the tray stood taller for a Mage than for anyone else.
+                      `3.25em` is 2 × `leading-relaxed`.
+                    */}
+                    <span className="min-h-[3.25em] text-xs leading-relaxed text-pretty text-ink/50">
                       {path.blurb}
                     </span>
                   </label>

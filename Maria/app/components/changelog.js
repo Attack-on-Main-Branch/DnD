@@ -16,6 +16,20 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.4.0",
+    date: "2026-10-03",
+    title: "Quicker between the pages",
+    changes: [
+      "When the Dungeon Master starts combat, the glowing background behind the table fades from gold to red for everybody at it, and back to gold when the fight ends.",
+      "Moving between your dashboard, a character’s sheet, a campaign and your settings is quicker. The next page is fetched while the one you are leaving folds away rather than after it, so it is ready the moment the fold finishes.",
+      "Every page, save and roll at the table spends less time checking who you are, so the whole site answers sooner.",
+      "The first thing you press on a freshly opened page no longer waits behind the live updates setting themselves up.",
+    ],
+    fixes: [
+      "Choosing the Mage when creating a character no longer opens taller path cards than every other class.",
+    ],
+  },
+  {
     version: "1.3.2",
     date: "2026-10-03",
     title: "Everybody sees it as it happens",

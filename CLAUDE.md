@@ -92,8 +92,13 @@ What keeps that seam intact:
   every non-static request. Server Components cannot write cookies, so it is the
   only place a rotated refresh token gets back to the browser; deleting it
   causes logouts that look random.
-- `getUser()` on the server, never `getSession()`. Only the former verifies the
-  JWT.
+- `getClaims()` on the server, never `getSession()`. Both read the cookie, but
+  only `getClaims()` verifies the JWT — locally, against the project's
+  asymmetric signing key, so the proxy, pages, Actions and table reads pay no
+  round trip to Auth. Claims are a snapshot from when the token was minted:
+  `setDisplayName` refreshes the session so a rename reaches the header, and
+  the settings page and its Actions use `getAccount` (`getUser()`) for the
+  account as it stands.
 - **"Cannot reach auth" is not "signed out."** `authCouldNotAnswer` in
   [session.js](Sina/src/supabase/session.js) draws that line once, for the proxy
   and the pages together. Transport failures arrive as status `0`, so a plain

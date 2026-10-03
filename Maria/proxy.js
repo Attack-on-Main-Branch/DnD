@@ -36,18 +36,20 @@ export async function proxy(request) {
     },
   });
 
-  // Do not add code between `createServerSupabase` and `getUser()`. `getUser()`
-  // revalidates the token against Supabase, which is what triggers the cookie
-  // refresh above. Never use `getSession()` for authorisation on the server —
-  // it reads the cookie without verifying the JWT signature.
-  const { data, error } = await supabase.auth.getUser();
+  // Do not add code between `createServerSupabase` and `getClaims()`. It loads
+  // the session first, refreshing an expired token — which is what triggers the
+  // cookie write above — then verifies the JWT's signature against the
+  // project's cached public key, so this runs on every request without a round
+  // trip to Auth. Never use `getSession()` for authorisation on the server —
+  // it reads the cookie without verifying the signature at all.
+  const { data, error } = await supabase.auth.getClaims();
 
-  // The error matters as much as the user: `getUser()` returns rather than
+  // The error matters as much as the user: `getClaims()` returns rather than
   // throws when auth is unreachable, so discarding it turned every outage into
   // "signed out" — decided here, before any page could disagree.
   const destination = resolveRedirect({
     pathname: request.nextUrl.pathname,
-    isSignedIn: Boolean(data?.user),
+    isSignedIn: Boolean(data?.claims),
     authUnavailable: authCouldNotAnswer(error),
   });
 

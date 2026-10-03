@@ -14,9 +14,9 @@ Sina has no dependency on Next.js. It owns the Supabase clients, every data
 query, and every validation rule; where something genuinely needs the framework
 — the request-scoped cookie store, for instance — Maria passes it in.
 
-The one Supabase call Maria makes for itself is `auth.getUser()`, in `proxy.js`
-and in `lib/supabase.js`, because the token has to be revalidated before
-anything can be decided about the request. Even there the _decision_ stays in
+The one Supabase call Maria makes for itself is `auth.getClaims()`, in
+`proxy.js` and in `lib/supabase.js`, because the token has to be verified
+before anything can be decided about the request. Even there the _decision_ stays in
 Sina: `authCouldNotAnswer` and `resolveRedirect` in `src/supabase/session.js`.
 That keeps the backend portable and makes the seam between the two obvious
 rather than implied.
@@ -250,8 +250,10 @@ A few decisions worth knowing before changing things.
 - **The proxy is what keeps you signed in.** Server Components cannot write
   cookies, so it is the only place a rotated refresh token gets back to the
   browser. Deleting it causes logouts that look random.
-- **`getUser()`, never `getSession()`, on the server.** Only the former
-  verifies the JWT; the latter just reads a cookie.
+- **`getClaims()`, never `getSession()`, on the server.** Only the former
+  verifies the JWT; the latter just reads a cookie. With the project's
+  asymmetric signing key the check is local, so no request waits on Auth for
+  it.
 - **"Cannot reach auth" is not "signed out".** Collapsing the two made an
   outage look like an expired session, so users signed in, got bounced, and
   tried again. `authCouldNotAnswer` draws the line once, and the proxy lets

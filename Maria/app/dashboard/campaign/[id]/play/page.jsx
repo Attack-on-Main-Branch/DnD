@@ -19,6 +19,7 @@ import ActivityColumn from "./activity-column";
 import AbilityScoreField from "./ability-score-field";
 import CharacterVitals from "./character-vitals";
 import ChestStage from "./chest-stage";
+import CombatBackdrop from "./combat-backdrop";
 import CombatDrawer from "./combat-drawer";
 import CombatStage from "./combat-stage";
 import DiceBoard from "./dice-board";
@@ -398,6 +399,9 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 features: loaded.features,
               }}
             >
+              {/* The background behind the whole page, reddened for a fight. */}
+              <CombatBackdrop />
+
               {/* Three columns so the title is centred on the viewport rather than on
           what is left beside the way out. The empty third balances the first. */}
               <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">

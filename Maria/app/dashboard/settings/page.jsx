@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { PANEL_CLASSES, surfaceClasses } from "@/app/components/ui/surface";
 import { logFailure } from "@/lib/errors";
-import { currentUser } from "@/lib/supabase";
+import { createClient, getAccount } from "@/lib/supabase";
 
 import EmailForm from "./email-form";
 import PasswordForm from "./password-form";
@@ -15,7 +15,10 @@ export const metadata = {
 };
 
 export default async function SettingsPage() {
-  const { user, error: authError } = await currentUser();
+  // Asked of Auth rather than read off the token: the forms below are filled
+  // with what the account is now, and an email confirmed by link is newer than
+  // the token until it turns over.
+  const { user, error: authError } = await getAccount(await createClient());
 
   // See the note in dashboard/page.jsx: an unreachable auth service must not be
   // reported as a session that ran out.

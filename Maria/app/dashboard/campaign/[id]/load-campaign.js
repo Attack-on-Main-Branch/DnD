@@ -38,10 +38,29 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     return "signed-out";
   }
 
-  const { data: campaign, error } = await getCampaign(supabase, {
-    id,
-    userId: user.id,
-  });
+  /* The campaign rides in the same wave as everything hung off it, rather than
+     a wave ahead: the lists only need the id, RLS answers them for whoever is
+     asking, and on a miss they are thrown away below unread. Eight round trips,
+     one wait. */
+  const [
+    { data: campaign, error },
+    party,
+    notes,
+    maps,
+    items,
+    spells,
+    containers,
+    tokens,
+  ] = await Promise.all([
+    getCampaign(supabase, { id, userId: user.id }),
+    listPartyMembers(supabase, id),
+    listCampaignNotes(supabase, id),
+    listCampaignMaps(supabase, id),
+    listCampaignItems(supabase, id),
+    listCampaignSpells(supabase, id),
+    listCampaignContainers(supabase, id),
+    listCampaignTokenTemplates(supabase, id),
+  ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
   // failure. Everything else is handed to the page to throw on.
@@ -66,18 +85,6 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       error: realFailure,
     };
   }
-
-  // Together rather than one after the other: seven round trips, one wait.
-  const [party, notes, maps, items, spells, containers, tokens] =
-    await Promise.all([
-      listPartyMembers(supabase, id),
-      listCampaignNotes(supabase, id),
-      listCampaignMaps(supabase, id),
-      listCampaignItems(supabase, id),
-      listCampaignSpells(supabase, id),
-      listCampaignContainers(supabase, id),
-      listCampaignTokenTemplates(supabase, id),
-    ]);
 
   if (party.error) {
     logFailure("listPartyMembers", party.error);

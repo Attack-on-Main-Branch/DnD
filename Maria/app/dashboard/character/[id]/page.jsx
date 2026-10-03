@@ -276,9 +276,22 @@ const loadCharacter = cache(async function loadCharacter(id) {
     redirect("/login");
   }
 
-  // Keep the error. Dropping it is what let a query that never ran read as a
-  // character that is not there.
-  const { data, error } = await getCharacter(supabase, { id, userId: user.id });
+  // Where this character plays, what its player wrote while playing, what it
+  // carries and what it knows — asked beside the character itself rather than
+  // after it. Each needs only the id, RLS answers it for whoever is asking, and
+  // on a miss all five are thrown away unread: one round trip's worth of
+  // waiting rather than two.
+  const [{ data, error }, campaigns, notes, items, spells, features] =
+    await Promise.all([
+      // Keep the error. Dropping it is what let a query that never ran read as
+      // a character that is not there.
+      getCharacter(supabase, { id, userId: user.id }),
+      listCampaignsForCharacter(supabase, id),
+      listCharacterNotes(supabase, id),
+      listCharacterInventory(supabase, id),
+      listCharacterSpells(supabase, id),
+      listCharacterFeatures(supabase, id),
+    ]);
 
   // Not `bad_id` — a mistyped URL is not a fault worth a log line.
   if (error && error.reason !== "bad_id") {
@@ -300,18 +313,8 @@ const loadCharacter = cache(async function loadCharacter(id) {
     };
   }
 
-  // Where this character plays, what its player wrote while playing, what it
-  // carries and what it knows: one round trip’s worth of waiting rather than
-  // four. All are logged rather than shown if they fail — the sheet is the
-  // page, and none of them is a reason to replace it with an error.
-  const [campaigns, notes, items, spells, features] = await Promise.all([
-    listCampaignsForCharacter(supabase, id),
-    listCharacterNotes(supabase, id),
-    listCharacterInventory(supabase, id),
-    listCharacterSpells(supabase, id),
-    listCharacterFeatures(supabase, id),
-  ]);
-
+  // Logged rather than shown if they fail — the sheet is the page, and none of
+  // them is a reason to replace it with an error.
   if (campaigns.error) {
     logFailure("listCampaignsForCharacter", campaigns.error);
   }

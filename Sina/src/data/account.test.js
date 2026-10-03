@@ -150,19 +150,52 @@ describe("setPassword", () => {
 });
 
 describe("setDisplayName", () => {
+  function renaming(updated, refreshed = { data: {}, error: null }) {
+    const calls = { refreshes: 0 };
+    const supabase = stubAuth({
+      updateUser: async () => updated,
+      refreshSession: async () => {
+        calls.refreshes += 1;
+        return refreshed;
+      },
+    });
+
+    return { supabase, calls };
+  }
+
   it("classifies the rate limit the settings action now has copy for", async () => {
-    const { error } = await setDisplayName(
-      updateReturning(authError("over_request_rate_limit")),
-      "Elminster",
-    );
+    const { supabase } = renaming(authError("over_request_rate_limit"));
+    const { error } = await setDisplayName(supabase, "Elminster");
     assert.equal(error.reason, "rate_limited");
   });
 
   it("returns success cleanly", async () => {
-    const { data, error } = await setDisplayName(
-      updateReturning({ data: { user: {} }, error: null }),
-      "Elminster",
+    const { supabase } = renaming({ data: { user: {} }, error: null });
+    const { data, error } = await setDisplayName(supabase, "Elminster");
+    assert.equal(error, null);
+    assert.equal(data, true);
+  });
+
+  // The header reads the name off the token, so a rename that left the old
+  // token in place showed the old name for up to an hour.
+  it("turns the session over so the token carries the new name", async () => {
+    const { supabase, calls } = renaming({ data: { user: {} }, error: null });
+    await setDisplayName(supabase, "Elminster");
+    assert.equal(calls.refreshes, 1);
+  });
+
+  it("does not refresh after a rename that failed", async () => {
+    const { supabase, calls } = renaming(authError("over_request_rate_limit"));
+    await setDisplayName(supabase, "Elminster");
+    assert.equal(calls.refreshes, 0);
+  });
+
+  it("reports the rename even when the refresh fails", async () => {
+    const { supabase } = renaming(
+      { data: { user: {} }, error: null },
+      authError("refresh_token_not_found"),
     );
+    const { data, error } = await setDisplayName(supabase, "Elminster");
     assert.equal(error, null);
     assert.equal(data, true);
   });

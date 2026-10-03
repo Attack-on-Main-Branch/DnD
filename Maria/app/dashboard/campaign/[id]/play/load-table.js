@@ -49,7 +49,40 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     return "signed-out";
   }
 
-  const { data: campaign, error } = await getCampaignTable(supabase, id);
+  /* Together rather than one after the other, the way load-campaign.js does —
+     the campaign included, since nothing in this wave needs more than its id
+     and on a miss the rest is thrown away unread. Not only the first paint:
+     every doorbell here is answered by re-rendering the whole route. The seat
+     still waits for the party, being chosen out of it. */
+  const [
+    { data: campaign, error },
+    party,
+    templates,
+    log,
+    purses,
+    containers,
+    maps,
+  ] = await Promise.all([
+    getCampaignTable(supabase, id),
+    listPartyMembers(supabase, id),
+    /* The hand a Dungeon Master invented on the campaign sheet. Every chair is
+       handed it, not only the one that deals: a player's board draws the
+       monster standing in front of them from the same list. */
+    listCampaignTokenTemplates(supabase, id),
+    listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
+    /* Beside the party rather than after it: `campaign_purses` is asked about
+       the campaign, and it decides for itself whose purses the caller may
+       read — the whole party's for a Dungeon Master, their own for a player. */
+    listPartyPurses(supabase, id),
+    /* And beside it for the same reason: the SELECT policy on `containers`
+       decides which this viewer may see, so neither the party nor the seat is
+       needed to ask. */
+    listCampaignContainers(supabase, id),
+    /* And beside those: the shelf answers the Dungeon Master and the party
+       alike, so it needs neither. Every chair is handed it, not only the one
+       that can switch — a player's board paints from the same list. */
+    listCampaignMaps(supabase, id),
+  ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
   // failure. Everything else is handed to the page to throw on.
@@ -78,31 +111,6 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       error: realFailure,
     };
   }
-
-  /* Together rather than one after the other, the way load-campaign.js does.
-     Not only the first paint: every doorbell here is answered by re-rendering
-     the whole route. The seat still waits for the party, being chosen out of
-     it. */
-  const [party, templates, log, purses, containers, maps] = await Promise.all([
-    listPartyMembers(supabase, id),
-    /* The hand a Dungeon Master invented on the campaign sheet. Every chair is
-       handed it, not only the one that deals: a player's board draws the
-       monster standing in front of them from the same list. */
-    listCampaignTokenTemplates(supabase, id),
-    listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
-    /* Beside the party rather than after it: `campaign_purses` is asked about
-       the campaign, and it decides for itself whose purses the caller may
-       read — the whole party's for a Dungeon Master, their own for a player. */
-    listPartyPurses(supabase, id),
-    /* And beside it for the same reason: the SELECT policy on `containers`
-       decides which this viewer may see, so neither the party nor the seat is
-       needed to ask. */
-    listCampaignContainers(supabase, id),
-    /* And beside those: the shelf answers the Dungeon Master and the party
-       alike, so it needs neither. Every chair is handed it, not only the one
-       that can switch — a player's board paints from the same list. */
-    listCampaignMaps(supabase, id),
-  ]);
 
   if (party.error) {
     logFailure("listPartyMembers", party.error);
