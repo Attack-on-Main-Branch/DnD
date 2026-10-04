@@ -270,7 +270,7 @@ function Face({ piece, edge }) {
     return (
       <Avatar
         src={piece.src}
-        colorClass={piece.colorClass}
+        color={piece.color}
         size="xs"
         ring={false}
         className={`shrink-0 ${edge}`}

@@ -8,6 +8,9 @@ import {
   useRef,
 } from "react";
 
+import { diceSkinTheme } from "@/app/dashboard/character-presentation";
+
+import { preloadDiceThemes } from "./dice-engine";
 import { diceCast, rollSentence } from "./dice-presentation";
 import { useActivityLog } from "./use-activity";
 import { useDiceRoll } from "./use-dice-roll";
@@ -72,6 +75,8 @@ export default function DiceTable({
   seatId,
   characterId,
   diceColor = null,
+  diceSkin = null,
+  skins = [],
   seatTitle,
   canKeepSecrets,
   children,
@@ -83,8 +88,8 @@ export default function DiceTable({
      actually arrives. */
   const board = useRef(null);
   const onMirror = useCallback(
-    (die, count, seed, color, land) =>
-      board.current?.(die, count, seed, color, land),
+    (die, count, seed, cast, land) =>
+      board.current?.(die, count, seed, cast, land),
     [],
   );
 
@@ -165,7 +170,12 @@ export default function DiceTable({
 
   /* The chair's own colour, null at the head of the table — which is what
      `diceMaterial` reads as "throw the house's dice". */
-  const local = useDiceRoll({ color: diceColor, onStart, onFinish });
+  const local = useDiceRoll({
+    color: diceColor,
+    skin: diceSkin,
+    onStart,
+    onFinish,
+  });
 
   useEffect(() => {
     board.current = local.mirror;
@@ -177,6 +187,17 @@ export default function DiceTable({
      throw a second or two after it started — the one thing the shared seed
      exists to prevent. */
   const { warm } = local;
+
+  /* Every skin at the table, before the warm below so the first world is built
+     with them. Joined into a string so the effect runs when the set changes,
+     not whenever a fresh array arrives. */
+  const themes = [...new Set(skins.map(diceSkinTheme))].join(",");
+
+  useEffect(() => {
+    if (seatId && themes) {
+      preloadDiceThemes(themes.split(","));
+    }
+  }, [seatId, themes]);
 
   useEffect(() => {
     if (seatId) {

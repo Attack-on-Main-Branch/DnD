@@ -55,6 +55,7 @@ describe("the catalogue", () => {
       "condition_removed",
       "combat_started",
       "combat_ended",
+      "dice_pouch_opened",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -90,6 +91,34 @@ describe("readActivity, on a fight", () => {
 
   it("still wants a payload object, as every row does", () => {
     assert.equal(readActivity({ ...called, payload: null }), null);
+  });
+});
+
+describe("readActivity, on a dice pouch", () => {
+  const opened = row({
+    action_type: "dice_pouch_opened",
+    payload: { skin: "galaxy", rarity: "rare" },
+  });
+
+  it("reads the set and the rarity it was opened at", () => {
+    assert.deepEqual(readActivity(opened), {
+      id: ROW.id,
+      action: "dice_pouch_opened",
+      actor: "Fern",
+      seat: ROW.actor_character,
+      head: false,
+      skin: "galaxy",
+      rarity: "rare",
+    });
+  });
+
+  it("drops a set or a rarity it does not know", () => {
+    for (const payload of [
+      { skin: "gold-plated", rarity: "rare" },
+      { skin: "galaxy", rarity: "mythic" },
+    ]) {
+      assert.equal(readActivity({ ...opened, payload }), null);
+    }
   });
 });
 

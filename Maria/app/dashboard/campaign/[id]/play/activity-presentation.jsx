@@ -1,5 +1,9 @@
 import { CONDITIONS } from "sina/rules/conditions";
 
+import {
+  diceRarityLook,
+  diceSkinDetails,
+} from "@/app/dashboard/character-presentation";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
 
 import { coinName } from "@/app/dashboard/currency-presentation";
@@ -154,8 +158,13 @@ const SAVE_ACCENTS = {
   critical_failure: "border-l-amber-700",
 };
 
-/** The entry rather than its action: two of these need to look inside. */
+/** The entry rather than its action: some of these need to look inside. */
 export function accentClass(entry) {
+  // A set out of a pouch wears its rarity, as its card on the Dice tab does.
+  if (entry.action === "dice_pouch_opened") {
+    return diceRarityLook(entry.rarity).stripe;
+  }
+
   if (entry.action === "level_change") {
     return entry.delta > 0 ? LEVEL_ACCENTS.up : LEVEL_ACCENTS.down;
   }
@@ -412,6 +421,23 @@ function Body({ entry }) {
         called the fight —{" "}
         <span className="font-semibold text-emerald-300">combat has ended</span>
         .
+      </>
+    );
+  }
+
+  /* The rarity in its own colour, and the set by the name the Dice tab gives
+     it. */
+  if (entry.action === "dice_pouch_opened") {
+    const look = diceRarityLook(entry.rarity);
+
+    return (
+      <>
+        opened a new{" "}
+        <span className={`font-semibold ${look.text}`}>{look.label}</span> dice
+        set:{" "}
+        <span className={EMPHASIS_CLASSES}>
+          {diceSkinDetails(entry.skin).label}
+        </span>
       </>
     );
   }

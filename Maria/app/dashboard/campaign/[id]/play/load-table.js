@@ -8,6 +8,7 @@ import {
   listPartySheets,
 } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
+import { listDiceSkinUnlocks } from "sina/data/dice-pouch";
 import { listPartyFeatures } from "sina/data/features";
 import {
   listCampaignContainers,
@@ -21,6 +22,7 @@ import {
   listMapPlacedTokens,
 } from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
+import { unlockedDiceSkins } from "sina/rules/dice-pouch";
 
 import { logFailure } from "@/lib/errors";
 import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
@@ -246,6 +248,7 @@ function seatsAt(campaign, members) {
           characterId: null,
           // No colour: the head of the table rolls the house's own dice.
           diceColor: null,
+          diceSkin: null,
           title: "Dungeon Master",
         },
       ]
@@ -257,6 +260,7 @@ function seatsAt(campaign, members) {
         id: member.id,
         characterId: member.id,
         diceColor: member.dice_color,
+        diceSkin: member.dice_skin,
         title: member.name,
       });
     }
@@ -291,13 +295,16 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     return null;
   }
 
-  const [notes, sheet] = await Promise.all([
+  const [notes, sheet, unlocks] = await Promise.all([
     seat.characterId
       ? listCharacterNotes(supabase, seat.characterId)
       : listCampaignNotes(supabase, campaign.id),
     seat.characterId
       ? getCharacter(supabase, { id: seat.characterId, userId })
       : { data: null, error: null },
+    /* The sets this chair has found, which is what a Dice Pouch's reel is
+       filled from: it shows only what the pouch could still hold. */
+    listDiceSkinUnlocks(supabase, [seat.characterId].filter(Boolean)),
   ]);
 
   if (notes.error) {
@@ -311,9 +318,14 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     logFailure("table/getCharacter", sheet.error);
   }
 
+  if (unlocks.error) {
+    logFailure("table/listDiceSkinUnlocks", unlocks.error);
+  }
+
   return {
     ...seat,
     notes: notes.error ? [] : notes.data,
     sheet: sheet.error ? null : sheet.data,
+    diceSkins: unlockedDiceSkins(unlocks.error ? [] : unlocks.data),
   };
 }

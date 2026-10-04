@@ -26,7 +26,7 @@ import {
 export default function AvatarField({
   avatar,
   keptUrl,
-  colorClass,
+  color,
   onChange,
   onDropKept,
   onBusyChange,
@@ -160,7 +160,8 @@ export default function AvatarField({
           onDrop={onDrop}
           className={`group relative grid size-20 place-items-center overflow-hidden rounded-full border border-dashed transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-          } ${preview ? "" : colorClass} ${rim}`}
+          } ${rim}`}
+          style={preview ? undefined : { backgroundColor: color }}
           aria-invalid={invalid || undefined}
         >
           <input

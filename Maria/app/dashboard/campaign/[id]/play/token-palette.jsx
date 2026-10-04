@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import Avatar from "@/app/components/ui/avatar";
 import PartyMark from "@/app/components/ui/party-mark";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 import { usePlacedTokens, useTokenTemplates } from "./table-state";
 import { useTableMaps } from "./table-maps";
@@ -97,7 +97,7 @@ export default function TokenPalette({ members }) {
             >
               <Avatar
                 src={member.avatar_url}
-                colorClass={diceColorClass(member.dice_color)}
+                color={diceColorHex(member.dice_color)}
                 size="sm"
                 ring={false}
               />

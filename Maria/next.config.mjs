@@ -32,6 +32,14 @@ const nextConfig = {
   // This is also what inlines NEXT_PUBLIC_* values for the browser build.
   transpilePackages: ["sina"],
 
+  /*
+   * Off, because Next's own gzip leaks a `drain` listener every time a large
+   * page stalls on a slow reader (`res.once` is forwarded to the zlib stream
+   * but removed from the response), which trips Node's MaxListeners warning.
+   * Vercel compresses at its edge, so this only ever ran in local dev.
+   */
+  compress: false,
+
   experimental: {
     /*
      * Maps travel in a Server Action's form body, because an `httpOnly` session

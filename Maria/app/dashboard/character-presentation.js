@@ -1,4 +1,12 @@
-import { DEFAULT_DICE_COLOR, DICE_COLOR_VALUES } from "sina/rules/character";
+import {
+  DEFAULT_DICE_COLOR,
+  DEFAULT_DICE_SKIN,
+  DICE_SKIN_VALUES,
+  diceSkinRarity,
+  isDiceColor,
+} from "sina/rules/character";
+
+import { DICE_ASSET_PATH, DICE_SKIN_THEMES } from "@/lib/dice-themes";
 
 import changelingArt from "./race-art/changeling.webp";
 import dragonbornArt from "./race-art/dragonborn.webp";
@@ -14,65 +22,219 @@ import kipirArt from "./race-art/kipir.webp";
 import tieflingArt from "./race-art/tiefling.webp";
 
 /**
- * How a character looks — the frontend half of what Sina defines. Sina decides
- * which colour slugs exist, this decides what they look like, and the check
- * below fails loudly at module load rather than rendering a silent default.
+ * How a character looks — the frontend half of what Sina defines.
  *
- * TWO FORMS OF THE SAME COLOUR, because it is worn in two places that cannot
- * read each other's: a Tailwind class for the swatch, the disc behind a
- * silhouette and anything else painted in CSS, and a hex for the 3D roller,
- * which takes `themeColor` as a string and has never heard of a stylesheet.
- * They are the -600 step of Tailwind's own ramp either way, and the pair lives
- * on one line so neither can be changed alone.
- *
- * The class strings must stay literal for Tailwind's scanner to find them.
+ * A character's colour is any hex, worn as an inline style wherever it paints
+ * something: a Tailwind class cannot be built from a value.
  */
-const DRESS_BY_VALUE = {
-  rose: { className: "bg-rose-600", hex: "#e11d48" },
-  orange: { className: "bg-orange-600", hex: "#ea580c" },
-  amber: { className: "bg-amber-600", hex: "#d97706" },
-  lime: { className: "bg-lime-600", hex: "#65a30d" },
-  emerald: { className: "bg-emerald-600", hex: "#059669" },
-  teal: { className: "bg-teal-600", hex: "#0d9488" },
-  cyan: { className: "bg-cyan-600", hex: "#0891b2" },
-  sky: { className: "bg-sky-600", hex: "#0284c7" },
-  blue: { className: "bg-blue-600", hex: "#2563eb" },
-  violet: { className: "bg-violet-600", hex: "#7c3aed" },
-  fuchsia: { className: "bg-fuchsia-600", hex: "#c026d3" },
-  pink: { className: "bg-pink-600", hex: "#db2777" },
+
+/** Quick picks beside the colour picker: the twelve the sheet used to offer. */
+export const DICE_COLOR_PRESETS = [
+  { label: "Rose", hex: "#e11d48" },
+  { label: "Orange", hex: "#ea580c" },
+  { label: "Amber", hex: "#d97706" },
+  { label: "Lime", hex: "#65a30d" },
+  { label: "Emerald", hex: "#059669" },
+  { label: "Teal", hex: "#0d9488" },
+  { label: "Cyan", hex: "#0891b2" },
+  { label: "Sky", hex: "#0284c7" },
+  { label: "Blue", hex: "#2563eb" },
+  { label: "Violet", hex: "#7c3aed" },
+  { label: "Fuchsia", hex: "#c026d3" },
+  { label: "Pink", hex: "#db2777" },
+];
+
+/** The fallback belongs here: a row can predate the migration to hex. */
+export function diceColorHex(value) {
+  return isDiceColor(value) ? value : DEFAULT_DICE_COLOR;
+}
+
+/** What each dice style is called on the sheet. */
+const SKIN_COPY = {
+  classic: { label: "Classic", description: "Your colour, gold numbers" },
+  "metal-rimmed": {
+    label: "Metal-rimmed",
+    description: "Glittering enamel in a pewter frame",
+  },
+  "gold-rimmed": {
+    label: "Gold-rimmed",
+    description: "Glittering enamel in a gold frame",
+  },
+  "brass-rimmed": {
+    label: "Brass-rimmed",
+    description: "Glittering enamel in a brass frame",
+  },
+  epoxy: {
+    label: "Epoxy",
+    description: "Crumpled foil and glitter in clear resin",
+  },
+  paper: {
+    label: "Paper",
+    description: "Folded from a sheet, drawn in your colour",
+  },
+  cracked: {
+    label: "Cracked",
+    description: "Black, split by glittering cracks in your colour",
+  },
+  "metal-inlaid": {
+    label: "Metal-inlaid",
+    description: "Glitter inlaid round worn pewter plates",
+  },
+  "gold-inlaid": {
+    label: "Gold-inlaid",
+    description: "Glitter inlaid round worn gold plates",
+  },
+  "brass-inlaid": {
+    label: "Brass-inlaid",
+    description: "Glitter inlaid round worn brass plates",
+  },
+  asiimov: {
+    label: "Asiimov",
+    description: "White and black panels, cornered in your colour",
+  },
+  wood: {
+    label: "Wood",
+    description: "Striped hardwood, burnt numbers — keeps its own colour",
+  },
+  companion: {
+    label: "Companion",
+    description: "White corners on slate, lit through in your colour",
+  },
+  crystal: {
+    label: "Crystal",
+    description: "Polished crystal in your colour, chipped all over",
+  },
+  glass: {
+    label: "Glass",
+    description: "Misted see-through glass in your colour",
+  },
+  galaxy: {
+    label: "Galaxy",
+    description: "A spiral galaxy in your colour, copper numbers",
+  },
+  fade: {
+    label: "Fade",
+    description: "Your colour fading unevenly darker, with glitter",
+  },
+  ornate: {
+    label: "Ornate",
+    description: "Black, with raised scrollwork in your colour",
+  },
+  "case-hardened": {
+    label: "Case Hardened",
+    description: "Heat-tinted steel, mostly blue — keeps its own colour",
+  },
 };
 
-const UNDRESSED_COLORS = DICE_COLOR_VALUES.filter(
-  (value) => !DRESS_BY_VALUE[value],
+/**
+ * A rarity's frame round its picture: the border, and the glow fading inward
+ * from it, both stronger the rarer the style — and its colour wherever else it
+ * is shown: a log line's stripe, the bar under a card on the pouch's reel.
+ * Literal class strings, for Tailwind's scanner.
+ */
+const RARITY_LOOK = {
+  common: {
+    label: "Common",
+    text: "text-rarity-common",
+    stripe: "border-l-rarity-common",
+    bar: "bg-rarity-common",
+    wash: "from-rarity-common/25",
+    edge: "border-rarity-common/40",
+    edgeHover: "hover:border-rarity-common/65",
+    edgeSelected:
+      "border-rarity-common/80 shadow-[0_18px_44px_-30px_var(--color-rarity-common)]",
+    glow: "shadow-[inset_0_0_18px_-4px_var(--color-rarity-common)] opacity-45",
+    glowSelected:
+      "shadow-[inset_0_0_18px_-4px_var(--color-rarity-common)] opacity-80",
+  },
+  rare: {
+    label: "Rare",
+    text: "text-rarity-rare",
+    stripe: "border-l-rarity-rare",
+    bar: "bg-rarity-rare",
+    wash: "from-rarity-rare/25",
+    edge: "border-rarity-rare/40",
+    edgeHover: "hover:border-rarity-rare/65",
+    edgeSelected:
+      "border-rarity-rare/80 shadow-[0_18px_44px_-28px_var(--color-rarity-rare)]",
+    glow: "shadow-[inset_0_0_24px_-4px_var(--color-rarity-rare)] opacity-50",
+    glowSelected:
+      "shadow-[inset_0_0_24px_-4px_var(--color-rarity-rare)] opacity-85",
+  },
+  epic: {
+    label: "Epic",
+    text: "text-rarity-epic",
+    stripe: "border-l-rarity-epic",
+    bar: "bg-rarity-epic",
+    wash: "from-rarity-epic/25",
+    edge: "border-rarity-epic/45",
+    edgeHover: "hover:border-rarity-epic/70",
+    edgeSelected:
+      "border-rarity-epic/90 shadow-[0_18px_44px_-26px_var(--color-rarity-epic)]",
+    glow: "shadow-[inset_0_0_32px_-3px_var(--color-rarity-epic)] opacity-60",
+    glowSelected:
+      "shadow-[inset_0_0_32px_-3px_var(--color-rarity-epic)] opacity-100",
+  },
+  legendary: {
+    label: "Legendary",
+    text: "text-rarity-legendary",
+    stripe: "border-l-rarity-legendary",
+    bar: "bg-rarity-legendary",
+    wash: "from-rarity-legendary/25",
+    edge: "border-rarity-legendary/50",
+    edgeHover: "hover:border-rarity-legendary/80",
+    edgeSelected:
+      "border-rarity-legendary shadow-[0_18px_44px_-24px_var(--color-rarity-legendary)]",
+    glow: "shadow-[inset_0_0_42px_-2px_var(--color-rarity-legendary)] opacity-70",
+    glowSelected:
+      "shadow-[inset_0_0_42px_-2px_var(--color-rarity-legendary)] opacity-100",
+  },
+};
+
+const UNDRESSED_SKINS = DICE_SKIN_VALUES.filter(
+  (value) => !SKIN_COPY[value] || !RARITY_LOOK[diceSkinRarity(value)],
 );
 
-if (UNDRESSED_COLORS.length > 0) {
+if (UNDRESSED_SKINS.length > 0) {
   throw new Error(
-    `character-presentation: no dress for dice colour ` +
-      `${UNDRESSED_COLORS.join(", ")}. Sina lists it in rules/character.js — ` +
-      `add it to DRESS_BY_VALUE here, or the picker offers a swatch that ` +
-      `renders as something else and rolls a die of another colour again.`,
+    `character-presentation: dice style ${UNDRESSED_SKINS.join(", ")} has no ` +
+      `copy or rarity look here.`,
   );
 }
 
-/** No fallback: the check above has already proved every slug is dressed. */
-export const DICE_COLORS = DICE_COLOR_VALUES.map((value) => ({
+/** Commonest first, as Sina lists them. */
+export const DICE_SKINS = DICE_SKIN_VALUES.map((value) => ({
   value,
-  label: value.charAt(0).toUpperCase() + value.slice(1),
-  ...DRESS_BY_VALUE[value],
+  ...SKIN_COPY[value],
+  rarity: RARITY_LOOK[diceSkinRarity(value)],
 }));
 
-/**
- * The `??` belongs here and nowhere else: these read a database row, which can
- * hold a slug written by an older deploy.
- */
-export function diceColorClass(value) {
-  return (DRESS_BY_VALUE[value] ?? DRESS_BY_VALUE[DEFAULT_DICE_COLOR])
-    .className;
+/** One style's entry above. A row may predate the style. */
+export function diceSkinDetails(value) {
+  return DICE_SKINS.find((option) => option.value === value) ?? DICE_SKINS[0];
 }
 
-export function diceColorHex(value) {
-  return (DRESS_BY_VALUE[value] ?? DRESS_BY_VALUE[DEFAULT_DICE_COLOR]).hex;
+export function diceRarityLook(rarity) {
+  return RARITY_LOOK[rarity] ?? RARITY_LOOK.common;
+}
+
+/** The dice-box theme a style is thrown as. A row may predate the style. */
+export function diceSkinTheme(value) {
+  return DICE_SKIN_THEMES[value] ?? DICE_SKIN_THEMES[DEFAULT_DICE_SKIN];
+}
+
+/**
+ * Where a style's pictures are, each a picture and its tint — drawn at build
+ * time by scripts/dice-thumbnails.mjs into the theme's own folder. `tile` is
+ * one d20; `set` is every die in DICE_TYPES side by side.
+ */
+export function diceSkinPictures(value) {
+  const folder = `${DICE_ASSET_PATH}themes/${diceSkinTheme(value)}/`;
+
+  return {
+    tile: { src: `${folder}tile.png`, tint: `${folder}tile-tint.png` },
+    set: { src: `${folder}set.png`, tint: `${folder}set-tint.png` },
+  };
 }
 
 /**

@@ -11,8 +11,11 @@ import {
   isSpellLevel,
   parseSpellLevel,
   readCatalogueSpell,
+  readSpellFlare,
+  SPELL_FLARES,
   SPELL_SCHOOLS,
   spellDiceAt,
+  spellFlare,
   spellSlug,
   validateSpell,
 } from "./spells.js";
@@ -216,6 +219,47 @@ describe("spellDiceAt", () => {
     });
 
     assert.equal(spellDiceAt(counterspell, 3), null);
+  });
+});
+
+describe("spellFlare", () => {
+  it("wears the type the damage line names", () => {
+    assert.equal(spellFlare(FIREBALL), "fire");
+    assert.equal(spellFlare({ damage: "1d10 necrotic" }), "necrotic");
+  });
+
+  it("takes the first of a choice of types", () => {
+    assert.equal(
+      spellFlare({ damage: "3d8 Acid, Cold, Fire, Lightning, or Thunder" }),
+      "acid",
+    );
+  });
+
+  it("does not find a type inside another word", () => {
+    assert.equal(spellFlare({ damage: "2d6 Forceful" }), "arcane");
+  });
+
+  it("glows for healing, from a table or the card's own line", () => {
+    assert.equal(
+      spellFlare({ damage: "", healByLevel: { 1: "2d8", 2: "4d8" } }),
+      "healing",
+    );
+    assert.equal(spellFlare({ damage: "1d4 healing" }), "healing");
+  });
+
+  it("falls back to plain magic for a spell that throws nothing", () => {
+    assert.equal(spellFlare({ damage: "", healByLevel: {} }), "arcane");
+    assert.equal(spellFlare(null), "arcane");
+  });
+
+  it("answers only with a flare it knows", () => {
+    for (const flare of SPELL_FLARES) {
+      assert.equal(readSpellFlare(flare), flare);
+    }
+
+    assert.equal(readSpellFlare("Fire"), null);
+    assert.equal(readSpellFlare("<script>"), null);
+    assert.equal(readSpellFlare(undefined), null);
   });
 });
 

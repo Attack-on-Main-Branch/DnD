@@ -173,7 +173,7 @@ function LogFace({ entry, faces }) {
     return (
       <Avatar
         src={face.src}
-        colorClass={face.colorClass}
+        color={face.color}
         size="xs"
         ring={false}
         className="mt-0.5"

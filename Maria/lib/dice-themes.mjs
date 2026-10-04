@@ -14,6 +14,9 @@
  * takes the glyphs from a texture, so only the second needs generating — see
  * the script for the fifteen bytes that carry it.
  */
+import { DEFAULT_DICE_SKIN, DICE_SKIN_VALUES } from "sina/rules/character";
+import { DICE } from "sina/rules/dice";
+
 export const DICE_THEMES = {
   /* The public roll: obsidian, a shade warmer than `--color-surface` so it
      still reads as an object against the arena behind it, lettered in
@@ -38,21 +41,28 @@ export const DICE_THEMES = {
 };
 
 /**
- * The twelve a PLAYER can be, as body colours.
- *
- * Not a theme each, and deliberately: dice-box paints the body from
- * `themeColor` at runtime and takes the glyphs from a texture, so twelve
- * colours are twelve arguments to one theme rather than twelve theme folders
- * to download. The library picks the light or the dark lettering off the
- * luminance of whatever body it is handed, which is why a lime die letters
- * dark and a blue one letters gold with nothing here to say so.
- *
- * The hexes themselves are Maria's, beside the classes the same slugs wear on
- * screen — see app/dashboard/character-presentation.js. This file is imported
- * by `scripts/dice-assets.mjs` under plain Node, and that script bakes nothing
- * from them.
+ * The theme a PLAYER's Classic dice are thrown as, the body repainted in their
+ * own colour. Not a theme per colour, and deliberately: dice-box paints the
+ * body from `themeColor` at runtime and takes the glyphs from a texture, so a
+ * colour is an argument to one theme rather than a theme folder to download.
+ * The library picks the light or the dark lettering off the luminance of
+ * whatever body it is handed, which is why a lime die letters dark and a blue
+ * one letters gold with nothing here to say so.
  */
 export const DICE_BODY_THEME = "obsidian";
+
+/**
+ * The theme each of a character's dice skins is thrown as: Classic is the
+ * house's own die above, and every other skin is a theme of its own name,
+ * painted from its recipe in scripts/dice-recipes.mjs — scripts/dice-assets.mjs
+ * refuses to run while a skin has none.
+ */
+export const DICE_SKIN_THEMES = Object.fromEntries(
+  DICE_SKIN_VALUES.map((skin) => [
+    skin,
+    skin === DEFAULT_DICE_SKIN ? DICE_BODY_THEME : skin,
+  ]),
+);
 
 /**
  * How a die is LIT, which is the other half of what makes two rollers show the
@@ -83,6 +93,9 @@ export function rgbOf(hex, level = 1) {
     Math.round((value & 255) * level),
   ];
 }
+
+/** Every die a theme carries, smallest first: Sina's own list. */
+export const DICE_TYPES = DICE.map((die) => die.id);
 
 /** Where the generated dice live under `public/`, as the browser asks for them. */
 export const DICE_ASSET_PATH = "/assets/dice-box/";

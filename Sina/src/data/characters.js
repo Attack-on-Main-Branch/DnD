@@ -16,7 +16,7 @@ const SUBJECT = "avatar";
  * the base ones, so the sheet prints the number Postgres would sort by.
  */
 const COLUMNS =
-  "id, kind, name, discriminator, race, archetype, class_id, alignment, dice_color, avatar_url, level, xp, current_hp, max_hp, " +
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, dice_color, dice_skin, avatar_url, level, xp, current_hp, max_hp, " +
   "armor_class, death_saves, is_dead, hit_dice_spent, custom_proficiencies, conditions, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
@@ -52,6 +52,11 @@ function classify(error) {
   // Raised by the characters_enforce_limit trigger.
   if (error.message?.includes("character_limit_reached")) {
     return "limit_reached";
+  }
+
+  // Raised by `guard_dice_skin`: a set not yet found in a Dice Pouch.
+  if (error.message?.includes("dice_skin_locked")) {
+    return "skin_locked";
   }
 
   if (error.code === UNDEFINED_TABLE) {
@@ -140,10 +145,8 @@ export async function insertCharacter(supabase, { id, userId, values }) {
     archetype: values.archetype,
     class_id: values.classId,
     alignment: values.alignment,
-    /* `color_theme` is NOT written here and must not be: the trigger added in
-       20260919090000 mirrors it off this column, which is what keeps the name
-       it used to go by from ever disagreeing with the one it goes by now. */
-    dice_color: values.diceColor,
+    // No dice: a new sheet takes the columns' defaults, and the Dice tab
+    // changes them through `setCharacterDice`.
     avatar_url: values.avatarUrl ?? null,
     // Only the bought values are written. The six `_total` columns are
     // generated, and Postgres refuses an INSERT that names one.
@@ -189,7 +192,6 @@ export async function updateCharacter(supabase, { id, values }) {
     new_archetype: values.archetype,
     new_class_id: values.classId,
     new_alignment: values.alignment,
-    new_dice_color: values.diceColor,
     new_avatar_url: values.avatarUrl ?? null,
     new_ability_str: values.abilities.str,
     new_ability_dex: values.abilities.dex,
@@ -200,6 +202,28 @@ export async function updateCharacter(supabase, { id, values }) {
     new_skills: values.skills,
     new_backstory: values.backstory,
     new_personality: values.personality,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  if (!data) {
+    return { data: null, error: { reason: "not_found", detail: null } };
+  }
+
+  return { data: true, error: null };
+}
+
+/**
+ * The dice alone, from the sheet's Dice tab. A definer function for the reason
+ * `update_character` is one; `false` is a refusal or a miss, the same answer.
+ */
+export async function setCharacterDice(supabase, { id, diceColor, diceSkin }) {
+  const { data, error } = await supabase.rpc("set_character_dice", {
+    target_character: id,
+    new_dice_color: diceColor,
+    new_dice_skin: diceSkin,
   });
 
   if (error) {

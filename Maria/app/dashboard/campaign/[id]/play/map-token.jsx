@@ -11,6 +11,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import { useReducedMotion } from "@/app/components/use-reduced-motion";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
 
+import { SpellFlare } from "./spell-flares";
 import TokenMenu from "./token-menu";
 
 /**
@@ -249,6 +250,8 @@ export default function MapToken({
             <EyeIcon crossedOut className="size-[70%]" />
           </span>
         )}
+
+        {token.characterId && <SpellFlare characterId={token.characterId} />}
       </span>
 
       {note && !menu && <TokenNote token={token} at={note} />}
@@ -310,7 +313,7 @@ function Face({ token, cell }) {
       >
         <Avatar
           src={token.src}
-          colorClass={token.colorClass}
+          color={token.color}
           size="xs"
           // One rim at a time: the gold one above says whose piece this is.
           ring={!token.mine}

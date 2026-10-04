@@ -629,7 +629,7 @@ function drawnOn(placed, mapId, isWorldMap, faces, templates) {
           ...token,
           label: face.label,
           src: face.src,
-          colorClass: face.colorClass,
+          color: face.color,
         });
       }
 

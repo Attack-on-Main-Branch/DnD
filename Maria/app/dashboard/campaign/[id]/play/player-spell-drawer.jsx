@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CANTRIP_LEVEL } from "sina/rules/spells";
+import { CANTRIP_LEVEL, spellFlare } from "sina/rules/spells";
 
 import SpellDetail, { EmptySpellbook } from "@/app/dashboard/spell-detail";
 import SpellRow from "@/app/dashboard/spell-row";
@@ -14,6 +14,7 @@ import {
 import { Action, Confirm } from "./pack-controls";
 import { moveSpellSlot, teachSpell, unlearnSpell } from "./spell-actions";
 import SpellCastControl from "./spell-cast-control";
+import { useCastFlare } from "./spell-flares";
 import SpellSearch from "./spell-search";
 import Shelf from "@/app/dashboard/spell-shelf";
 import SpellSlotTracker from "./spell-slot-tracker";
@@ -64,6 +65,7 @@ export default function PlayerSpellDrawer({
   const { run, send } = useTableDeed(campaignId);
   const record = useActivityLog(campaignId);
   const { close } = useTableMarks();
+  const flare = useCastFlare();
 
   const shelves = spellsByShelf(book);
   const known = new Set(book.map((row) => row.spell_slug));
@@ -144,6 +146,7 @@ export default function PlayerSpellDrawer({
     }
 
     close();
+    flare(characterId, spellFlare(spell));
 
     // A cantrip scales with its caster and a levelled spell with its slot.
     const at = slotLevel > CANTRIP_LEVEL ? slotLevel : caster.level;

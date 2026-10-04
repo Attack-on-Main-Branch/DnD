@@ -1,7 +1,7 @@
 "use client";
 
 import Avatar from "@/app/components/ui/avatar";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 /**
  * The row of faces above a panel that can only hold one at a time — the pack's,
@@ -38,7 +38,7 @@ export default function PartyPills({
           face={
             <Avatar
               src={member.avatar_url}
-              colorClass={diceColorClass(member.dice_color)}
+              color={diceColorHex(member.dice_color)}
               size="xs"
               // The face IS this pill's left end — see the note on `face` below.
               ring={false}

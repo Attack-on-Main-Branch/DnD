@@ -1,7 +1,7 @@
 "use client";
 
 import Avatar from "@/app/components/ui/avatar";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 /**
  * The three controls a player's drawer is built out of, shared by what is in
@@ -152,7 +152,7 @@ export function PartyChoice({
             >
               <Avatar
                 src={member.avatar_url}
-                colorClass={diceColorClass(member.dice_color)}
+                color={diceColorHex(member.dice_color)}
                 size="xs"
               />
               <span className="min-w-0 flex-1 truncate">{member.name}</span>

@@ -14,6 +14,7 @@
  * 20260823090000_campaign_activity_log.sql. Changing one means changing both.
  */
 
+import { DICE_SKIN_RARITIES, isDiceSkin } from "./character.js";
 import { isCoin, MAX_COINS } from "./currency.js";
 import { isCondition } from "./conditions.js";
 import { deathSaveOutcome } from "./death.js";
@@ -54,6 +55,7 @@ export const ACTION_TYPES = [
   "condition_removed",
   "combat_started",
   "combat_ended",
+  "dice_pouch_opened",
 ];
 
 /** What one face of the death save die was worth. Mirrors `deathSaveOutcome`. */
@@ -354,6 +356,16 @@ export function readActivity(row) {
   // is the whole sentence.
   if (action === "combat_started" || action === "combat_ended") {
     return entry;
+  }
+
+  /* A set out of a Dice Pouch, and the rarity it was opened at — written into
+     the row by `announce_dice_skins`, so a later reshuffle does not rewrite
+     what the table was told. */
+  if (action === "dice_pouch_opened") {
+    return isDiceSkin(payload.skin) &&
+      DICE_SKIN_RARITIES.includes(payload.rarity)
+      ? { ...entry, skin: payload.skin, rarity: payload.rarity }
+      : null;
   }
 
   /* The three a container can be the subject of. The name comes off the ROW,

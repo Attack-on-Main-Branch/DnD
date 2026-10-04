@@ -48,6 +48,7 @@ const PACK_COPY = {
   missing_function: "That part of the app is not ready yet.",
   missing_table: "That part of the app is not ready yet.",
   bad_id: "That character is no longer at this table.",
+  dm_only: "A dice pouch stays with whoever it was given to.",
 };
 
 async function signedIn(action) {

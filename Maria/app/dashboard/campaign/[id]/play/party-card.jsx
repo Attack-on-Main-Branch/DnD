@@ -5,7 +5,7 @@ import { isDying } from "sina/rules/death";
 
 import Avatar from "@/app/components/ui/avatar";
 import { surfaceClasses } from "@/app/components/ui/surface";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 import CardCondition from "./card-condition";
 import CardConditions from "./card-conditions";
@@ -13,6 +13,7 @@ import DiceCapsule from "./dice-capsule";
 import { CARD_CLASSES, cardEntrance } from "./entrance";
 import InspirationPips from "./inspiration-pips";
 import LevelArmor from "./level-armor";
+import { SpellFlare } from "./spell-flares";
 import { useHitPoints, useIsActiveTurn, useIsDead } from "./table-state";
 
 /**
@@ -108,14 +109,15 @@ function PartyCard({
           {/* The wrapper's and not the portrait's: `Avatar` clips its picture
               with `overflow-hidden`, so a shadow on it is drawn inside. */}
           <span
-            className={`inline-flex rounded-full transition-shadow duration-300 ${
+            className={`relative inline-flex rounded-full transition-shadow duration-300 ${
               myTurn ? "turn-lit" : ""
             }`}
           >
             <Avatar
               src={member.avatar_url}
-              colorClass={diceColorClass(member.dice_color)}
+              color={diceColorHex(member.dice_color)}
             />
+            <SpellFlare characterId={member.id} />
           </span>
 
           <div className="min-w-0 flex-1">

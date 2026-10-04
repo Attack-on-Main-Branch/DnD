@@ -4,24 +4,54 @@
  * step — the package's own `postinstall` asks an interactive question and is
  * skipped by any install that blocks lifecycle scripts.
  *
- * The output is derived and git-ignored. Everything here is idempotent.
+ * The output is derived and git-ignored. Everything here is idempotent, and
+ * a theme already built from the same inputs is left as it is — see
+ * `fingerprint`.
  *
- * Two themes come out of the one the package ships: the meshes, the bump and
- * the specular map are the same dice either way, and only the pigment on the
- * numerals differs. The glyph textures are 4-bit PALETTE PNGs whose whole
- * palette is a fifteen-byte PLTE chunk — entry 0 is the body and is fully
- * transparent, entries 1 to 4 are the glyph and its antialiasing ramp — so
- * recolouring is a rewrite of those bytes and a fresh CRC. No pixel is touched,
- * nothing is decoded, and the two files stay byte-for-byte as sharp as the
- * originals.
+ * Two themes come out of the one the package ships: the meshes and the bump
+ * are the same dice either way, and only the pigment on the numerals differs.
+ * Their numerals are the stock glyphs as every skin wears them — with a 6 and
+ * a 9 underlined — in that pigment, transparent everywhere else.
+ *
+ * The SKINS are painted from the same numerals — see dice-skins.mjs. Same
+ * meshes, so a skin never changes how a die tumbles.
+ *
+ * Every theme is drawn by the vendored dice-box's physically based material
+ * (`shading: "pbr"`, see Maria/vendor/dice-box), and so carries a surface map
+ * — occlusion, roughness, metalness — where the stock theme has a specular one.
+ *
+ * A theme a character can choose also carries pictures of its dice for the
+ * style picker — see dice-thumbnails.mjs.
  */
 
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DARK_NUMERAL_LEVEL, DICE_THEMES, rgbOf } from "../lib/dice-themes.mjs";
+import {
+  DARK_NUMERAL_LEVEL,
+  DICE_SKIN_THEMES,
+  DICE_THEMES,
+  DICE_TYPES,
+  rgbOf,
+} from "../lib/dice-themes.mjs";
+import { DICE_SKIN_RECIPES, HOUSE_FINISH } from "./dice-recipes.mjs";
+import {
+  numeralInk,
+  paintHouseColour,
+  paintHouseSurface,
+  paintSkins,
+} from "./dice-skins.mjs";
+import { drawThumbnails } from "./dice-thumbnails.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HERE, "..", "public", "assets", "dice-box");
@@ -31,67 +61,75 @@ const SOURCE = path.join(
   path.dirname(require.resolve("@3d-dice/dice-box")),
   "assets",
 );
+const STOCK = path.join(SOURCE, "themes", "default");
 
 /** What every theme needs and none of them changes. */
-const SHARED = ["default.json", "normal.png", "specular.jpg"];
+const SHARED = ["default.json", "normal.png"];
 
-const DICE_AVAILABLE = ["d4", "d6", "d8", "d10", "d12", "d20", "d100"];
+/** The themes a character can pick, which the style picker shows. */
+const CHOOSABLE = new Set(Object.values(DICE_SKIN_THEMES));
 
-const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
-  let value = index;
-
-  for (let bit = 0; bit < 8; bit++) {
-    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-  }
-
-  return value >>> 0;
-});
-
-function crc32(bytes) {
-  let crc = 0xffffffff;
-
-  for (const byte of bytes) {
-    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-  }
-
-  return (crc ^ 0xffffffff) >>> 0;
-}
+/** Written last into each theme folder: what that theme was built from. */
+const STAMP = ".fingerprint";
 
 /**
- * The same PNG with its palette repainted. Entry 0 is left alone: it is the
- * die's own surface, `tRNS` gives it an alpha of zero, and the shader fills it
- * with `themeColor` at runtime.
+ * A digest of everything that goes into a theme. A folder whose stamp matches
+ * already is that theme and is left alone — painting the skins is nearly all
+ * this script costs. The stamp is written after every other file, so a run cut
+ * short leaves a folder that the next one rebuilds.
  */
-function repaintPalette(png, colour) {
-  const out = Buffer.from(png);
-  let offset = 8;
+function fingerprint(...parts) {
+  const hash = createHash("sha256");
 
-  while (offset < out.length) {
-    const length = out.readUInt32BE(offset);
-    const type = out.toString("ascii", offset + 4, offset + 8);
-
-    if (type === "PLTE") {
-      const start = offset + 8;
-
-      for (let entry = 1; entry * 3 < length; entry++) {
-        out.set(colour, start + entry * 3);
-      }
-
-      out.writeUInt32BE(
-        crc32(out.subarray(offset + 4, start + length)),
-        start + length,
-      );
-
-      return out;
-    }
-
-    offset += 12 + length;
+  for (const part of parts) {
+    hash.update(
+      Buffer.isBuffer(part) || typeof part === "string"
+        ? part
+        : JSON.stringify(part),
+    );
+    hash.update("\0");
   }
 
-  throw new Error("Expected a palette PNG: no PLTE chunk found.");
+  return hash.digest("hex");
 }
 
-function themeConfig(systemName, { name }) {
+async function isBuilt(systemName, print) {
+  try {
+    const stamp = path.join(OUT, "themes", systemName, STAMP);
+
+    return (await readFile(stamp, "utf8")) === print;
+  } catch {
+    return false;
+  }
+}
+
+/** A choosable theme's pictures, beside its maps — see-through if it is. */
+async function writeThumbnails(folder, systemName, colour, surface, opacity) {
+  if (!CHOOSABLE.has(systemName)) {
+    return;
+  }
+
+  const { tile, set } = drawThumbnails(scene, colour, surface, opacity);
+
+  await Promise.all([
+    writeFile(path.join(folder, "tile.png"), tile.picture),
+    writeFile(path.join(folder, "tile-tint.png"), tile.tint),
+    writeFile(path.join(folder, "set.png"), set.picture),
+    writeFile(path.join(folder, "set-tint.png"), set.tint),
+  ]);
+}
+
+/** A theme's folder, emptied of whatever an older build left in it. */
+async function emptyFolder(systemName) {
+  const folder = path.join(OUT, "themes", systemName);
+
+  await rm(folder, { recursive: true, force: true });
+  await mkdir(folder, { recursive: true });
+
+  return folder;
+}
+
+function themeConfig(systemName, { name }, material = {}) {
   return {
     name,
     systemName,
@@ -99,6 +137,7 @@ function themeConfig(systemName, { name }) {
     meshFile: "default.json",
     material: {
       type: "color",
+      shading: "pbr",
       diffuseTexture: {
         light: "numerals-light.png",
         dark: "numerals-dark.png",
@@ -106,61 +145,213 @@ function themeConfig(systemName, { name }) {
       diffuseLevel: 1,
       bumpTexture: "normal.png",
       bumpLevel: 0.5,
-      specularTexture: "specular.jpg",
-      specularPower: 1,
+      metallicTexture: "surface.png",
+      ...material,
     },
-    diceAvailable: DICE_AVAILABLE,
+    diceAvailable: DICE_TYPES,
   };
 }
 
-async function writeTheme(systemName, theme) {
-  const folder = path.join(OUT, "themes", systemName);
-  const stock = path.join(SOURCE, "themes", "default");
-
-  await mkdir(folder, { recursive: true });
+async function writeTheme(systemName, theme, ink, print) {
+  const folder = await emptyFolder(systemName);
 
   await Promise.all(
     SHARED.map((file) =>
-      copyFile(path.join(stock, file), path.join(folder, file)),
+      copyFile(path.join(STOCK, file), path.join(folder, file)),
     ),
   );
 
+  const surface = paintHouseSurface(ink, HOUSE_FINISH);
+  const light = paintHouseColour(ink, rgbOf(theme.numerals));
+
   // Both variants exist because dice-box builds a material for each and picks
   // between them by the luminance of the body colour it is given.
-  const glyphs = await readFile(path.join(stock, "diffuse-light.png"));
-
   await Promise.all([
-    writeFile(
-      path.join(folder, "numerals-light.png"),
-      repaintPalette(glyphs, rgbOf(theme.numerals)),
-    ),
+    writeFile(path.join(folder, "numerals-light.png"), light),
     writeFile(
       path.join(folder, "numerals-dark.png"),
-      repaintPalette(glyphs, rgbOf(theme.numerals, DARK_NUMERAL_LEVEL)),
+      paintHouseColour(ink, rgbOf(theme.numerals, DARK_NUMERAL_LEVEL)),
     ),
+    writeFile(path.join(folder, "surface.png"), surface),
+    writeThumbnails(folder, systemName, light, surface),
     writeFile(
       path.join(folder, "theme.config.json"),
       `${JSON.stringify(themeConfig(systemName, theme), null, 2)}\n`,
     ),
   ]);
+  await writeFile(path.join(folder, STAMP), print);
 }
 
-// Cleared rather than merged: a theme dropped from DICE_THEMES should stop
-// being served, and a half-written run should not survive the next one.
-await rm(OUT, { recursive: true, force: true });
+/**
+ * The painted skins asked for, from one read of the stock atlas. The mesh is
+ * copied so each folder stands alone, though dice-box registers meshes by file
+ * name and reuses the one already loaded.
+ */
+async function writeSkins(recipes, { meshes, numerals }, prints) {
+  if (Object.keys(recipes).length === 0) {
+    return;
+  }
+
+  const painted = paintSkins(recipes, { meshes: JSON.parse(meshes), numerals });
+
+  await Promise.all(
+    Object.entries(painted).map(([systemName, maps]) =>
+      writeSkin(
+        systemName,
+        recipes[systemName],
+        maps,
+        meshes,
+        prints[systemName],
+      ),
+    ),
+  );
+}
+
+async function writeSkin(systemName, recipe, maps, meshes, print) {
+  const folder = await emptyFolder(systemName);
+
+  const material = {
+    /* One file for both: dice-box picks the dark variant for a pale body, and
+       the metal reads on either. Babylon loads a repeated URL once. */
+    diffuseTexture: { light: "skin.png", dark: "skin.png" },
+    // Authored at full strength. Babylon's PBR material multiplies a normal's
+    // slope by the level, so a skin asking for more relief sets `bump`.
+    bumpLevel: recipe.bump ?? 1,
+    // A glossy layer over the lot, for a skin that has one — resin over foil.
+    ...(recipe.coat && { clearCoat: recipe.coat }),
+    // And how strongly it reflects the room — polished stone more than most.
+    ...(recipe.environment && { environmentIntensity: recipe.environment }),
+    // See-through, for glass: read by the vendored dice-box (its README).
+    ...(recipe.opacity !== undefined && { opacity: recipe.opacity }),
+  };
+
+  await Promise.all([
+    writeFile(path.join(folder, "default.json"), meshes),
+    writeFile(path.join(folder, "skin.png"), maps.colour),
+    writeFile(path.join(folder, "normal.png"), maps.normal),
+    writeFile(path.join(folder, "surface.png"), maps.surface),
+    writeThumbnails(
+      folder,
+      systemName,
+      maps.colour,
+      maps.surface,
+      recipe.opacity,
+    ),
+    writeFile(
+      path.join(folder, "theme.config.json"),
+      `${JSON.stringify(themeConfig(systemName, recipe, material), null, 2)}\n`,
+    ),
+  ]);
+  await writeFile(path.join(folder, STAMP), print);
+}
+
+// A skin the app can throw must be a theme this script writes.
+for (const [skin, theme] of Object.entries(DICE_SKIN_THEMES)) {
+  if (!DICE_THEMES[theme] && !DICE_SKIN_RECIPES[theme]) {
+    throw new Error(
+      `Dice skin "${skin}" has no recipe in dice-recipes.mjs for "${theme}".`,
+    );
+  }
+}
+
+const [meshes, numerals, normal, painter, pictures, codec, script] =
+  await Promise.all([
+    readFile(path.join(STOCK, "default.json"), "utf8"),
+    readFile(path.join(STOCK, "diffuse-light.png")),
+    readFile(path.join(STOCK, "normal.png")),
+    readFile(path.join(HERE, "dice-skins.mjs")),
+    readFile(path.join(HERE, "dice-thumbnails.mjs")),
+    readFile(path.join(HERE, "png.mjs")),
+    readFile(fileURLToPath(import.meta.url)),
+  ]);
+const scene = JSON.parse(meshes);
+
+// What every theme is built from beside its own entry: the stock dice, and the
+// code that turns them into a theme. Recipes are data in a module of their
+// own, so changing one repaints that skin alone; changing the painter, all.
+const common = fingerprint(
+  meshes,
+  numerals,
+  normal,
+  painter,
+  pictures,
+  codec,
+  script,
+  DICE_TYPES,
+);
+const prints = Object.fromEntries([
+  ...Object.entries(DICE_THEMES).map(([systemName, theme]) => [
+    systemName,
+    fingerprint(
+      common,
+      theme,
+      HOUSE_FINISH,
+      DARK_NUMERAL_LEVEL,
+      rgbOf.toString(),
+    ),
+  ]),
+  ...Object.entries(DICE_SKIN_RECIPES).map(([systemName, recipe]) => [
+    systemName,
+    fingerprint(common, recipe),
+  ]),
+]);
+
+// Anything this run would not write goes: a theme dropped from the lists
+// should stop being served.
 await mkdir(path.join(OUT, "ammo"), { recursive: true });
+await mkdir(path.join(OUT, "themes"), { recursive: true });
+
+for (const entry of await readdir(OUT)) {
+  if (entry !== "ammo" && entry !== "themes") {
+    await rm(path.join(OUT, entry), { recursive: true, force: true });
+  }
+}
+
+for (const entry of await readdir(path.join(OUT, "themes"))) {
+  if (!(entry in prints)) {
+    await rm(path.join(OUT, "themes", entry), { recursive: true, force: true });
+  }
+}
 
 await copyFile(
   path.join(SOURCE, "ammo", "ammo.wasm.wasm"),
   path.join(OUT, "ammo", "ammo.wasm.wasm"),
 );
 
-await Promise.all(
-  Object.entries(DICE_THEMES).map(([systemName, theme]) =>
-    writeTheme(systemName, theme),
+const stale = new Set();
+
+for (const [systemName, print] of Object.entries(prints)) {
+  if (!(await isBuilt(systemName, print))) {
+    stale.add(systemName);
+  }
+}
+
+// The house dice's numerals, read off the atlas once, and only if needed.
+const houseInk = Object.keys(DICE_THEMES).some((name) => stale.has(name))
+  ? numeralInk({ meshes: scene, numerals })
+  : null;
+
+await Promise.all([
+  ...Object.entries(DICE_THEMES)
+    .filter(([systemName]) => stale.has(systemName))
+    .map(([systemName, theme]) =>
+      writeTheme(systemName, theme, houseInk, prints[systemName]),
+    ),
+  writeSkins(
+    Object.fromEntries(
+      Object.entries(DICE_SKIN_RECIPES).filter(([systemName]) =>
+        stale.has(systemName),
+      ),
+    ),
+    { meshes, numerals },
+    prints,
   ),
-);
+]);
+
+const where = path.relative(process.cwd(), OUT);
 
 console.log(
-  `Dice assets: ${Object.keys(DICE_THEMES).join(", ")} → ${path.relative(process.cwd(), OUT)}`,
+  stale.size === 0
+    ? `Dice assets: all ${Object.keys(prints).length} themes up to date → ${where}`
+    : `Dice assets: built ${[...stale].join(", ")} → ${where}`,
 );

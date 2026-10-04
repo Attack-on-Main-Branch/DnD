@@ -47,6 +47,12 @@ function classify(error) {
     return "limit_reached";
   }
 
+  // `guard_dice_pouch`: a pouch handed over or stowed by anybody but the head
+  // of the table.
+  if (error.message?.includes("dice_pouch_dm_only")) {
+    return "dm_only";
+  }
+
   // Past validateItem but refused by the bounds CHECK: a disagreement between
   // Sina/src/rules/inventory.js and the migration.
   if (error.code === CHECK_VIOLATION) {

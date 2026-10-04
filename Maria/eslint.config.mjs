@@ -35,6 +35,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // A built third-party bundle; its source is upstream's. See its README.
+    "vendor/**",
   ]),
 ]);
 

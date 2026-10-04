@@ -16,6 +16,25 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.5.0",
+    date: "2026-10-04",
+    title: "Dice of your own",
+    changes: [
+      "Casting a spell now lights up the caster, on their token on the map and around their portrait on the party rail, for everybody at the table. The effect matches the spell: flames licking up all round them for fire, frost for cold, crackling bolts for lightning, a shockwave for thunder, and its own look for every other damage type, healing and spells that deal no damage. It swells in and fades away over a couple of seconds.",
+      "Every character sheet has a new Dice tab, next to Feature. Pick your colour, choose a style from pictures of every one you have found, painted in that colour as you go, and try it on a big live die beside them — throw any die in the set — before saving. The die is thrown into its box every time you choose something new, and once it lands you can drag it, or use the arrow keys, to turn it over and see it from every side. Everybody at the table sees your dice the way you set them.",
+      "Dice can be any colour you like. Pick one on the colour field and hue bar, type in a hex code, or start from the twelve colours you could choose before. Your colour also fills your portrait circle when you have no picture, and your arrows on the map.",
+      "Every dice style has a rarity: Common, Rare, Epic or Legendary. The Dice tab lists them commonest first, each framed in its rarity’s colour — grey, blue, purple or yellow — with a glow fading in from the edge that grows stronger the rarer the style.",
+      "Dice sets are found, not just chosen. A new character starts with Classic dice, and every other set comes out of a Dice Pouch, which only the Dungeon Master can hand out, from the Session panel at the table. Sets you have not found yet stay on the Dice tab greyed out, named ???, and cannot be chosen. A set your character was already using is theirs to keep.",
+      "Open a Dice Pouch from your pack at the table and a reel of dice sets races past and brakes to a stop on the one inside. Rarer sets turn up less often, and a pouch never holds a set you already have. Once it stops, your new set is thrown into a stone tray, every die but the d100, and the log tells the table which set you opened and how rare it is.",
+      "Every 6 and 9 is underlined, on every style of dice, so you can tell them apart whichever way up the die lands.",
+      "Every die is lit like the real thing. Metal reflects the room and gleams along its polished edges, glitter flashes in your dice colour as the dice tumble, and Classic dice — the Dungeon Master’s obsidian ones too — are glossy, with numbers in metallic paint that catch the light.",
+    ],
+    fixes: [
+      "Going from one table to another no longer keeps the first table’s dice styles loaded, which used up more and more memory the more tables you visited without reloading.",
+      "When a throw failed to reach the board, every later throw that landed in the same part of the board could hang for a few seconds and show no dice until the page was reloaded. The board now sets itself up afresh after a failed throw.",
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-10-03",
     title: "Quicker between the pages",

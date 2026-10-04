@@ -122,6 +122,16 @@
   --color-electrum: #e8dc8a;
   --color-platinum: #e6edf3;
 
+  /*
+   * How rare a dice style is, in the colours games have taught everybody to
+   * read. Legendary is a saturated yellow so it cannot be taken for the gold
+   * of a selected card; all four clear 4.5:1 against `--color-surface`.
+   */
+  --color-rarity-common: #9ca3af;
+  --color-rarity-rare: #4f8cff;
+  --color-rarity-epic: #b26cf9;
+  --color-rarity-legendary: #facc15;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-cinzel);
@@ -1173,6 +1183,49 @@ body {
   }
 
   /*
+   * The tray a Dice Pouch is tipped out into: a bowl cut in grey stone. Two
+   * noise fields the browser draws itself — broad mottling and a fine dark
+   * grain — over a grey that warms toward the bottom, and the inside shaded as
+   * if carved down into the slab.
+   */
+  .dice-stone {
+    --stone-light: #7f7a73;
+    --stone-mid: #56514b;
+    --stone-dark: #2b2825;
+
+    background-color: var(--stone-mid);
+    background-image:
+      radial-gradient(
+        ellipse 70% 55% at 50% 38%,
+        rgba(255, 255, 255, 0.08),
+        transparent 70%
+      ),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.92 0 0 0 0 0.9 0 0 0 0 0.86 0 0 0 1.5 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 -1.6 0.72'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018' numOctaves='5' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncG type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncB type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncA type='linear' slope='0' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"),
+      linear-gradient(
+        160deg,
+        var(--stone-light),
+        var(--stone-mid) 48%,
+        var(--stone-dark)
+      );
+    background-blend-mode: normal, normal, normal, soft-light, normal;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.12),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+      inset 0 26px 40px -16px rgba(0, 0, 0, 0.75),
+      inset 0 -16px 34px -20px rgba(0, 0, 0, 0.65),
+      0 0 0 6px #24211e,
+      0 0 0 7px rgba(255, 255, 255, 0.06),
+      0 30px 60px -26px rgba(0, 0, 0, 0.95);
+  }
+
+  /* The window a pouch's set arrives in. */
+  .pouch-reveal {
+    animation: pouch-reveal 520ms var(--ease-glide) both;
+  }
+
+  /*
    * The map that was on the table, letting go of the one that replaced it.
    *
    * The arriving picture is already underneath at full strength, so this is a
@@ -1355,6 +1408,417 @@ body {
     --hp-flare-max: 1.3;
     --hp-flare-time: 7s;
   }
+
+  /*
+   * A spell going off round its caster's face — see spell-flares.jsx. The box
+   * is the face's own, grown so the rim sits at radius 26 of the SVG's 100.
+   */
+  .flare {
+    position: absolute;
+    inset: -46%;
+    z-index: 10;
+    pointer-events: none;
+    animation: flare-life var(--flare-life) both;
+  }
+
+  .flare-aura {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle closest-side,
+      transparent 44%,
+      var(--flare-ring) 53%,
+      var(--flare-glow) 60%,
+      transparent 84%
+    );
+    animation: flare-breathe 900ms ease-in-out infinite alternate;
+  }
+
+  .flare-field {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 0 2px var(--flare-glow));
+  }
+
+  .flare-stop-core {
+    stop-color: var(--flare-core);
+  }
+
+  .flare-stop-a {
+    stop-color: var(--flare-a);
+  }
+
+  .flare-stop-b {
+    stop-color: var(--flare-b);
+  }
+
+  .flare-stop-fade {
+    stop-color: var(--flare-b);
+    stop-opacity: 0;
+  }
+
+  .flare-motion {
+    animation-fill-mode: both;
+  }
+
+  .flare-spin {
+    animation: flare-spin var(--flare-life) linear both;
+  }
+
+  .flare-spin[data-spin="cw"] {
+    --turn: 180deg;
+  }
+
+  .flare-spin[data-spin="ccw"] {
+    --turn: -200deg;
+  }
+
+  .flare-spin[data-spin="cw-slow"] {
+    --turn: 50deg;
+  }
+
+  .flare-spin[data-spin="cw-fast"] {
+    --turn: 540deg;
+    animation-timing-function: cubic-bezier(0.3, 0.6, 0.4, 1);
+  }
+
+  /* Paint, by shape. Gradient-filled shapes take theirs from an attribute. */
+  .flare-field [data-shape="ring"] {
+    fill: none;
+    stroke: var(--flare-a);
+    stroke-width: 1.6;
+  }
+
+  .flare-field [data-shape="halo"] {
+    fill: none;
+    stroke: var(--flare-a);
+    stroke-width: 0.9;
+    stroke-dasharray: 2.5 4;
+    stroke-linecap: round;
+  }
+
+  .flare-field [data-shape="halo-wide"] {
+    fill: none;
+    stroke: var(--flare-b);
+    stroke-width: 0.7;
+    stroke-dasharray: 8 5 1.5 5;
+    stroke-linecap: round;
+  }
+
+  .flare-field [data-shape="bolt"] {
+    fill: none;
+    stroke: var(--flare-core);
+    stroke-width: 1.3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .flare-field [data-shape="crystal"],
+  .flare-field [data-shape="plus"] {
+    fill: none;
+    stroke: var(--flare-core);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+  }
+
+  .flare-field [data-shape="plus"] {
+    stroke-width: 1.1;
+  }
+
+  .flare-field [data-shape="wisp"] {
+    fill: none;
+    stroke: var(--flare-a);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-dasharray: 40 100;
+  }
+
+  .flare-field [data-shape="hex"] {
+    fill: color-mix(in srgb, var(--flare-b) 8%, transparent);
+    stroke: var(--flare-a);
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+  }
+
+  .flare-field [data-shape="bubble"] {
+    fill: color-mix(in srgb, var(--flare-a) 25%, transparent);
+    stroke: var(--flare-a);
+    stroke-width: 0.6;
+  }
+
+  .flare-field [data-shape="spike"],
+  .flare-field [data-shape="blade"],
+  .flare-field [data-shape="drop"],
+  .flare-field [data-shape="mote"] {
+    fill: var(--flare-a);
+  }
+
+  .flare-field [data-shape="spark"],
+  .flare-field [data-shape="star"] {
+    fill: var(--flare-core);
+  }
+
+  .flare-field [data-shape="chunk"] {
+    fill: var(--flare-a);
+    stroke: var(--flare-b);
+    stroke-width: 0.4;
+  }
+
+  /* Motion, by name. Motes start at --x, --y and sway by --s. */
+  .flare-field [data-motion="rise"] {
+    animation-name: flare-rise;
+    animation-duration: 1300ms;
+    animation-timing-function: ease-out;
+  }
+
+  .flare-field [data-motion="fall"] {
+    animation-name: flare-fall;
+    animation-duration: 1000ms;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+
+  .flare-field [data-motion="drift"] {
+    animation-name: flare-drift;
+    animation-duration: 1500ms;
+    animation-timing-function: ease-out;
+  }
+
+  .flare-field [data-motion="burst"] {
+    animation-name: flare-burst;
+    animation-duration: 800ms;
+    animation-timing-function: var(--ease-glide);
+  }
+
+  .flare-field [data-motion="scatter"] {
+    animation-name: flare-scatter;
+    animation-duration: 900ms;
+    animation-timing-function: ease-out;
+  }
+
+  .flare-field [data-motion="sink"] {
+    animation-name: flare-sink;
+    animation-duration: 1200ms;
+    animation-timing-function: ease-in;
+  }
+
+  .flare-field [data-motion="swirl"] {
+    animation-name: flare-swirl;
+    animation-duration: 1700ms;
+    animation-timing-function: ease-in-out;
+  }
+
+  .flare-field [data-motion="orbit"] {
+    animation-name: flare-orbit;
+    animation-duration: 1600ms;
+    animation-timing-function: linear;
+  }
+
+  .flare-field [data-motion="twinkle"] {
+    animation-name: flare-twinkle;
+    animation-duration: 900ms;
+    animation-timing-function: ease-in-out;
+  }
+
+  /* Kindles and dies on `scale` and opacity, licks on `transform`, so the two
+     run at once. A blaze sways slower than the tongues in front of it. */
+  .flare-field [data-motion="lick"] {
+    animation:
+      flare-kindle 2100ms var(--ease-glide) both,
+      flare-lick 520ms ease-in-out infinite alternate;
+  }
+
+  .flare-field [data-shape="blaze"][data-motion="lick"] {
+    animation-duration: 2100ms, 760ms;
+  }
+
+  .flare-field [data-motion="strike"] {
+    animation-name: flare-strike;
+    animation-duration: 900ms;
+    animation-iteration-count: 2;
+    animation-timing-function: linear;
+  }
+
+  .flare-field [data-motion="bloom"] {
+    animation-name: flare-bloom;
+    animation-duration: 1900ms;
+    animation-timing-function: var(--ease-glide);
+  }
+
+  .flare-field [data-motion="ripple"] {
+    animation-name: flare-ripple;
+    animation-duration: 1100ms;
+    animation-timing-function: ease-out;
+  }
+
+  .flare-field [data-motion="glow"] {
+    animation-name: flare-glow;
+    animation-duration: 2300ms;
+    animation-timing-function: ease-in-out;
+  }
+
+  .flare-field [data-motion="drain"] {
+    animation-name: flare-drain;
+    animation-duration: 1300ms;
+    animation-timing-function: ease-in-out;
+  }
+
+  .flare-field [data-motion="thrust"] {
+    animation-name: flare-thrust;
+    animation-duration: 1000ms;
+    animation-timing-function: var(--ease-glide);
+  }
+
+  .flare-field [data-motion="ward"] {
+    animation-name: flare-ward;
+    animation-duration: 2300ms;
+    animation-timing-function: ease-in-out;
+  }
+
+  /*
+   * Each element's colours: a hot core, the body, a deeper edge, and the halo
+   * round the face. Radiant and arcane are the app's own gold and violet.
+   */
+  .flare[data-flare="fire"] {
+    --flare-core: #fff3c4;
+    --flare-a: #ffad42;
+    --flare-b: #ff4d1c;
+    --flare-ring: rgba(255, 140, 50, 0.85);
+    --flare-glow: rgba(255, 90, 30, 0.55);
+  }
+
+  .flare[data-flare="cold"] {
+    --flare-core: #ffffff;
+    --flare-a: #c4ecff;
+    --flare-b: #5ab8ff;
+    --flare-ring: rgba(170, 225, 255, 0.85);
+    --flare-glow: rgba(90, 180, 255, 0.5);
+  }
+
+  .flare[data-flare="lightning"] {
+    --flare-core: #ffffff;
+    --flare-a: #dff1ff;
+    --flare-b: #8fc4ff;
+    --flare-ring: rgba(200, 230, 255, 0.9);
+    --flare-glow: rgba(120, 170, 255, 0.6);
+  }
+
+  .flare[data-flare="thunder"] {
+    --flare-core: #f4f6ff;
+    --flare-a: #c9d3f5;
+    --flare-b: #7e8fc9;
+    --flare-ring: rgba(200, 210, 245, 0.8);
+    --flare-glow: rgba(130, 150, 220, 0.5);
+  }
+
+  .flare[data-flare="acid"] {
+    --flare-core: #f6ffc2;
+    --flare-a: #c2f23a;
+    --flare-b: #6cc21a;
+    --flare-ring: rgba(190, 240, 60, 0.8);
+    --flare-glow: rgba(130, 220, 40, 0.5);
+  }
+
+  .flare[data-flare="poison"] {
+    --flare-core: #d9ffd0;
+    --flare-a: #7fdc8a;
+    --flare-b: #3c8f5a;
+    --flare-ring: rgba(110, 210, 120, 0.7);
+    --flare-glow: rgba(120, 80, 170, 0.45);
+  }
+
+  .flare[data-flare="necrotic"] {
+    --flare-core: #e3d4ff;
+    --flare-a: #9b78d6;
+    --flare-b: #2a1340;
+    --flare-ring: rgba(30, 10, 45, 0.85);
+    --flare-glow: rgba(120, 70, 190, 0.55);
+  }
+
+  .flare[data-flare="radiant"] {
+    --flare-core: #fffdf2;
+    --flare-a: var(--color-gold);
+    --flare-b: #f5b83d;
+    --flare-ring: var(--gold-70);
+    --flare-glow: var(--gold-40);
+  }
+
+  .flare[data-flare="force"] {
+    --flare-core: #fbefff;
+    --flare-a: #d9a8ff;
+    --flare-b: #9b5cff;
+    --flare-ring: rgba(200, 140, 255, 0.85);
+    --flare-glow: rgba(150, 90, 255, 0.5);
+  }
+
+  .flare[data-flare="psychic"] {
+    --flare-core: #fff0fa;
+    --flare-a: #ff9fd8;
+    --flare-b: #e0559f;
+    --flare-ring: rgba(255, 150, 215, 0.8);
+    --flare-glow: rgba(225, 85, 160, 0.45);
+  }
+
+  .flare[data-flare="slashing"] {
+    --flare-core: #ffffff;
+    --flare-a: #e8edf2;
+    --flare-b: #9aa6b2;
+    --flare-ring: rgba(225, 232, 240, 0.7);
+    --flare-glow: rgba(190, 205, 220, 0.4);
+  }
+
+  .flare[data-flare="piercing"] {
+    --flare-core: #ffffff;
+    --flare-a: #d6f5f0;
+    --flare-b: #7fb8b0;
+    --flare-ring: rgba(200, 240, 232, 0.7);
+    --flare-glow: rgba(127, 184, 176, 0.45);
+  }
+
+  .flare[data-flare="bludgeoning"] {
+    --flare-core: #fff6e6;
+    --flare-a: #e2c9a0;
+    --flare-b: #9c7a4f;
+    --flare-ring: rgba(226, 201, 160, 0.75);
+    --flare-glow: rgba(156, 122, 79, 0.45);
+  }
+
+  .flare[data-flare="healing"] {
+    --flare-core: #f3fff6;
+    --flare-a: #9df2c4;
+    --flare-b: #34d399;
+    --flare-ring: rgba(140, 240, 190, 0.8);
+    --flare-glow: rgba(52, 211, 153, 0.45);
+  }
+
+  .flare[data-flare="arcane"] {
+    --flare-core: #f5f0ff;
+    --flare-a: var(--color-arcane);
+    --flare-b: #7c5cff;
+    --flare-ring: var(--arcane-70);
+    --flare-glow: var(--arcane-40);
+  }
+
+  /* The halo takes after the element: fire gutters, lightning strobes. */
+  .flare[data-flare="fire"] .flare-aura {
+    animation: flare-gutter 1100ms linear infinite;
+  }
+
+  .flare[data-flare="lightning"] .flare-aura {
+    animation: flare-strobe 450ms steps(1) infinite;
+  }
+
+  .flare[data-flare="fire"] .flare-field {
+    filter: blur(0.4px) drop-shadow(0 0 3px var(--flare-glow));
+  }
+
+  .flare[data-flare="lightning"] .flare-field {
+    filter: drop-shadow(0 0 1.5px var(--flare-b))
+      drop-shadow(0 0 4px var(--flare-glow));
+  }
 }
 
 /* `translate` rather than `transform`, so a transformed panel keeps its own. */
@@ -1391,6 +1855,15 @@ body {
   from {
     opacity: 0;
     translate: -8px 0;
+  }
+}
+
+/* A Dice Pouch's window opening on the set it held. */
+@keyframes pouch-reveal {
+  from {
+    opacity: 0;
+    scale: 0.92;
+    translate: 0 14px;
   }
 }
 
@@ -1847,6 +2320,481 @@ body {
 }
 
 /*
+ * Spell flares — see `.flare`. The envelope swells in, holds, and lets go
+ * wider than it arrived; everything inside starts and ends transparent, so
+ * nothing is cut off mid-motion.
+ */
+@keyframes flare-life {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+    animation-timing-function: var(--ease-glide);
+  }
+
+  16% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  68% {
+    opacity: 1;
+    transform: scale(1);
+    animation-timing-function: ease-in-out;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes flare-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  16%,
+  68% {
+    opacity: 1;
+  }
+}
+
+@keyframes flare-breathe {
+  from {
+    opacity: 0.7;
+    scale: 0.97;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1.03;
+  }
+}
+
+@keyframes flare-gutter {
+  0%,
+  100% {
+    opacity: 0.85;
+    scale: 1;
+  }
+
+  20% {
+    opacity: 1;
+    scale: 1.04;
+  }
+
+  35% {
+    opacity: 0.75;
+    scale: 0.98;
+  }
+
+  60% {
+    opacity: 1;
+    scale: 1.03;
+  }
+
+  80% {
+    opacity: 0.8;
+    scale: 0.99;
+  }
+}
+
+@keyframes flare-strobe {
+  0% {
+    opacity: 1;
+  }
+
+  12% {
+    opacity: 0.45;
+  }
+
+  20% {
+    opacity: 0.95;
+  }
+
+  55% {
+    opacity: 0.6;
+  }
+
+  70% {
+    opacity: 1;
+  }
+}
+
+@keyframes flare-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(var(--turn));
+  }
+}
+
+@keyframes flare-rise {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0.4);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translate(calc(var(--x) + var(--s) * 0.2), calc(var(--y) - 4px))
+      scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--x) + var(--s)), calc(var(--y) - 22px))
+      scale(0.3);
+  }
+}
+
+@keyframes flare-fall {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0.5);
+  }
+
+  25% {
+    opacity: 1;
+    transform: translate(var(--x), calc(var(--y) + 1px)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), calc(var(--y) + 16px)) scale(0.8, 1.2);
+  }
+}
+
+@keyframes flare-drift {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0.3);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translate(calc(var(--x) * 1.1), calc(var(--y) * 1.1)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--x) * 1.45), calc(var(--y) * 1.45))
+      scale(0.6);
+  }
+}
+
+@keyframes flare-burst {
+  0% {
+    opacity: 0;
+    transform: translate(calc(var(--x) * 0.9), calc(var(--y) * 0.9)) scale(1.4);
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--x) * 1.8), calc(var(--y) * 1.8)) scale(0.2);
+  }
+}
+
+@keyframes flare-scatter {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) rotate(0deg);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  60% {
+    opacity: 1;
+    transform: translate(calc(var(--x) * 1.55), calc(var(--y) * 1.55 - 3px))
+      rotate(140deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--x) * 1.7), calc(var(--y) * 1.7 + 8px))
+      rotate(240deg);
+  }
+}
+
+@keyframes flare-sink {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg) translate(var(--x), var(--y)) scale(0.6);
+  }
+
+  30% {
+    opacity: 0.9;
+    transform: rotate(15deg)
+      translate(calc(var(--x) * 0.88), calc(var(--y) * 0.88)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(50deg)
+      translate(calc(var(--x) * 0.6), calc(var(--y) * 0.6)) scale(0.4);
+  }
+}
+
+@keyframes flare-swirl {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg) translate(var(--x), var(--y)) scale(0.5);
+  }
+
+  40% {
+    opacity: 0.55;
+    transform: rotate(44deg)
+      translate(calc(var(--x) * 1.1), calc(var(--y) * 1.1)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(110deg)
+      translate(calc(var(--x) * 1.25), calc(var(--y) * 1.25)) scale(1.3);
+  }
+}
+
+@keyframes flare-orbit {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg) translate(var(--x), var(--y)) scale(0);
+  }
+
+  15% {
+    opacity: 1;
+    transform: rotate(33deg) translate(var(--x), var(--y)) scale(1);
+  }
+
+  85% {
+    opacity: 1;
+    transform: rotate(187deg) translate(var(--x), var(--y)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(220deg) translate(var(--x), var(--y)) scale(0.4);
+  }
+}
+
+@keyframes flare-twinkle {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) rotate(0deg) scale(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(var(--x), var(--y)) rotate(45deg) scale(1.15);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) rotate(90deg) scale(0);
+  }
+}
+
+@keyframes flare-kindle {
+  0% {
+    opacity: 0;
+    scale: 0.5 0;
+  }
+
+  20% {
+    opacity: 1;
+    scale: 1;
+  }
+
+  70% {
+    opacity: 1;
+    scale: 1;
+    animation-timing-function: ease-in;
+  }
+
+  100% {
+    opacity: 0;
+    scale: 0.7 0.3;
+  }
+}
+
+@keyframes flare-lick {
+  0% {
+    transform: skewX(-8deg) scale(1.05, 0.88);
+  }
+
+  30% {
+    transform: skewX(5deg) scale(0.93, 1.1);
+  }
+
+  65% {
+    transform: skewX(-3deg) scale(1.02, 0.97);
+  }
+
+  100% {
+    transform: skewX(9deg) scale(0.9, 1.16);
+  }
+}
+
+@keyframes flare-strike {
+  0%,
+  30%,
+  100% {
+    opacity: 0;
+  }
+
+  3%,
+  11% {
+    opacity: 1;
+  }
+
+  7% {
+    opacity: 0.25;
+  }
+
+  19% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes flare-bloom {
+  0% {
+    opacity: 0;
+    transform: rotate(-60deg) scale(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
+  75% {
+    opacity: 1;
+    transform: rotate(15deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(30deg) scale(0.6);
+  }
+}
+
+@keyframes flare-ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+    stroke-width: 3;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+    stroke-width: 0.4;
+  }
+}
+
+@keyframes flare-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
+  22% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  55% {
+    opacity: 0.7;
+  }
+
+  78% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes flare-drain {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 40;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -100;
+  }
+}
+
+@keyframes flare-thrust {
+  0% {
+    opacity: 0;
+    transform: translate(0, 4px) scale(1, 0);
+  }
+
+  25% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1, 1.15);
+  }
+
+  55% {
+    opacity: 1;
+    transform: translate(0, -2px) scale(1, 1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(0, -7px) scale(0.6, 0.4);
+  }
+}
+
+@keyframes flare-ward {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) rotate(-30deg);
+  }
+
+  25% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+
+  45% {
+    transform: scale(1.04) rotate(0deg);
+  }
+
+  65% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.18) rotate(0deg);
+  }
+}
+
+/*
  * These four are applied through `motion-safe:`, so asking for reduced motion
  * drops the animation entirely rather than flattening its keyframes the way
  * typing-caret below does. Anything a keyframe sets must therefore also have
@@ -1867,6 +2815,7 @@ body {
     }
   }
 
+  .pouch-reveal,
   .map-dialog::backdrop,
   .map-dialog[data-closing]::backdrop,
   .edit-dialog,
@@ -1915,6 +2864,20 @@ body {
   .dice-capsule,
   .dice-capsule[data-away] {
     transition: none;
+  }
+
+  /* A cast still shows in its colour: the halo fades in and out, still. */
+  .flare {
+    animation-name: flare-fade;
+  }
+
+  .flare-aura,
+  .flare[data-flare] .flare-aura {
+    animation: none;
+  }
+
+  .flare-field {
+    display: none;
   }
 
   .glow-gold,

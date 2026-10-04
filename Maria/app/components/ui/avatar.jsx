@@ -33,7 +33,8 @@ const SIZE_CLASSES = {
  */
 export default function Avatar({
   src = null,
-  colorClass,
+  colorClass = "",
+  color = null,
   size = "md",
   ring = true,
   className = "",
@@ -46,6 +47,8 @@ export default function Avatar({
       } ${SIZE_CLASSES[size] ?? SIZE_CLASSES.md} ${
         src ? "bg-surface" : colorClass
       } ${className}`}
+      // A character's colour is any hex, which no utility class can carry.
+      style={!src && color ? { backgroundColor: color } : undefined}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element

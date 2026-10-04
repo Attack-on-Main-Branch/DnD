@@ -25,7 +25,6 @@ import {
   abilityScoresOf,
   ALIGNMENTS,
   countCharacters,
-  DEFAULT_DICE_COLOR,
   MAX_PROSE_LENGTH,
   RACES,
   alignmentDetails,
@@ -41,9 +40,8 @@ import { updateCharacter } from "@/app/actions/characters";
 import AbilityPicker from "./ability-picker";
 import { createPlayerCharacter } from "./actions";
 import AvatarField from "./avatar-field";
-import { diceColorClass } from "./character-presentation";
+import { diceColorHex } from "./character-presentation";
 import ClassPicker from "./class-picker";
-import DiceColorPicker from "./dice-color-picker";
 import MaxHpBadge from "./max-hp-badge";
 import SkillPicker, { skillFormState } from "./skill-picker";
 
@@ -84,9 +82,6 @@ export default function PlayerCharacterForm({
     character ? abilityScoresOf(character) : defaultAbilityScores(),
   );
   const [skills, setSkills] = useState(() => skillFormState(character));
-  const [diceColor, setDiceColor] = useState(
-    character?.dice_color ?? DEFAULT_DICE_COLOR,
-  );
   const [backstory, setBackstory] = useState(character?.backstory ?? "");
   const [personality, setPersonality] = useState(character?.personality ?? "");
 
@@ -141,7 +136,7 @@ export default function PlayerCharacterForm({
         <AvatarField
           avatar={avatar}
           keptUrl={keptAvatarUrl}
-          colorClass={diceColorClass(diceColor)}
+          color={diceColorHex(character?.dice_color)}
           onChange={setAvatar}
           onDropKept={() => setKeptAvatarUrl(null)}
           onBusyChange={setAvatarBusy}
@@ -304,13 +299,6 @@ export default function PlayerCharacterForm({
         onChange={setAlignment}
         disabled={isPending}
         invalid={state?.field === "alignment"}
-      />
-
-      <DiceColorPicker
-        value={diceColor}
-        onChange={setDiceColor}
-        disabled={isPending}
-        invalid={state?.field === "diceColor"}
       />
 
       {/*

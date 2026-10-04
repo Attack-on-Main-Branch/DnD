@@ -270,38 +270,96 @@ export const ALIGNMENTS = [
 ];
 
 /**
- * The twelve colours a character owns. They pigment the DICE that character
- * throws, and the disc a portrait has not been hung over. Must stay in step
- * with the `characters_dice_color_check` constraint in the migrations.
+ * A character's colour: any `#rrggbb`, stored lower-case. It pigments the DICE
+ * that character throws and the disc a portrait has not been hung over. Must
+ * stay in step with the `characters_dice_color_check` constraint.
  *
- * The Dungeon Master is not on this list: the head of the table rolls the
- * house's own dice, and a chair with no character has no colour to spend.
+ * The Dungeon Master has none: the head of the table rolls the house's own
+ * dice, and a chair with no character has no colour to spend.
  */
-export const DICE_COLOR_VALUES = [
-  "rose",
-  "orange",
-  "amber",
-  "lime",
-  "emerald",
-  "teal",
-  "cyan",
-  "sky",
-  "blue",
-  "violet",
-  "fuchsia",
-  "pink",
-];
+const HEX_COLOR = /^#[0-9a-f]{6}$/;
 
-/** The first swatch, which is what the column defaults an unanswered sheet to. */
-export const DEFAULT_DICE_COLOR = DICE_COLOR_VALUES[0];
+/** What the column defaults a new sheet to. */
+export const DEFAULT_DICE_COLOR = "#e11d48";
+
+/** A typed or picked colour, normalised; null when it is not `#rrggbb`. */
+export function readDiceColor(value) {
+  const typed = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  return HEX_COLOR.test(typed) ? typed : null;
+}
 
 /**
- * Whether a slug is one of the twelve. The counterpart to `isDie` next door,
- * and for the same reason: a colour arrives at a table over a socket, where
- * nothing is trusted beyond its shape.
+ * Exactly the stored shape and nothing looser — a colour arrives at a table
+ * over a socket, where nothing is trusted beyond its shape.
  */
 export function isDiceColor(value) {
-  return DICE_COLOR_VALUES.includes(value);
+  return typeof value === "string" && HEX_COLOR.test(value);
+}
+
+/** Commonest first. */
+export const DICE_SKIN_RARITIES = ["common", "rare", "epic", "legendary"];
+
+/**
+ * What a character's dice are made of, beside the colour they come in, by
+ * rarity. Must stay in step with the `dice_skins` table, which
+ * `characters.dice_skin` references.
+ */
+const DICE_SKINS_BY_RARITY = {
+  common: ["classic", "crystal", "glass", "fade", "ornate"],
+  rare: ["metal-rimmed", "metal-inlaid", "cracked", "galaxy", "paper"],
+  epic: ["brass-rimmed", "brass-inlaid", "wood", "epoxy"],
+  legendary: [
+    "gold-rimmed",
+    "gold-inlaid",
+    "asiimov",
+    "companion",
+    "case-hardened",
+  ],
+};
+
+/** Every style, commonest first. */
+export const DICE_SKIN_VALUES = DICE_SKIN_RARITIES.flatMap(
+  (rarity) => DICE_SKINS_BY_RARITY[rarity],
+);
+
+export const DEFAULT_DICE_SKIN = DICE_SKIN_VALUES[0];
+
+/** `null` for a value that is not a style. */
+export function diceSkinRarity(value) {
+  return (
+    DICE_SKIN_RARITIES.find((rarity) =>
+      DICE_SKINS_BY_RARITY[rarity].includes(value),
+    ) ?? null
+  );
+}
+
+/** Checked like a colour, and for the same reason: it travels with a roll. */
+export function isDiceSkin(value) {
+  return DICE_SKIN_VALUES.includes(value);
+}
+
+/** The Dice tab's two fields, as its Server Action is handed them. */
+export function readDiceValues(values) {
+  return {
+    diceColor: readDiceColor(values?.diceColor),
+    diceSkin: String(values?.diceSkin ?? ""),
+  };
+}
+
+/** `null` when well-formed. */
+export function validateDice({ diceColor, diceSkin }) {
+  if (!isDiceColor(diceColor)) {
+    return { field: "diceColor", message: "Choose a dice colour." };
+  }
+
+  if (!isDiceSkin(diceSkin)) {
+    return { field: "diceSkin", message: "Choose a dice style." };
+  }
+
+  return null;
 }
 
 /* ---------------------------------------------------------------------------
@@ -583,7 +641,6 @@ export function readCharacterValues(formData) {
     archetype: String(formData.get("archetype") ?? ""),
     classId: String(formData.get("classId") ?? ""),
     alignment: String(formData.get("alignment") ?? ""),
-    diceColor: String(formData.get("diceColor") ?? ""),
 
     // An empty file input still submits a zero-byte File with no name.
     avatar: isUploadedFile(avatar) ? avatar : null,
@@ -610,7 +667,6 @@ export function validateCharacter({
   archetype,
   classId,
   alignment,
-  diceColor,
   avatar,
   abilities,
   skills,
@@ -676,10 +732,6 @@ export function validateCharacter({
 
   if (!ALIGNMENTS.some((entry) => entry.value === alignment)) {
     return { field: "alignment", message: "Choose an alignment." };
-  }
-
-  if (!DICE_COLOR_VALUES.includes(diceColor)) {
-    return { field: "diceColor", message: "Choose a dice colour." };
   }
 
   if (avatar) {

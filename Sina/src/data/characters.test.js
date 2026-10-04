@@ -7,6 +7,7 @@ import {
   insertCharacter,
   listCharacters,
   removeCharacter,
+  setCharacterDice,
   updateCharacter,
   updateCharacterHealth,
 } from "./characters.js";
@@ -265,6 +266,7 @@ describe("the query shape itself", () => {
         "class_id",
         "alignment",
         "dice_color",
+        "dice_skin",
         "avatar_url",
         "level",
         "skills",
@@ -291,7 +293,6 @@ describe("the query shape itself", () => {
       archetype: "warrior",
       classId: "fighter",
       alignment: "lawful_good",
-      diceColor: "violet",
       avatarUrl:
         "https://project.supabase.co/storage/v1/object/public/character-avatars/user-1/c-9.webp",
       abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
@@ -318,9 +319,6 @@ describe("the query shape itself", () => {
         archetype: "warrior",
         class_id: "fighter",
         alignment: "lawful_good",
-        // `color_theme` is the trigger's, not this module's — see
-        // 20260919090000_a_face_and_a_colour.sql.
-        dice_color: "violet",
         avatar_url: VALUES.avatarUrl,
         // No maximum and no current: `characters_sync_max_hp` derives one from
         // the path, the rung and the Constitution, and starts them whole.
@@ -389,6 +387,35 @@ describe("the query shape itself", () => {
   });
 });
 
+describe("setCharacterDice", () => {
+  it("sends the colour and the style to their own definer function", async () => {
+    const q = stubQuery({ data: true, error: null });
+    const result = await setCharacterDice(q, {
+      id: ARGS.id,
+      diceColor: "#00ff88",
+      diceSkin: "gold-rimmed",
+    });
+
+    assert.deepEqual(result, { data: true, error: null });
+    assert.equal(q.lastRpc.name, "set_character_dice");
+    assert.deepEqual(q.lastRpc.params, {
+      target_character: ARGS.id,
+      new_dice_color: "#00ff88",
+      new_dice_skin: "gold-rimmed",
+    });
+  });
+
+  it("reads a false answer as a refusal or a miss", async () => {
+    const { data, error } = await setCharacterDice(
+      stubQuery({ data: false, error: null }),
+      { id: ARGS.id, diceColor: "#00ff88", diceSkin: "classic" },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
+  });
+});
+
 describe("updateCharacter's parameter map", () => {
   const VALUES = {
     name: "Gandalf",
@@ -397,7 +424,6 @@ describe("updateCharacter's parameter map", () => {
     archetype: "warrior",
     classId: "fighter",
     alignment: "lawful_good",
-    diceColor: "violet",
     avatarUrl: null,
     abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
     skills: { stealth: { proficient: true, custom_bonus: null } },
@@ -418,7 +444,6 @@ describe("updateCharacter's parameter map", () => {
       new_archetype: "warrior",
       new_class_id: "fighter",
       new_alignment: "lawful_good",
-      new_dice_color: "violet",
       new_avatar_url: null,
       new_ability_str: 15,
       new_ability_dex: 14,

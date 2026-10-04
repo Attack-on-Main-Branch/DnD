@@ -152,6 +152,12 @@ highest-numbered file that touches it.
   been told about.
 - `SELECT` column lists are explicit and never include `user_id`; a test asserts
   it stays out.
+- **Dice sets are found, not chosen.** `character_dice_skins` has no write
+  policy: `open_dice_pouch` draws the set in SQL (odds mirror
+  `DICE_POUCH_ODDS`), and `guard_dice_skin` refuses a locked `dice_skin` on
+  every path. A pouch is a pack stack under the reserved slug `dice-pouch`;
+  `guard_dice_pouch` lets only the Dungeon Master add one. Its log line waits
+  for `announce_dice_skins`, called once the reel stops.
 
 ### Frontend
 
@@ -164,6 +170,36 @@ highest-numbered file that touches it.
   [character-presentation.js](Maria/app/dashboard/character-presentation.js)
   throws at module load if Sina lists an avatar colour it has no class for, and
   its Tailwind class strings must stay literal for the scanner to find them.
+- **Dice skins are painted at build time**, not drawn by hand:
+  [dice-skins.mjs](Maria/scripts/dice-skins.mjs) generates each skin's textures
+  from the stock dice meshes' UV layout on `predev`/`prebuild`, keeping the
+  meshes so the shared roll's physics never changes. A theme is repainted only
+  when its fingerprint changes — its recipe, the painting code or the stock
+  dice — so recipes are data in
+  [dice-recipes.mjs](Maria/scripts/dice-recipes.mjs), apart from the code. A
+  new skin needs a recipe there named after it, a place under its rarity in
+  Sina's `DICE_SKINS_BY_RARITY` (which `DICE_SKIN_VALUES` and
+  `lib/dice-themes.mjs` are read off), a row in the `dice_skins` table (which
+  `characters.dice_skin` references), and copy in
+  `character-presentation.js`. dice-box reads a theme's dice list before
+  loading it, so load a theme before rolling in it.
+- **dice-box is loaded through [lib/dice-box.js](Maria/lib/dice-box.js) and
+  nothing else.** It builds its physics worker's source once, when its module
+  is first evaluated, and the table can only pin a seeded worker — so a direct
+  `import()` from a new roller would leave the table with no 3D dice. Builds go
+  through its one queue too: each stands on `window.Worker` while it runs.
+- **dice-box is vendored**, at [Maria/vendor/dice-box](Maria/vendor/dice-box):
+  upstream 1.1.4 plus a physically based variant of its colour material —
+  with an `opacity` for glass — and a `turnDice` worker message that turns a
+  landed die, whole in `grimoire.patch`. Every theme `dice-assets.mjs` writes uses it
+  (`shading: "pbr"`): each ships a `surface.png` (red occlusion, green
+  roughness, blue metalness) instead of a specular map, optionally a
+  `clearCoat`, and reflects a studio the worker paints itself. A recipe's
+  `finish` is how rough each of its materials is.
+  `dice-engine.js` reaches into the physics worker inside
+  `dist/dice-box.es.js`, which the fork leaves byte for byte as published — a
+  rebuild that changes that file has changed the seeded rolls. Its README says
+  how to rebuild.
 - **Both ESLint configs turn on `no-undef` and `no-unused-vars`**, which
   `eslint-config-next` leaves off for TypeScript's sake. In a plain-JS project
   they are the only thing that catches a missing import — one shipped past a

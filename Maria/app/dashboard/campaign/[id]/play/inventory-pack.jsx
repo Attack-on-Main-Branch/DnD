@@ -8,10 +8,18 @@ import { emptyPurse } from "sina/rules/currency";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import TravellingPack from "@/app/components/ui/travelling-pack";
 
+import { announcePouch, openPouch } from "./dice-pouch-actions";
+import DicePouchOpening from "./dice-pouch-opening";
+import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
 import DmPackDrawer from "./dm-pack-drawer";
 import PlayerPackDrawer from "./player-pack-drawer";
 import TablePopover from "./table-popover";
-import { useAllPacks, useAllPurses, useContainers } from "./table-state";
+import {
+  useAllPacks,
+  useAllPurses,
+  useContainers,
+  useTableStore,
+} from "./table-state";
 import { useContainerWire } from "./use-containers";
 import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
@@ -44,7 +52,8 @@ export default function InventoryPack({
   const packs = useAllPacks();
   const purses = useAllPurses();
   const containers = useContainers();
-  const { resync } = useTableDeed(campaignId);
+  const store = useTableStore();
+  const { run, resync, send } = useTableDeed(campaignId);
 
   /* A counter, not a flag: TablePopover uses it as a `key`, and changing a key
      is what restarts a CSS animation. */
@@ -219,40 +228,96 @@ export default function InventoryPack({
     ? Object.values(packs).reduce((total, rows) => total + rows.length, 0)
     : mine.length;
 
-  return (
-    <TablePopover
-      icon={TravellingPack}
-      label={
-        carried > 0
-          ? `Inventory as ${seat.title}, ${carried} carried`
-          : `Inventory as ${seat.title}`
+  /* The pouch being opened, and the sets opened since the page was drawn: the
+     seat's list is the route's, and the next reel must not offer them again. */
+  const [opening, setOpening] = useState(null);
+  const [found, setFound] = useState([]);
+
+  const characterId = seat.characterId;
+
+  /* Asked for here, on the press, and handed to the reel as a promise — see
+     dice-pouch-opening.jsx. Painted as a pouch gone; a refusal puts it back. */
+  function openOne() {
+    if (opening || !characterId) {
+      return;
+    }
+
+    const drawn = run({
+      paint: () => store.movePack(characterId, DICE_POUCH_ITEM, -1, null),
+      work: () => openPouch(campaignId, characterId),
+      tell: () => send({ kind: "pack", characterId }),
+      want: { inventory: true, characterIds: [characterId] },
+    }).then((result) => {
+      const skin = result?.skin ?? null;
+
+      if (skin) {
+        setFound((list) => [...list, skin]);
       }
-      title={isDungeonMaster ? "The party’s packs" : `${seat.title}’s pack`}
-      count={carried}
-      arrival={arrived}
-    >
-      {isDungeonMaster ? (
-        <DmPackDrawer
-          campaignId={campaignId}
-          members={members}
-          packs={packMap}
-          purses={purseMap}
-          actorName={seat.title}
-        />
-      ) : (
-        <PlayerPackDrawer
-          campaignId={campaignId}
-          characterId={seat.characterId}
-          pack={mine}
-          purse={myPurse}
-          party={others}
-          /* The chair's own name, and only for the line shown while a write is
+
+      return skin;
+    });
+
+    setOpening({ drawn });
+  }
+
+  const announce = useCallback(() => {
+    void run({
+      work: () => announcePouch(campaignId, characterId),
+      want: { activity: true },
+    });
+  }, [campaignId, characterId, run]);
+
+  const closeOpening = useCallback(() => {
+    setOpening(null);
+  }, []);
+
+  return (
+    <>
+      <TablePopover
+        icon={TravellingPack}
+        label={
+          carried > 0
+            ? `Inventory as ${seat.title}, ${carried} carried`
+            : `Inventory as ${seat.title}`
+        }
+        title={isDungeonMaster ? "The party’s packs" : `${seat.title}’s pack`}
+        count={carried}
+        arrival={arrived}
+      >
+        {isDungeonMaster ? (
+          <DmPackDrawer
+            campaignId={campaignId}
+            members={members}
+            packs={packMap}
+            purses={purseMap}
+            actorName={seat.title}
+          />
+        ) : (
+          <PlayerPackDrawer
+            campaignId={campaignId}
+            characterId={seat.characterId}
+            pack={mine}
+            purse={myPurse}
+            party={others}
+            /* The chair's own name, and only for the line shown while a write is
              in the air. `readSeat` calls the head of the table's chair "Dungeon
              Master", which is the same string the database derives. */
-          actorName={seat.title}
+            actorName={seat.title}
+            onOpenPouch={opening ? null : openOne}
+          />
+        )}
+      </TablePopover>
+
+      {opening && (
+        <DicePouchOpening
+          drawn={opening.drawn}
+          color={seat.diceColor}
+          unlocked={[...(seat.diceSkins ?? []), ...found]}
+          onAnnounce={announce}
+          onClose={closeOpening}
         />
       )}
-    </TablePopover>
+    </>
   );
 }
 

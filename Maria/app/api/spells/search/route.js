@@ -1,6 +1,7 @@
 import { listCampaignSpells } from "sina/data/spells";
 import {
   CANTRIP_LEVEL,
+  DAMAGE_TYPES,
   MAX_SPELL_DESCRIPTION_LENGTH,
   MAX_SPELL_HIGHER_LEVEL_LENGTH,
   MAX_SPELL_LEVEL,
@@ -180,11 +181,10 @@ function durationOf(spell) {
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
-const DAMAGE_TYPE =
-  "(?:Acid|Bludgeoning|Cold|Fire|Force|Lightning|Necrotic|Piercing|Poison|Psychic|Radiant|Slashing|Thunder)";
+const DAMAGE_TYPE = `(?:${DAMAGE_TYPES.join("|")})`;
 
 /** "Acid, Cold, Fire, Lightning, or Thunder" as well as a type alone. */
-const DAMAGE_TYPES = `${DAMAGE_TYPE}(?:,? (?:or )?${DAMAGE_TYPE})*`;
+const DAMAGE_CHOICE = `${DAMAGE_TYPE}(?:,? (?:or )?${DAMAGE_TYPE})*`;
 
 /**
  * Damage the prose states without a `damage` field: "10d6 + 40 Force damage",
@@ -192,11 +192,11 @@ const DAMAGE_TYPES = `${DAMAGE_TYPE}(?:,? (?:or )?${DAMAGE_TYPE})*`;
  */
 const PROSE_DAMAGE = [
   [
-    new RegExp(`(\\d+d\\d+(?: ?\\+ ?\\d+)?) (${DAMAGE_TYPES}) damage`),
+    new RegExp(`(\\d+d\\d+(?: ?\\+ ?\\d+)?) (${DAMAGE_CHOICE}) damage`),
     (found) => ({ dice: found[1], type: found[2] }),
   ],
   [
-    new RegExp(`(${DAMAGE_TYPES}) damage equal to (\\d+d\\d+)`),
+    new RegExp(`(${DAMAGE_CHOICE}) damage equal to (\\d+d\\d+)`),
     (found) => ({ dice: found[2], type: found[1] }),
   ],
   [/tak(?:es|ing) (\d+d\d+) damage/, (found) => ({ dice: found[1], type: "" })],

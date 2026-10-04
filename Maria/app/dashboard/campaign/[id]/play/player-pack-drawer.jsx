@@ -2,7 +2,10 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { canOpenContainer } from "sina/rules/containers";
+import { isDicePouch } from "sina/rules/dice-pouch";
 import { parseQuantity } from "sina/rules/inventory";
+
+import { StepButton } from "@/app/components/ui/quantity-stepper";
 
 import { controlClasses } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
@@ -18,6 +21,7 @@ import { rowItem } from "@/app/dashboard/inventory-presentation";
 import { EmptyPack } from "@/app/dashboard/pack-item-card";
 
 import { passContainerTo } from "./chest-actions";
+import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
 import ItemSearch from "./item-search";
 import { Action, Confirm, PartyChoice, StowChoice } from "./pack-controls";
 import {
@@ -69,6 +73,7 @@ export default function PlayerPackDrawer({
   pack,
   purse,
   party,
+  onOpenPouch,
 }) {
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(null);
@@ -110,13 +115,17 @@ export default function PlayerPackDrawer({
 
   const chestTold = useCallback(() => send({ kind: "chest" }), [send]);
 
-  /* The pack itself, then one list per bag, in one pass over the rows. */
+  /* The pack itself, then one list per bag, in one pass over the rows. A Dice
+     Pouch stands apart from both: it is opened, not used, dropped or traded. */
   const carried = useMemo(() => {
     const loose = [];
     const inBags = new Map();
+    let pouch = null;
 
     for (const row of pack) {
-      if (row.container_id) {
+      if (isDicePouch(row.item_slug)) {
+        pouch = row.container_id ? pouch : row;
+      } else if (row.container_id) {
         const held = inBags.get(row.container_id);
 
         if (held) {
@@ -129,7 +138,7 @@ export default function PlayerPackDrawer({
       }
     }
 
-    return { loose, inBags };
+    return { loose, inBags, pouch };
   }, [pack]);
 
   /* Held as a slug AND the bag it was read from, so the rope in the pack is
@@ -309,10 +318,16 @@ export default function PlayerPackDrawer({
         />
       </div>
 
+      {carried.pouch && carried.pouch.quantity > 0 && (
+        <PouchShelf quantity={carried.pouch.quantity} onOpen={onOpenPouch} />
+      )}
+
       {carried.loose.length === 0 && bags.length === 0 ? (
-        <div className="mt-4">
-          <EmptyPack description="What you pick up, are given, or are handed at the table will be here." />
-        </div>
+        !carried.pouch && (
+          <div className="mt-4">
+            <EmptyPack description="What you pick up, are given, or are handed at the table will be here." />
+          </div>
+        )
       ) : (
         <>
           <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
@@ -616,5 +631,77 @@ export default function PlayerPackDrawer({
         </PopoverAside>
       )}
     </div>
+  );
+}
+
+/** The Dice Pouches in hand, and the way into one. */
+function PouchShelf({ quantity, onOpen }) {
+  return (
+    <div className="mt-4 flex items-center gap-3 rounded-xl border border-gold/40 bg-gold/5 px-3 py-2.5 shadow-[inset_0_0_20px_-10px_var(--color-gold)]">
+      <PouchGlyph className="size-9 shrink-0 text-gold" />
+
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-sm font-semibold tracking-wide text-gold">
+          {DICE_POUCH_ITEM.name}
+          {quantity > 1 && (
+            <span className="ml-1.5 font-mono text-[10px] font-normal text-ink/50 tabular-nums">
+              ×{quantity}
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-ink/55">
+          A dice set you have not found yet.
+        </p>
+      </div>
+
+      <StepButton
+        wide
+        tone="gold"
+        onClick={onOpen}
+        disabled={!onOpen}
+        label={`Open a ${DICE_POUCH_ITEM.name}`}
+      >
+        Open
+      </StepButton>
+    </div>
+  );
+}
+
+/** A drawstring pouch, gathered at the neck. */
+function PouchGlyph({ className }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <path
+        d="M11.5 10C7 13 4.5 17.5 4.5 21c0 4.5 3.5 7 8 7h7c4.5 0 8-2.5 8-7 0-3.5-2.5-8-7-11"
+        fill="currentColor"
+        fillOpacity="0.16"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.5 10h11M12.5 10 10.5 4.5M19.5 10l2-5.5M16 10V4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M16 10c-1.5 2.5-4 3.5-6.5 3M16 10c1.5 2.5 4 3.5 6.5 3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="m16 16.5 3.5 2.25v4.5L16 25.5l-3.5-2.25v-4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

@@ -22,9 +22,9 @@ import { diceMaterial, dieNotation } from "./dice-presentation";
  * the wire; each simulates the roll and reads its own dice. The number that
  * travels is only for a chair that could not throw at all.
  *
- * `color` is THIS chair's own dice, null at the head of the table. It goes out
- * with the seed, because a board joining somebody else's throw has to cast the
- * same dice as well as tumble them the same way.
+ * `color` and `skin` are THIS chair's own dice, null at the head of the
+ * table. They go out with the seed, because a board joining somebody else's
+ * throw has to cast the same dice as well as tumble them the same way.
  *
  * TWO KINDS OF BUSY, and telling them apart is most of this file.
  *
@@ -94,7 +94,7 @@ function newSeed() {
 
 const IDLE_LANES = Array.from({ length: DICE_LANES }, () => "idle");
 
-export function useDiceRoll({ color = null, onStart, onFinish }) {
+export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
   /** EACH LANE: "idle", "rolling", "settling". */
   const [stages, setStages] = useState(IDLE_LANES);
 
@@ -192,6 +192,9 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
       try {
         setLaneStage(lane, "rolling");
 
+        /* A throw that failed outright — a seed the worker never answered, a
+           world that will not build — is given up exactly as a slow one is:
+           kept, the lane would fail every throw after it the same way. */
         let thrown = await within(
           THROW_WAIT_MS,
           throwDie({
@@ -200,7 +203,7 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
             seed,
             lane,
           }),
-        ).catch(() => null);
+        ).catch(() => GAVE_UP);
 
         if (thrown === GAVE_UP) {
           abandonDice(lane);
@@ -265,13 +268,13 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
         if (seed === null) {
           const value = rollDice(die, count);
 
-          onStart({ die, count, secret: kept, seed: null, color });
+          onStart({ die, count, secret: kept, seed: null, color, skin });
           onFinish({ die, count, value, secret: kept, quiet: options?.quiet });
           options?.onLanded?.(value);
           return;
         }
 
-        onStart({ die, count, secret: kept, seed, color });
+        onStart({ die, count, secret: kept, seed, color, skin });
 
         /* A free world if there is one, and the shortest queue if there is not.
            Never dropped: this is the only board that can produce this number. */
@@ -279,24 +282,31 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
         const lane = free === -1 ? shortestLane() : free;
 
         await onLane(lane, () =>
-          turn(lane, die, count, { secret: kept, color }, seed, (settled) => {
-            const value = settled ?? rollDice(die, count);
+          turn(
+            lane,
+            die,
+            count,
+            { secret: kept, color, skin },
+            seed,
+            (settled) => {
+              const value = settled ?? rollDice(die, count);
 
-            onFinish({
-              die,
-              count,
-              value,
-              secret: kept,
-              quiet: options?.quiet,
-            });
+              onFinish({
+                die,
+                count,
+                value,
+                secret: kept,
+                quiet: options?.quiet,
+              });
 
-            /* Whoever asked for this throw, handed the face it came to rest on.
+              /* Whoever asked for this throw, handed the face it came to rest on.
                A death save is the one roll at this table whose number decides
                something in the database, and the board is a physics simulation
                — so the number travels from here rather than being generated at
                the other end. */
-            options?.onLanded?.(value);
-          }),
+              options?.onLanded?.(value);
+            },
+          ),
         );
       } finally {
         own.current = false;
@@ -306,13 +316,24 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
         }
       }
     },
-    [color, freeLane, onFinish, onLane, onStart, secret, shortestLane, turn],
+    [
+      color,
+      freeLane,
+      onFinish,
+      onLane,
+      onStart,
+      secret,
+      shortestLane,
+      skin,
+      turn,
+    ],
   );
 
   /**
-   * The same throw, joined a moment later and cast in the colour the chair that
-   * made it rolls. `land` is handed the face as the dice come to rest, which is
-   * when this screen has a number of its own.
+   * The same throw, joined a moment later and cast in the dice the chair that
+   * made it rolls — `cast` is their `{ color, skin }`. `land` is handed the
+   * face as the dice come to rest, which is when this screen has a number of
+   * its own.
    *
    * NOT QUEUED, unlike a roll of this chair's own. A mirror is a picture of
    * something happening elsewhere, and a picture four seconds late is worse
@@ -328,7 +349,7 @@ export function useDiceRoll({ color = null, onStart, onFinish }) {
       }
 
       await onLane(lane, () =>
-        turn(lane, die, count, { secret: false, color: cast }, seed, land),
+        turn(lane, die, count, { secret: false, ...cast }, seed, land),
       );
     },
     [freeLane, onLane, turn],

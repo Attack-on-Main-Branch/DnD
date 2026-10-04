@@ -28,9 +28,16 @@ import {
   classLabel,
   defaultAbilityScores,
   defaultSkills,
-  DICE_COLOR_VALUES,
+  DEFAULT_DICE_COLOR,
+  DICE_SKIN_RARITIES,
+  DICE_SKIN_VALUES,
+  diceSkinRarity,
   formatModifier,
   isDiceColor,
+  isDiceSkin,
+  readDiceColor,
+  readDiceValues,
+  validateDice,
   MAX_AVATAR_BYTES,
   MAX_ABILITY,
   MAX_NAME_LENGTH,
@@ -52,7 +59,6 @@ function validValues(overrides = {}) {
     archetype: "warrior",
     classId: "fighter",
     alignment: "lawful_good",
-    diceColor: "violet",
     avatar: null,
     abilities: defaultAbilityScores(),
     skills: defaultSkills(),
@@ -190,26 +196,12 @@ describe("validateCharacter", () => {
     );
   });
 
-  it("rejects a colour outside the palette", () => {
-    assert.equal(
-      validateCharacter(validValues({ diceColor: "beige" })).field,
-      "diceColor",
-    );
-  });
-
-  it("accepts every race and every colour the catalogue declares", () => {
+  it("accepts every race and alignment the catalogue declares", () => {
     for (const race of RACES) {
       assert.equal(
         validateCharacter(validValues({ race })),
         null,
         `${race} should be valid`,
-      );
-    }
-    for (const diceColor of DICE_COLOR_VALUES) {
-      assert.equal(
-        validateCharacter(validValues({ diceColor })),
-        null,
-        `${diceColor} should be valid`,
       );
     }
     for (const { value } of ALIGNMENTS) {
@@ -258,6 +250,65 @@ describe("readCharacterValues", () => {
     assert.equal(values.name, "");
     assert.equal(values.backstory, "");
     assert.equal(values.classId, "");
+  });
+
+  it("leaves the dice to their own tab", () => {
+    const values = readCharacterValues(
+      formData({ diceColor: "#123456", diceSkin: "metal-rimmed" }),
+    );
+    assert.equal("diceColor" in values, false);
+    assert.equal("diceSkin" in values, false);
+  });
+});
+
+describe("the dice", () => {
+  it("reads a colour from any case and stores it lower-case", () => {
+    assert.equal(readDiceColor(" #A1B2C3 "), "#a1b2c3");
+    assert.equal(readDiceColor(DEFAULT_DICE_COLOR), DEFAULT_DICE_COLOR);
+  });
+
+  it("refuses anything that is not six hex digits", () => {
+    for (const value of [
+      "#abc",
+      "a1b2c3",
+      "#a1b2c3d4",
+      "#ggg000",
+      "rose",
+      "",
+      null,
+      7,
+    ]) {
+      assert.equal(readDiceColor(value), null, String(value));
+    }
+  });
+
+  it("reads both fields, tidying the colour", () => {
+    assert.deepEqual(
+      readDiceValues({ diceColor: "#00FF88", diceSkin: "gold-rimmed" }),
+      { diceColor: "#00ff88", diceSkin: "gold-rimmed" },
+    );
+    assert.deepEqual(readDiceValues(null), { diceColor: null, diceSkin: "" });
+  });
+
+  it("accepts any colour in every style", () => {
+    for (const diceSkin of DICE_SKIN_VALUES) {
+      assert.equal(
+        validateDice({ diceColor: "#0a0b0c", diceSkin }),
+        null,
+        diceSkin,
+      );
+    }
+  });
+
+  it("names the field that is wrong", () => {
+    assert.equal(
+      validateDice({ diceColor: null, diceSkin: "classic" }).field,
+      "diceColor",
+    );
+    assert.equal(
+      validateDice({ diceColor: "#ffffff", diceSkin: "gold-plated" }).field,
+      "diceSkin",
+    );
   });
 });
 
@@ -854,17 +905,70 @@ describe("the portrait", () => {
   });
 });
 
-describe("isDiceColor", () => {
-  it("admits every slug the palette declares", () => {
-    for (const value of DICE_COLOR_VALUES) {
-      assert.equal(isDiceColor(value), true, `${value} should be a colour`);
+describe("isDiceSkin", () => {
+  it("admits every style the catalogue declares, classic first", () => {
+    assert.equal(DICE_SKIN_VALUES[0], "classic");
+    for (const value of DICE_SKIN_VALUES) {
+      assert.equal(isDiceSkin(value), true, value);
     }
   });
 
-  // The guard exists because a colour arrives at a table over a socket.
+  // A style arrives at a table over a socket, beside the colour.
   it("refuses anything else, whatever shape it arrives in", () => {
-    for (const value of ["beige", "", null, undefined, 7, {}]) {
-      assert.equal(isDiceColor(value), false);
+    for (const value of [
+      "Metal-rimmed",
+      "violet",
+      "",
+      null,
+      undefined,
+      7,
+      {},
+    ]) {
+      assert.equal(isDiceSkin(value), false);
     }
+  });
+});
+
+describe("isDiceColor", () => {
+  it("admits the stored shape", () => {
+    assert.equal(isDiceColor(DEFAULT_DICE_COLOR), true);
+    assert.equal(isDiceColor("#00ff88"), true);
+  });
+
+  // The guard exists because a colour arrives at a table over a socket, so it
+  // admits the stored shape and nothing a reader would have had to tidy.
+  it("refuses anything else, whatever shape it arrives in", () => {
+    for (const value of [
+      "#00FF88",
+      " #00ff88",
+      "rose",
+      "",
+      null,
+      undefined,
+      7,
+      {},
+    ]) {
+      assert.equal(isDiceColor(value), false, String(value));
+    }
+  });
+});
+
+describe("diceSkinRarity", () => {
+  it("gives every style exactly one rarity, listed commonest first", () => {
+    assert.equal(new Set(DICE_SKIN_VALUES).size, DICE_SKIN_VALUES.length);
+
+    const ranks = DICE_SKIN_VALUES.map((value) =>
+      DICE_SKIN_RARITIES.indexOf(diceSkinRarity(value)),
+    );
+    assert.equal(ranks.includes(-1), false);
+    assert.deepEqual(
+      ranks,
+      [...ranks].sort((a, b) => a - b),
+    );
+  });
+
+  it("has no rarity for what is not a style", () => {
+    assert.equal(diceSkinRarity("gold-plated"), null);
+    assert.equal(diceSkinRarity(undefined), null);
   });
 });
