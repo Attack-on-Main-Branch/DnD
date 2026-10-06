@@ -1,6 +1,6 @@
 {
   "name": "sina",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
@@ -25,6 +25,7 @@
     "./rules/inspiration": "./src/rules/inspiration.js",
     "./rules/level": "./src/rules/level.js",
     "./rules/rest": "./src/rules/rest.js",
+    "./rules/scene": "./src/rules/scene.js",
     "./rules/saving-throws": "./src/rules/saving-throws.js",
     "./rules/skills": "./src/rules/skills.js",
     "./rules/spells": "./src/rules/spells.js",
@@ -37,6 +38,7 @@
     "./rules/containers": "./src/rules/containers.js",
     "./rules/currency": "./src/rules/currency.js",
     "./rules/inventory": "./src/rules/inventory.js",
+    "./rules/member-looks": "./src/rules/member-looks.js",
     "./rules/account": "./src/rules/account.js",
     "./rules/notifications": "./src/rules/notifications.js",
     "./data/auth": "./src/data/auth.js",
@@ -51,12 +53,15 @@
     "./data/fog": "./src/data/fog.js",
     "./data/inspiration": "./src/data/inspiration.js",
     "./data/inventory": "./src/data/inventory.js",
+    "./data/member-looks": "./src/data/member-looks.js",
     "./data/account": "./src/data/account.js",
     "./data/notifications": "./src/data/notifications.js",
     "./data/rest": "./src/data/rest.js",
+    "./data/scenes": "./src/data/scenes.js",
     "./data/spells": "./src/data/spells.js",
     "./data/tokens": "./src/data/tokens.js",
-    "./data/xp": "./src/data/xp.js"
+    "./data/xp": "./src/data/xp.js",
+    "./services/vertex": "./src/services/vertex.js"
   },
   "scripts": {
     "lint": "eslint",

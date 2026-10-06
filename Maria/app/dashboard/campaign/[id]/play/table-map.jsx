@@ -14,6 +14,8 @@ import { HEAD_OF_TABLE } from "./dice-table";
 import { useTableMaps } from "./table-maps";
 import { useTableWire, useWireMessage } from "./table-wire";
 import MapTokens, { TokenRoll } from "./map-tokens";
+import SceneCamera from "./scene-camera";
+import { useSceneStaging } from "./scene-staging";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { MAP_MAX_HEIGHT_CLASS } from "./map-height";
 import { useMapTokens } from "./use-map-tokens";
@@ -52,6 +54,7 @@ export default function TableMap({
   faces,
   seat,
   canSweep,
+  heightClass = MAP_MAX_HEIGHT_CLASS,
   className = "",
   style,
 }) {
@@ -83,7 +86,9 @@ export default function TableMap({
   const {
     activeId,
     isWorldMap,
+    isScene,
     grid,
+    gridSettled,
     holding,
     hold,
     fog,
@@ -98,13 +103,21 @@ export default function TableMap({
     campaignId,
     mapId: activeId,
     isWorldMap,
-    ruled: grid.enabled,
+    isScene,
+    settled: gridSettled,
+    natural,
     faces,
     seat,
     canSweep,
   });
 
   const { send } = useTableWire();
+
+  const scene = useSceneStaging();
+  const staged = Boolean(
+    canSweep && scene.enabled && activeId && !isWorldMap && !isScene,
+  );
+  const camera = staged ? (scene.cameras.get(activeId) ?? null) : null;
 
   /* The ruler: where the right button was pressed, and nothing else. */
   const [measure, setMeasure] = useState(null);
@@ -228,7 +241,21 @@ export default function TableMap({
    */
   const onTap = useCallback(
     (point) => {
-      if (!point || !place) {
+      if (!point) {
+        return false;
+      }
+
+      if (staged && scene.armed) {
+        scene.place(
+          activeId,
+          point,
+          tokens.map((token) => ({ x: token.x, y: token.y })),
+        );
+
+        return true;
+      }
+
+      if (!place) {
         return false;
       }
 
@@ -249,7 +276,20 @@ export default function TableMap({
 
       return false;
     },
-    [carrying, hold, holding, ownPiece, ownToken, place, put, snap],
+    [
+      activeId,
+      carrying,
+      hold,
+      holding,
+      ownPiece,
+      ownToken,
+      place,
+      put,
+      scene,
+      snap,
+      staged,
+      tokens,
+    ],
   );
 
   const { zoomed, frameProps, imageStyle, scale, pointAt } = useMapZoom({
@@ -599,7 +639,11 @@ export default function TableMap({
            so a cursor promising one was pointing at a control that is not
            there. Zoomed in it is a hand, because then it pans. */
         className={`group relative w-fit touch-none overflow-hidden rounded-xl select-none ${
-          zoomed ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+          staged && scene.armed
+            ? "cursor-crosshair"
+            : zoomed
+              ? "cursor-grab active:cursor-grabbing"
+              : "cursor-default"
         } ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -611,7 +655,7 @@ export default function TableMap({
           // Without this the browser starts its own image drag on mousedown,
           // which cancels the pan before it begins.
           draggable={false}
-          className={`block max-w-full ${MAP_MAX_HEIGHT_CLASS}`}
+          className={`block max-w-full ${heightClass}`}
           style={imageStyle}
           onLoad={(event) => {
             const size = {
@@ -721,6 +765,19 @@ export default function TableMap({
             subscribe={mask.subscribe}
             seeThrough={canSweep}
             style={imageStyle}
+          />
+        )}
+
+        {/* Over the fog: the Dungeon Master sees through it anyway. */}
+        {camera && (
+          <SceneCamera
+            camera={camera}
+            natural={natural}
+            scale={scale}
+            layerStyle={imageStyle}
+            pointAt={pointAt}
+            onPaint={(patch) => scene.paintCamera(activeId, patch)}
+            onCommit={(patch) => scene.commitCamera(activeId, patch)}
           />
         )}
       </div>

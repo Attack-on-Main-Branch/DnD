@@ -91,6 +91,14 @@
   --color-ruby: #a01c2c;
 
   /*
+   * A natural 20's glow, as it flares over the board where the die landed:
+   * celestial amber round the app's gold. A natural 1 needs no token of its
+   * own — it burns in the combat border's rose round the sealing wax. Read by
+   * crit-flare.js, which paints in WebGL and so cannot take a class.
+   */
+  --color-crit-gold: #f59e0b;
+
+  /*
    * Arcane violet: what gold becomes while a roll is being kept back. Tailwind's
    * violet-400, so `text-violet-400` and `text-arcane` are the same ink — it is
    * named here because the meaning is "secret", not "violet", and because the

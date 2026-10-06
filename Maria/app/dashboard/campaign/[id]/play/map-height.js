@@ -55,3 +55,10 @@ export const MAP_MAX_HEIGHT_CLASS = "max-h-[clamp(16rem,100vh_-_15rem,82vh)]";
 
 /** The "no map" panel, which has no ratio to keep and takes the height flat. */
 export const MAP_HEIGHT_CLASS = "h-[clamp(16rem,100vh_-_15rem,82vh)]";
+
+/**
+ * The same ceiling at the head of the table, with room under the board for the
+ * map tools: their 2.5rem gap and the bar's own 2.75rem. See map-tools.jsx.
+ */
+export const MAP_MAX_HEIGHT_RULED_CLASS =
+  "max-h-[clamp(16rem,100vh_-_20.25rem,82vh)]";

@@ -16,6 +16,7 @@ import {
 } from "sina/data/containers";
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
+import { listSceneStaging } from "sina/data/scenes";
 import { listPartySpells } from "sina/data/spells";
 import {
   listCampaignTokenTemplates,
@@ -109,6 +110,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       features: [],
       containers: [],
       containerItems: [],
+      staging: null,
       seat: null,
       error: realFailure,
     };
@@ -145,7 +147,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
   /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs, books, sheets, held, features, placed] =
+  const [seat, packs, books, sheets, held, features, placed, staging] =
     await Promise.all([
       readSeat(supabase, campaign, members, requestedSeat, user.id),
       listPartyInventory(
@@ -187,6 +189,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
         supabase,
         pictures.map((map) => map.id),
       ),
+      // The camera and the directions answer the owner alone.
+      campaign.is_owner
+        ? listSceneStaging(supabase, id)
+        : { data: null, error: null },
     ]);
 
   if (packs.error) {
@@ -213,6 +219,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listMapPlacedTokens", placed.error);
   }
 
+  if (staging.error) {
+    logFailure("listSceneStaging", staging.error);
+  }
+
   // Logged rather than thrown on: the map is the page, and neither a party nor
   // a board that could not load is a reason to replace it with an error.
   return {
@@ -229,6 +239,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     features: features.error ? [] : features.data,
     containers: shelf,
     containerItems: held.error ? [] : held.data,
+    staging: staging.error ? null : staging.data,
     seat,
     error: null,
   };

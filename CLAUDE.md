@@ -42,8 +42,11 @@ verifies SQL, and `npm run db:list` is the only thing that catches a migration
 committed but never pushed. Maria has no test suite.
 
 Running the app needs `Maria/.env.local` (`NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and a Supabase project with the migrations
-applied; the README covers setup from a fresh clone.
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `VERTEX_PROJECT_ID` plus a Google sign-in
+for the scene painter — locally `gcloud auth application-default login`, on
+Vercel the `VERTEX_WIF_*` variables; all server-only, never `NEXT_PUBLIC_`) and
+a Supabase project with the migrations applied; the README covers setup from a
+fresh clone.
 
 ## Architecture
 
@@ -159,6 +162,19 @@ highest-numbered file that touches it.
   `guard_dice_pouch` lets only the Dungeon Master add one. Its log line waits
   for `announce_dice_skins`, called once the reel stops.
 
+- **A painted scene is a `campaign_maps` row with `is_scene`**, so the table
+  shows it like any map; `hang_scene` keeps four and evicts the oldest not on
+  the table. The sheet never sees scenes — `applyMapShelf` treats rows the
+  sheet omits as removed. The camera (`scene_cameras`) and what each piece is
+  doing (`scene_directions`) are DM-only tables, never sent on the table wire.
+  `paintScene` reads the board server-side, fetches pictures only from the
+  project's own buckets (`isOwnStorageImage`), calls Gemini on Vertex AI
+  through `sina/services/vertex`, and stores WebP made with `sharp`. Sign-in is
+  `services/google-auth.js`, by the first configured of a service-account key,
+  Vercel Workload Identity Federation (Maria passes `getVercelOidcToken` in), or
+  the gcloud ADC file; tokens are cached per instance. `env.js` must not import
+  `node:fs` — the proxy loads it.
+
 ### Frontend
 
 - **The app is dark, always.** `globals.css` redefines Tailwind's variant as
@@ -200,6 +216,16 @@ highest-numbered file that touches it.
   `dist/dice-box.es.js`, which the fork leaves byte for byte as published — a
   rebuild that changes that file has changed the seeded rolls. Its README says
   how to rebuild.
+- **A natural 20 or 1 flares from each chair's own simulation**, with nothing
+  on the wire. The physics prelude in `lib/dice-box.js` reads each step's
+  buffer and posts `RESTED_MESSAGE` with a die's pose as it falls asleep;
+  `throwDie`'s `onRest` hands that on, and
+  [crit-flare.js](Maria/app/dashboard/campaign/[id]/play/crit-flare.js) draws
+  over the dice in a Three.js canvas of its own (`plus-lighter`, so it adds
+  light), disposed when it ends — canvas off the page BEFORE its context is
+  lost, since a lost canvas draws solid white and `plus-lighter` adds that to
+  the whole map. Its camera constants are copied out of dice-box's render
+  worker — a rebuild that moves that camera must move them.
 - **Both ESLint configs turn on `no-undef` and `no-unused-vars`**, which
   `eslint-config-next` leaves off for TypeScript's sake. In a plain-JS project
   they are the only thing that catches a missing import — one shipped past a

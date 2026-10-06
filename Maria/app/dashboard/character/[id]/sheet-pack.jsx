@@ -93,7 +93,7 @@ export default function SheetPack({ items, containers, chestItems }) {
 
         {carried.loose.length === 0 ? (
           <p className="mt-2.5 text-xs text-ink/50 italic">
-            Nothing in hand — it is all in the bags below.
+            Nothing loose — it is all in the bags below.
           </p>
         ) : (
           <ul className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -106,6 +106,7 @@ export default function SheetPack({ items, containers, chestItems }) {
                     item={item}
                     quantity={held.quantity}
                     open={isOpen(item, null)}
+                    inHand={held.in_hand}
                     onOpen={() => show(item, null)}
                   />
                 </li>

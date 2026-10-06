@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { parseQuantity } from "sina/rules/inventory";
 
-import { controlClasses } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
 import {
   containerTagClasses,
@@ -17,7 +16,7 @@ import { rowItem } from "@/app/dashboard/inventory-presentation";
 
 import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
-import { Action } from "./pack-controls";
+import { Action, QuantityField } from "./pack-controls";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
 import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import {
@@ -124,7 +123,7 @@ export default function DmPackDrawer({
   }
 
   function show(item, containerId = null) {
-    setTyped("");
+    setTyped("1");
     setNote(null);
     setReading((standing) =>
       standing?.item.slug === item.slug &&
@@ -313,7 +312,7 @@ export default function DmPackDrawer({
 
                 {pack.length === 0 ? (
                   <p className="mt-2.5 text-xs text-ink/50 italic">
-                    Nothing in hand — it is all in the bags below.
+                    Nothing loose — it is all in the bags below.
                   </p>
                 ) : (
                   <ul className="mt-2.5 grid grid-cols-3 gap-2">
@@ -323,6 +322,7 @@ export default function DmPackDrawer({
                           item={rowItem(row)}
                           quantity={row.quantity}
                           open={held?.id === row.id}
+                          inHand={row.in_hand}
                           onOpen={() => show(rowItem(row), null)}
                         />
                       </li>
@@ -360,26 +360,15 @@ export default function DmPackDrawer({
         <PopoverAside>
           <ItemDetail item={open} quantity={held?.quantity}>
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-              <div className="w-20 shrink-0">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={typed}
-                  placeholder="Qty"
-                  onChange={(event) => setTyped(event.target.value)}
-                  aria-label={`How many ${open.name}`}
-                  className={controlClasses({
-                    className: "px-2 py-1 text-center tabular-nums",
-                  })}
-                />
-              </div>
-
-              {held && (
-                <p className="mr-auto text-xs text-ink/45">
-                  of {held.quantity}
-                </p>
-              )}
+              {/* No ceiling but the rules': a Dungeon Master gives as many as
+                  they like, and a take is clamped to the stack. */}
+              <QuantityField
+                value={typed}
+                onChange={setTyped}
+                name={open.name}
+                of={held?.quantity ?? null}
+                className={held ? "mr-auto" : ""}
+              />
 
               {held && selected && (
                 <Action

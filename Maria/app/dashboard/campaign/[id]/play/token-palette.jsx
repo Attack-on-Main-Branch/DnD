@@ -33,7 +33,7 @@ import { ringWorn } from "./use-map-tokens";
  * the hex on the map.
  */
 export default function TokenPalette({ members }) {
-  const { activeId, holding, hold, isWorldMap } = useTableMaps();
+  const { activeId, holding, hold, isWorldMap, isScene } = useTableMaps();
   const templates = useTokenTemplates();
   const placed = usePlacedTokens();
 
@@ -59,7 +59,8 @@ export default function TokenPalette({ members }) {
   // Everything else is offered on a battle map; the world map takes the one.
   const hand = isWorldMap ? [] : templates;
 
-  if (!isWorldMap && members.length === 0 && hand.length === 0) {
+  // A painted scene takes no pieces at all.
+  if (isScene || (!isWorldMap && members.length === 0 && hand.length === 0)) {
     return null;
   }
 

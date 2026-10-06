@@ -6,6 +6,7 @@ import {
   isPhysicsSource,
   loadDiceBox,
   queueDiceBuild,
+  RESTED_MESSAGE,
   SEED_MESSAGE,
   SEEDED_MESSAGE,
   tearDownDiceBox,
@@ -292,6 +293,68 @@ async function warmWorld(box, physics, start) {
   await box.updateConfig({ startPosition: start, settleTimeout: SETTLE_MS });
 }
 
+/**
+ * Where the dice of one throw came to rest, by the physics worker's own ids —
+ * listened for from before the throw until it has been read. See
+ * `RESTED_MESSAGE` in lib/dice-box.js.
+ */
+function hearRest(physics) {
+  const rested = new Map();
+
+  function hear(event) {
+    if (event.data?.action === RESTED_MESSAGE) {
+      rested.set(event.data.id, event.data.pose);
+    }
+  }
+
+  physics.addEventListener("message", hear);
+
+  return {
+    rested,
+    stop: () => physics.removeEventListener("message", hear),
+  };
+}
+
+/**
+ * The pose arrives from the physics worker and the face from the render
+ * worker, which reads it a step later — so the face can be first. A die still
+ * without a pose this long after is reported without one.
+ */
+const REST_GRACE_MS = 120;
+
+/**
+ * Each die of a throw: its sides, the face it shows and the pose it lies in. A
+ * die is found by `rollId` in the results and by its body's id in the physics,
+ * and `rollDiceData` is where dice-box keeps the one beside the other.
+ */
+function reportRest(box, group, hearing, onRest) {
+  const read = () =>
+    Object.values(group?.rolls ?? {}).map((roll) => ({
+      sides: roll.sides,
+      value: roll.value,
+      pose: hearing.rested.get(box.rollDiceData?.[roll.rollId]?.id) ?? null,
+    }));
+
+  const tell = (dice) => {
+    hearing.stop();
+
+    try {
+      onRest(dice);
+    } catch {
+      // A picture laid over the board never costs the roll its number.
+    }
+  };
+
+  const now = read();
+
+  if (now.every((die) => die.pose)) {
+    tell(now);
+    return;
+  }
+
+  setTimeout(() => tell(read()), REST_GRACE_MS);
+}
+
 /** One world, in a tray already announced — see `diceEngine`. */
 async function build(lane, { width, height }) {
   const DiceBox = await loadDiceBox();
@@ -455,6 +518,9 @@ export function diceEngine(lane = 0) {
  * to: that promise hands back the individual DICE, this hands back the GROUP,
  * already totalled — which is the whole answer for a d100, rolled the way a
  * table rolls percentile. Reading the first die alone would report the tens.
+ *
+ * `onRest` is handed each die's face and resting pose, for whatever is drawn
+ * over the board where it landed. Never awaited: the number goes back at once.
  */
 export async function throwDie({
   notation,
@@ -462,6 +528,7 @@ export async function throwDie({
   themeColor,
   seed,
   lane = 0,
+  onRest = null,
 }) {
   const { box, physics, ratio } = await diceEngine(lane);
 
@@ -478,18 +545,29 @@ export async function throwDie({
 
   await sow(physics, seed, bodies(notation));
 
-  await box.roll(notation, {
-    theme,
-    /* The body, cast per throw rather than per theme: dice-box paints it from
+  const hearing = onRest ? hearRest(physics) : null;
+
+  try {
+    await box.roll(notation, {
+      theme,
+      /* The body, cast per throw rather than per theme: dice-box paints it from
        this string at runtime and takes the lettering from the theme's texture,
        so twelve player colours are twelve arguments to one theme instead of
        twelve theme folders to download. See dice-presentation.js, which is
        where the choice between a character's colour and the house's is made. */
-    themeColor,
-    newStartPoint: false,
-  });
+      themeColor,
+      newStartPoint: false,
+    });
+  } catch (error) {
+    hearing?.stop();
+    throw error;
+  }
 
   const [group] = box.getRollResults();
+
+  if (hearing) {
+    reportRest(box, group, hearing, onRest);
+  }
 
   return group?.value ?? null;
 }

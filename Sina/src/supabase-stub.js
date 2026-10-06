@@ -17,6 +17,7 @@ export function stubQuery(result) {
     filters: [],
     lastInsert: null,
     lastUpdate: null,
+    lastUpsert: null,
     lastSelect: null,
     lastRpc: null,
     lastLimit: null,
@@ -32,6 +33,10 @@ export function stubQuery(result) {
     },
     update: (payload) => {
       chain.lastUpdate = payload;
+      return chain;
+    },
+    upsert: (payload, options) => {
+      chain.lastUpsert = { payload, options };
       return chain;
     },
     delete: () => chain,

@@ -24,6 +24,13 @@ export const SEED_MESSAGE = "__seed";
 export const SEEDED_MESSAGE = "__seeded";
 
 /**
+ * What the physics worker says as each die comes to rest: its id and the pose
+ * it lies in, `[x, y, z, qx, qy, qz, qw]` in the world's own units. The same
+ * pose on every chair, being the same seeded simulation.
+ */
+export const RESTED_MESSAGE = "__rested";
+
+/**
  * Prepended to the physics worker's source, where it runs before anything else
  * in that thread.
  *
@@ -37,6 +44,12 @@ export const SEEDED_MESSAGE = "__seeded";
  * another it does not — which showed as d100 agreeing about half the time while
  * every other die always did. The dice arrive on the render worker's port,
  * whose handler is wrapped as it is set.
+ *
+ * The port's `postMessage` is wrapped too, to READ each step's buffer before it
+ * is transferred away: the step a die is put to sleep writes -1 where its x
+ * would be, so the pose it had on the step before is where it lies. That
+ * is told to the main thread as `RESTED_MESSAGE`. Nothing is written, so the
+ * simulation is the one it was.
  */
 const PRELUDE = `(function () {
   var seed = 1;
@@ -100,6 +113,45 @@ const PRELUDE = `(function () {
 
   self.Date = Clock;
 
+  var poses = {};
+
+  function noteRest(view) {
+    var awake = view[0];
+
+    for (var i = 0; i < awake; i += 1) {
+      var at = i * 8 + 1;
+      var id = view[at];
+
+      if (view[at + 1] === -1) {
+        if (poses[id]) {
+          self.postMessage({ action: "${RESTED_MESSAGE}", id: id, pose: poses[id] });
+        }
+
+        delete poses[id];
+        continue;
+      }
+
+      poses[id] = [
+        view[at + 1], view[at + 2], view[at + 3],
+        view[at + 4], view[at + 5], view[at + 6], view[at + 7],
+      ];
+    }
+  }
+
+  function watch(port) {
+    var send = port.postMessage;
+
+    port.postMessage = function (message, transfer) {
+      if (message && message.action === "updates" && message.diceBuffer) {
+        noteRest(new Float32Array(message.diceBuffer));
+      }
+
+      return send.call(port, message, transfer);
+    };
+
+    count(port);
+  }
+
   function count(port) {
     var given = null;
 
@@ -134,13 +186,14 @@ const PRELUDE = `(function () {
     if (!data) return;
 
     if (data.action === "connect" && event.ports && event.ports[0]) {
-      count(event.ports[0]);
+      watch(event.ports[0]);
       return;
     }
 
     if (data.action !== "${SEED_MESSAGE}") return;
 
     seed = data.seed | 0;
+    poses = {};
     expected = data.bodies > 0 ? data.bodies : 1;
     seen = 0;
     waiting = RealDate.now();

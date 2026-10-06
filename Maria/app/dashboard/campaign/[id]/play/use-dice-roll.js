@@ -13,6 +13,7 @@ import {
   releaseDice,
   throwDie,
 } from "./dice-engine";
+import { flareCriticals } from "./crit-flare";
 import { diceMaterial, dieNotation } from "./dice-presentation";
 
 /**
@@ -189,6 +190,9 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
    */
   const turn = useCallback(
     async (lane, die, count, cast, seed, report) => {
+      // A flare is only for a throw this page watched from the start.
+      const since = performance.now();
+
       try {
         setLaneStage(lane, "rolling");
 
@@ -202,6 +206,8 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
             ...diceMaterial(cast),
             seed,
             lane,
+            // Every chair watching this throw flares the same critical.
+            onRest: (dice) => alive.current && flareCriticals(dice, since),
           }),
         ).catch(() => GAVE_UP);
 

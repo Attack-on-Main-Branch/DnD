@@ -49,11 +49,15 @@ const HEAD_OF_A_CELL = 0.5;
  * marking the spot, which on a small piece was a line drawn straight through a
  * face and a dot on top of it; leaving the piece alone says the same thing with
  * nothing added.
+ *
+ * ONLY THE TAIL. The point lands exactly where the move does — the pointer on a
+ * bare map, the cell's centre on a ruled one — so nobody has to guess which
+ * cell an arrow that stopped short was aiming at.
  */
 const TAIL_OF_A_CELL = 0.72;
 
-/** Shorter than one cell there is nothing to say yet, and no room to say it. */
-const SHORTEST_OF_A_CELL = 1.05;
+/** Room for the tail and a whole head; any shorter and the shaft runs backwards. */
+const SHORTEST_OF_A_CELL = TAIL_OF_A_CELL + HEAD_OF_A_CELL;
 
 export default function DragArrow({
   width,
@@ -208,16 +212,12 @@ function reach(width, height, from, to, size) {
   const tail = size * TAIL_OF_A_CELL;
 
   return {
-    // Clear of the piece it comes from, and stopped short of the one it points
-    // at — the arrow sits BETWEEN two tokens rather than across them.
+    // Clear of the piece it comes from, and pointing at exactly where it goes.
     start: {
       x: start.x + Math.cos(angle) * tail,
       y: start.y + Math.sin(angle) * tail,
     },
-    tip: {
-      x: end.x - Math.cos(angle) * tail,
-      y: end.y - Math.sin(angle) * tail,
-    },
+    tip: end,
     end,
     angle,
   };

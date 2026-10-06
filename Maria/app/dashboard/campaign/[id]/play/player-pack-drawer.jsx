@@ -7,7 +7,6 @@ import { parseQuantity } from "sina/rules/inventory";
 
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 
-import { controlClasses } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
 import {
   containerTagClasses,
@@ -22,12 +21,20 @@ import { EmptyPack } from "@/app/dashboard/pack-item-card";
 
 import { passContainerTo } from "./chest-actions";
 import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
+import HandSlot from "./hand-slot";
 import ItemSearch from "./item-search";
-import { Action, Confirm, PartyChoice, StowChoice } from "./pack-controls";
+import {
+  Action,
+  Confirm,
+  PartyChoice,
+  QuantityField,
+  StowChoice,
+} from "./pack-controls";
 import {
   consumePackItem,
   dropPackItem,
   handPackItem,
+  holdPackItem,
   stowPackItem,
 } from "./pack-actions";
 import PlayerChestDrawer from "./player-chest-drawer";
@@ -40,6 +47,9 @@ import {
 } from "./table-popover";
 import { useChestItems, useContainers, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
+
+/** What a dragged tile carries: its row id. */
+const PACK_DRAG_TYPE = "application/x-grimoire-pack-row";
 
 /**
  * A player's own purse, their own pack, the bags they carry and the chests
@@ -62,6 +72,12 @@ import { useTableDeed } from "./use-table-deed";
  * one that writes nothing in the log: a rope going into a bag is tidying, not
  * something that happened at the table. Handing over a BAG asks the same way
  * and lives on the section, because what moves is the bag.
+ *
+ * A TILE CAN ALSO BE DRAGGED: onto the hand to hold it, onto a bag to move it
+ * in, or onto the carried list to take it back out. A drag moves as many as the
+ * field says when that item is the one standing open, and the whole stack when
+ * it is not. Moving by drag is Move without the questions, since nothing about
+ * it is irreversible.
  *
  * ALL OF THEM PAINT BEFORE THEY WRITE, and a refusal says so in a toast, since
  * by then the panel it would have gone into has closed.
@@ -88,6 +104,15 @@ export default function PlayerPackDrawer({
   /* Undefined and not null while nothing is chosen: null IS a destination
      here — the pack itself. */
   const [stowTo, setStowTo] = useState(undefined);
+
+  /* The hand lit and waiting for the next item pressed. */
+  const [arming, setArming] = useState(false);
+
+  /* The row under the pointer, and the place it would land: "hand", "pack",
+     or a bag's id. Read from state rather than the drag's own data, which a
+     browser keeps sealed until the drop. */
+  const [dragged, setDragged] = useState(null);
+  const [dropOn, setDropOn] = useState(null);
 
   const store = useTableStore();
   const containers = useContainers();
@@ -141,6 +166,8 @@ export default function PlayerPackDrawer({
     return { loose, inBags, pouch };
   }, [pack]);
 
+  const inHand = carried.loose.find((one) => one.in_hand) ?? null;
+
   /* Held as a slug AND the bag it was read from, so the rope in the pack is
      never spent for the rope in the bag. */
   const row =
@@ -166,11 +193,13 @@ export default function PlayerPackDrawer({
     setWasOpen(panelOpen);
     setReading(null);
     setPassing(null);
+    setArming(false);
   }
 
   function show(item, containerId = null) {
+    setArming(false);
     setAsking(null);
-    setTyped("");
+    setTyped("1");
     setReading((standing) =>
       standing?.item.slug === item.slug &&
       (standing.containerId ?? null) === containerId
@@ -226,10 +255,111 @@ export default function PlayerPackDrawer({
     });
   }
 
-  /** One stack into another pocket of the same coat. No line in the log. */
-  function stow(item, quantity, to) {
-    const from = reading?.containerId ?? null;
+  /**
+   * A stack of the pack taken in hand, or null to put down what is there. No
+   * line in the log. A row painted but not yet written has no id the database
+   * knows, so it waits for the re-read.
+   */
+  function hold(target) {
+    const rowId = target?.id ?? null;
 
+    if (rowId !== null && String(rowId).startsWith("pending:")) {
+      return;
+    }
+
+    setArming(false);
+
+    if (rowId === (inHand?.id ?? null)) {
+      return;
+    }
+
+    void run({
+      paint: () => store.holdPack(characterId, rowId),
+      work: () => holdPackItem(characterId, rowId),
+      tell: () => send({ kind: "pack", characterId }),
+      want: { inventory: true, characterIds: [characterId] },
+    });
+  }
+
+  function pressHand() {
+    if (inHand) {
+      hold(null);
+      return;
+    }
+
+    setReading(null);
+    setArming((standing) => !standing);
+  }
+
+  /** A tile that can be picked up and carried to the hand, the pack or a bag. */
+  function dragProps(held) {
+    return {
+      draggable: true,
+      onDragStart: (event) => {
+        // Firefox starts no drag that carries no data.
+        event.dataTransfer.setData(PACK_DRAG_TYPE, held.id);
+        event.dataTransfer.effectAllowed = "move";
+        setDragged(held);
+      },
+      onDragEnd: () => {
+        setDragged(null);
+        setDropOn(null);
+      },
+    };
+  }
+
+  /**
+   * Somewhere a dragged tile may be let go. `accepts` is asked of the row and
+   * `land` is handed it. Leaving is only leaving when the pointer is not on
+   * one of the place's own children, which raise their own enter and leave.
+   */
+  function dropZone(place, accepts, land) {
+    const taking = Boolean(dragged) && accepts(dragged);
+
+    return {
+      taking,
+      over: taking && dropOn === place,
+      props: {
+        onDragOver: (event) => {
+          if (!taking) {
+            return;
+          }
+
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setDropOn(place);
+        },
+        onDragLeave: (event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setDropOn((standing) => (standing === place ? null : standing));
+          }
+        },
+        onDrop: (event) => {
+          if (!taking) {
+            return;
+          }
+
+          event.preventDefault();
+
+          // The tile may be gone from the list before its dragend would fire.
+          setDragged(null);
+          setDropOn(null);
+          land(pack.find((one) => one.id === dragged.id) ?? dragged);
+        },
+      },
+    };
+  }
+
+  /** A stack dropped somewhere else in the same coat: as many as the field
+      says if it is the item standing open, the whole stack if not. */
+  function stowDragged(held, to) {
+    const moving = row?.id === held.id && usable ? count : held.quantity;
+
+    stow(rowItem(held), moving, held.container_id ?? null, to);
+  }
+
+  /** One stack into another pocket of the same coat. No line in the log. */
+  function stow(item, quantity, from, to) {
     setAsking(null);
     setTyped("");
     setReading(null);
@@ -290,6 +420,15 @@ export default function PlayerPackDrawer({
     });
   }
 
+  /* Only what is loose in the pack can be held; a bag's stack comes out to the
+     pack, and any stack goes into a bag it is not already in. */
+  const handZone = dropZone("hand", (one) => !one.container_id, hold);
+  const packZone = dropZone(
+    "pack",
+    (one) => Boolean(one.container_id),
+    (one) => stowDragged(one, null),
+  );
+
   return (
     <div
       /* Shorter while an item is open under it: the two panels hang off the
@@ -297,16 +436,34 @@ export default function PlayerPackDrawer({
       className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${
         open ? POPOVER_BODY_SHORT_CLASSES : POPOVER_BODY_CLASSES
       }`}
+      /* Escape puts the waiting hand out before it closes the panel. */
+      onKeyDown={(event) => {
+        if (arming && event.key === "Escape") {
+          event.stopPropagation();
+          setArming(false);
+        }
+      }}
     >
       {/* Drawn whether or not anything is carried: an empty pack is not an
           empty purse, and neither belongs to a bag. */}
-      <div className={COIN_PANEL_CLASSES}>
-        <PlayerPurse
-          campaignId={campaignId}
-          characterId={characterId}
-          actorName={actorName}
-          purse={purse}
-          party={party}
+      <div className="flex flex-wrap items-start gap-3">
+        <div className={`max-w-full ${COIN_PANEL_CLASSES}`}>
+          <PlayerPurse
+            campaignId={campaignId}
+            characterId={characterId}
+            actorName={actorName}
+            purse={purse}
+            party={party}
+          />
+        </div>
+
+        <HandSlot
+          held={inHand}
+          arming={arming}
+          accepting={handZone.taking}
+          over={handZone.over}
+          dropProps={handZone.props}
+          onPress={pressHand}
         />
       </div>
 
@@ -329,44 +486,68 @@ export default function PlayerPackDrawer({
           </div>
         )
       ) : (
-        <>
-          <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        /* Outdented by its own padding, so the outline a drag draws round it
+           sits outside the tiles rather than shifting them. */
+        <div
+          {...packZone.props}
+          className={`-mx-2 mt-3 rounded-xl border p-2 transition duration-300 ${
+            packZone.over
+              ? "border-gold/70 bg-gold/10 shadow-[0_0_18px_var(--gold-25)]"
+              : packZone.taking
+                ? "border-dashed border-gold/55"
+                : "border-transparent"
+          }`}
+        >
+          <p className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
             {carried.loose.length} carried
           </p>
 
           {carried.loose.length === 0 ? (
             <p className="mt-2.5 text-xs text-ink/50 italic">
-              Nothing in hand — it is all in the bags below.
+              Nothing loose — it is all in the bags below.
             </p>
           ) : (
             <ul className="mt-2.5 grid grid-cols-3 gap-2">
               {carried.loose.map((held) => (
-                <li key={held.id} className="flex">
+                <li key={held.id} {...dragProps(held)} className="flex">
                   <ItemRow
                     item={rowItem(held)}
                     quantity={held.quantity}
                     open={row?.id === held.id}
-                    onOpen={() => show(rowItem(held), null)}
+                    inHand={held.in_hand}
+                    onOpen={() =>
+                      arming ? hold(held) : show(rowItem(held), null)
+                    }
                   />
                 </li>
               ))}
             </ul>
           )}
-        </>
+        </div>
       )}
 
       {bags.map((bag) => {
         const inside = carried.inBags.get(bag.id) ?? [];
         const unfolded = openBag === bag.id;
+        const zone = dropZone(
+          bag.id,
+          (one) => (one.container_id ?? null) !== bag.id,
+          (one) => stowDragged(one, bag.id),
+        );
 
         return (
           <section
             key={bag.id}
             aria-label={bag.name}
+            {...zone.props}
             /* The open one is lit, as a chosen tile is in the character
-               creator: the list below belongs to this section and no other. */
+               creator: the list below belongs to this section and no other.
+               A bag a dragged tile could go into is outlined, and ringed once
+               it is under the pointer. */
             className={`mt-3 transition duration-300 ${CONTAINER_CARD_CLASSES} ${
-              unfolded ? NESTED_CARD_SELECTED_CLASSES : ""
+              unfolded || zone.over ? NESTED_CARD_SELECTED_CLASSES : ""
+            } ${zone.over ? "ring-2 ring-gold/60" : ""} ${
+              zone.taking && !zone.over ? "border-dashed border-gold/55" : ""
             }`}
           >
             <button
@@ -399,9 +580,15 @@ export default function PlayerPackDrawer({
                     Nothing in it yet.
                   </p>
                 ) : (
-                  <ul className="grid grid-cols-3 gap-2">
+                  /* Only what is in the pack itself can be taken in hand. */
+                  <ul
+                    inert={arming}
+                    className={`grid grid-cols-3 gap-2 transition-opacity duration-300 ${
+                      arming ? "opacity-40" : ""
+                    }`}
+                  >
                     {inside.map((held) => (
-                      <li key={held.id} className="flex">
+                      <li key={held.id} {...dragProps(held)} className="flex">
                         <ItemRow
                           item={rowItem(held)}
                           quantity={held.quantity}
@@ -462,25 +649,14 @@ export default function PlayerPackDrawer({
             {row ? (
               <>
                 <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-                  {/* Width on the wrapper: `controlClasses` carries `w-full`. */}
-                  <div className="w-20 shrink-0">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      value={typed}
-                      placeholder="Qty"
-                      onChange={(event) => setTyped(event.target.value)}
-                      aria-label={`How many ${open.name}`}
-                      className={controlClasses({
-                        className: "px-2 py-1 text-center tabular-nums",
-                      })}
-                    />
-                  </div>
-
-                  <p className="mr-auto text-xs text-ink/45">
-                    of {row.quantity}
-                  </p>
+                  <QuantityField
+                    value={typed}
+                    onChange={setTyped}
+                    name={open.name}
+                    max={row.quantity}
+                    of={row.quantity}
+                    className="mr-auto"
+                  />
 
                   <Action
                     onClick={() => ask("use")}
@@ -586,7 +762,9 @@ export default function PlayerPackDrawer({
                     chosen={stowTo}
                     onChoose={setStowTo}
                     onCancel={() => ask("stow")}
-                    onConfirm={() => stow(open, count, stowTo)}
+                    onConfirm={() =>
+                      stow(open, count, row.container_id ?? null, stowTo)
+                    }
                     confirmLabel={`Move ${count} ${open.name}`}
                   >
                     Move it

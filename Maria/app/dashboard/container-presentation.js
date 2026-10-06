@@ -11,12 +11,14 @@ export const CONTAINER_KINDS = [
   {
     value: "bag",
     label: "Traveller’s Bag",
+    plural: "Traveller’s Bags",
     hint: "Carried by one character, and handed over whole.",
     placeholder: "Bag of Holding",
   },
   {
     value: "chest",
     label: "Loot Chest",
+    plural: "Loot Chests",
     hint: "Sits in the world until you reveal it to the party.",
     placeholder: "Crypt Treasure Chest",
   },

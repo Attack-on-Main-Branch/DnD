@@ -1,11 +1,14 @@
 "use client";
 
+import { MAX_ITEM_QUANTITY, parseQuantity } from "sina/rules/inventory";
+
 import Avatar from "@/app/components/ui/avatar";
+import { controlClasses } from "@/app/components/ui/field-styles";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 /**
- * The three controls a player's drawer is built out of, shared by what is in
- * the pack and what is in the purse.
+ * The controls a player's drawer is built out of, shared by what is in the
+ * pack and what is in the purse.
  *
  * They were written inline in player-pack-drawer.jsx when an item was the only
  * thing that could be used or handed over. A coin is handed over the same way,
@@ -176,5 +179,97 @@ export function PartyChoice({
         </Action>
       </div>
     </div>
+  );
+}
+
+/**
+ * How many of an item a deed takes: the field, a step either way to its left,
+ * and how many there are to its right. The caller opens it at one. A step
+ * never goes under one or over `max`; a giver has no ceiling but the rules'.
+ */
+export function QuantityField({
+  value,
+  onChange,
+  name,
+  max = MAX_ITEM_QUANTITY,
+  of = null,
+  className = "",
+}) {
+  const current = parseQuantity(value) ?? 0;
+  const ceiling = Math.max(1, Math.min(max, MAX_ITEM_QUANTITY));
+
+  function step(delta) {
+    onChange(String(Math.min(ceiling, Math.max(1, current + delta))));
+  }
+
+  return (
+    <div className={`flex shrink-0 items-center gap-2 ${className}`}>
+      {/* Stretched to the field's height, whatever the field's padding. */}
+      <div className="flex shrink-0 flex-col self-stretch overflow-hidden rounded-md border border-gold/20 bg-surface/30">
+        <Nudge
+          up
+          onClick={() => step(1)}
+          disabled={current >= ceiling}
+          label={`One more ${name}`}
+        />
+        <span aria-hidden="true" className="h-px bg-gold/20" />
+        <Nudge
+          onClick={() => step(-1)}
+          disabled={current <= 1}
+          label={`One fewer ${name}`}
+        />
+      </div>
+
+      {/* Width on the wrapper: `controlClasses` carries `w-full`. */}
+      <div className="w-16 shrink-0">
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={value}
+          placeholder="Qty"
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+              event.preventDefault();
+              step(event.key === "ArrowUp" ? 1 : -1);
+            }
+          }}
+          aria-label={`How many ${name}`}
+          className={controlClasses({
+            className: "px-2 py-1 text-center tabular-nums",
+          })}
+        />
+      </div>
+
+      {of !== null && (
+        <p className="text-sm text-ink/60 tabular-nums">of {of}</p>
+      )}
+    </div>
+  );
+}
+
+function Nudge({ up = false, onClick, disabled, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="grid w-6 flex-1 cursor-pointer place-items-center text-ink/60 transition-colors duration-300 hover:bg-gold/10 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/20 disabled:hover:bg-transparent"
+    >
+      <svg
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={`size-3 ${up ? "" : "rotate-180"}`}
+      >
+        <path d="m3 7.5 3-3 3 3" />
+      </svg>
+    </button>
   );
 }

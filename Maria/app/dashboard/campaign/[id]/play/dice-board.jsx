@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { CRIT_LAYER_ID, prepareCritFlare } from "./crit-flare";
 import { DICE_LANES, diceStageId } from "./dice-engine";
 import { useBoardCast, useDiceTable } from "./dice-table";
 
@@ -28,6 +31,16 @@ export default function DiceBoard() {
   const { stages, board } = useDiceTable();
   const cast = useBoardCast();
 
+  /* The flare's library, fetched while nobody is waiting on it rather than in
+     the moment a 20 lands. */
+  useEffect(() => {
+    const ask = window.requestIdleCallback ?? ((then) => setTimeout(then, 1));
+    const cancel = window.cancelIdleCallback ?? clearTimeout;
+    const asked = ask(() => prepareCritFlare().catch(() => {}));
+
+    return () => cancel(asked);
+  }, []);
+
   return (
     <div aria-hidden="true" style={cast.style}>
       <span
@@ -53,6 +66,13 @@ export default function DiceBoard() {
           }`}
         />
       ))}
+
+      {/* Over every lane: a critical's flare outlives the die it came off,
+          which fades on its lane's own beat. See crit-flare.js. */}
+      <div
+        id={CRIT_LAYER_ID}
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
+      />
     </div>
   );
 }

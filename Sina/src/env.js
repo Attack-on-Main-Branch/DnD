@@ -20,6 +20,9 @@ export function supabaseEnv() {
   return { url, anonKey };
 }
 
+export const DEFAULT_VERTEX_IMAGE_MODEL = "gemini-3.1-flash-image";
+export const DEFAULT_VERTEX_LOCATION = "global";
+
 /**
  * Cookie attributes for the auth cookies, applied by every client.
  *

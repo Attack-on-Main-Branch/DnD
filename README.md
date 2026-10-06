@@ -70,6 +70,58 @@ browser, and only grant what your Row Level Security policies allow.
 **Never** put the secret key — `sb_secret_…`, or the legacy `service_role` JWT
 — in this file or in any `NEXT_PUBLIC_` variable. It bypasses RLS entirely.
 
+The scene painter (the camera on the Dungeon Master's rail) paints with Gemini
+on Google Cloud's Vertex AI, billed to the project's billing account (free-trial
+credits included). In the [Google Cloud console](https://console.cloud.google.com),
+pick the project and enable the **Vertex AI API** under **APIs & Services →
+Library**. The server then signs in by the first of these it finds; with none,
+the rest of the app works and painting says it is not set up.
+
+**On your own machine — no key.** Install the
+[Google Cloud CLI](https://cloud.google.com/sdk/docs/install), then:
+
+```bash
+gcloud auth application-default login
+```
+
+```bash
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
+```
+
+Set `VERTEX_PROJECT_ID=YOUR_PROJECT_ID` in `Maria/.env.local` and restart the dev
+server. The app reads the login gcloud saved; when it expires, painting says so
+and the first command signs you in again.
+
+**On Vercel — no key either**, through Workload Identity Federation:
+
+1. **IAM & Admin → Workload Identity Federation → Create pool** (e.g. `vercel`),
+   with an **OpenID Connect** provider (e.g. `vercel`): issuer
+   `https://oidc.vercel.com/YOUR_TEAM_SLUG`, **Allowed audiences**
+   `https://vercel.com/YOUR_TEAM_SLUG`, and `google.subject` mapped to
+   `assertion.sub`.
+2. **IAM & Admin → Service accounts**: create one with the **Vertex AI User**
+   role, and no key.
+3. On that service account, grant **Workload Identity User** to
+   `principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:YOUR_TEAM_SLUG:project:YOUR_VERCEL_PROJECT:environment:production`.
+4. Set these in the Vercel project:
+
+| Variable                       | Value                                       |
+| ------------------------------ | ------------------------------------------- |
+| `VERTEX_PROJECT_ID`            | The project ID                              |
+| `VERTEX_WIF_PROJECT_NUMBER`    | The project number (IAM & Admin → Settings) |
+| `VERTEX_WIF_POOL_ID`           | The pool's ID, e.g. `vercel`                |
+| `VERTEX_WIF_PROVIDER_ID`       | The provider's ID, e.g. `vercel`            |
+| `VERTEX_SERVICE_ACCOUNT_EMAIL` | The service account's email                 |
+
+**Or with a service account key**, where your organisation allows creating one:
+put the JSON key, base64-encoded, in `VERTEX_SERVICE_ACCOUNT_KEY`. It takes
+precedence over the other two.
+
+`VERTEX_LOCATION` (default `global`) and `VERTEX_IMAGE_MODEL` (default
+`gemini-3.1-flash-image`; `gemini-3-pro-image` is sharper but slower and about
+twice the price) are optional everywhere. All of these are read on the
+server alone: never give one a `NEXT_PUBLIC_` prefix.
+
 ### 4. Create the database schema
 
 The schema lives in `Sina/supabase/migrations/`. Pick either route.
@@ -312,5 +364,9 @@ root install creates — so the install has to run with the repository root in
 view. If a build fails to resolve `sina`, that is the setting to check first.
 
 Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` under the
-project's Environment Variables. If email confirmation is on, add the
+project's Environment Variables, and the scene painter's Workload Identity
+Federation variables (see step 3 above). A
+painting can take over a minute, and the table page asks for a `maxDuration` of
+120 seconds; a plan that caps functions lower cuts a painting short. If email
+confirmation is on, add the
 deployment's full `/auth/confirm` URL to Supabase's Redirect URLs as well.

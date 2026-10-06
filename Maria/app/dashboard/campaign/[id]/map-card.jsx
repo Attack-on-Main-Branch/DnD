@@ -11,10 +11,12 @@ import {
   MAX_MAP_BYTES,
   formatBytes,
 } from "sina/rules/campaign";
+import { sceneDownloadUrl } from "sina/rules/scene";
 
 /**
  * One map, as a card: the picture at 16:9 under a vignette, its name in the
- * top-left corner, and the way to swap the picture in the bottom-right.
+ * top-left corner, and the way to swap the picture in the bottom-right — or,
+ * for a painted scene, to download it.
  *
  * ONE COMPONENT FOR TWO PLACES: the maps tab manages the shelf, the switcher
  * puts one on the board. A card with an `onChoose` is a control, one without is
@@ -27,6 +29,7 @@ export default function MapCard({
   active = false,
   onChoose = null,
   onChanged = null,
+  changeable = true,
 }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -113,30 +116,56 @@ export default function MapCard({
         {map.name}
       </span>
 
-      {map.is_world_map && (
+      {(map.is_world_map || map.is_scene) && (
         <span className="pointer-events-none absolute top-2 right-2 rounded-md border border-gold/20 bg-surface/80 px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-ink/60 uppercase">
-          World
+          {map.is_scene ? "Scene" : "World"}
         </span>
       )}
 
-      {/* A label wrapping a file input: the input is the control. */}
-      <label
-        className={`absolute right-2 bottom-2 rounded-lg border border-gold/40 bg-surface/85 px-2.5 py-1 font-display text-[11px] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
-          busy
-            ? "cursor-not-allowed opacity-60"
-            : "cursor-pointer hover:border-gold/70 hover:bg-gold/15"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={MAP_ACCEPT_ATTRIBUTE}
-          disabled={busy}
-          onChange={(event) => change(event.target.files?.[0])}
-          className="sr-only"
-        />
-        {busy ? "Working…" : "Change"}
-      </label>
+      {/* A label wrapping a file input: the input is the control. A painted
+          scene has no Change: a new one is painted instead. */}
+      {changeable && (
+        <label
+          className={`absolute right-2 bottom-2 rounded-lg border border-gold/40 bg-surface/85 px-2.5 py-1 font-display text-[11px] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
+            busy
+              ? "cursor-not-allowed opacity-60"
+              : "cursor-pointer hover:border-gold/70 hover:bg-gold/15"
+          }`}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={MAP_ACCEPT_ATTRIBUTE}
+            disabled={busy}
+            onChange={(event) => change(event.target.files?.[0])}
+            className="sr-only"
+          />
+          {busy ? "Working…" : "Change"}
+        </label>
+      )}
+
+      {map.is_scene && (
+        <a
+          href={sceneDownloadUrl(map.url, map.name)}
+          download
+          aria-label={`Download ${map.name}`}
+          title="Download"
+          className="absolute right-2 bottom-2 grid size-7 place-items-center rounded-lg border border-gold/40 bg-surface/85 text-gold transition duration-300 hover:border-gold/70 hover:bg-gold/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+        >
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-3.5"
+          >
+            <path d="M8 2.5v7.5M4.75 6.75 8 10l3.25-3.25M3 13.5h10" />
+          </svg>
+        </a>
+      )}
 
       {problem && (
         <p

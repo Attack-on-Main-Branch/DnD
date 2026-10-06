@@ -24,7 +24,6 @@ import {
 } from "sina/data/characters";
 import { moveCharacterInspiration } from "sina/data/inspiration";
 import {
-  clearMapPlacedTokens,
   moveMapToken,
   placeMapToken,
   removeMapToken,
@@ -770,33 +769,6 @@ export async function removeMapPiece(tokenId) {
       error,
       "Could not remove that piece.",
     );
-  }
-
-  return { kind: "success" };
-}
-
-/**
- * Every piece off one map, which is what ruling a free-form board does: the
- * pieces on it were put down at points the new grid knows nothing about, and
- * scattering them across the nearest cells would be the app guessing at
- * positions the Dungeon Master is about to set deliberately.
- */
-export async function sweepMapPieces(mapId) {
-  if (typeof mapId !== "string" || mapId.length === 0) {
-    return rejected("Missing map id.");
-  }
-
-  const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
-
-  if (!user) {
-    return sessionRejection("sweepMapPieces", authError);
-  }
-
-  const { error } = await clearMapPlacedTokens(supabase, { mapId });
-
-  if (error) {
-    return refusedToken("sweepMapPieces", error, "Could not clear the board.");
   }
 
   return { kind: "success" };

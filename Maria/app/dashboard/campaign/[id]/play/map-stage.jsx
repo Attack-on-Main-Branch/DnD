@@ -3,7 +3,13 @@
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
-import { MAP_HEIGHT_CLASS, MAP_MAX_WIDTH_CLASS } from "./map-height";
+import {
+  MAP_HEIGHT_CLASS,
+  MAP_MAX_HEIGHT_CLASS,
+  MAP_MAX_HEIGHT_RULED_CLASS,
+  MAP_MAX_WIDTH_CLASS,
+} from "./map-height";
+import { useMapToolsShown } from "./map-tools";
 import TableMap from "./table-map";
 import { useCombatState } from "./table-state";
 import { useTableMaps } from "./table-maps";
@@ -42,6 +48,9 @@ import { useTableMaps } from "./table-maps";
  * what is actually on the table is whatever the Dungeon Master last reached
  * for — which arrives over a socket rather than through a render. The prop is
  * still the fallback, and the only picture a table with no shelf ever shows.
+ *
+ * `canRule` is the head of the table: the map tools stand under the board for
+ * them, and the picture gives up their height.
  */
 export default function MapStage({
   url: served,
@@ -50,11 +59,13 @@ export default function MapStage({
   faces,
   seat,
   canSweep,
+  canRule = false,
   cast = null,
   children,
 }) {
   const { activeUrl } = useTableMaps();
   const { inCombat } = useCombatState();
+  const ruled = useMapToolsShown(canRule);
 
   const url = activeUrl ?? served;
 
@@ -117,6 +128,7 @@ export default function MapStage({
         faces={faces}
         seat={seat}
         canSweep={canSweep}
+        heightClass={ruled ? MAP_MAX_HEIGHT_RULED_CLASS : MAP_MAX_HEIGHT_CLASS}
         className={`relative ${MAP_CLASSES}`}
         style={MAP_DELAY}
       />

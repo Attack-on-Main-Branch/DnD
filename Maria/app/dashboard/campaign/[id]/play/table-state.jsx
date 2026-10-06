@@ -1079,23 +1079,6 @@ function createTableStore(seed) {
       commit({ ...state, tokens });
     },
 
-    /** Every piece off one map: what ruling a free-form board does. */
-    sweepTokens(mapId) {
-      const tokens = new Map(state.tokens);
-      let swept = false;
-
-      for (const [id, token] of tokens) {
-        if (token.mapId === mapId) {
-          tokens.delete(id);
-          swept = true;
-        }
-      }
-
-      if (swept) {
-        commit({ ...state, tokens });
-      }
-    },
-
     /* ---------------------------------------------------------------------
      * Packs.
      * ------------------------------------------------------------------ */
@@ -1140,6 +1123,7 @@ function createTableStore(seed) {
             quantity: Math.min(MAX_ITEM_QUANTITY, delta),
             is_custom: Boolean(item.isCustom),
             facts: item.facts ?? {},
+            in_hand: false,
             created_at: null,
           },
         ]);
@@ -1158,6 +1142,31 @@ function createTableStore(seed) {
         quantity === 0
           ? pack.filter((row) => !here(row))
           : pack.map((row) => (here(row) ? { ...row, quantity } : row)),
+      );
+    },
+
+    /** One row of a pack taken in hand and any other let go; null empties it. */
+    holdPack(characterId, rowId) {
+      const pack = state.packs[characterId];
+
+      if (!pack) {
+        return;
+      }
+
+      const target = rowId ?? null;
+
+      if (!pack.some((row) => Boolean(row.in_hand) !== (row.id === target))) {
+        return;
+      }
+
+      amend(
+        "packs",
+        characterId,
+        pack.map((row) =>
+          Boolean(row.in_hand) === (row.id === target)
+            ? row
+            : { ...row, in_hand: row.id === target },
+        ),
       );
     },
 

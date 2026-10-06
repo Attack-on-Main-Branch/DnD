@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CRITICAL_FAILURE,
+  CRITICAL_SUCCESS,
+  criticalFace,
   DICE,
   DICE_CORNERS,
   diceCorner,
@@ -176,5 +179,30 @@ describe("reading a result back", () => {
     assert.equal(readDiceResult("d7", 1, 3), null);
     assert.equal(readDiceResult("d20", 0, 3), null);
     assert.equal(readDiceResult("d20", null, 3), null);
+  });
+});
+
+describe("criticalFace", () => {
+  it("reads a natural 20 and a natural 1 off a d20", () => {
+    assert.equal(criticalFace(20, 20), CRITICAL_SUCCESS);
+    assert.equal(criticalFace(20, 1), CRITICAL_FAILURE);
+  });
+
+  it("is nothing for any other face of a d20", () => {
+    for (let face = 2; face < 20; face += 1) {
+      assert.equal(criticalFace(20, face), null);
+    }
+  });
+
+  it("is nothing on any other die, whatever it shows", () => {
+    assert.equal(criticalFace(6, 1), null);
+    assert.equal(criticalFace(12, 12), null);
+    assert.equal(criticalFace(100, 1), null);
+  });
+
+  it("refuses a face that is not a whole number", () => {
+    assert.equal(criticalFace(20, "20"), null);
+    assert.equal(criticalFace(20, null), null);
+    assert.equal(criticalFace(20, 20.5), null);
   });
 });

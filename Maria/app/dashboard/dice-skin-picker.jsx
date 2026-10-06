@@ -20,8 +20,8 @@ const LOCKED_NOTE = "Not found yet — open a Dice Pouch at the table";
  * commonest first. Pictures, not rollers: the live die beside the wall shows
  * the one that is chosen.
  *
- * A set not yet found keeps its place and its rarity's frame, greyed and
- * unnamed, and cannot be chosen — `guard_dice_skin` refuses it regardless.
+ * A set not yet found keeps its place and its rarity's frame, greyed, blurred
+ * and unnamed, and cannot be chosen — `guard_dice_skin` refuses it regardless.
  */
 export default function DiceSkinPicker({
   value,
@@ -92,7 +92,7 @@ export default function DiceSkinPicker({
                 color={color}
                 className={`aspect-square w-full max-w-28 drop-shadow-[0_10px_12px_rgba(0,0,0,0.55)] transition duration-300 ${
                   locked
-                    ? "opacity-35 brightness-75 grayscale"
+                    ? "opacity-75 blur-xs brightness-75 grayscale"
                     : "motion-safe:group-hover:scale-105"
                 }`}
               />

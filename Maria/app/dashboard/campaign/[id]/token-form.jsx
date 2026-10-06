@@ -160,9 +160,43 @@ export default function TokenForm({
 /**
  * The picture, chosen by dropping one on the disc or pressing it. A round zone
  * because a token IS round on the board — a square preview would promise a crop
- * the map never makes.
+ * the map never makes. `frame="panel"` is for a picture that is never cropped,
+ * such as a scene painter's reference: the whole of it is shown.
  */
-function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
+const FRAMES = {
+  disc: {
+    field: "items-center",
+    zone: "size-20 rounded-full",
+    fit: "object-cover",
+    scrim: "text-[10px]",
+    remove: "-top-0.5 -right-0.5",
+    problem: "max-w-40 text-center",
+    hintsWhenEmpty: true,
+  },
+  panel: {
+    field: "w-full",
+    zone: "aspect-[3/4] w-full rounded-lg",
+    fit: "object-contain",
+    scrim: "text-xs",
+    remove: "top-2 right-2",
+    problem: "",
+    hintsWhenEmpty: false,
+  },
+};
+
+export function TokenImageField({
+  image,
+  onChange,
+  onBusyChange,
+  disabled,
+  invalid,
+  compress = compressToken,
+  maxBytes = MAX_TOKEN_IMAGE_BYTES,
+  hint = `${AVATAR_EDGE}px WebP`,
+  empty = <TokenCameo />,
+  frame = "disc",
+}) {
+  const shape = FRAMES[frame];
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -206,7 +240,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
     onBusyChange(true);
 
     try {
-      const result = await compressToken(file, MAX_TOKEN_IMAGE_BYTES);
+      const result = await compress(file, maxBytes);
 
       // A newer pick started while this one was encoding; it owns the field.
       if (run !== runId.current) {
@@ -218,9 +252,9 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
         return;
       }
 
-      if (result.file.size > MAX_TOKEN_IMAGE_BYTES) {
+      if (result.file.size > maxBytes) {
         reject(
-          `That picture is ${formatBytes(result.file.size)} even after compression, over the ${formatBytes(MAX_TOKEN_IMAGE_BYTES)} limit.`,
+          `That picture is ${formatBytes(result.file.size)} even after compression, over the ${formatBytes(maxBytes)} limit.`,
         );
         return;
       }
@@ -242,7 +276,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
       : "border-gold/25 hover:border-gold/55";
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${shape.field}`}>
       <div className="relative">
         {/* A label wrapping a file input: the input is the control. */}
         <label
@@ -259,7 +293,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
               accept(event.dataTransfer.files?.[0]);
             }
           }}
-          className={`group relative grid size-20 place-items-center overflow-hidden rounded-full border border-dashed bg-surface/40 transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
+          className={`group relative grid ${shape.zone} place-items-center overflow-hidden border border-dashed bg-surface/40 transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
           } ${rim}`}
           aria-invalid={invalid || undefined}
@@ -281,19 +315,21 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
             <img
               src={image.preview}
               alt=""
-              className="absolute inset-0 size-full object-cover"
+              className={`absolute inset-0 size-full ${shape.fit}`}
             />
           ) : (
-            <TokenCameo />
+            empty
           )}
 
           {/* Always drawn and only revealed: a scrim that mounts on hover
               cannot be transitioned in, and reads as a flicker. */}
           <span
-            className={`absolute inset-0 grid place-items-center bg-surface/75 text-center font-display text-[10px] leading-tight tracking-[0.12em] text-gold uppercase transition-opacity duration-300 ${
+            className={`absolute inset-0 grid place-items-center bg-surface/75 text-center font-display ${shape.scrim} leading-tight tracking-[0.12em] text-gold uppercase transition-opacity duration-300 ${
               busy || dragging
                 ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100"
+                : image || shape.hintsWhenEmpty
+                  ? "opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100"
+                  : "opacity-0"
             }`}
           >
             {busy ? "…" : image ? "Change" : "Picture"}
@@ -313,7 +349,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
               }
             }}
             aria-label="Remove the picture"
-            className="absolute -top-0.5 -right-0.5 grid size-6 cursor-pointer place-items-center rounded-full border border-gold/30 bg-surface/90 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400"
+            className={`absolute ${shape.remove} grid size-6 cursor-pointer place-items-center rounded-full border border-gold/30 bg-surface/90 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400`}
           >
             ×
           </button>
@@ -321,12 +357,12 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
       </div>
 
       {problem ? (
-        <p role="alert" className="max-w-40 text-center text-xs text-red-400">
+        <p role="alert" className={`text-xs text-red-400 ${shape.problem}`}>
           {problem}
         </p>
       ) : (
         <p className="font-mono text-[10px] text-ink/40">
-          {image?.bytes ? formatBytes(image.bytes) : `${AVATAR_EDGE}px WebP`}
+          {image?.bytes ? formatBytes(image.bytes) : hint}
         </p>
       )}
     </div>

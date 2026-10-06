@@ -213,7 +213,7 @@ export async function removeCampaignMap(supabase, path) {
 /** `campaign_id` stays out: every read is already scoped to one campaign. */
 const MAP_COLUMNS =
   "id, name, url, is_world_map, sort_order, grid_enabled, grid_size, " +
-  "grid_luminance, fog_enabled, fog_mask_url, created_at";
+  "grid_luminance, fog_enabled, fog_mask_url, is_scene, created_at";
 
 /**
  * Every map this campaign keeps, world map first.

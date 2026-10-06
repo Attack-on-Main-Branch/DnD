@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { postgrestError, stubQuery } from "../supabase-stub.js";
 import {
   grantInventoryItem,
+  holdInHand,
   insertCampaignItem,
   listCampaignItems,
   listCharacterInventory,
@@ -78,6 +79,7 @@ describe("listCharacterInventory", () => {
 
     assert.match(query.lastSelect, /item_slug/);
     assert.match(query.lastSelect, /quantity/);
+    assert.match(query.lastSelect, /in_hand/);
     // There is no `user_id` on this table, and nothing here may invent one.
     assert.ok(!query.lastSelect.includes("user_id"));
   });
@@ -277,6 +279,53 @@ describe("moveInventoryItem", () => {
 
     assert.equal(data, null);
     assert.equal(error.reason, "not_found");
+  });
+});
+
+describe("holdInHand", () => {
+  const ROW = "6f1c3d2e-0000-4000-8000-0000000017e3";
+
+  it("names the character and the one stack taken in hand", async () => {
+    const query = stubQuery({ data: true, error: null });
+    const { data, error } = await holdInHand(query, {
+      characterId: CHARACTER,
+      itemId: ROW,
+    });
+
+    assert.equal(query.lastRpc.name, "hold_in_hand");
+    assert.deepEqual(query.lastRpc.params, {
+      target_character: CHARACTER,
+      p_item_id: ROW,
+    });
+    assert.equal(error, null);
+    assert.deepEqual(data, { itemId: ROW });
+  });
+
+  it("sends a null item to empty the hand", async () => {
+    const query = stubQuery({ data: true, error: null });
+    const { data } = await holdInHand(query, { characterId: CHARACTER });
+
+    assert.equal(query.lastRpc.params.p_item_id, null);
+    assert.deepEqual(data, { itemId: null });
+  });
+
+  it("reads false as a miss", async () => {
+    const { data, error } = await holdInHand(
+      stubQuery({ data: false, error: null }),
+      { characterId: CHARACTER, itemId: ROW },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
+  });
+
+  it("classifies a junk id rather than reporting it as a refusal", async () => {
+    const { error } = await holdInHand(stubQuery(postgrestError("22P02")), {
+      characterId: CHARACTER,
+      itemId: "pending:3",
+    });
+
+    assert.equal(error.reason, "bad_id");
   });
 });
 

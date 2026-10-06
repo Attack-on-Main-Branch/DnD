@@ -96,6 +96,13 @@ export function compressToken(file, byteCap) {
   return compressToFit(file, AVATAR_EDGE, byteCap);
 }
 
+/** A party member's reference for the scene painter: a face and a costume. */
+export const REFERENCE_EDGE = 1024;
+
+export function compressReference(file, byteCap) {
+  return compressToFit(file, REFERENCE_EDGE, byteCap);
+}
+
 /**
  * Always resolves with a usable file: if the re-encode fails or comes out
  * worse, the original is returned with `changed: false`.

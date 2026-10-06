@@ -58,9 +58,10 @@ describe("movementSpeed", () => {
 });
 
 describe("characterSize", () => {
-  it("is Small for the Halfling and the Gnome alone", () => {
+  it("is Small for the Halfling, the Gnome and the Erina alone", () => {
     assert.equal(characterSize("Halfling"), "Small");
     assert.equal(characterSize("Gnome"), "Small");
+    assert.equal(characterSize("Erina"), "Small");
   });
 
   it("answers Medium for every other race the app offers", () => {
@@ -70,7 +71,8 @@ describe("characterSize", () => {
       assert.ok(SIZES.includes(size), one);
       assert.equal(
         size,
-        ["Halfling", "Gnome"].includes(one) ? "Small" : "Medium",
+        ["Halfling", "Gnome", "Erina"].includes(one) ? "Small" : "Medium",
+        one,
       );
     }
   });

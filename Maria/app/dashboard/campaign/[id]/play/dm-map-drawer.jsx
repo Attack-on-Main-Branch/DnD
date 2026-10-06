@@ -1,11 +1,8 @@
 "use client";
 
-import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
+import { MAX_SCENES } from "sina/rules/scene";
 
 import MapCard from "../map-card";
-
-import FogRibbon from "./fog-ribbon";
-import GridRibbon from "./grid-ribbon";
 
 /**
  * The shelf, at the table. Two to a row, the one on the board wearing a lit
@@ -16,9 +13,18 @@ import GridRibbon from "./grid-ribbon";
  * is that pressing one does something: `onChoose` is what turns a listing into
  * a switcher, and it closes the drawer behind it because the answer to "which
  * map" is on the board, not in this panel.
+ *
+ * Painted scenes sit under the maps, in their own four slots. The grid and the
+ * fog are not in here: they rule the map on the table, so they sit under the
+ * board — see map-tools.jsx.
  */
 export default function DmMapDrawer({ campaignId, maps, activeId, onChoose }) {
-  if (maps.length === 0) {
+  const shelf = maps.filter((map) => !map.is_scene);
+  const scenes = maps
+    .filter((map) => map.is_scene)
+    .sort((one, two) => one.created_at.localeCompare(two.created_at));
+
+  if (shelf.length === 0) {
     return (
       <p className="px-5 py-6 text-center text-sm text-ink/50 italic">
         No maps on the shelf. Hang some on the campaign sheet and they appear
@@ -29,18 +35,8 @@ export default function DmMapDrawer({ campaignId, maps, activeId, onChoose }) {
 
   return (
     <>
-      {/* Above the shelf, because both rule whichever map is ON THE TABLE
-          rather than whichever card is under the pointer. No rule between the
-          two — they are one set of controls, and the hairline underneath is what
-          separates those from the shelf they apply to. */}
-      <GridRibbon />
-
-      <FogRibbon />
-
-      <div aria-hidden="true" className={`${FADED_RULE_CLASSES} mb-4`} />
-
       <div className="grid grid-cols-2 gap-4">
-        {maps.map((map) => (
+        {shelf.map((map) => (
           <MapCard
             key={map.id}
             campaignId={campaignId}
@@ -49,6 +45,45 @@ export default function DmMapDrawer({ campaignId, maps, activeId, onChoose }) {
             onChoose={() => onChoose(map)}
           />
         ))}
+      </div>
+
+      <div className="mt-6 flex items-baseline justify-between gap-4">
+        <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
+          Scenes
+        </h3>
+
+        <p className="font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
+          {scenes.length} of {MAX_SCENES}
+        </p>
+      </div>
+
+      <p className="mt-1 mb-3 text-xs text-ink/50">
+        {scenes.length < MAX_SCENES
+          ? "Painted from the camera in the Scene tray."
+          : "Full: the next scene replaces the oldest one not on the table."}
+      </p>
+
+      <div className="grid grid-cols-2 gap-4">
+        {scenes.map((map) => (
+          <MapCard
+            key={map.id}
+            campaignId={campaignId}
+            map={map}
+            active={map.id === activeId}
+            changeable={false}
+            onChoose={() => onChoose(map)}
+          />
+        ))}
+
+        {Array.from({ length: Math.max(0, MAX_SCENES - scenes.length) }).map(
+          (_, at) => (
+            <div
+              key={`empty-${at}`}
+              aria-hidden="true"
+              className="aspect-video rounded-xl border border-dashed border-gold/20"
+            />
+          ),
+        )}
       </div>
     </>
   );

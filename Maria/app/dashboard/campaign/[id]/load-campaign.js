@@ -10,6 +10,7 @@ import {
 } from "sina/data/containers";
 import { listPartyFeatures } from "sina/data/features";
 import { listCampaignItems } from "sina/data/inventory";
+import { listMemberLooks } from "sina/data/member-looks";
 import { listCampaignSpells } from "sina/data/spells";
 import { listCampaignTokenTemplates } from "sina/data/tokens";
 import { cache } from "react";
@@ -51,6 +52,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     spells,
     containers,
     tokens,
+    looks,
   ] = await Promise.all([
     getCampaign(supabase, { id, userId: user.id }),
     listPartyMembers(supabase, id),
@@ -60,6 +62,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     listCampaignSpells(supabase, id),
     listCampaignContainers(supabase, id),
     listCampaignTokenTemplates(supabase, id),
+    listMemberLooks(supabase, id),
   ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
@@ -114,6 +117,12 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     logFailure("listCampaignTokenTemplates", tokens.error);
   }
 
+  if (looks.error) {
+    logFailure("listMemberLooks", looks.error);
+  }
+
+  const described = looks.error ? [] : looks.data;
+
   const shelf = containers.error ? [] : containers.data;
   const roster = party.error ? [] : party.data;
 
@@ -142,9 +151,13 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   // notes tab that could not load is no reason to replace it with an error.
   return {
     campaign,
-    members: party.error ? [] : party.data,
+    members: roster.map((member) => ({
+      ...member,
+      look: described.find((one) => one.character_id === member.id) ?? null,
+    })),
     notes: notes.error ? [] : notes.data,
-    maps: maps.error ? [] : maps.data,
+    // Painted scenes belong to the table's shelf; the sheet would drop them.
+    maps: maps.error ? [] : maps.data.filter((map) => !map.is_scene),
     items: items.error ? [] : items.data,
     spells: spells.error ? [] : spells.data,
     containers: shelf,

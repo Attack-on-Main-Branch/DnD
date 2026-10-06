@@ -16,6 +16,24 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.6.0",
+    date: "2026-10-04",
+    title: "Something in hand",
+    changes: [
+      "Your pack at the table has an In hand field beside your coins. Press it and it lights up, and the next item you press goes into your hand; or drag an item straight onto it. Press it again to put the item down. What you hold stays in your pack, marked with a small hand there, on your character sheet and in the Dungeon Master’s view of your pack. Only what is loose in your pack can be held, not what is in a bag.",
+      "Items in your pack can be dragged between your bags: drop one on a bag to move it in, or on your carried items to take it back out. If the item is open, as many move as its quantity says; if not, the whole stack goes. The places it can go are outlined while you drag.",
+      "An item opened in your pack, or in the Dungeon Master’s view of one, starts at a quantity of 1, with arrows beside the field to count up and down — the arrow keys work too — and the number you have beside it is easier to read.",
+      "Dungeon Masters have a scene painter on their rail beside the board. Put a camera on a battle map, aim it, note what each creature is doing, and paint the moment as seen from head height: the map, the creatures, the party and what they are holding, in one realistic picture. Only the Dungeon Master sees the camera. Painted scenes appear under Scenes in the Maps tray, where any of them can be put on the table. Four are kept, and a new one replaces the oldest that is not on the table. A green notice tells you when a painting is finished, and every painted scene has a download button in its corner that saves the picture to your computer.",
+      "On a campaign’s Party tab, the Dungeon Master can give each member a reference picture and a short description, such as height and build, so they look the same in every painted scene. The picture is shown whole, uncropped, so a full-length one shows the whole figure.",
+      "Dice sets you have not found yet are blurred on the Dice tab, so there is no telling what they look like until one comes out of a pouch.",
+      "The Dungeon Master’s hex grid and fog of war controls have moved out of the Maps tray to a bar under the board, so they are always to hand. The bar stays on one line wherever the window has room.",
+      "The arrow for moving a piece or measuring a distance now points exactly at your pointer, or at the centre of the hex on a map with a grid, instead of stopping short of it.",
+      "Switching the hex grid on, or settling on a new size, lines every piece on the map up on the centre of its hex, and no two end up in the same one. Switching the grid on used to clear every piece off the board instead.",
+      "In the Dungeon Master’s Bags and chests tray, Traveller’s Bags and Loot Chests each fold away under a heading of their own, with an arrow that turns down as it opens.",
+      "A natural 20 or a natural 1 on a d20 now flares where the die landed, the same on every screen at the table. A natural 20 sends a golden ripple out from the die and lifts the 20 off it in light; a natural 1 does the same in flickering blood red, the red the map’s border turns in combat, its 1 burning white-hot so it reads against the red.",
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-10-04",
     title: "Dice of your own",
