@@ -156,6 +156,24 @@ describe("hitDiceRegained", () => {
 });
 
 describe("proficienciesFor", () => {
+  it("keeps a removed class proficiency removed, including an empty category", () => {
+    const held = proficienciesFor("fighter", {
+      overrides: { armor: [], weapons: ["Martial Weapons"] },
+    });
+    assert.deepEqual(held.armor, []);
+    assert.deepEqual(held.weapons, ["Martial Weapons"]);
+  });
+
+  it("edits one category while retaining defaults and additions in the others", () => {
+    const held = proficienciesFor("rogue", {
+      tools: ["Smith’s Tools"],
+      overrides: { weapons: ["Whips"] },
+    });
+    assert.deepEqual(held.weapons, ["Whips"]);
+    assert.deepEqual(held.tools, ["Thieves’ Tools", "Smith’s Tools"]);
+    assert.deepEqual(held.armor, ["Light Armor"]);
+  });
+
   it("answers for every path the archetypes offer", () => {
     for (const path of PATHS) {
       const held = proficienciesFor(path);

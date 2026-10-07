@@ -18,13 +18,8 @@ import { useTableMarks } from "./table-marks";
  * A literal, or Tailwind's scanner never sees it. The `vh` half is the guard:
  * the panel hangs off the marks and has the window's foot to clear.
  */
-export const POPOVER_BODY_CLASSES = "h-[min(36rem,64vh)]";
-
-/**
- * And how tall it stands with a SECOND panel under it: the pair hangs off the
- * marks together and has to clear the bottom of the window. A literal again.
- */
-export const POPOVER_BODY_SHORT_CLASSES = "h-[min(24rem,42vh)]";
+export const POPOVER_BODY_CLASSES =
+  "h-[min(36rem,64vh,var(--table-body-room,64vh))]";
 
 /** One node is shared by every mark, so only the open one may render into it. */
 const AsideContext = createContext({ node: null, open: false });

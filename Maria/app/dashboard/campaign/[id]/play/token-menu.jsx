@@ -10,6 +10,7 @@ import {
   surfaceClasses,
 } from "@/app/components/ui/surface";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
+import TokenHealth from "./token-health";
 
 /**
  * What the table does to a piece already standing: take it out of sight, strike
@@ -52,9 +53,11 @@ export default function TokenMenu({
   onMark,
   onLift,
   onClose,
+  onHealthChange,
 }) {
   const boxRef = useRef(null);
   const [conditions, setConditions] = useState(false);
+  const [health, setHealth] = useState(false);
   const [place, setPlace] = useState(null);
 
   /* Read out of a ref rather than closed over, so the listener below can be
@@ -126,7 +129,7 @@ export default function TokenMenu({
         Math.min(at.y, window.innerHeight - height - MARGIN),
       ),
     });
-  }, [at.x, at.y, conditions]);
+  }, [at.x, at.y, conditions, health]);
 
   // Focus moves in with the menu, or Escape has nothing to catch.
   useEffect(() => {
@@ -169,7 +172,7 @@ export default function TokenMenu({
         variant: "solid",
         glow: true,
         className: [
-          "fixed z-50 rounded-xl border-gold/30 p-1.5",
+          "fixed z-50 max-h-[calc(100dvh-24px)] overflow-y-auto rounded-xl border-gold/30 p-1.5",
           MENU_WIDTH,
           "motion-safe:animate-[tray-panel-in_180ms_var(--ease-tray)]",
         ].join(" "),
@@ -181,6 +184,21 @@ export default function TokenMenu({
 
       {commandable && (
         <>
+          {token.health && (
+            <>
+              <Rule />
+              <MenuButton
+                glyph={<span className="text-sm">♥</span>}
+                expanded={health}
+                onClick={() => setHealth((open) => !open)}
+              >
+                HP
+              </MenuButton>
+              {health && (
+                <TokenHealth token={token} onChange={onHealthChange} />
+              )}
+            </>
+          )}
           <Rule />
 
           <MenuButton

@@ -53,6 +53,7 @@ export function useTableMarks() {
 export default function TableMarks({ children }) {
   const stripRef = useRef(null);
   const boxRef = useRef(null);
+  const columnRef = useRef(null);
   const arrowRef = useRef(null);
 
   /** Every mark's button, by the id TablePopover made for itself. */
@@ -114,9 +115,10 @@ export default function TableMarks({ children }) {
     const arrow = arrowRef.current;
     const box = boxRef.current;
     const strip = stripRef.current;
+    const column = columnRef.current;
     const trigger = open ? triggers.current.get(open) : null;
 
-    if (!arrow || !box || !strip || !trigger) {
+    if (!arrow || !box || !strip || !column || !trigger) {
       return undefined;
     }
 
@@ -129,6 +131,38 @@ export default function TableMarks({ children }) {
       const across = at.left + at.width / 2 - from.left - box.clientLeft;
 
       arrow.style.translate = `calc(${across}px - 50%) -50%`;
+
+      const panel = body?.querySelector(
+        '.tab-shell[data-state="open"] .tab-panel',
+      );
+      const content = panel?.querySelector("[data-popover-body]");
+      if (!content || !under?.firstElementChild) {
+        column.style.removeProperty("--table-body-room");
+        return;
+      }
+
+      const viewport = window.visualViewport;
+      const bottom = viewport
+        ? viewport.offsetTop + viewport.height
+        : window.innerHeight;
+      const style = getComputedStyle(column);
+      const chrome =
+        panel.offsetHeight -
+        content.offsetHeight +
+        box.offsetHeight -
+        box.clientHeight;
+      const room =
+        bottom -
+        column.getBoundingClientRect().top -
+        parseFloat(style.marginTop) -
+        parseFloat(style.rowGap) -
+        under.offsetHeight -
+        chrome;
+
+      column.style.setProperty(
+        "--table-body-room",
+        `${Math.max(0, Math.floor(room))}px`,
+      );
     }
 
     place();
@@ -137,9 +171,21 @@ export default function TableMarks({ children }) {
     // the window while the marks stay in the middle.
     const observer = new ResizeObserver(place);
     observer.observe(strip);
+    observer.observe(box);
+    if (under) observer.observe(under);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place);
+    window.visualViewport?.addEventListener("resize", place);
+    window.visualViewport?.addEventListener("scroll", place);
 
-    return () => observer.disconnect();
-  }, [open]);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place);
+      window.visualViewport?.removeEventListener("resize", place);
+      window.visualViewport?.removeEventListener("scroll", place);
+    };
+  }, [open, body, under]);
 
   return (
     <MarksContext.Provider value={{ body, under, open, hold, toggle, close }}>
@@ -149,6 +195,7 @@ export default function TableMarks({ children }) {
         {/* One positioned column, so the second panel is always the first's
             width and below it. The fade is here so the two leave together. */}
         <div
+          ref={columnRef}
           className={[
             "absolute top-full left-1/2 z-40 mt-4 flex -translate-x-1/2 flex-col gap-3",
             // ↓ THE PANELS' WIDTH. Their height is whatever is open in them.

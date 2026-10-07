@@ -13,6 +13,7 @@ import { listCampaignItems } from "sina/data/inventory";
 import { listMemberLooks } from "sina/data/member-looks";
 import { listCampaignSpells } from "sina/data/spells";
 import { listCampaignTokenTemplates } from "sina/data/tokens";
+import { listTokenHealth } from "sina/data/table-adjustments";
 import { cache } from "react";
 
 import { logFailure } from "@/lib/errors";
@@ -53,6 +54,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     containers,
     tokens,
     looks,
+    tokenHealth,
   ] = await Promise.all([
     getCampaign(supabase, { id, userId: user.id }),
     listPartyMembers(supabase, id),
@@ -63,6 +65,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     listCampaignContainers(supabase, id),
     listCampaignTokenTemplates(supabase, id),
     listMemberLooks(supabase, id),
+    listTokenHealth(supabase, id, true),
   ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
@@ -116,6 +119,8 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   if (tokens.error) {
     logFailure("listCampaignTokenTemplates", tokens.error);
   }
+  if (tokenHealth.error)
+    logFailure("listTokenTemplateHealth", tokenHealth.error);
 
   if (looks.error) {
     logFailure("listMemberLooks", looks.error);
@@ -163,7 +168,14 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     containers: shelf,
     containerItems: held.error ? [] : held.data,
     features: features.error ? [] : features.data,
-    tokens: tokens.error ? [] : tokens.data,
+    tokens: tokens.error
+      ? []
+      : tokens.data.map((token) => ({
+          ...token,
+          max_hp:
+            tokenHealth.data?.find((row) => row.template_id === token.id)
+              ?.max_hp ?? null,
+        })),
     error: null,
   };
 });

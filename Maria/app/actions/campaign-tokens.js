@@ -2,13 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  insertTokenTemplate,
   listCampaignTokenTemplates,
   removeTokenImage,
   removeTokenTemplate,
-  updateTokenTemplate,
   uploadTokenImage,
 } from "sina/data/tokens";
+import {
+  listTokenHealth,
+  writeTokenTemplate,
+} from "sina/data/table-adjustments";
+import { parseTokenMaxHp, MAX_TOKEN_HP } from "sina/rules/token-health";
 import {
   MAX_CAMPAIGN_TOKENS,
   tokenImageObjectPath,
@@ -45,6 +48,7 @@ const TOKEN_COPY = {
   missing_table:
     "The campaign_token_templates table does not exist yet. Run the migrations in Sina/supabase/migrations.",
   missing_function: "That part of the app is not ready yet.",
+  not_ready: "That part of the app is not ready yet.",
   missing_column: "That part of the app is not ready yet.",
   token_denied: "The picture could not be uploaded: storage refused it.",
   token_too_large: "Storage refused that picture for being too large.",
@@ -83,6 +87,12 @@ export async function writeCampaignToken(campaignId, formData) {
   }
 
   const image = formData.get("image");
+  const maxHp = parseTokenMaxHp(formData.get("maxHp"));
+  if (maxHp === undefined)
+    return rejected(
+      `HP must be a whole number from 1 to ${MAX_TOKEN_HP}.`,
+      "maxHp",
+    );
   const { values, errors } = validateTokenTemplate({
     name: formData.get("name"),
     image,
@@ -124,11 +134,12 @@ export async function writeCampaignToken(campaignId, formData) {
     );
   }
 
-  const { data, error } = await insertTokenTemplate(supabase, {
+  const { data, error } = await writeTokenTemplate(supabase, {
     id,
     campaignId,
     name: values.name,
     imageUrl: upload.data.url,
+    maxHp,
   });
 
   if (error) {
@@ -157,6 +168,12 @@ export async function editCampaignToken(campaignId, id, formData) {
   }
 
   const image = formData.get("image");
+  const maxHp = parseTokenMaxHp(formData.get("maxHp"));
+  if (maxHp === undefined)
+    return rejected(
+      `HP must be a whole number from 1 to ${MAX_TOKEN_HP}.`,
+      "maxHp",
+    );
   const { values, errors } = validateTokenTemplate(
     { name: formData.get("name"), image },
     { requireImage: false },
@@ -216,11 +233,13 @@ export async function editCampaignToken(campaignId, id, formData) {
     imageUrl = upload.data.url;
   }
 
-  const { data, error } = await updateTokenTemplate(supabase, {
+  const { data, error } = await writeTokenTemplate(supabase, {
     id,
     campaignId,
     name: values.name,
     imageUrl,
+    maxHp,
+    editing: true,
   });
 
   if (error) {
@@ -296,7 +315,16 @@ export async function readCampaignTokens(campaignId) {
     return null;
   }
 
-  return data;
+  const health = await listTokenHealth(supabase, campaignId, true);
+  if (health.error) {
+    logFailure("readCampaignTokens/health", health.error);
+    return null;
+  }
+  return data.map((token) => ({
+    ...token,
+    max_hp:
+      health.data.find((row) => row.template_id === token.id)?.max_hp ?? null,
+  }));
 }
 
 /** Best effort, and said out loud in the log if it did not work. */

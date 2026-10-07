@@ -27,10 +27,11 @@ const STAMP_STEP = 0.34;
 export function useFogMask({ mapId, maskUrl, natural, own = null }) {
   const maskRef = useRef(null);
   const listeners = useRef(new Set());
+  const loadedMap = useRef(null);
 
-  const announce = useCallback(() => {
+  const announce = useCallback((options) => {
     for (const listener of listeners.current) {
-      listener();
+      listener(options);
     }
   }, []);
 
@@ -85,16 +86,16 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
 
     const context = canvas.getContext("2d");
 
-    /* The painter does not fetch back their own stroke: those pixels are
-       already on this canvas, and the object is served with no cache. */
-    if (own?.current && own.current === maskUrl) {
-      return undefined;
+    const switched = loadedMap.current !== mapId;
+    loadedMap.current = mapId;
+    if (switched || !maskUrl) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      announce({ immediate: true });
     }
 
-    if (!maskUrl) {
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      announce();
-
+    /* The painter does not fetch back their own stroke: those pixels are
+       already on this canvas, and the object is served with no cache. */
+    if (!maskUrl || (!switched && own?.current === maskUrl)) {
       return undefined;
     }
 

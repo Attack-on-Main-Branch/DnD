@@ -16,6 +16,25 @@
  */
 export const CHANGELOG = [
   {
+    version: "2.0.0",
+    date: "2026-10-07",
+    title: "A livelier table",
+    changes: [
+      "Immersive spell effects and natural 20/1 flares.",
+      "Custom dice colors, realistic materials, rarities and interactive previews.",
+      "DM-awarded Dice Pouches reveal unique sets; undiscovered sets stay hidden.",
+      "Hold items and drag stacks between bags and your pack.",
+      "Quantity controls for using, dropping, moving and giving items.",
+      "DM scene painting with private cameras, character references and downloads.",
+      "Optional private token HP, with damage and healing controls.",
+      "Stacked token portraits split into individually movable sectors.",
+      "Players and DMs edit proficiency capsules; Enter or clicking away saves with matching loading feedback.",
+      "Animated fog with soft edges and fading reveals, hides and visibility toggles.",
+      "DM brushes follow the cursor and paint instantly on a darker preview.",
+      "Collapsible bag and chest lists for DMs.",
+      "Shared combat backgrounds fade between gold and red.",
+      "Smoother token movement, faster navigation and live updates.",
+      "New artwork for Changeling, Erina and Kipir.",
     version: "1.7.0",
     date: "2026-10-07",
     title: "Room for the map",
@@ -80,31 +99,13 @@ export const CHANGELOG = [
       "The first thing you press on a freshly opened page no longer waits behind the live updates setting themselves up.",
     ],
     fixes: [
-      "Choosing the Mage when creating a character no longer opens taller path cards than every other class.",
-    ],
-  },
-  {
-    version: "1.3.2",
-    date: "2026-10-03",
-    title: "Everybody sees it as it happens",
-    changes: [
-      "A token reaches every other screen the moment it is let go, and glides along the arrow to where it was put rather than jumping there. The same goes for a piece taken off the board, hidden or revealed.",
-      "The table keeps up when several things happen at once. Looking things up again no longer waits in line behind your own moves, so a busy table stays quick for the Dungeon Master and the players alike.",
-    ],
-    fixes: [
-      "A token, hit point or anything else you change no longer jumps back to where it was before settling where you put it.",
-      "Dice thrown by somebody else show up again for players who had stepped away from the tab, or whose seat had changed, without reloading the page.",
-      "Dice that stop answering on one screen are given up after a few seconds, and the number goes on without them. They used to leave that player unable to roll again until they reloaded.",
-      "A change the table refuses is put back on every screen, not just yours.",
-      "Moving a hidden piece no longer flashes it onto the players’ boards.",
-    ],
-  },
-  {
-    version: "1.3.1",
-    date: "2026-10-02",
-    title: "Faces for the newcomers",
-    changes: [
-      "Changelings, Erinas and Kipirs now have their own artwork behind their cards when you choose a species, like every other species.",
+      "Item and spell details fit the screen; lists shrink only when needed.",
+      "Live changes no longer snap back; rejected updates roll back for everyone.",
+      "Shared dice recover after tab switches, seat changes and failed throws.",
+      "Moving hidden tokens keeps them hidden from players.",
+      "Grid changes keep tokens on the map and align them to cells.",
+      "Movement and measuring arrows reach their targets.",
+      "Mage path cards have consistent heights.",
     ],
   },
   {

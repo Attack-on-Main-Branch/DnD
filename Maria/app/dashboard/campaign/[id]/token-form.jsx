@@ -13,6 +13,7 @@ import {
   editCampaignToken,
   writeCampaignToken,
 } from "@/app/actions/campaign-tokens";
+import { MAX_TOKEN_HP } from "sina/rules/token-health";
 import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
 import { CHOICE_CARD_FOCUS_CLASSES } from "@/app/components/ui/field-styles";
 import FormActions from "@/app/components/ui/form-actions";
@@ -21,7 +22,7 @@ import TextField from "@/app/components/ui/text-field";
 import { AVATAR_EDGE, compressToken } from "@/lib/image-compression";
 
 /**
- * A piece for the board: a picture and a name, and nothing else to decide.
+ * A piece for the board: a picture, a name, and optional private hit points.
  *
  * WHAT COLOUR IT WEARS IS NOT ASKED HERE. One invented piece is placed as many
  * times as the encounter needs, and the rim is what tells the copies apart — so
@@ -48,6 +49,7 @@ export default function TokenForm({
   notice = null,
 }) {
   const [name, setName] = useState(editing?.name ?? "");
+  const [maxHp, setMaxHp] = useState(editing?.max_hp ?? "");
   const [image, setImage] = useState(() =>
     editing ? { preview: editing.image_url } : null,
   );
@@ -73,6 +75,7 @@ export default function TokenForm({
        assigned a File — only a DataTransfer's list. */
     const body = new FormData();
     body.set("name", name);
+    body.set("maxHp", String(maxHp));
 
     if (image.file) {
       body.set("image", image.file);
@@ -101,6 +104,7 @@ export default function TokenForm({
       }
 
       setName("");
+      setMaxHp("");
       setImage(null);
       setError(null);
       setField(null);
@@ -124,20 +128,37 @@ export default function TokenForm({
         />
 
         <div className="min-w-56 flex-1">
-          <TextField
-            label="Name"
-            value={name}
-            maxLength={MAX_TOKEN_NAME_LENGTH}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Goblin"
-            disabled={blocked}
-            invalid={field === "name"}
-            aria-describedby={FEEDBACK_ID}
-          />
-
+          <div className="grid grid-cols-[minmax(0,1fr)_9rem] items-end gap-3">
+            <TextField
+              label="Name"
+              value={name}
+              maxLength={MAX_TOKEN_NAME_LENGTH}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Goblin"
+              disabled={blocked}
+              invalid={field === "name"}
+              aria-describedby={FEEDBACK_ID}
+            />
+            <TextField
+              label="Hit points"
+              type="number"
+              min={1}
+              max={MAX_TOKEN_HP}
+              step={1}
+              value={maxHp}
+              onChange={(event) => setMaxHp(event.target.value)}
+              placeholder="Optional"
+              disabled={blocked}
+              invalid={field === "maxHp"}
+              aria-describedby={FEEDBACK_ID}
+            />
+          </div>
           <p className="mt-2 text-xs text-ink/50">
             It joins the palette at the table, under the party. Put it down as
             many times as you need — each copy takes a rim colour of its own.
+          </p>
+          <p className="mt-2 text-xs text-ink/50">
+            Each new copy starts at full HP. Only you can see and change it.
           </p>
         </div>
       </div>

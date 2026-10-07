@@ -3,6 +3,8 @@
 import { CONDITIONS } from "sina/rules/conditions";
 
 import MapToken from "./map-token";
+import { tokenSectors } from "@/lib/token-sectors";
+import { useTokenHealth } from "./use-token-health";
 
 /**
  * The pieces on the board, and nothing else — where they came from is
@@ -32,7 +34,15 @@ export default function MapTokens({
   onLift = null,
   cell = null,
   muted = false,
+  campaignId,
+  canSweep = false,
 }) {
+  const sectors = cell ? tokenSectors(tokens) : new Map();
+  const { health, refresh } = useTokenHealth(
+    campaignId,
+    canSweep,
+    tokens.map((token) => token.id).join(","),
+  );
   return (
     // Announced by TokenRoll instead: nothing inside a `role="button"` is read
     // out, and the map is one.
@@ -44,7 +54,9 @@ export default function MapTokens({
       {tokens.map((token) => (
         <MapToken
           key={token.id}
-          token={token}
+          token={{ ...token, health: health[token.id] }}
+          sector={sectors.get(token.id)}
+          onHealthChange={refresh}
           scale={scale}
           cell={cell}
           muted={muted}

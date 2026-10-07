@@ -9,7 +9,58 @@
  */
 
 /** One cast, from first light to gone. Handed to the CSS as `--flare-life`. */
-export const FLARE_MS = 2600;
+export const FLARE_MS = 3200;
+
+const VAPOR = { trail: "vapor", count: 7, mist: 8 };
+const ENERGY = { trail: "orbit", count: 4, mist: 4, seal: true };
+const IMPACT = { trail: "streak", count: 9, mist: 3 };
+
+export const FLARE_ATMOSPHERES = {
+  fire: { ...VAPOR, count: 9 },
+  cold: { ...VAPOR, trail: "frost" },
+  lightning: { trail: "arc", count: 7, mist: 3 },
+  thunder: { ...IMPACT, trail: "wave" },
+  acid: VAPOR,
+  poison: { ...VAPOR, mist: 12 },
+  necrotic: { ...VAPOR, trail: "drain" },
+  radiant: { ...ENERGY, trail: "streak", count: 12 },
+  force: ENERGY,
+  psychic: { ...ENERGY, count: 6 },
+  slashing: { ...IMPACT, trail: "orbit", count: 3 },
+  piercing: IMPACT,
+  bludgeoning: IMPACT,
+  healing: { ...ENERGY, trail: "vapor", mist: 7 },
+  arcane: ENERGY,
+};
+
+const TRAILS = {
+  vapor: "M-4-23C-14-31 9-34 0-44C-4-49-1-53 3-57",
+  frost: "M-3-25C-14-33 13-36 3-44C0-47-6-46-8-50",
+  drain: "M-7-50C12-46-12-35 0-25",
+  orbit: "M-32-13C-28-40 15-47 34-20",
+  arc: "M0-25L-4-30L2-33L-3-39L4-44L1-51M-3-39L-10-40L-13-46M2-33L8-35L11-40",
+  streak: "M0-28L0-47",
+  wave: "M-17-31Q0-42 17-31",
+};
+
+export function atmosphereTrails(flare) {
+  const { trail, count } = FLARE_ATMOSPHERES[flare];
+
+  return Array.from({ length: count }, (_, index) => ({
+    d: TRAILS[trail],
+    transform: `rotate(${round((index * 360) / count + index * 7)}) scale(${0.85 + (index % 3) * 0.1})`,
+    delay: 180 + ((index * 5) % count) * 115,
+    duration: 1300 + (index % 3) * 230,
+  }));
+}
+
+export const SEAL_MARKS = Array.from({ length: 12 }, (_, index) => ({
+  transform: `rotate(${index * 30}) translate(0 -35)`,
+  d:
+    index % 2
+      ? "M-1.4 1L0-2L1.4 1M0-2V2"
+      : "M-1.5-1L0 1L1.5-1M-1.5 1L0 3L1.5 1",
+}));
 
 const round = (value) => Math.round(value * 100) / 100;
 
@@ -60,8 +111,8 @@ const PATHS = {
     "M0 1.5C-5.2 1.5-6-3.6-4.6-8C-3.6-11.4-4-15-3.2-18.6C-2.6-15.6-1-14.2.2-13C.8-16.4 2-19 2.8-21.4C4.6-16.8 6-13 5.8-8.4C5.6-3 3.6 1.5 0 1.5Z",
   ],
   bolt: [
-    "M0 0L-2.2-5L1.6-8.4L-1.4-13L2.2-16.6L-.6-21",
-    "M0 0L2-4.6L-1.8-8L1.4-12.6L-2-16L.4-20.4",
+    "M0 0L-2.2-5L1.6-8.4L-1.4-13L2.2-16.6L-.6-21M-1.4-13L-6-15L-7-19M1.6-8.4L6-11L5-14",
+    "M0 0L2-4.6L-1.8-8L1.4-12.6L-2-16L.4-20.4M1.4-12.6L7-15L6-18M-1.8-8L-5-9L-7-13",
   ],
   crystal: [
     "M0-5.5V5.5M-4.8-2.75L4.8 2.75M-4.8 2.75L4.8-2.75M-1.5-4.4L0-3L1.5-4.4M-1.5 4.4L0 3L1.5 4.4",
@@ -74,6 +125,7 @@ const PATHS = {
   star: ["M0-3.6Q.5-.5 3.6 0Q.5.5 0 3.6Q-.5.5-3.6 0Q-.5-.5 0-3.6Z"],
   drop: ["M0-2.6C1.1-1 1.7 0 1.7.9A1.7 1.7 0 0 1-1.7.9C-1.7 0-1.1-1 0-2.6Z"],
   plus: ["M0-2.6V2.6M-2.6 0H2.6"],
+  petal: ["M0 0C-5-4-3-9 0-12C3-9 5-4 0 0ZM0-1V-8"],
   chunk: ["M-1.6-1.2L1.3-1.7L1.8 1.1L-1 1.7Z"],
 };
 
@@ -384,8 +436,8 @@ export const FLARE_RECIPES = {
   healing: [
     {
       kind: "mote",
-      shape: "plus",
-      count: 7,
+      shape: "petal",
+      count: 9,
       at: 24,
       motion: "rise",
       spread: 1500,

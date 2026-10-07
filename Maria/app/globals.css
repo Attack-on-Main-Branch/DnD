@@ -1463,6 +1463,8 @@ body {
    * is the face's own, grown so the rim sits at radius 26 of the SVG's 100.
    */
   .flare {
+    --flare-ring: color-mix(in srgb, var(--flare-a) 80%, transparent);
+    --flare-glow: color-mix(in srgb, var(--flare-b) 50%, transparent);
     position: absolute;
     inset: -46%;
     z-index: 10;
@@ -1476,12 +1478,107 @@ body {
     border-radius: 9999px;
     background: radial-gradient(
       circle closest-side,
-      transparent 44%,
-      var(--flare-ring) 53%,
-      var(--flare-glow) 60%,
-      transparent 84%
+      transparent 42%,
+      var(--flare-ring) 51%,
+      var(--flare-glow) 59%,
+      transparent 90%
     );
     animation: flare-breathe 900ms ease-in-out infinite alternate;
+  }
+
+  .flare-light {
+    position: absolute;
+    inset: 22%;
+    border-radius: 50%;
+    box-shadow:
+      inset 0 0 12px var(--flare-glow),
+      0 0 10px var(--flare-ring),
+      0 0 28px var(--flare-glow);
+    background: radial-gradient(
+      circle at 50% 80%,
+      var(--flare-glow),
+      transparent 65%
+    );
+    mix-blend-mode: screen;
+    animation: flare-illumination var(--flare-life) ease-out both;
+  }
+
+  .flare-shockwave {
+    position: absolute;
+    inset: 22%;
+    border: 1px solid var(--flare-ring);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--flare-glow);
+    animation: flare-release 1400ms 260ms ease-out both;
+  }
+
+  .flare-shockwave-echo {
+    animation-delay: 560ms;
+    animation-duration: 1700ms;
+  }
+
+  .flare-mist {
+    opacity: 0.38;
+    filter: blur(2px);
+  }
+
+  .flare-cloud {
+    animation: flare-cloud 2100ms ease-out both;
+  }
+
+  .flare-seal {
+    fill: none;
+    stroke: var(--flare-a);
+    stroke-width: 0.45;
+    stroke-linecap: round;
+    animation: flare-inscribe var(--flare-life) ease-out both;
+  }
+
+  .flare-seal circle:first-child {
+    stroke: var(--flare-b);
+    stroke-dasharray: 60 5 3 5;
+  }
+
+  .flare-trails {
+    fill: none;
+    stroke-width: 0.65;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .flare-trail {
+    stroke-dasharray: 65 100;
+    animation: flare-stream ease-out both;
+  }
+
+  .flare-trail-bloom {
+    stroke: var(--flare-b);
+    stroke-width: 3.4;
+    opacity: 0.35;
+    filter: blur(1.3px);
+  }
+
+  .flare-trails[data-trail="vapor"],
+  .flare-trails[data-trail="drain"] {
+    stroke-width: 1.3;
+  }
+
+  .flare-trails[data-trail="arc"] .flare-trail {
+    stroke-dasharray: none;
+    animation-name: flare-arc;
+  }
+
+  .flare-trails[data-trail="streak"] .flare-trail {
+    animation-name: flare-streak;
+  }
+
+  .flare[data-flare="necrotic"] .flare-trail {
+    animation-direction: reverse;
+  }
+
+  .flare[data-flare="poison"] .flare-mist,
+  .flare[data-flare="necrotic"] .flare-mist {
+    opacity: 0.65;
   }
 
   .flare-field {
@@ -1576,6 +1673,12 @@ body {
 
   .flare-field [data-shape="plus"] {
     stroke-width: 1.1;
+  }
+
+  .flare-field [data-shape="petal"] {
+    fill: color-mix(in srgb, var(--flare-a) 18%, transparent);
+    stroke: var(--flare-core);
+    stroke-width: 0.55;
   }
 
   .flare-field [data-shape="wisp"] {
@@ -1732,132 +1835,103 @@ body {
    * round the face. Radiant and arcane are the app's own gold and violet.
    */
   .flare[data-flare="fire"] {
-    --flare-core: #fff3c4;
-    --flare-a: #ffad42;
-    --flare-b: #ff4d1c;
-    --flare-ring: rgba(255, 140, 50, 0.85);
-    --flare-glow: rgba(255, 90, 30, 0.55);
+    --flare-core: var(--color-orange-100);
+    --flare-a: var(--color-amber-400);
+    --flare-b: var(--color-orange-600);
   }
 
   .flare[data-flare="cold"] {
-    --flare-core: #ffffff;
-    --flare-a: #c4ecff;
-    --flare-b: #5ab8ff;
-    --flare-ring: rgba(170, 225, 255, 0.85);
-    --flare-glow: rgba(90, 180, 255, 0.5);
+    --flare-core: var(--color-white);
+    --flare-a: var(--color-sky-200);
+    --flare-b: var(--color-sky-500);
   }
 
   .flare[data-flare="lightning"] {
-    --flare-core: #ffffff;
-    --flare-a: #dff1ff;
-    --flare-b: #8fc4ff;
-    --flare-ring: rgba(200, 230, 255, 0.9);
-    --flare-glow: rgba(120, 170, 255, 0.6);
+    --flare-core: var(--color-white);
+    --flare-a: var(--color-sky-100);
+    --flare-b: var(--color-blue-400);
   }
 
   .flare[data-flare="thunder"] {
-    --flare-core: #f4f6ff;
-    --flare-a: #c9d3f5;
-    --flare-b: #7e8fc9;
-    --flare-ring: rgba(200, 210, 245, 0.8);
-    --flare-glow: rgba(130, 150, 220, 0.5);
+    --flare-core: var(--color-slate-100);
+    --flare-a: var(--color-indigo-200);
+    --flare-b: var(--color-indigo-400);
   }
 
   .flare[data-flare="acid"] {
-    --flare-core: #f6ffc2;
-    --flare-a: #c2f23a;
-    --flare-b: #6cc21a;
-    --flare-ring: rgba(190, 240, 60, 0.8);
-    --flare-glow: rgba(130, 220, 40, 0.5);
+    --flare-core: var(--color-lime-100);
+    --flare-a: var(--color-lime-300);
+    --flare-b: var(--color-lime-600);
   }
 
   .flare[data-flare="poison"] {
-    --flare-core: #d9ffd0;
-    --flare-a: #7fdc8a;
-    --flare-b: #3c8f5a;
-    --flare-ring: rgba(110, 210, 120, 0.7);
-    --flare-glow: rgba(120, 80, 170, 0.45);
+    --flare-core: var(--color-green-100);
+    --flare-a: var(--color-green-400);
+    --flare-b: var(--color-emerald-700);
   }
 
   .flare[data-flare="necrotic"] {
-    --flare-core: #e3d4ff;
-    --flare-a: #9b78d6;
-    --flare-b: #2a1340;
-    --flare-ring: rgba(30, 10, 45, 0.85);
-    --flare-glow: rgba(120, 70, 190, 0.55);
+    --flare-core: var(--color-violet-100);
+    --flare-a: var(--color-arcane);
+    --flare-b: var(--color-surface);
   }
 
   .flare[data-flare="radiant"] {
-    --flare-core: #fffdf2;
+    --flare-core: var(--color-ink);
     --flare-a: var(--color-gold);
-    --flare-b: #f5b83d;
-    --flare-ring: var(--gold-70);
-    --flare-glow: var(--gold-40);
+    --flare-b: var(--color-crit-gold);
   }
 
   .flare[data-flare="force"] {
-    --flare-core: #fbefff;
-    --flare-a: #d9a8ff;
-    --flare-b: #9b5cff;
-    --flare-ring: rgba(200, 140, 255, 0.85);
-    --flare-glow: rgba(150, 90, 255, 0.5);
+    --flare-core: var(--color-fuchsia-100);
+    --flare-a: var(--color-purple-300);
+    --flare-b: var(--color-violet-500);
   }
 
   .flare[data-flare="psychic"] {
-    --flare-core: #fff0fa;
-    --flare-a: #ff9fd8;
-    --flare-b: #e0559f;
-    --flare-ring: rgba(255, 150, 215, 0.8);
-    --flare-glow: rgba(225, 85, 160, 0.45);
+    --flare-core: var(--color-pink-100);
+    --flare-a: var(--color-pink-300);
+    --flare-b: var(--color-pink-600);
   }
 
   .flare[data-flare="slashing"] {
-    --flare-core: #ffffff;
-    --flare-a: #e8edf2;
-    --flare-b: #9aa6b2;
-    --flare-ring: rgba(225, 232, 240, 0.7);
-    --flare-glow: rgba(190, 205, 220, 0.4);
+    --flare-core: var(--color-white);
+    --flare-a: var(--color-platinum);
+    --flare-b: var(--color-silver);
   }
 
   .flare[data-flare="piercing"] {
-    --flare-core: #ffffff;
-    --flare-a: #d6f5f0;
-    --flare-b: #7fb8b0;
-    --flare-ring: rgba(200, 240, 232, 0.7);
-    --flare-glow: rgba(127, 184, 176, 0.45);
+    --flare-core: var(--color-white);
+    --flare-a: var(--color-teal-100);
+    --flare-b: var(--color-teal-500);
   }
 
   .flare[data-flare="bludgeoning"] {
-    --flare-core: #fff6e6;
-    --flare-a: #e2c9a0;
-    --flare-b: #9c7a4f;
-    --flare-ring: rgba(226, 201, 160, 0.75);
-    --flare-glow: rgba(156, 122, 79, 0.45);
+    --flare-core: var(--color-orange-100);
+    --flare-a: var(--color-electrum);
+    --flare-b: var(--color-copper);
   }
 
   .flare[data-flare="healing"] {
-    --flare-core: #f3fff6;
-    --flare-a: #9df2c4;
-    --flare-b: #34d399;
-    --flare-ring: rgba(140, 240, 190, 0.8);
-    --flare-glow: rgba(52, 211, 153, 0.45);
+    --flare-core: var(--color-emerald-50);
+    --flare-a: var(--color-emerald-200);
+    --flare-b: var(--color-emerald-500);
   }
 
   .flare[data-flare="arcane"] {
-    --flare-core: #f5f0ff;
+    --flare-core: var(--color-violet-50);
     --flare-a: var(--color-arcane);
-    --flare-b: #7c5cff;
-    --flare-ring: var(--arcane-70);
-    --flare-glow: var(--arcane-40);
+    --flare-b: var(--color-violet-600);
   }
 
-  /* The halo takes after the element: fire gutters, lightning strobes. */
+  /* The halo takes after the element. */
+
   .flare[data-flare="fire"] .flare-aura {
     animation: flare-gutter 1100ms linear infinite;
   }
 
   .flare[data-flare="lightning"] .flare-aura {
-    animation: flare-strobe 450ms steps(1) infinite;
+    animation: flare-breathe 700ms ease-in-out infinite alternate;
   }
 
   .flare[data-flare="fire"] .flare-field {
@@ -2432,6 +2506,131 @@ body {
  * wider than it arrived; everything inside starts and ends transparent, so
  * nothing is cut off mid-motion.
  */
+@keyframes flare-illumination {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  45% {
+    opacity: 0.65;
+  }
+  72% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes flare-release {
+  0% {
+    opacity: 0;
+    scale: 0.9;
+  }
+  15% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 0;
+    scale: 2.1;
+  }
+}
+
+@keyframes flare-cloud {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0.4);
+  }
+  28% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        calc(var(--x) * 1.25 + var(--s)),
+        calc(var(--y) * 1.2 - 9px)
+      )
+      scale(1.6);
+  }
+}
+
+@keyframes flare-inscribe {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) rotate(-18deg);
+    stroke-dasharray: 0 250;
+  }
+  22% {
+    opacity: 0.7;
+    transform: scale(1) rotate(0deg);
+    stroke-dasharray: 250 0;
+  }
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12) rotate(12deg);
+    stroke-dasharray: 250 0;
+  }
+}
+
+@keyframes flare-stream {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+    transform: scale(0.9);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  65% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -65;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes flare-arc {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: scale(0.95);
+  }
+  38% {
+    opacity: 0.45;
+  }
+  60% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes flare-streak {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 90;
+    transform: scale(0.85);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -90;
+    transform: scale(1.15);
+  }
+}
+
 @keyframes flare-life {
   0% {
     opacity: 0;
@@ -2985,6 +3184,7 @@ body {
     animation-name: flare-fade;
   }
 
+  .flare-light,
   .flare-aura,
   .flare[data-flare] .flare-aura {
     animation: none;
@@ -2992,6 +3192,14 @@ body {
 
   .flare-field {
     display: none;
+  }
+
+  .flare-shockwave {
+    display: none;
+  }
+
+  .flare-light {
+    opacity: 0.45;
   }
 
   .glow-gold,
