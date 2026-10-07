@@ -35,7 +35,9 @@
  * face, ORNATE is black with raised scrollwork in it, and GLASS is the colour
  * as see-through glass — see `paintFade`, `paintGalaxy`, `paintOrnate` and
  * `paintGlass`. CASE HARDENED is heat-tinted steel, mostly blue, keeping its
- * own colours — see `paintCaseHardened`.
+ * own colours — see `paintCaseHardened` — and LABRADORITE is smoky stone,
+ * keeping its own too, whose blue flash catches the light at an angle of its
+ * own — see `paintLabradorite`.
  *
  * What each skin is made of — its recipe — is in dice-recipes.mjs.
  *
@@ -81,6 +83,10 @@ function smoothstep(edge0, edge1, value) {
 
   return t * t * (3 - 2 * t);
 }
+
+/** `from` taken `t` of the way to `to`, channel by channel. */
+const mix = (from, to, t) =>
+  from.map((value, k) => value + (to[k] - value) * t);
 
 /** Distance from (x, y, z) to the nearest outline edge. Allocation-free: it runs per pixel. */
 function edgeDistance(edges, x, y, z) {
@@ -2325,9 +2331,6 @@ function paintWood(recipe, base) {
   const height = new Float32Array(SIZE * SIZE);
   const flat = new Float32Array(SIZE * SIZE);
 
-  const mix = (from, to, t) =>
-    from.map((value, k) => value + (to[k] - value) * t);
-
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
       const pixel = y * SIZE + x;
@@ -3375,6 +3378,56 @@ function fbm3(x, y, z, octaves, salt) {
   return total / weight;
 }
 
+/**
+ * A field over the faces, in [0, 1), read as SHARES of the dice by area: what
+ * share of every face lies below each value. A ramp laid over shares covers
+ * the dice in the proportions it names, whatever the noise happens to do.
+ */
+function areaShares(field, { owner, density }) {
+  const BINS = 4096;
+  const histogram = new Float64Array(BINS);
+  let area = 0;
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0) {
+      continue;
+    }
+
+    const weight = 1 / density[pixel] ** 2;
+
+    histogram[Math.floor(field[pixel] * BINS)] += weight;
+    area += weight;
+  }
+
+  const below = new Float64Array(BINS);
+
+  for (let bin = 1; bin < BINS; bin++) {
+    below[bin] = below[bin - 1] + histogram[bin - 1];
+  }
+
+  return (value) => {
+    const bin = Math.floor(value * BINS);
+
+    return (below[bin] + histogram[bin] * (value * BINS - bin)) / area;
+  };
+}
+
+/** A colour for each share, eased between `stops` — `[share, rgb]`, in order. */
+function rampThrough(stops) {
+  return (share) => {
+    let at = 1;
+
+    while (at < stops.length - 1 && share > stops[at][0]) {
+      at++;
+    }
+
+    const [from, low] = stops[at - 1];
+    const [to, high] = stops[at];
+
+    return mix(low, high, smoothstep(from, to, share));
+  };
+}
+
 /** A direction of its own for each die, and the die's reach from its middle. */
 function dieAxes(faces, salt) {
   const names = [...new Set(faces.map(({ die }) => die))];
@@ -4099,7 +4152,7 @@ function paintGlass(recipe, base) {
  *   numerals  engraved and filled black
  */
 function paintCaseHardened(recipe, base) {
-  const { ink, reference, owner, position, density } = base;
+  const { ink, reference, owner, position } = base;
   const { blue, fringe, mottle, cloud, spots, colours, finish } = recipe;
 
   const glyphs = neighbourhood(ink, recipe.weight, true);
@@ -4115,16 +4168,10 @@ function paintCaseHardened(recipe, base) {
     Object.entries(colours).map(([name, value]) => [name, hex(value)]),
   );
 
-  const mix = (from, to, t) =>
-    from.map((value, k) => value + (to[k] - value) * t);
-
   /* ---- The mottle everywhere first, and how much steel lies below each
-     value of it: a pixel's share is its area on the die. ---- */
+     value of it. ---- */
 
-  const BINS = 4096;
   const field = new Float32Array(SIZE * SIZE);
-  const histogram = new Float64Array(BINS);
-  let area = 0;
 
   for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
     if (owner[pixel] < 0) {
@@ -4137,27 +4184,12 @@ function paintCaseHardened(recipe, base) {
     const wx = qx + (fbm3(qx, qy, qz, 3, 401) - 0.5) * 2 * mottle.warp;
     const wy = qy + (fbm3(qx + 5.2, qy, qz, 3, 409) - 0.5) * 2 * mottle.warp;
     const wz = qz + (fbm3(qx, qy + 9.1, qz, 3, 419) - 0.5) * 2 * mottle.warp;
-    const value = clamp(fbm3(wx, wy, wz, mottle.octaves, 421), 0, 1 - 1e-9);
-    const weight = 1 / density[pixel] ** 2;
 
-    field[pixel] = value;
-    histogram[Math.floor(value * BINS)] += weight;
-    area += weight;
+    field[pixel] = clamp(fbm3(wx, wy, wz, mottle.octaves, 421), 0, 1 - 1e-9);
   }
 
-  const below = new Float64Array(BINS);
-
-  for (let bin = 1; bin < BINS; bin++) {
-    below[bin] = below[bin - 1] + histogram[bin - 1];
-  }
-
-  const shareOf = (value) => {
-    const bin = Math.floor(value * BINS);
-
-    return (below[bin] + histogram[bin] * (value * BINS - bin)) / area;
-  };
-
-  const stops = [
+  const shareOf = areaShares(field, base);
+  const ramp = rampThrough([
     [0, paint.deep],
     [blue * 0.6, paint.blue],
     [blue - fringe * 1.5, paint.sky],
@@ -4166,20 +4198,7 @@ function paintCaseHardened(recipe, base) {
     [blue + fringe * 0.8, paint.bronze],
     [blue + fringe * 1.8, paint.gold],
     [1, paint.straw],
-  ];
-
-  const ramp = (share) => {
-    let at = 1;
-
-    while (at < stops.length - 1 && share > stops[at][0]) {
-      at++;
-    }
-
-    const [from, low] = stops[at - 1];
-    const [to, high] = stops[at];
-
-    return mix(low, high, smoothstep(from, to, share));
-  };
+  ]);
 
   const colour = new Uint8Array(SIZE * SIZE * 4);
   const surface = new Uint8Array(SIZE * SIZE * 3);
@@ -4293,6 +4312,352 @@ function paintCaseHardened(recipe, base) {
 }
 
 /**
+ * The sets of lamellae in each die — the thin planes inside labradorite that
+ * catch the light. Each leans off one of the die's faces, no two off the same
+ * face or opposite ones while the die has faces enough, so every die has
+ * faces that flash. `across` is the way the twin streaks run over them.
+ */
+function lamellaeOf(faces, outward, { sets: count, lean }) {
+  const names = [...new Set(faces.map(({ die }) => die))];
+  const nudge = (index, salt) =>
+    [1, 2, 3].map((k) => 2 * hash(index, k, salt) - 1);
+
+  return Object.fromEntries(
+    names.map((die, index) => {
+      const own = faces.flatMap((face, at) => (face.die === die ? [at] : []));
+      const chosen = [];
+
+      for (let k = 0; k < count; k++) {
+        const open = own.filter((at) =>
+          chosen.every(
+            (taken) => Math.abs(dot(outward[at], outward[taken])) < 0.9,
+          ),
+        );
+        const from = open.length > 0 ? open : own;
+
+        chosen.push(from[Math.floor(hash(index, k, 461) * from.length)]);
+      }
+
+      return [
+        die,
+        chosen.map((face, k) => {
+          const tilt = nudge(index, 463 + k);
+          const normal = normalise(
+            outward[face].map((value, j) => value + lean * tilt[j]),
+          );
+          const across = normalise(cross(normal, nudge(index, 467 + k)));
+
+          return { normal, across, along: cross(across, normal) };
+        }),
+      ];
+    }),
+  );
+}
+
+/**
+ * Polished labradorite: smoky grey stone whose lamellae flash blue — and
+ * cyan, green and gold here and there — lettered in gold leaf. Its own colours
+ * whatever the player's: every pixel is opaque.
+ *
+ *   stone     dark grey, clouded lighter, with black needles through it
+ *   schiller  the flash, strongest on a face that looks along its lamellae
+ *             and gone from one turned well away from them, so faces side by
+ *             side are bright and dull, as on the stone. The stone is split
+ *             into domains, cells of cellular noise THROUGH THE DIE, each
+ *             holding one of the die's sets of lamellae — see `lamellaeOf` —
+ *             so a flash can stop dead at a line across a face; patches of
+ *             dull stone break it up
+ *   twins     streaks across the flash, the twinned crystal's own grain
+ *   hue       mostly blue, read as a SHARE of the flash like the case-hardened
+ *             steel's mottle, running out into cyan, green and gold
+ *   numerals  engraved and filled with gold leaf, on a dark foot
+ *
+ * What makes it flash rather than glow is the lighting: the flash is part
+ * metal, and its normal in the normal map is the LAMELLAE's, leaning off the
+ * face's, so it catches the light at its own angle as the die turns, while
+ * the clear coat over it — which keeps the face's own normal — stays a flat,
+ * polished face.
+ */
+function paintLabradorite(recipe, base) {
+  const { ink, reference, owner, position, density, faces, dice } = base;
+  const { domains, schiller, twins, needles, hue, stone, finish } = recipe;
+
+  const outward = faces.map(({ normal, centre }) =>
+    dot(normal, centre) < 0 ? normal.map((value) => -value) : normal,
+  );
+  const lamellae = lamellaeOf(faces, outward, domains);
+
+  const glyphs = neighbourhood(ink, recipe.weight, true);
+  const relief = neighbourhood(glyphs, 1);
+  const halo = neighbourhood(glyphs, 2);
+
+  const gold = hex(recipe.metal);
+  const smoke = hex(stone.smoke);
+  const grey = hex(stone.grey);
+  const mist = hex(stone.mist);
+  const engrave = recipe.engrave * reference;
+  const domainScale = domains.scale * reference;
+  const patchScale = schiller.scale * reference;
+  const hueScale = hue.scale * reference;
+  const stoneScale = stone.scale * reference;
+
+  const ramp = rampThrough(
+    hue.stops.map(([share, value]) => [share, hex(value)]),
+  );
+
+  /* ---- The hue everywhere first, so it can be read as a share. ---- */
+
+  const hues = new Float32Array(SIZE * SIZE);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0) {
+      continue;
+    }
+
+    const qx = position[pixel * 3] / hueScale;
+    const qy = position[pixel * 3 + 1] / hueScale;
+    const qz = position[pixel * 3 + 2] / hueScale;
+    const wx = qx + (fbm3(qx, qy, qz, 2, 491) - 0.5);
+    const wy = qy + (fbm3(qx + 5.2, qy, qz, 2, 499) - 0.5);
+
+    hues[pixel] = clamp(fbm3(wx, wy, qz, 3, 503), 0, 1 - 1e-9);
+  }
+
+  const shareOf = areaShares(hues, base);
+
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const height = new Float32Array(SIZE * SIZE);
+  // How far the lamellae lean off each face, in die units across it.
+  const lean = new Float32Array(SIZE * SIZE * 3);
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = y * SIZE + x;
+      const face = owner[pixel];
+
+      if (face < 0) {
+        colour.set([...smoke, 255], pixel * 4);
+        writeSurface(surface, pixel, {
+          occlusion: 1,
+          roughness: finish.stone,
+          metalness: 0,
+        });
+        continue;
+      }
+
+      const point = position.subarray(pixel * 3, pixel * 3 + 3);
+      const [px, py, pz] = point;
+      const up = outward[face];
+
+      /* ---- Which set of lamellae, and how they lean here. ---- */
+
+      const dx = px / domainScale;
+      const dy = py / domainScale;
+      const dz = pz / domainScale;
+      const domain = cellAt(
+        dx + (fbm3(dx, dy, dz, 2, 509) - 0.5) * 2 * domains.wander,
+        dy + (fbm3(dx, dy + 9.1, dz, 2, 511) - 0.5) * 2 * domains.wander,
+        dz,
+      );
+      const sets = lamellae[dice[face]];
+      const set = sets[Math.floor(domain.trait(513) * sets.length)];
+      const own = dot(set.normal, up) < 0 ? -1 : 1;
+      const lamella = normalise(
+        set.normal.map(
+          (value, k) =>
+            own * value +
+            (fbm3(dx + 3.1 * k, dy, dz + 1.7 * k, 2, 521) - 0.5) *
+              2 *
+              domains.waver,
+        ),
+      );
+      const facing = dot(lamella, up);
+
+      /* ---- How strongly it flashes. ---- */
+
+      const sx = px / patchScale;
+      const sy = py / patchScale;
+      const sz = pz / patchScale;
+      const patch = smoothstep(
+        schiller.patch[0],
+        schiller.patch[1],
+        fbm3(
+          sx + (fbm3(sx, sy, sz, 2, 523) - 0.5) * 2 * schiller.warp,
+          sy + (fbm3(sx, sy + 9.1, sz, 2, 541) - 0.5) * 2 * schiller.warp,
+          sz,
+          4,
+          547,
+        ),
+      );
+      const along = dot(point, set.along) / (twins.long * reference);
+      const normal = dot(point, set.normal) / (twins.long * reference);
+      const streak = smoothstep(
+        0.4,
+        0.8,
+        valueNoise3(
+          dot(point, set.across) / (twins.pitch * reference),
+          along,
+          normal,
+          557,
+        ),
+      );
+      const fine = smoothstep(
+        0.45,
+        0.85,
+        valueNoise3(
+          dot(point, set.across) / (twins.fine * reference),
+          along * 2,
+          normal * 2,
+          563,
+        ),
+      );
+      const flash =
+        smoothstep(schiller.from, schiller.to, facing) *
+        patch *
+        (1 - twins.strength * (0.65 * streak + 0.35 * fine));
+      // Black on the flash; on dull stone, barely there.
+      const needle =
+        needles.strength *
+        (needles.dull + (1 - needles.dull) * clamp(1.5 * flash)) *
+        smoothstep(
+          needles.from,
+          needles.to,
+          valueNoise3(
+            dot(point, set.across) / (needles.pitch * reference),
+            dot(point, set.along) / (needles.long * reference),
+            normal,
+            569,
+          ),
+        );
+
+      /* ---- Colour, bottom to top. ---- */
+
+      const cx = px / stoneScale;
+      const cy = py / stoneScale;
+      const cz = pz / stoneScale;
+      const paint = layers();
+
+      paint.over(
+        mix(smoke, grey, smoothstep(0.3, 0.72, fbm3(cx, cy, cz, 4, 571))),
+        1,
+      );
+      paint.over(
+        mist,
+        0.2 * smoothstep(0.6, 0.8, fbm3(cx + 4.4, cy, cz, 3, 577)),
+      );
+
+      const tint = ramp(shareOf(hues[pixel]));
+
+      paint.over(tint, clamp(schiller.ghost * patch + 0.95 * flash));
+      // The brightest lamellae, between the streaks.
+      paint.over(
+        mix(tint, [255, 255, 255], 0.35),
+        flash * twins.glow * (1 - streak),
+      );
+      paint.over([8, 9, 11], needle);
+      paint.over([0, 0, 0], clamp(halo[pixel] - glyphs[pixel]) * 0.5);
+
+      const leaf = 0.82 + 0.3 * valueNoise(x, y, 2, 587);
+
+      paint.over(
+        gold.map((c) => clamp(c * leaf, 0, 255)),
+        glyphs[pixel],
+      );
+      paint.write(colour, pixel);
+
+      /* ---- Surface: polished stone, the flash part metal, satin gold. ---- */
+
+      const shown = flash * (1 - needle);
+      const bed = finish.stone + (finish.flash - finish.stone) * shown;
+
+      writeSurface(surface, pixel, {
+        occlusion: 1 - 0.4 * clamp(halo[pixel] - glyphs[pixel]),
+        roughness:
+          bed + (finish.numerals + 0.2 * (leaf - 0.82) - bed) * glyphs[pixel],
+        metalness:
+          recipe.sheen * shown +
+          (recipe.gilt - recipe.sheen * shown) * glyphs[pixel],
+      });
+
+      height[pixel] = -engrave * relief[pixel];
+
+      // Only as far as the flash shows: dull stone lies as the face does.
+      const reach =
+        Math.min(
+          schiller.tilt,
+          Math.sqrt(Math.max(0, 1 - facing * facing)) / Math.max(facing, 0.05),
+        ) *
+        patch *
+        smoothstep(schiller.from, schiller.to, facing) *
+        (1 - glyphs[pixel]);
+      const sideways = normalise(
+        lamella.map((value, k) => value - facing * up[k]),
+      );
+
+      lean.set(
+        sideways.map((value) => value * reach),
+        pixel * 3,
+      );
+    }
+  }
+
+  /* ---- The lean, as a tilt in the atlas: each face's own way across. ---- */
+
+  const tiltX = new Float32Array(SIZE * SIZE);
+  const tiltY = new Float32Array(SIZE * SIZE);
+  const step = (pixel, back, ahead) => {
+    const from = back >= 0 && owner[back] === owner[pixel] ? back : pixel;
+    const to = ahead >= 0 && owner[ahead] === owner[pixel] ? ahead : pixel;
+    const steps = (from !== pixel) + (to !== pixel);
+
+    return [0, 1, 2].map((k) =>
+      steps ? (position[to * 3 + k] - position[from * 3 + k]) / steps : 0,
+    );
+  };
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = y * SIZE + x;
+
+      if (owner[pixel] < 0) {
+        continue;
+      }
+
+      const tilt = lean.subarray(pixel * 3, pixel * 3 + 3);
+      const right = step(
+        pixel,
+        x > 0 ? pixel - 1 : -1,
+        x < SIZE - 1 ? pixel + 1 : -1,
+      );
+      const down = step(
+        pixel,
+        y > 0 ? pixel - SIZE : -1,
+        y < SIZE - 1 ? pixel + SIZE : -1,
+      );
+
+      tiltX[pixel] = density[pixel] * dot(tilt, right);
+      tiltY[pixel] = density[pixel] * dot(tilt, down);
+    }
+  }
+
+  bleed(
+    owner,
+    [
+      { data: colour, channels: 4 },
+      { data: surface, channels: 3 },
+    ],
+    recipe.bleed,
+  );
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: surfaceNormals({ height, tiltX, tiltY }, base),
+  };
+}
+
+/**
  * A normal map from a height field in die units, plus a tilt laid straight on
  * top for detail too fine to be a height. Faces only: bevels and gutters stay
  * flat. The stock atlas's convention, read off its own engraving: red is
@@ -4347,6 +4712,7 @@ const PAINTERS = {
   ornate: paintOrnate,
   glass: paintGlass,
   "case-hardened": paintCaseHardened,
+  labradorite: paintLabradorite,
 };
 
 export function paintSkins(recipes, sources) {

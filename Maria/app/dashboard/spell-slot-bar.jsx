@@ -23,7 +23,7 @@ export default function SpellSlotBar({ shelves, className = "", renderPip }) {
       aria-label="Spell slots"
       className={`${COIN_PANEL_CLASSES} ${className}`}
     >
-      <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+      <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
         Slots
         <span className="ml-2 text-gold/80 tabular-nums">{left}</span> left
       </h3>
@@ -31,7 +31,7 @@ export default function SpellSlotBar({ shelves, className = "", renderPip }) {
       <ul className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2.5">
         {shelves.map((shelf) => (
           <li key={shelf.level} className="flex items-center gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.12em] text-ink/50 tabular-nums">
+            <span className="font-mono text-[0.625rem] tracking-[0.12em] text-ink/50 tabular-nums">
               {slotClusterLabel(shelf.level)}
             </span>
 

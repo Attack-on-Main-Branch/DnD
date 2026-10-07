@@ -124,6 +124,11 @@ const SKIN_COPY = {
     label: "Case Hardened",
     description: "Heat-tinted steel, mostly blue — keeps its own colour",
   },
+  labradorite: {
+    label: "Labradorite",
+    description:
+      "Smoky stone that flashes blue in the light — keeps its own colour",
+  },
 };
 
 /**

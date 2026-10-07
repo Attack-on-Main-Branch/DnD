@@ -16,6 +16,23 @@
  */
 export const CHANGELOG = [
   {
+    version: "1.7.0",
+    date: "2026-10-07",
+    title: "Room for the map",
+    changes: [
+      "A new Epic dice set can come out of a Dice Pouch: Labradorite, polished smoky grey stone with gold numbers. Parts of it flash electric blue, with a touch of cyan, green and gold, and the flash brightens and fades as the die turns in the light, so some faces glow while the ones beside them stay dark. Like Wood and Case Hardened, it keeps its own colours whatever colour you pick.",
+      "The table keeps the same layout on every screen. Everything around the map grows and shrinks with the window, so a laptop, a 1080p monitor and a 1440p monitor all show the table in the same proportions. Zooming the browser no longer pushes the log and the party over the map: zooming out far enough gives the map more room, and zooming in far enough makes the text and buttons around it larger.",
+      "The map takes up more of the screen. The space around the board is tighter, and the map stretches to fill everything between the activity log and the party.",
+      "The Dungeon Master’s buttons beside the map have moved into a box above the activity log: initiative, maps, the scene painter, bags and chests, the session, and a new Tokens button holding the party and the tokens to put on the board. Press a button and the box shows what it used to open beside the map; press it again to close it. The activity log under it is the same size as a player’s, and gives up room to whatever the box has open.",
+      "Painted scenes in the Maps menu show just the picture, without their name across the top.",
+      "The activity log is wider at every seat, so fewer of its lines wrap.",
+      "Opening a Dice Pouch is smoother. The reel draws itself out of a single point of light: a line that stretches out and parts into the edges of the lane, then the marker rising in the middle, before the sets run in from the right. They run past faster and come to a firmer stop in the same time, the set you found lights up under the marker while the rest dim, and the window showing it opens and closes the way the app’s other panels do.",
+    ],
+    fixes: [
+      "On smaller screens, and with the browser zoomed in, the map was squeezed into a narrow strip between the activity log and the party.",
+    ],
+  },
+  {
     version: "1.6.0",
     date: "2026-10-04",
     title: "Something in hand",

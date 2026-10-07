@@ -48,7 +48,9 @@ export default function SpellCastControl({
   return (
     <div className="flex flex-wrap items-center justify-end gap-1">
       {unreachable && (
-        <p className="mr-auto text-[11px] text-ink/40">No slot that high</p>
+        <p className="mr-auto text-[0.6875rem] text-ink/40">
+          No slot that high
+        </p>
       )}
 
       {choosing &&

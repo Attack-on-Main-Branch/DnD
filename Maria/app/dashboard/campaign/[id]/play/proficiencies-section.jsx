@@ -16,7 +16,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
  */
 const PILL_CLASSES =
   "inline-flex items-center rounded-full border px-2 py-0.5 " +
-  "font-mono text-[10px] tracking-[0.12em] uppercase";
+  "font-mono text-[0.625rem] tracking-[0.12em] uppercase";
 
 /** Slate for what is worn, gold for what is held: the pack's own division. */
 const ARMOR_PILL = `${PILL_CLASSES} border-slate-400/30 bg-slate-400/10 text-slate-200/90`;
@@ -77,7 +77,7 @@ export default function ProficienciesSection({ proficiencies }) {
 function Group({ label, note, children }) {
   return (
     <div>
-      <p className="font-mono text-[9px] tracking-[0.16em] text-ink/45 uppercase">
+      <p className="font-mono text-[0.5625rem] tracking-[0.16em] text-ink/45 uppercase">
         {label}
         {note && (
           <span className="ml-1.5 text-ink/35 normal-case">({note})</span>

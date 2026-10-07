@@ -218,7 +218,7 @@ export default function NotesScroll({ campaignId, seat }) {
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <p
-              className={`font-mono text-[10px] tracking-[0.16em] tabular-nums uppercase ${
+              className={`font-mono text-[0.625rem] tracking-[0.16em] tabular-nums uppercase ${
                 tooLong ? "text-red-300" : "text-ink/45"
               }`}
             >
@@ -257,7 +257,7 @@ export default function NotesScroll({ campaignId, seat }) {
                   <div className="flex items-center justify-between gap-2">
                     <time
                       dateTime={note.created_at}
-                      className="min-w-0 truncate font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase"
+                      className="min-w-0 truncate font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase"
                     >
                       {NOTE_TIME_FORMAT.format(new Date(note.created_at))}
                     </time>
@@ -298,7 +298,7 @@ export default function NotesScroll({ campaignId, seat }) {
 
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                         <p
-                          className={`font-mono text-[10px] tracking-[0.16em] tabular-nums uppercase ${
+                          className={`font-mono text-[0.625rem] tracking-[0.16em] tabular-nums uppercase ${
                             editedTooLong ? "text-red-300" : "text-ink/45"
                           }`}
                         >

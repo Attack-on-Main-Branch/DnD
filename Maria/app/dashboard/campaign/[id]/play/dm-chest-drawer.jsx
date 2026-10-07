@@ -241,7 +241,7 @@ export default function DmChestDrawer({
           {/* Stacks in it, not a quantity OF it: hence a plain count
                   rather than the pack's `×N`, which beside a name reads as two
                   of the bag. No kind tag: the dropdown it is in says that. */}
-          <span className="shrink-0 font-mono text-[10px] text-ink/45 tabular-nums">
+          <span className="shrink-0 font-mono text-[0.625rem] text-ink/45 tabular-nums">
             {contents.length}
           </span>
         </button>
@@ -392,7 +392,7 @@ export default function DmChestDrawer({
                 {kind.plural}
               </span>
 
-              <span className="shrink-0 font-mono text-[10px] text-ink/45 tabular-nums">
+              <span className="shrink-0 font-mono text-[0.625rem] text-ink/45 tabular-nums">
                 {held.length}
               </span>
             </button>

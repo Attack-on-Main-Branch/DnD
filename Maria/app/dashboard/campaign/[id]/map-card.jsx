@@ -111,13 +111,17 @@ export default function MapCard({
         <Picture map={map} />
       )}
 
-      {/* `pointer-events-none`, or it stands between the pointer and the card. */}
-      <span className="pointer-events-none absolute top-2 left-2 max-w-[70%] truncate rounded-md border border-gold/25 bg-surface/85 px-2 py-1 font-display text-xs font-semibold tracking-wide text-gold">
-        {map.name}
-      </span>
+      {/* `pointer-events-none`, or it stands between the pointer and the card.
+          Not on a painted scene: its name is only its map's plus "· scene",
+          and the picture is the better label. The buttons still say it. */}
+      {!map.is_scene && (
+        <span className="pointer-events-none absolute top-2 left-2 max-w-[70%] truncate rounded-md border border-gold/25 bg-surface/85 px-2 py-1 font-display text-xs font-semibold tracking-wide text-gold">
+          {map.name}
+        </span>
+      )}
 
       {(map.is_world_map || map.is_scene) && (
-        <span className="pointer-events-none absolute top-2 right-2 rounded-md border border-gold/20 bg-surface/80 px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-ink/60 uppercase">
+        <span className="pointer-events-none absolute top-2 right-2 rounded-md border border-gold/20 bg-surface/80 px-2 py-1 font-mono text-[0.625rem] tracking-[0.16em] text-ink/60 uppercase">
           {map.is_scene ? "Scene" : "World"}
         </span>
       )}
@@ -126,7 +130,7 @@ export default function MapCard({
           scene has no Change: a new one is painted instead. */}
       {changeable && (
         <label
-          className={`absolute right-2 bottom-2 rounded-lg border border-gold/40 bg-surface/85 px-2.5 py-1 font-display text-[11px] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
+          className={`absolute right-2 bottom-2 rounded-lg border border-gold/40 bg-surface/85 px-2.5 py-1 font-display text-[0.6875rem] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-gold ${
             busy
               ? "cursor-not-allowed opacity-60"
               : "cursor-pointer hover:border-gold/70 hover:bg-gold/15"

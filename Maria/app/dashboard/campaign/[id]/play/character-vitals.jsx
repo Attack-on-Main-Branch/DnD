@@ -41,7 +41,7 @@ const VALUE_CLASSES =
   "font-display text-base leading-none font-semibold text-ink tabular-nums";
 
 const LABEL_CLASSES =
-  "font-mono text-[10px] leading-none tracking-[0.12em] text-ink/45 uppercase";
+  "font-mono text-[0.625rem] leading-none tracking-[0.12em] text-ink/45 uppercase";
 
 export default function CharacterVitals({ characterId, name, vitals }) {
   const level = useCharacterLevel(characterId);

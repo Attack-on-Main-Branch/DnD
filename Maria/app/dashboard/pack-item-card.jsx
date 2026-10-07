@@ -37,7 +37,7 @@ export default function PackItemCard({
         </p>
 
         {stack && (
-          <span className="shrink-0 rounded-full border border-gold/30 bg-gold/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-gold tabular-nums">
+          <span className="shrink-0 rounded-full border border-gold/30 bg-gold/15 px-2 py-0.5 font-mono text-[0.6875rem] font-semibold text-gold tabular-nums">
             {stack}
           </span>
         )}

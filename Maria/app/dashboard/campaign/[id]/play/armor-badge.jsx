@@ -156,7 +156,7 @@ export default function ArmorBadge({ campaignId, characterId, name, canEdit }) {
             }
           }}
           aria-label={`${name} armour class`}
-          className="no-spin absolute inset-x-1 top-[21px] z-10 h-4 border-none bg-transparent p-0 text-center font-display text-[12px] leading-none font-bold text-sky-200 shadow-none tabular-nums outline-none"
+          className="no-spin absolute inset-x-1 top-[1.3125rem] z-10 h-4 border-none bg-transparent p-0 text-center font-display text-[0.75rem] leading-none font-bold text-sky-200 shadow-none tabular-nums outline-none"
         />
       ) : (
         /* Somebody else's card: a figure, and the sentence that says what it
@@ -164,7 +164,7 @@ export default function ArmorBadge({ campaignId, characterId, name, canEdit }) {
         <>
           <span
             aria-hidden="true"
-            className="absolute inset-x-1 top-[21px] z-10 grid h-4 place-items-center font-display text-[12px] leading-none font-bold text-sky-200 tabular-nums"
+            className="absolute inset-x-1 top-[1.3125rem] z-10 grid h-4 place-items-center font-display text-[0.75rem] leading-none font-bold text-sky-200 tabular-nums"
           >
             {armorClass}
           </span>

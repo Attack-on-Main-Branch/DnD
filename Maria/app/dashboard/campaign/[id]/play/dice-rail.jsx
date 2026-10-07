@@ -195,7 +195,7 @@ function VeilSwitch({ on, onChange, disabled }) {
           state rather than as a word. */}
       <p
         aria-hidden="true"
-        className="font-mono text-[9px] tracking-[0.12em] text-ink/45 uppercase"
+        className="font-mono text-[0.5625rem] tracking-[0.12em] text-ink/45 uppercase"
       >
         {on ? "Secret" : "Open"}
       </p>

@@ -3,16 +3,16 @@
 import SettingsMark from "@/app/components/ui/settings-mark";
 import { useRouteRefresh } from "@/app/components/use-route-refresh";
 
-import RailTray from "./rail-tray";
+import DmTray from "./dm-tray";
 import SessionSettingsDrawer from "./session-settings-drawer";
 
 /**
- * The session itself, on the rail under the chest: what the party has earned,
- * and the two rests that put them back together.
+ * The session itself, in the head of the table's box after the chest: what the
+ * party has earned, and the two rests that put them back together.
  *
- * THE HEAD OF THE TABLE'S ALONE, as the chest above it is — a player reads their
- * own experience under the skills on the scores sheet. Both writers re-ask, so
- * this is a door rather than the lock.
+ * THE HEAD OF THE TABLE'S ALONE, as the chest before it is — a player reads
+ * their own experience under the skills on the scores sheet. Both writers
+ * re-ask, so this is a door rather than the lock.
  *
  * The socket's listeners are NOT here: experience has to move on every screen
  * whether or not this panel exists on it, so they sit in party-rail.jsx.
@@ -25,14 +25,14 @@ export default function SessionStage({ campaignId, members }) {
   const refresh = useRouteRefresh();
 
   return (
-    <RailTray
+    <DmTray
       mark={<SettingsMark className="size-12" />}
       markLabel="The session: rest and experience"
       title="Session"
-      dialogLabel="Rest and experience"
+      panelLabel="Rest and experience"
     >
-      {/* No fixed height, unlike the shelf above it: this panel is short, and
-          the box morphing down to it is the whole point of the shared tray. */}
+      {/* Short, and the box morphing down to it is the whole point of the
+          shared panel. */}
       <div className="px-5 pt-4 pb-5">
         <SessionSettingsDrawer
           campaignId={campaignId}
@@ -40,6 +40,6 @@ export default function SessionStage({ campaignId, members }) {
           onLevelled={refresh}
         />
       </div>
-    </RailTray>
+    </DmTray>
   );
 }

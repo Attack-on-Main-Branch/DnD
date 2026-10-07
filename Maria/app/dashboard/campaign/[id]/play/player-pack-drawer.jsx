@@ -498,7 +498,7 @@ export default function PlayerPackDrawer({
                 : "border-transparent"
           }`}
         >
-          <p className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+          <p className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
             {carried.loose.length} carried
           </p>
 
@@ -563,7 +563,7 @@ export default function PlayerPackDrawer({
               </span>
 
               <span className="flex shrink-0 items-center gap-2">
-                <span className="font-mono text-[10px] text-ink/45 tabular-nums">
+                <span className="font-mono text-[0.625rem] text-ink/45 tabular-nums">
                   {inside.length}
                 </span>
 
@@ -822,7 +822,7 @@ function PouchShelf({ quantity, onOpen }) {
         <p className="font-display text-sm font-semibold tracking-wide text-gold">
           {DICE_POUCH_ITEM.name}
           {quantity > 1 && (
-            <span className="ml-1.5 font-mono text-[10px] font-normal text-ink/50 tabular-nums">
+            <span className="ml-1.5 font-mono text-[0.625rem] font-normal text-ink/50 tabular-nums">
               ×{quantity}
             </span>
           )}

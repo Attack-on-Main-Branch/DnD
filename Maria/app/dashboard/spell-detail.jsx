@@ -117,7 +117,7 @@ export default function SpellDetail({ spell, children }) {
 
       {/* Last, because it answers a question nobody asks mid-turn. */}
       {spell.classes && (
-        <p className="mt-3 text-[11px] text-ink/40">
+        <p className="mt-3 text-[0.6875rem] text-ink/40">
           <Label>Classes</Label> {spell.classes}
         </p>
       )}
@@ -137,7 +137,7 @@ export default function SpellDetail({ spell, children }) {
 function Cell({ label, value }) {
   return (
     <div className="min-w-0">
-      <dt className="font-mono text-[10px] tracking-[0.14em] text-ink/40 uppercase">
+      <dt className="font-mono text-[0.625rem] tracking-[0.14em] text-ink/40 uppercase">
         {label}
       </dt>
       <dd className="truncate text-xs text-ink/80" title={value || undefined}>
@@ -149,7 +149,7 @@ function Cell({ label, value }) {
 
 function Label({ children }) {
   return (
-    <span className="font-mono text-[10px] tracking-[0.14em] text-gold/70 uppercase">
+    <span className="font-mono text-[0.625rem] tracking-[0.14em] text-gold/70 uppercase">
       {children}
     </span>
   );

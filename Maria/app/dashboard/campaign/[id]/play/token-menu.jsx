@@ -212,7 +212,7 @@ export default function TokenMenu({
           >
             Conditions
             {held.length > 0 && (
-              <span className="ml-auto font-mono text-[11px] text-gold tabular-nums">
+              <span className="ml-auto font-mono text-[0.6875rem] text-gold tabular-nums">
                 {held.length}
               </span>
             )}
@@ -238,7 +238,7 @@ export default function TokenMenu({
                       role="menuitemcheckbox"
                       aria-checked={on}
                       onClick={() => onMark({ condition: key })}
-                      className={`w-full cursor-pointer rounded-md border px-1 py-1 text-center font-display text-[12px] leading-tight tracking-tight transition duration-300 ${dressed.color} ${
+                      className={`w-full cursor-pointer rounded-md border px-1 py-1 text-center font-display text-[0.75rem] leading-tight tracking-tight transition duration-300 ${dressed.color} ${
                         on
                           ? "border-gold/55 bg-gold/10"
                           : "border-gold/15 bg-surface/40 hover:border-gold/40"

@@ -168,6 +168,21 @@ html {
   scrollbar-gutter: stable;
 }
 
+/*
+ * THE TABLE SCALES AS ONE PICTURE. Its rem follows the window — 15px at 1920
+ * by 960 — so the log, the rails and the party keep the same share of every
+ * monitor and the board takes the rest, rather than fixed-width furniture
+ * eating a small screen's board. Floored for legibility, which is also where
+ * browser zoom starts to enlarge it; capped so a large monitor's spare room
+ * goes to the board. From `lg` only: below that the table is one stack and
+ * reads at the app's own size. Media queries keep measuring the initial rem.
+ */
+@media (width >= 64rem) {
+  :root:has([data-table-scale]) {
+    font-size: clamp(12px, min(100vw / 128, 100vh / 64), 18px);
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -1060,86 +1075,6 @@ body {
   }
 
   /*
-   * SIDEWAYS, for the trays on the rail beside the board.
-   *
-   * THE FOLD IS THE BOX'S WIDTH, and it is the only motion there is: the marks
-   * above the map unfold DOWNWARD out of a row and fold back up into it, and
-   * these hang off the SIDE, so they unfold outward and fold back into the rail.
-   * rail-marks.jsx takes the box from its full width to nought; the panel keeps
-   * a width of its own (rail-tray.jsx) so it is CUT rather than re-wrapped, and
-   * `.tab-clip` is what cuts it.
-   *
-   * WHAT THE ROWS ARE STILL FOR, and it is not the animation. Every tray on this
-   * rail is portalled into ONE shared box, so a closed panel has to stop taking
-   * up height or the box stands as tall as all of them at once.
-   *
-   * OVERLAID AND NOT STACKED — `grid-area: 1 / 1` — which is the thing two
-   * earlier attempts got wrong. Stacked, a tray opening while another closed
-   * made the box briefly as tall as BOTH, and it grew and then shrank back. In
-   * one cell the box is the taller of the two and settles onto the new one.
-   *
-   * Three cases, and each wants its rows timed differently:
-   *
-   *   opening      at once. The box is still folded shut at that moment, so
-   *                there is nothing to see and nothing to ease.
-   *   between two  eased, so the box travels from one panel's height to the
-   *                next — the morph the shared box exists for.
-   *   the last one out of the flow only once the fold has finished — all 420ms
-   *                of it. A height shrinking while the box folds away sideways
-   *                IS the vertical collapse this was written to get rid of.
-   */
-  /*
-   * THE FOLD AND THE FADE ARE TIMED APART, and that is the whole of what makes
-   * the marks above the map read as "fully shut" while this one used to read as
-   * "gave up halfway".
-   *
-   * Up there the fold is 420ms on `--ease-tray`, which is fast out of the gate,
-   * while the box fades over 300ms on `--ease-tray-in`, which is slow out of it.
-   * The fold LEADS: it is all but finished by the time anything has faded. Down
-   * here both were one `transition-[opacity,width] duration-300` on one element,
-   * so they moved together and the box went invisible while still a third open.
-   *
-   * Same two curves, same two durations, on the two properties.
-   */
-  .rail-tray-box {
-    transition:
-      width 420ms var(--ease-tray),
-      opacity 300ms var(--ease-tray);
-  }
-
-  .rail-tray-box[data-rail-shut] {
-    transition:
-      width 420ms var(--ease-tray),
-      opacity 300ms var(--ease-tray-in);
-  }
-
-  .tab-shell-across {
-    grid-area: 1 / 1;
-    transition: grid-template-rows 0s;
-  }
-
-  .tab-shell-across[data-state="collapsed"] {
-    transition: grid-template-rows 300ms var(--ease-tray);
-  }
-
-  [data-rail-shut] .tab-shell-across[data-state="collapsed"] {
-    transition: grid-template-rows 0s 420ms;
-  }
-
-  /*
-   * The panel is cut against the folding box. `overflow-clip-margin` goes to
-   * nought — the 4rem the block-axis fold allows for a glow would leave four
-   * rems of panel standing beside a box that is nought wide — and the
-   * `clip-path` with it, that one being shaped for the other axis.
-   */
-  .tab-shell-across .tab-clip {
-    min-width: 0;
-    overflow-clip-margin: 0;
-    clip-path: none;
-    transition: none;
-  }
-
-  /*
    * The board's rim, at rest and while a die is on it.
    *
    * A component class and not `border` plus `transition-*` utilities: those sit
@@ -1228,9 +1163,115 @@ body {
       0 30px 60px -26px rgba(0, 0, 0, 0.95);
   }
 
-  /* The window a pouch's set arrives in. */
-  .pouch-reveal {
-    animation: pouch-reveal 520ms var(--ease-glide) both;
+  /*
+   * A DICE POUCH OPENING. The lane the sets run along draws itself before
+   * anything runs on it, on the site's own panel beats: a dot (150ms), a line
+   * stretching out of it (320ms on `--ease-tray`), and the line parting into
+   * the lane's two edges while the dark band between them unfolds — the slit
+   * and the unfold every panel here opens with, drawn as lines. The marker
+   * rises out of the middle the same way, the words arrive on the content
+   * beat, and the sets come in from the right once it stands: LANE_MS in
+   * play/dice-pouch-opening.jsx.
+   *
+   * `--part` is how far an edge starts from where it ends: half the lane's
+   * 11rem, so the two begin as one line through its middle.
+   */
+  .pouch-dot {
+    animation: pouch-dot 620ms ease-out;
+  }
+
+  .pouch-edge {
+    animation:
+      panel-slit 120ms ease-out 150ms backwards,
+      pouch-stretch 320ms var(--ease-tray) 150ms backwards,
+      pouch-part 320ms var(--ease-tray) 470ms backwards;
+  }
+
+  .pouch-edge-top {
+    --part: 5.5rem;
+  }
+
+  .pouch-edge-bottom {
+    --part: -5.5rem;
+  }
+
+  .pouch-band {
+    animation: pouch-band-in 320ms var(--ease-tray) 470ms backwards;
+  }
+
+  .pouch-marker {
+    animation:
+      panel-slit 120ms ease-out 790ms backwards,
+      pouch-rise 320ms var(--ease-tray) 850ms backwards;
+  }
+
+  .pouch-notch {
+    animation: pouch-notch-in 200ms ease-out 1050ms backwards;
+  }
+
+  .pouch-words {
+    animation: panel-content 200ms ease-out 470ms backwards;
+  }
+
+  /*
+   * And the lane taken back down, before the window opens on the set or when
+   * the pouch is refused: the edges close onto the middle and shrink to
+   * nothing, on `--ease-tray-in` as every fold here is. FOLD_MS in the
+   * component mirrors the 340ms.
+   */
+  :is(.pouch-stage[data-leaving], .pouch-dialog[data-closing] .pouch-stage)
+    :is(.pouch-words, .pouch-reel, .pouch-notch) {
+    animation: panel-fade-out 140ms ease-out both;
+  }
+
+  :is(.pouch-stage[data-leaving], .pouch-dialog[data-closing] .pouch-stage)
+    .pouch-edge {
+    animation:
+      pouch-part-out 200ms var(--ease-tray-in) both,
+      pouch-shrink-out 140ms var(--ease-tray-in) 200ms both;
+  }
+
+  :is(.pouch-stage[data-leaving], .pouch-dialog[data-closing] .pouch-stage)
+    .pouch-band {
+    animation: pouch-band-out 200ms var(--ease-tray-in) both;
+  }
+
+  :is(.pouch-stage[data-leaving], .pouch-dialog[data-closing] .pouch-stage)
+    .pouch-marker {
+    animation: pouch-marker-out 160ms var(--ease-tray-in) both;
+  }
+
+  /*
+   * The window the set arrives in opens and shuts the way the edit sheet does,
+   * to the millisecond: a slit, an unfold, the contents after it — and the
+   * fold reversed on the way out. CLOSE_MS in the component mirrors it.
+   */
+  .pouch-panel {
+    animation:
+      panel-slit 150ms ease-out backwards,
+      panel-unfold 320ms var(--ease-tray) 150ms backwards;
+  }
+
+  .pouch-panel > * {
+    animation: panel-content 200ms ease-out 470ms backwards;
+  }
+
+  .pouch-dialog[data-closing] .pouch-panel {
+    animation:
+      panel-refold 240ms var(--ease-tray-in) both,
+      panel-fade-out 100ms ease-out 240ms both;
+  }
+
+  .pouch-dialog[data-closing] .pouch-panel > * {
+    animation: panel-fade-out 140ms ease-out both;
+  }
+
+  .pouch-dialog::backdrop {
+    animation: map-backdrop 300ms ease-out both;
+  }
+
+  .pouch-dialog[data-closing]::backdrop {
+    animation: panel-fade-out 300ms ease-out both;
   }
 
   /*
@@ -1856,9 +1897,8 @@ body {
   }
 }
 
-/* The arrival for a panel that opens beside the board rather than under it: it
-   comes in from the mark's own side. Its morph is `.tab-shell` above — the rail
-   and the strip of marks share one mechanism. */
+/* The arrival for a menu that opens beside what was pressed rather than under
+   it: it comes in from that side. */
 @keyframes tray-panel-in {
   from {
     opacity: 0;
@@ -1866,12 +1906,82 @@ body {
   }
 }
 
-/* A Dice Pouch's window opening on the set it held. */
-@keyframes pouch-reveal {
+/* A Dice Pouch's lane drawing itself — see `.pouch-edge` and its neighbours.
+   The dot pops in, holds while the line grows out of it, and goes as the line
+   parts; it rests invisible, so a reader who asked for stillness never sees
+   it. */
+@keyframes pouch-dot {
+  0% {
+    opacity: 0;
+    scale: 0;
+  }
+  25%,
+  70% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1;
+  }
+}
+
+@keyframes pouch-stretch {
+  from {
+    scale: 0.01 1;
+  }
+}
+
+@keyframes pouch-part {
+  from {
+    translate: 0 var(--part);
+  }
+}
+
+@keyframes pouch-band-in {
   from {
     opacity: 0;
-    scale: 0.92;
-    translate: 0 14px;
+    transform: scaleY(0.02);
+  }
+}
+
+@keyframes pouch-rise {
+  from {
+    scale: 1 0.01;
+  }
+}
+
+@keyframes pouch-notch-in {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+
+@keyframes pouch-part-out {
+  to {
+    translate: 0 var(--part);
+  }
+}
+
+@keyframes pouch-shrink-out {
+  to {
+    opacity: 0;
+    scale: 0.01 1;
+  }
+}
+
+@keyframes pouch-band-out {
+  to {
+    opacity: 0;
+    transform: scaleY(0.02);
+  }
+}
+
+@keyframes pouch-marker-out {
+  to {
+    opacity: 0;
+    scale: 1 0.01;
   }
 }
 
@@ -1995,16 +2105,6 @@ body {
   from {
     opacity: 0;
     translate: -5rem 0;
-  }
-}
-
-/* The same rail mirrored, for the containers on the map's other side. Two
-   keyframes rather than a property: a class built from a template is one
-   Tailwind's scanner never sees. */
-@keyframes rail-out-mirrored {
-  from {
-    opacity: 0;
-    translate: 5rem 0;
   }
 }
 
@@ -2823,7 +2923,13 @@ body {
     }
   }
 
-  .pouch-reveal,
+  .pouch-dialog::backdrop,
+  .pouch-dialog[data-closing]::backdrop,
+  .pouch-panel,
+  .pouch-panel > *,
+  .pouch-dialog[data-closing] .pouch-panel,
+  .pouch-dialog[data-closing] .pouch-panel > *,
+  .pouch-stage *,
   .map-dialog::backdrop,
   .map-dialog[data-closing]::backdrop,
   .edit-dialog,

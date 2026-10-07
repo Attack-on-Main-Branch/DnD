@@ -241,7 +241,7 @@ export default function DmPackDrawer({
         >
           All party
           {members.length > 0 && (
-            <span className="font-mono text-[10px] text-ink/50 tabular-nums">
+            <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
               {members.length}
             </span>
           )}
@@ -306,7 +306,7 @@ export default function DmPackDrawer({
               </p>
             ) : (
               <>
-                <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+                <p className="mt-5 font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
                   {selected.name} · {pack.length} carried
                 </p>
 
@@ -421,7 +421,7 @@ function BagSection({ bag, inside, unfolded, onFold, openId, onOpen }) {
         </span>
 
         <span className="flex shrink-0 items-center gap-2">
-          <span className="font-mono text-[10px] text-ink/45 tabular-nums">
+          <span className="font-mono text-[0.625rem] text-ink/45 tabular-nums">
             {inside.length}
           </span>
 

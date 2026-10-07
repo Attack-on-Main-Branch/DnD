@@ -36,7 +36,7 @@ export default function ItemRow({
       {inHand && <HandMark className="size-3.5 shrink-0 text-gold" />}
 
       {stack && (
-        <span className="shrink-0 font-mono text-[10px] text-ink/45 tabular-nums">
+        <span className="shrink-0 font-mono text-[0.625rem] text-ink/45 tabular-nums">
           {stack}
         </span>
       )}

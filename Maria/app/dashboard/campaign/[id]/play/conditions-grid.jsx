@@ -111,7 +111,7 @@ export default function ConditionsGrid({
 
   return (
     <section aria-label="Conditions">
-      <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+      <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
         Conditions / Status effects
       </h3>
 
@@ -137,7 +137,7 @@ export default function ConditionsGrid({
                    switch carried `opacity-45`, and opacity is whole-element: it
                    took the name down with the border, so twelve of the fifteen
                    were a colour you had to lean in to read. */
-                className={`w-full cursor-pointer rounded-lg border px-1.5 py-1.5 font-display text-[12px] leading-tight tracking-wide transition duration-300 disabled:cursor-not-allowed ${dressed.color} ${
+                className={`w-full cursor-pointer rounded-lg border px-1.5 py-1.5 font-display text-[0.75rem] leading-tight tracking-wide transition duration-300 disabled:cursor-not-allowed ${dressed.color} ${
                   on
                     ? "border-gold/55 bg-gold/10"
                     : "border-gold/15 bg-surface/40 hover:border-gold/40"
