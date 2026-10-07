@@ -185,7 +185,7 @@ function LogFace({ entry, faces }) {
     return (
       <span
         aria-hidden="true"
-        className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-gold font-display text-[9px] leading-none font-semibold tracking-wide text-surface"
+        className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-gold font-display text-[0.5625rem] leading-none font-semibold tracking-wide text-surface"
       >
         DM
       </span>

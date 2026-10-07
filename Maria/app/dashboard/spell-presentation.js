@@ -46,7 +46,7 @@ export function slotClusterLabel(level) {
 
 const TAG_BASE =
   "inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 " +
-  "font-mono text-[10px] tracking-[0.14em] uppercase";
+  "font-mono text-[0.625rem] tracking-[0.14em] uppercase";
 
 /** Every spell is magic, so the school wears the arcane violet a wand does. */
 export const SCHOOL_TAG_CLASSES = `${TAG_BASE} border-arcane/35 bg-arcane/10 text-arcane/90`;
@@ -59,10 +59,10 @@ export const LEVEL_TAG_CLASSES = `${TAG_BASE} border-gold/30 bg-gold/15 text-gol
  * way of casting it for free.
  */
 export const CONCENTRATION_CHIP_CLASSES =
-  "inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-amber-200/90 uppercase";
+  "inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 font-mono text-[0.625rem] tracking-[0.12em] text-amber-200/90 uppercase";
 
 export const RITUAL_CHIP_CLASSES =
-  "inline-flex items-center gap-1 rounded-full border border-sky-400/35 bg-sky-400/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-sky-200/90 uppercase";
+  "inline-flex items-center gap-1 rounded-full border border-sky-400/35 bg-sky-400/10 px-2 py-0.5 font-mono text-[0.625rem] tracking-[0.12em] text-sky-200/90 uppercase";
 
 /**
  * A slot: the gold a lit die wears, or the socket it came out of. `block`

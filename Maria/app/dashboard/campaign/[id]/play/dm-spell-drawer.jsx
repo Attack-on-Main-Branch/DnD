@@ -157,7 +157,7 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
           >
             All party
             {members.length > 0 && (
-              <span className="font-mono text-[10px] text-ink/50 tabular-nums">
+              <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
                 {members.length}
               </span>
             )}
@@ -186,7 +186,7 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
                 </p>
               ) : (
                 <>
-                  <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+                  <p className="mt-5 font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
                     {selected.name} · {book.length} known
                   </p>
 

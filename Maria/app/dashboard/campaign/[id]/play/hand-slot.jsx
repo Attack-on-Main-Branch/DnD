@@ -42,7 +42,7 @@ export default function HandSlot({
       <HandMark className="size-5 shrink-0" />
 
       <span className="min-w-0 flex-1">
-        <span className="block font-mono text-[10px] leading-3.5 tracking-[0.16em] text-ink/45 uppercase">
+        <span className="block font-mono text-[0.625rem] leading-3.5 tracking-[0.16em] text-ink/45 uppercase">
           In hand
         </span>
 

@@ -7,7 +7,6 @@ import {
   MAP_HEIGHT_CLASS,
   MAP_MAX_HEIGHT_CLASS,
   MAP_MAX_HEIGHT_RULED_CLASS,
-  MAP_MAX_WIDTH_CLASS,
 } from "./map-height";
 import { useMapToolsShown } from "./map-tools";
 import TableMap from "./table-map";
@@ -94,13 +93,11 @@ export default function MapStage({
        narrow for the map at its own size did not shrink the picture, it painted
        it over the log and the party.
 
-       THE WIDTH CEILING IS HERE AND NOT ON THE PICTURE, because the mat below
-       is `-inset-6` of THIS box: a box wider than what is inside it is a mat
-       that stands proud of the map on one side. See map-height.js. */
-    <div
-      data-shrink
-      className={`relative w-fit min-w-0 ${MAP_MAX_WIDTH_CLASS}`}
-    >
+       NO WIDTH CEILING HERE OR ON THE PICTURE: the mat below is `-inset-6` of
+       THIS box, and a ceiling on either alone leaves the box wider than what is
+       inside it — a mat standing proud of the map on one side. The column is
+       the only width limit. See map-height.js. */
+    <div data-shrink className="relative w-fit min-w-0">
       {/* No `glow`: the rim would light under the pointer, which promises a
           control where there is only a picture.
 

@@ -211,7 +211,7 @@ export default function PlayerSpellDrawer({
           </div>
         ) : (
           <>
-            <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+            <p className="mt-5 font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
               {book.length} known
             </p>
 

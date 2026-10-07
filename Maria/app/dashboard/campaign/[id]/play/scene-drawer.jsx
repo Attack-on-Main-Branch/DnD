@@ -28,7 +28,7 @@ import { piecesOnMap } from "./use-map-tokens";
 
 const TURN_STEP = 15;
 
-export default function SceneDrawer({ faces, onArm }) {
+export default function SceneDrawer({ faces }) {
   const { activeId, isWorldMap, isScene, natural, grid } = useTableMaps();
   const scene = useSceneStaging();
 
@@ -65,12 +65,6 @@ export default function SceneDrawer({ faces, onArm }) {
     scene.commitCamera(activeId, { facing: (camera.facing + by + 360) % 360 });
   }
 
-  // Out of the way of the board the next click lands on.
-  function arm() {
-    scene.arm(true);
-    onArm?.();
-  }
-
   return (
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-2">
@@ -102,7 +96,7 @@ export default function SceneDrawer({ faces, onArm }) {
             >
               ↻
             </Button>
-            <Button variant="secondary" onClick={arm}>
+            <Button variant="secondary" onClick={() => scene.arm(true)}>
               Move
             </Button>
             <Button variant="ghost" onClick={() => scene.takeCamera(activeId)}>
@@ -110,7 +104,7 @@ export default function SceneDrawer({ faces, onArm }) {
             </Button>
           </div>
         ) : (
-          <Button variant="secondary" onClick={arm}>
+          <Button variant="secondary" onClick={() => scene.arm(true)}>
             Place camera
           </Button>
         )}
@@ -292,7 +286,7 @@ function Sighting({ piece, sight }) {
 
   return (
     <span
-      className={`shrink-0 font-mono text-[10px] tracking-[0.12em] uppercase ${
+      className={`shrink-0 font-mono text-[0.625rem] tracking-[0.12em] uppercase ${
         lit ? "text-gold" : "text-ink/40"
       }`}
     >

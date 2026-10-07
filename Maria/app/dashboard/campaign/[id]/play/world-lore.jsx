@@ -79,7 +79,7 @@ export default function WorldLore({ title, lore, mapId, mapUrl }) {
 
           {mapUrl && (
             <section>
-              <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+              <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
                 World map
               </h3>
 

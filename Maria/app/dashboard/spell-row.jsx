@@ -22,7 +22,7 @@ export default function SpellRow({ spell, open = false, onOpen }) {
         {spell.name}
       </span>
 
-      <span className="shrink-0 font-mono text-[10px] text-ink/45 tabular-nums">
+      <span className="shrink-0 font-mono text-[0.625rem] text-ink/45 tabular-nums">
         {levelBadge(spell.level)}
       </span>
     </button>

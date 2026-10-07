@@ -31,7 +31,7 @@ const ARCANE_WORDS =
 
 const TAG_BASE =
   "inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 " +
-  "font-mono text-[10px] tracking-[0.14em] uppercase";
+  "font-mono text-[0.625rem] tracking-[0.14em] uppercase";
 
 const TAG_ARCANE = "border-arcane/35 bg-arcane/10 text-arcane/90";
 const TAG_GOLD = "border-gold/25 bg-gold/10 text-gold/80";
@@ -43,7 +43,7 @@ export function categoryTagClasses(category) {
 /** The count on a row and on the panel it opens, the spell's level tag's twin. */
 export const STACK_TAG_CLASSES =
   "inline-flex items-center rounded-full border border-gold/30 bg-gold/15 " +
-  "px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-gold tabular-nums";
+  "px-2 py-0.5 font-mono text-[0.625rem] font-semibold tracking-[0.14em] text-gold tabular-nums";
 
 /** Null for a catalogue entry, which is a description of a thing, not an amount. */
 export function stackLabel(quantity) {

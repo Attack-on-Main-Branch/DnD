@@ -404,7 +404,7 @@ function TokenNote({ token, at }) {
             // it is read as words. The classes are the catalogue's literals.
             <span
               key={key}
-              className={`font-display text-[10px] leading-tight tracking-wide ${conditionDress(key).color}`}
+              className={`font-display text-[0.625rem] leading-tight tracking-wide ${conditionDress(key).color}`}
             >
               {CONDITIONS[key].name}
             </span>
@@ -413,13 +413,13 @@ function TokenNote({ token, at }) {
       )}
 
       {token.isDead && (
-        <span className="mt-1 block font-mono text-[10px] tracking-[0.16em] text-rose-400 uppercase">
+        <span className="mt-1 block font-mono text-[0.625rem] tracking-[0.16em] text-rose-400 uppercase">
           Dead
         </span>
       )}
 
       {token.isHidden && (
-        <span className="mt-1 block font-mono text-[10px] tracking-[0.16em] text-ink/50 uppercase">
+        <span className="mt-1 block font-mono text-[0.625rem] tracking-[0.16em] text-ink/50 uppercase">
           Hidden from the party
         </span>
       )}

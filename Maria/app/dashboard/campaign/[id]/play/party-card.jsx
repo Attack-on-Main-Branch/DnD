@@ -127,7 +127,7 @@ function PartyCard({
             <p className="font-mono text-xs text-gold/70">
               #{member.discriminator}
             </p>
-            <p className="mt-0.5 truncate font-display text-[10px] tracking-[0.15em] text-ink/50 uppercase">
+            <p className="mt-0.5 truncate font-display text-[0.625rem] tracking-[0.15em] text-ink/50 uppercase">
               {member.race}
               {member.pathLabel ? ` · ${member.pathLabel}` : ""}
             </p>

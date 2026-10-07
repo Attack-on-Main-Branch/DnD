@@ -166,7 +166,7 @@ export default function DeathSaves({
           onClick={finish}
           disabled={busy}
           aria-label={`Kill ${name}`}
-          className="shrink-0 cursor-pointer rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 py-1.5 font-display text-[12px] font-semibold tracking-[0.14em] text-rose-300 uppercase transition duration-300 hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-400/70 disabled:cursor-not-allowed disabled:opacity-40"
+          className="shrink-0 cursor-pointer rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 py-1.5 font-display text-[0.75rem] font-semibold tracking-[0.14em] text-rose-300 uppercase transition duration-300 hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-400/70 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {/* Letter-spacing is added AFTER the last letter too, so a tracked
               word sits 0.14em left of the centre it was padded into. Taking
@@ -181,7 +181,7 @@ export default function DeathSaves({
           onClick={throwOne}
           disabled={busy || throwing}
           aria-label={`Roll a death save for ${name}`}
-          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-display text-[11px] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-display text-[0.6875rem] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <DieGlyph die={DEATH_SAVE_DIE} className="size-4" />
           Roll
@@ -201,7 +201,7 @@ export default function DeathSaves({
 function Tally({ label, plural, filled, toneClass, name }) {
   return (
     <p className="flex items-center gap-2">
-      <span className="w-12 shrink-0 font-mono text-[9px] tracking-[0.14em] text-ink/45 uppercase">
+      <span className="w-12 shrink-0 font-mono text-[0.5625rem] tracking-[0.14em] text-ink/45 uppercase">
         {label}
       </span>
 

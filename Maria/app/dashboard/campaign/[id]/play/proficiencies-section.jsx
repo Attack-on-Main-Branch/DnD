@@ -18,9 +18,23 @@ import { surfaceClasses } from "@/app/components/ui/surface";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import { useTableWire, useWireMessage } from "./table-wire";
 
-const GROUPS = { armor: "Armor", weapons: "Weapons", tools: "Tools" };
-const PILL =
-  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] uppercase";
+/**
+ * What a path is trained to wear, hold and use, as two lists of pills.
+ *
+ * ARMOUR IS ITS OWN LIST because a Wizard's answer is "none" and that is worth a
+ * pill of its own rather than an empty row — knowing somebody has no armour
+ * proficiency is exactly as useful as knowing they have three.
+ *
+ * The weapons and the tools share a row: a table asks "what can they swing",
+ * and thieves' tools are an answer to that in the same breath as a rapier.
+ *
+ * No `"use client"` and no hooks. Nothing here moves without a route render —
+ * the path decides it — so this renders on the server and the drawer around it
+ * holds the numbers that do.
+ */
+const PILL_CLASSES =
+  "inline-flex items-center rounded-full border px-2 py-0.5 " +
+  "font-mono text-[0.625rem] tracking-[0.12em] uppercase";
 
 export default function ProficienciesSection({
   proficiencies,
@@ -174,5 +188,20 @@ export default function ProficienciesSection({
       ))}
       <FormAlert>{error}</FormAlert>
     </section>
+  );
+}
+
+function Group({ label, note, children }) {
+  return (
+    <div>
+      <p className="font-mono text-[0.5625rem] tracking-[0.16em] text-ink/45 uppercase">
+        {label}
+        {note && (
+          <span className="ml-1.5 text-ink/35 normal-case">({note})</span>
+        )}
+      </p>
+
+      <ul className="mt-1.5 flex flex-wrap gap-1.5">{children}</ul>
+    </div>
   );
 }

@@ -94,7 +94,7 @@ export default function FeatureCard({
             disabled={disabled}
             aria-pressed={editing}
             aria-label={`Edit ${feature.name}`}
-            className={`shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[12px] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 ${
+            className={`shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 ${
               editing ? "text-gold" : "text-ink/50"
             }`}
           >
@@ -110,7 +110,7 @@ export default function FeatureCard({
             onClick={onRemove}
             disabled={disabled}
             aria-label={`Remove ${feature.name}`}
-            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[12px] tracking-wide text-ink/50 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
+            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide text-ink/50 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
           >
             Remove
           </button>

@@ -29,11 +29,13 @@ export default function HealthBar({
   return (
     <section className="w-full">
       {compact ? (
-        <p className="text-right font-mono text-[10px] leading-none text-ink/50 tabular-nums">
+        <p className="text-right font-mono text-[0.625rem] leading-none text-ink/50 tabular-nums">
           {/* `leading-none` again on the span: a line box is sized by the
               tallest inline box in it, so the larger number brought its own
               default leading back and cost six pixels a card. */}
-          <span className="text-[11px] leading-none text-gold">{current}</span>{" "}
+          <span className="text-[0.6875rem] leading-none text-gold">
+            {current}
+          </span>{" "}
           / {max} HP
         </p>
       ) : (

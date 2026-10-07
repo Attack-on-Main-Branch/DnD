@@ -485,6 +485,70 @@ export const DICE_SKIN_RECIPES = {
   },
 
   /*
+   * Polished labradorite, smoky grey with a blue flash, lettered in gold leaf
+   * — see `paintLabradorite`. Each die holds `sets` of lamellae, each
+   * `lean`ing off one face's normal and wavering by up to `waver`; the stone
+   * is split into domains about `scale` d20 face inradii across, their walls
+   * bent by `wander`, each holding one set. `schiller` is how near a
+   * face must look along its lamellae to flash, `from` dark to `to` full;
+   * `patch` where on its noise the flash begins and is whole, `ghost` how
+   * much blue shows on the faces that do not flash, and `tilt` how far the
+   * lamellae's own normal may lean off the face's in the normal map. `twins`
+   * are the streaks across the flash, `pitch` apart and `long` along, `fine`
+   * a second, finer set, and `glow` how much the lamellae between them are
+   * lightened; `needles` the black inclusions, cut the same way, `dull` how
+   * much of them shows off the flash. Sizes are in d20 face inradii. `hue` is
+   * the ramp the flash takes, by share of the dice. `sheen` is how much of a
+   * metal the flash is lit as — it reads dark until it catches the light.
+   */
+  labradorite: {
+    kind: "labradorite",
+    name: "Labradorite",
+    weight: 1,
+    engrave: 0.05,
+    bleed: 8,
+    metal: "#e2b850",
+    gilt: 0.55,
+    sheen: 0.55,
+    environment: 1.8,
+    domains: { sets: 3, scale: 3, wander: 0.3, lean: 0.3, waver: 0.2 },
+    schiller: {
+      from: 0.45,
+      to: 0.85,
+      scale: 1.8,
+      warp: 0.5,
+      patch: [0.28, 0.48],
+      ghost: 0.07,
+      tilt: 0.6,
+    },
+    twins: { pitch: 0.04, long: 2, fine: 0.012, strength: 0.45, glow: 0.35 },
+    needles: {
+      pitch: 0.035,
+      long: 0.6,
+      from: 0.84,
+      to: 0.9,
+      strength: 0.7,
+      dull: 0.2,
+    },
+    hue: {
+      scale: 2.4,
+      stops: [
+        [0, "#0f2f9a"],
+        [0.3, "#1a56d8"],
+        [0.65, "#2f7ff2"],
+        [0.85, "#5fb6f7"],
+        [0.93, "#3fbfb0"],
+        [0.975, "#9cc85a"],
+        [0.995, "#dcbf5c"],
+        [1, "#d99a62"],
+      ],
+    },
+    stone: { scale: 0.9, smoke: "#121416", grey: "#2a2e31", mist: "#51575b" },
+    finish: { stone: 0.3, flash: 0.2, numerals: 0.32 },
+    coat: { intensity: 1, roughness: 0.02 },
+  },
+
+  /*
    * See-through glass in the player's colour, misted and lightly scratched,
    * with frosted numerals — see `paintGlass`. `opacity` is how much of what
    * is behind the glass it hides, for the vendored dice-box. `mist` is a milky

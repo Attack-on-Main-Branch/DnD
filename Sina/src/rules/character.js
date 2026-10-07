@@ -310,7 +310,7 @@ export const DICE_SKIN_RARITIES = ["common", "rare", "epic", "legendary"];
 const DICE_SKINS_BY_RARITY = {
   common: ["classic", "crystal", "glass", "fade", "ornate"],
   rare: ["metal-rimmed", "metal-inlaid", "cracked", "galaxy", "paper"],
-  epic: ["brass-rimmed", "brass-inlaid", "wood", "epoxy"],
+  epic: ["brass-rimmed", "brass-inlaid", "wood", "epoxy", "labradorite"],
   legendary: [
     "gold-rimmed",
     "gold-inlaid",

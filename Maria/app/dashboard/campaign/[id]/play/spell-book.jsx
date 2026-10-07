@@ -210,7 +210,7 @@ function Casting({ caster }) {
   const left = remainingSlots(slots, classId, level);
 
   return (
-    <p className="flex items-baseline gap-3 font-mono text-[11px] tracking-[0.14em] text-ink/45 uppercase">
+    <p className="flex items-baseline gap-3 font-mono text-[0.6875rem] tracking-[0.14em] text-ink/45 uppercase">
       <span>
         DC <span className="text-gold tabular-nums">{casting.saveDC}</span>
       </span>

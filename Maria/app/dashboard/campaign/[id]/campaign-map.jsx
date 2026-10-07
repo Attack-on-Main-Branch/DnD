@@ -422,7 +422,7 @@ export default function CampaignMap({ url, title, mark = null }) {
         onPointerEnter={prepare}
         onFocus={prepare}
         aria-label={`View the full map of ${title}`}
-        className="group relative mx-auto block aspect-video w-[640px] max-w-full cursor-pointer overflow-hidden rounded-2xl border border-gold/15 bg-surface/60 transition duration-300 hover:border-gold/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70"
+        className="group relative mx-auto block aspect-video w-[40rem] max-w-full cursor-pointer overflow-hidden rounded-2xl border border-gold/15 bg-surface/60 transition duration-300 hover:border-gold/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70"
       >
         {/* `cover`: a letterboxed thumbnail spent a third of its box on black. */}
         <Image
@@ -447,7 +447,7 @@ export default function CampaignMap({ url, title, mark = null }) {
         <span
           ref={labelRef}
           aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 p-4 text-center font-mono text-[10px] tracking-[0.2em] text-ink/70 uppercase drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] transition-colors duration-300 group-hover:text-gold"
+          className="absolute inset-x-0 bottom-0 p-4 text-center font-mono text-[0.625rem] tracking-[0.2em] text-ink/70 uppercase drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] transition-colors duration-300 group-hover:text-gold"
         >
           Click for full resolution
         </span>
@@ -648,7 +648,7 @@ function ZoomableMap({
       <p
         ref={hintRef}
         aria-live="polite"
-        className="text-center font-mono text-[10px] tracking-[0.2em] text-ink/50 uppercase"
+        className="text-center font-mono text-[0.625rem] tracking-[0.2em] text-ink/50 uppercase"
       >
         {hint}
       </p>

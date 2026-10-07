@@ -37,7 +37,7 @@ export default function XpMeter({ xp, level, name, compact = false }) {
       <div
         className={`flex items-baseline justify-between gap-4 ${compact ? "" : "mt-3"}`}
       >
-        <p className="min-w-0 truncate font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        <p className="min-w-0 truncate font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
           Level <span className="text-gold tabular-nums">{level}</span>
         </p>
 
@@ -66,7 +66,7 @@ export default function XpMeter({ xp, level, name, compact = false }) {
       />
 
       {level >= MAX_LEVEL && (
-        <p className="mt-1.5 text-right text-[11px] text-ink/40">
+        <p className="mt-1.5 text-right text-[0.6875rem] text-ink/40">
           The top of the ladder.
         </p>
       )}

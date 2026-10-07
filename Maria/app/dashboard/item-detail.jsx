@@ -101,7 +101,7 @@ export default function ItemDetail({ item, quantity, children }) {
         <dl className="mt-3 grid grid-cols-3 gap-2">
           {rest.map((fact) => (
             <div key={fact.name} className="min-w-0">
-              <dt className="font-mono text-[10px] tracking-[0.14em] text-ink/40 uppercase">
+              <dt className="font-mono text-[0.625rem] tracking-[0.14em] text-ink/40 uppercase">
                 {fact.label}
               </dt>
               <dd className="truncate text-xs text-ink/80" title={fact.value}>
@@ -135,7 +135,7 @@ export default function ItemDetail({ item, quantity, children }) {
  * are a thing being held that stops you holding another.
  */
 const RARITY_CHIP_CLASSES =
-  "inline-flex items-center rounded-full border border-arcane/35 bg-arcane/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] text-arcane/90 uppercase";
+  "inline-flex items-center rounded-full border border-arcane/35 bg-arcane/10 px-2 py-0.5 font-mono text-[0.625rem] tracking-[0.14em] text-arcane/90 uppercase";
 
 const ATTUNEMENT_CHIP_CLASSES =
-  "inline-flex items-center rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-amber-200/90 uppercase";
+  "inline-flex items-center rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 font-mono text-[0.625rem] tracking-[0.12em] text-amber-200/90 uppercase";

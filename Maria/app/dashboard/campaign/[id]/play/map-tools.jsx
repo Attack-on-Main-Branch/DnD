@@ -52,7 +52,7 @@ export function useMapToolsShown(canRule) {
 const GROUP_CLASSES = "flex items-center gap-2";
 
 function toggleClasses(on) {
-  return `shrink-0 cursor-pointer rounded-lg border px-2.5 py-1 font-display whitespace-nowrap text-[11px] font-semibold tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+  return `shrink-0 cursor-pointer rounded-lg border px-2.5 py-1 font-display whitespace-nowrap text-[0.6875rem] font-semibold tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
     on
       ? "border-gold bg-gold/20 text-gold shadow-[0_0_10px_var(--gold-40)]"
       : "border-gold/25 text-ink/60 hover:border-gold/50 hover:text-gold"
@@ -62,7 +62,7 @@ function toggleClasses(on) {
 function ToolLabel({ dim = false, children }) {
   return (
     <span
-      className={`ml-1 shrink-0 font-mono text-[10px] tracking-[0.16em] text-ink/50 uppercase transition-opacity duration-300 ${
+      className={`ml-1 shrink-0 font-mono text-[0.625rem] tracking-[0.16em] text-ink/50 uppercase transition-opacity duration-300 ${
         dim ? "opacity-40" : ""
       }`}
     >
@@ -132,7 +132,7 @@ function GridTools() {
           className="range-gold w-12 min-w-12 flex-[1.4]"
         />
 
-        <span className="w-7 shrink-0 text-right font-mono text-[10px] text-ink/45 tabular-nums">
+        <span className="w-7 shrink-0 text-right font-mono text-[0.625rem] text-ink/45 tabular-nums">
           {grid.size}
         </span>
       </label>
@@ -226,7 +226,7 @@ function FogTools() {
           className="range-gold w-12 min-w-12 flex-1"
         />
 
-        <span className="w-5 shrink-0 text-right font-mono text-[10px] text-ink/45 tabular-nums">
+        <span className="w-5 shrink-0 text-right font-mono text-[0.625rem] text-ink/45 tabular-nums">
           {fogSize}
         </span>
       </label>
@@ -247,7 +247,7 @@ function BrushButton({ held, tone, onHold, children }) {
       type="button"
       onClick={onHold}
       aria-pressed={held}
-      className={`shrink-0 cursor-pointer rounded-lg border px-2 py-1 font-mono whitespace-nowrap text-[10px] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+      className={`shrink-0 cursor-pointer rounded-lg border px-2 py-1 font-mono whitespace-nowrap text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
         held
           ? lit
           : "border-gold/25 text-ink/60 hover:border-gold/50 hover:text-gold"

@@ -1,64 +1,37 @@
 /**
- * How big the board is. All three exports carry the same expressions — the
- * height twice, once as a maximum for the picture and once as a flat height for
- * the empty placeholder — and they are spelled out rather than assembled because
- * a class built from a template is a class Tailwind's scanner never sees. Change
- * one and change the other.
+ * How tall the board may stand. All three exports carry the same expression —
+ * once as a maximum for the picture and once as a flat height for the empty
+ * placeholder — spelled out rather than assembled because a class built from a
+ * template is a class Tailwind's scanner never sees. Change one and change the
+ * others.
  *
- * THE WIDTH IS A CEILING OF ITS OWN, and it is what the board is measured by:
- * the map should stand at 60% of the window. It goes on the STAGE — the box the
- * glass mat is hung off — and never on the picture, which is the whole of what
- * went wrong the first time this was written. `w-fit` sizes that box from what
- * the picture would be at its height ceiling; a second, smaller ceiling on the
- * picture alone left the box 19px wider than what was inside it, and the mat,
- * being `-inset-6` of the BOX, stood proud of the map down its right-hand edge.
- * One ceiling, on the outer box, and `max-w-full` on the picture to follow it:
- * then the two cannot disagree and the mat is the same 1.5rem on all four sides.
+ * NO WIDTH CEILING. The board's column is what decides its width: the log and
+ * the party rail either side are measured in rem, and the table's rem follows
+ * the window (see `data-table-scale` in globals.css), so the furniture keeps
+ * one share of every monitor and the board takes whatever is left. A ceiling
+ * of its own only ever stopped it short of the room it had. The stage is
+ * `w-fit min-w-0`, so the flex row is what makes it give way — and the picture
+ * follows with `max-w-full`, which keeps the glass mat the same 1.5rem on all
+ * four sides.
  *
- * No `min(100%, …)` either, for the same reason — a percentage resolved against
- * a `w-fit` ancestor is a circular question, and the answer browsers give during
- * intrinsic sizing is not the one they give afterwards. The column is kept by
- * the flex row instead: `min-w-0` on the stage lets it give way.
- *
- * THE HEIGHT IS WHAT LETS IT GET THERE. A map is a picture with a ratio, so its
- * width is only ever as large as its height allows: at 2560 by 1320 the old
- * ceiling gave a 3:2 map 1224px, which is 48% of the window, and no width rule
- * could have widened it without squashing the picture. `82vh` and a 15rem
- * reserve are what let that same map reach 60% with the page still ending
- * exactly at the fold.
- *
- * THE RESERVE IS MEASURED AND NOT GUESSED: 48px of the page's own padding, 40px
- * of title, two 16px row gaps, 72px of marks and the 48px of glass mat standing
- * proud of the picture come to 240px — 15rem. No site header: HeaderFold folds
- * it away on this page.
- * It used to be 29.75rem, which still counted a health band under the board;
- * those bars are inside the party cards now, so the height crossed from below
- * the map to beside it — and beside it costs the row nothing until the map grows
- * taller than the rail.
- *
- * Everything around the board is measured in pixels and does not shrink with the
- * viewport, so the middle term takes over below 1333px of viewport height, and
- * the `16rem` floor below 496px — under which the middle term is smaller than
+ * THE HEIGHT IS THE WINDOW LESS A MEASURED RESERVE, for maps squarer than the
+ * window: 1rem of the page's padding top and bottom, 2.5rem of the name, 3rem
+ * of the marks under it, two 0.75rem row gaps, the 1.5rem the marks' row keeps
+ * clear for the glass mat over the picture, and the mat's 1.5rem under it —
+ * 12rem. No site header: HeaderFold folds it away on this page. Being rem,
+ * the reserve scales with the furniture it stands for. The `16rem` floor is
  * the smallest board worth drawing.
- *
- * BELOW ABOUT 2200px OF WINDOW IT IS THE COLUMN THAT DECIDES, not either
- * ceiling: the log and the party rail are 20rem each and do not give way, so a
- * 1440px window seats a 481px board however tall it is allowed to be. That is
- * the layout's own answer and not this file's.
  */
 
-/** The board's ceiling — 60% of the window. On the stage, not on the picture. */
-export const MAP_MAX_WIDTH_CLASS = "max-w-[60vw]";
-
-/** The other ceiling. Both are maxima, so the browser keeps the ratio. */
-export const MAP_MAX_HEIGHT_CLASS = "max-h-[clamp(16rem,100vh_-_15rem,82vh)]";
+/** The ceiling. A maximum, so the browser keeps the picture's ratio. */
+export const MAP_MAX_HEIGHT_CLASS = "max-h-[max(16rem,100vh_-_12rem)]";
 
 /** The "no map" panel, which has no ratio to keep and takes the height flat. */
-export const MAP_HEIGHT_CLASS = "h-[clamp(16rem,100vh_-_15rem,82vh)]";
+export const MAP_HEIGHT_CLASS = "h-[max(16rem,100vh_-_12rem)]";
 
 /**
  * The same ceiling at the head of the table, with room under the board for the
- * map tools: their 2.5rem gap and the bar's own 2.75rem. See map-tools.jsx.
+ * map tools: their 2rem gap and the bar's own 2.8125rem. See map-tools.jsx.
  */
 export const MAP_MAX_HEIGHT_RULED_CLASS =
-  "max-h-[clamp(16rem,100vh_-_20.25rem,82vh)]";
+  "max-h-[max(16rem,100vh_-_16.8125rem)]";

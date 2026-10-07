@@ -134,7 +134,7 @@ function Toast({ toast, onDismiss }) {
 
       <div className="min-w-0 flex-1">
         <p
-          className={`font-display text-[11px] font-semibold tracking-[0.16em] uppercase ${tone.heading}`}
+          className={`font-display text-[0.6875rem] font-semibold tracking-[0.16em] uppercase ${tone.heading}`}
         >
           {toast.title ?? tone.title}
         </p>

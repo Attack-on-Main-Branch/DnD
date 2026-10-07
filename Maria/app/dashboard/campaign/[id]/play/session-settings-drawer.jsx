@@ -173,7 +173,7 @@ export default function SessionSettingsDrawer({
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
       <section aria-label="Rest">
-        <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
           Rest
         </h3>
 
@@ -218,7 +218,7 @@ export default function SessionSettingsDrawer({
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
       <section aria-label="Experience">
-        <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
           Experience
         </h3>
 
@@ -242,7 +242,7 @@ export default function SessionSettingsDrawer({
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
       <section aria-label="Dice pouches">
-        <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
           Dice pouch
         </h3>
 
