@@ -77,6 +77,8 @@ export default function MapToken({
   onGrab,
   onMark,
   onLift,
+  sector,
+  onHealthChange,
 }) {
   const discRef = useRef(null);
   const reduceMotion = useReducedMotion();
@@ -189,6 +191,7 @@ export default function MapToken({
         }
       }}
       style={{
+        clipPath: sector,
         left: `${token.x * 100}%`,
         top: `${token.y * 100}%`,
         transform: cell
@@ -275,6 +278,7 @@ export default function MapToken({
             onLift(token);
           }}
           onClose={() => setMenu(null)}
+          onHealthChange={onHealthChange}
         />
       )}
     </span>
@@ -386,6 +390,11 @@ function TokenNote({ token, at }) {
     >
       <span className="block truncate font-display text-xs font-semibold tracking-wide text-gold">
         {token.label}
+        {token.commandable && token.health && (
+          <span className="ml-2 font-mono text-[10px] tabular-nums">
+            {token.health.current_hp} / {token.health.max_hp} HP
+          </span>
+        )}
       </span>
 
       {token.conditions.length > 0 && (

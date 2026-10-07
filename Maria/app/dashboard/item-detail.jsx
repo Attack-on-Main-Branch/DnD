@@ -40,9 +40,7 @@ export default function ItemDetail({ item, quantity, children }) {
       className={surfaceClasses({
         variant: "solid",
         glow: true,
-        // Bounded and scrolling inside itself, as the spell's is: this hangs
-        // under a panel that is already 42vh tall. `glass-unfiltered` because a
-        // filtered surface goes on filtering at `opacity: 0`.
+        // `glass-unfiltered`: a filtered surface keeps filtering at opacity 0.
         className:
           "scroll-gold max-h-[min(20rem,34vh)] overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered",
       })}

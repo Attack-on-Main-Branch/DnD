@@ -310,6 +310,9 @@ export default async function CampaignTablePage({ params, searchParams }) {
 
                 <div className="mt-3">
                   <ProficienciesSection
+                    campaignId={id}
+                    characterId={sheet.id}
+                    canEdit={own}
                     proficiencies={vitals[sheet.id].proficiencies}
                   />
                 </div>

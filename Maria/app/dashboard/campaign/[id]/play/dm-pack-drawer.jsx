@@ -22,7 +22,6 @@ import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import {
   PopoverAside,
   POPOVER_BODY_CLASSES,
-  POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
 import { useContainers, useTableStore } from "./table-state";
@@ -224,9 +223,8 @@ export default function DmPackDrawer({
 
   return (
     <div
-      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${
-        open ? POPOVER_BODY_SHORT_CLASSES : POPOVER_BODY_CLASSES
-      }`}
+      data-popover-body
+      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
     >
       <PartyPills
         members={members}

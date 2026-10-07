@@ -42,7 +42,6 @@ import PlayerPurse from "./player-purse";
 import {
   PopoverAside,
   POPOVER_BODY_CLASSES,
-  POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
 import { useChestItems, useContainers, useTableStore } from "./table-state";
@@ -431,11 +430,8 @@ export default function PlayerPackDrawer({
 
   return (
     <div
-      /* Shorter while an item is open under it: the two panels hang off the
-         marks together and the pair has to clear the bottom of the window. */
-      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${
-        open ? POPOVER_BODY_SHORT_CLASSES : POPOVER_BODY_CLASSES
-      }`}
+      data-popover-body
+      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
       /* Escape puts the waiting hand out before it closes the panel. */
       onKeyDown={(event) => {
         if (arming && event.key === "Escape") {

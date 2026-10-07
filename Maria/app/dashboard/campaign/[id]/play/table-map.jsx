@@ -9,6 +9,7 @@ import { useMapZoom } from "../use-map-zoom";
 import { holdTray } from "./dice-engine";
 import DragArrow, { DragDistance } from "./drag-arrow";
 import FogOverlay from "./fog-overlay";
+import FogBrushPreview from "./fog-brush-preview";
 import HexGridOverlay from "./hex-grid-overlay";
 import { HEAD_OF_TABLE } from "./dice-table";
 import { useTableMaps } from "./table-maps";
@@ -713,6 +714,8 @@ export default function TableMap({
         ))}
 
         <MapTokens
+          campaignId={campaignId}
+          canSweep={canSweep}
           tokens={tokens}
           scale={scale}
           layerStyle={imageStyle}
@@ -759,14 +762,22 @@ export default function TableMap({
 
         {/* LAST, AND OVER EVERYTHING: a piece standing in a room nobody has
             opened is part of what the darkness is hiding. */}
-        {fog.enabled && (
-          <FogOverlay
-            maskRef={mask.maskRef}
-            subscribe={mask.subscribe}
-            seeThrough={canSweep}
-            style={imageStyle}
-          />
-        )}
+        <FogOverlay
+          key={activeId}
+          maskRef={mask.maskRef}
+          subscribe={mask.subscribe}
+          seeThrough={canSweep}
+          enabled={fog.enabled}
+          style={imageStyle}
+        />
+        <FogBrushPreview
+          size={fogSize}
+          scale={scale}
+          canSweep={canSweep}
+          brush={brush}
+          frameRef={frameRef}
+          pointAt={pointAt}
+        />
 
         {/* Over the fog: the Dungeon Master sees through it anyway. */}
         {camera && (

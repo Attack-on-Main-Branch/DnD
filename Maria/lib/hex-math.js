@@ -145,8 +145,7 @@ const FURTHEST_RING = 12;
 
 /**
  * Pieces put onto the lattice: each to the centre of the cell it stands in,
- * and NEVER TWO TO A CELL. The piece already nearest a centre claims it first;
- * one whose cell is taken goes to the closest free cell round it. Only cells
+ * preserving pieces that share a cell. Only cells
  * whose centre is on the picture are offered, or the point would be clamped
  * to the edge and stand off its own cell.
  *
@@ -173,19 +172,17 @@ export function alignToLattice(pieces, size, { width, height }) {
     })
     .sort((one, two) => one.slack - two.slack);
 
-  const taken = new Set();
   const answers = new Map();
 
   for (const { piece, cell } of queue) {
     const home = nearestFree(piece, cell, size, (one) => {
-      return !taken.has(`${one.q},${one.r}`) && inside(one);
+      return inside(one);
     });
 
     if (!home) {
       continue;
     }
 
-    taken.add(`${home.q},${home.r}`);
     answers.set(piece.id, { ...hexToPixel(home.q, home.r, size), ...home });
   }
 

@@ -30,10 +30,8 @@ export default function SpellDetail({ spell, children }) {
       className={surfaceClasses({
         variant: "solid",
         glow: true,
-        // Bounded and scrolling inside itself: this hangs under a panel that is
-        // already 42vh tall, and Wish runs to two thousand characters.
-        // `glass-unfiltered` for the reason the box above carries one — a
-        // filtered surface goes on filtering at `opacity: 0`.
+        // Long descriptions scroll inside the detail panel.
+        // `glass-unfiltered`: a filtered surface keeps filtering at opacity 0.
         className:
           "scroll-gold max-h-[min(20rem,34vh)] overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered",
       })}
