@@ -132,13 +132,16 @@
 
   /*
    * How rare a dice style is, in the colours games have taught everybody to
-   * read. Legendary is a saturated yellow so it cannot be taken for the gold
-   * of a selected card; all four clear 4.5:1 against `--color-surface`.
+   * read: grey, blue, purple, red, gold, and a cyan above them all. Legendary
+   * is a deep, saturated gold so it cannot be taken for the pale gold of a
+   * selected card; all six clear 4.5:1 against `--color-surface`.
    */
   --color-rarity-common: #9ca3af;
-  --color-rarity-rare: #4f8cff;
-  --color-rarity-epic: #b26cf9;
-  --color-rarity-legendary: #facc15;
+  --color-rarity-uncommon: #4f8cff;
+  --color-rarity-rare: #b26cf9;
+  --color-rarity-epic: #f05252;
+  --color-rarity-legendary: #f5b82e;
+  --color-rarity-iconic: #4ccdd9;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

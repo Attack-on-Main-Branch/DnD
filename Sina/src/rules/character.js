@@ -300,7 +300,14 @@ export function isDiceColor(value) {
 }
 
 /** Commonest first. */
-export const DICE_SKIN_RARITIES = ["common", "rare", "epic", "legendary"];
+export const DICE_SKIN_RARITIES = [
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary",
+  "iconic",
+];
 
 /**
  * What a character's dice are made of, beside the colour they come in, by
@@ -309,15 +316,17 @@ export const DICE_SKIN_RARITIES = ["common", "rare", "epic", "legendary"];
  */
 const DICE_SKINS_BY_RARITY = {
   common: ["classic", "crystal", "glass", "fade", "ornate"],
-  rare: ["metal-rimmed", "metal-inlaid", "cracked", "galaxy", "paper"],
-  epic: ["brass-rimmed", "brass-inlaid", "wood", "epoxy", "labradorite"],
-  legendary: [
-    "gold-rimmed",
-    "gold-inlaid",
-    "asiimov",
-    "companion",
-    "case-hardened",
+  uncommon: ["metal-rimmed", "metal-inlaid", "metal-cornered", "cracked"],
+  rare: [
+    "brass-rimmed",
+    "brass-inlaid",
+    "brass-cornered",
+    "galaxy",
+    "dragonscale",
   ],
+  epic: ["gold-rimmed", "gold-inlaid", "gold-cornered", "wood", "paper"],
+  legendary: ["epoxy", "labradorite", "bloodied"],
+  iconic: ["asiimov", "companion", "case-hardened"],
 };
 
 /** Every style, commonest first. */

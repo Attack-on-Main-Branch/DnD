@@ -78,6 +78,42 @@ const INLAID = {
   },
 };
 
+/**
+ * Metal with a raised rim round every face and a bracket in each of its
+ * corners, the enamel between them swirled in the player's colour — see
+ * `carveCornered` and `paintCornered`. Sizes are fractions of a d20 face's
+ * inradius: `frame` is the rim, `bevel` how far it rounds over into the
+ * enamel, `depth` how far the metal stands proud of it. A bracket stands
+ * `gap` in from the rim, `width` wide, its arms `arm` long or `reach` of
+ * their edge if that is shorter, and `height` of the rim's height; `margin`
+ * is the enamel the numerals keep clear round them. `shadow` is in atlas
+ * pixels. The enamel is marbled by noise `scale` across, warped by `warp`:
+ * how much darker and paler it goes, how far the shadow of the metal darkens
+ * it, and its pearly streaks — `streak` wide, `pearl` bright, with
+ * `sheen` of a metal's shine in them.
+ */
+const CORNERED = {
+  kind: "cornered",
+  frame: 0.1,
+  bevel: 0.05,
+  depth: 0.07,
+  bracket: { gap: 0.15, width: 0.2, arm: 0.75, reach: 0.4, height: 0.85 },
+  margin: 0.05,
+  weight: 1,
+  shadow: 3,
+  enamel: {
+    scale: 2.2,
+    warp: 1.1,
+    dark: 0.35,
+    light: 0.25,
+    shadow: 0.6,
+    streak: 0.02,
+    pearl: 0.12,
+    sheen: 0.25,
+  },
+  finish: { metal: 0.16, enamel: 0.14 },
+};
+
 export const DICE_SKIN_RECIPES = {
   "metal-rimmed": { ...RIMMED, ...METALS.metal, name: "Metal-rimmed" },
   "gold-rimmed": { ...RIMMED, ...METALS.gold, name: "Gold-rimmed" },
@@ -86,6 +122,10 @@ export const DICE_SKIN_RECIPES = {
   "metal-inlaid": { ...INLAID, ...METALS.metal, name: "Metal-inlaid" },
   "gold-inlaid": { ...INLAID, ...METALS.gold, name: "Gold-inlaid" },
   "brass-inlaid": { ...INLAID, ...METALS.brass, name: "Brass-inlaid" },
+
+  "metal-cornered": { ...CORNERED, ...METALS.metal, name: "Metal-cornered" },
+  "gold-cornered": { ...CORNERED, ...METALS.gold, name: "Gold-cornered" },
+  "brass-cornered": { ...CORNERED, ...METALS.brass, name: "Brass-cornered" },
 
   /*
    * Resin over crumpled foil — see `paintEpoxy`. Sizes are fractions of a d20
@@ -127,18 +167,36 @@ export const DICE_SKIN_RECIPES = {
 
   /*
    * Folded from a sheet and drawn on in pen — see `paintPaper`. Sizes are
-   * fractions of a d20 face's inradius; `wobble` is in atlas pixels.
+   * fractions of a d20 face's inradius; `wobble` is in atlas pixels. The
+   * numerals are written `width` wide, pressed harder and lighter by up to
+   * `pressure` over `scale`, with a `blot` at each stroke's end, as a share
+   * of the line. The sheet is clouded `strength` over `scale`; its
+   * `fibres` run `ways` ways, `width` by `length`, showing where noise is
+   * between `from` and `to`, `strength` lighter or darker and `depth` proud;
+   * `flecks` of pulp are `scale` across and `strength` dark.
    */
   paper: {
     kind: "paper",
     name: "Paper",
-    paper: "#f4efe2",
-    pen: { outline: 0.09, wander: 0.6 },
-    sketch: { inset: 0.2, width: 0.034, gap: 0.7, lift: 0.2 },
+    paper: "#f6f1e4",
+    pen: { outline: 0.07, wander: 0.6 },
+    sketch: { inset: 0.2, width: 0.045, gap: 0.9, lift: 0.2 },
     wobble: { amplitude: 1.1, cell: 12 },
-    creases: { count: 3, width: 0.09, depth: 0.012 },
-    grain: 0.08,
-    finish: { paper: 0.85, ink: 0.45 },
+    numerals: { width: 0.13, pressure: 0.5, scale: 0.4, blot: 1.5 },
+    creases: { count: 3, width: 0.07, depth: 0.01 },
+    cloud: { scale: 0.7, strength: 0.06 },
+    fibres: {
+      ways: 4,
+      width: 0.012,
+      length: 0.35,
+      from: 0.78,
+      to: 0.9,
+      strength: 0.035,
+      depth: 0.002,
+    },
+    flecks: { scale: 0.05, strength: 0.25 },
+    grain: 0.14,
+    finish: { paper: 0.9, ink: 0.45 },
   },
 
   /*
@@ -278,11 +336,13 @@ export const DICE_SKIN_RECIPES = {
    * `dice` is a die's own arms, bars or discs. `join` and `shadow` are atlas
    * pixels — how far apart a numeral's digits may be, and how far a piece's
    * shadow falls. `bump` is how strongly the relief is lit: the white stands
-   * well proud of the slate.
+   * well proud of the slate, and the colour sinks into it. `parallax` is how
+   * deep the relief looks as the die turns — see the vendored dice-box.
    */
   companion: {
     kind: "companion",
     name: "Companion",
+    parallax: 0.016,
     weight: 1,
     join: 4,
     shadow: 5,
@@ -304,12 +364,12 @@ export const DICE_SKIN_RECIPES = {
     dice: { d4: { arm: { reach: 0.15, width: 0.2 } } },
     heart: 0.62,
     relief: {
-      piece: 0.14,
+      piece: 0.24,
       bevel: 0.11,
       ridge: 0.6,
       rib: 0.03,
       disc: 0.04,
-      channel: 0.05,
+      channel: 0.09,
       wall: 0.03,
     },
     colours: { white: "#ecebe6", slate: "#64738a", disc: "#ebe5d5" },
@@ -485,21 +545,22 @@ export const DICE_SKIN_RECIPES = {
   },
 
   /*
-   * Polished labradorite, smoky grey with a blue flash, lettered in gold leaf
-   * — see `paintLabradorite`. Each die holds `sets` of lamellae, each
-   * `lean`ing off one face's normal and wavering by up to `waver`; the stone
-   * is split into domains about `scale` d20 face inradii across, their walls
-   * bent by `wander`, each holding one set. `schiller` is how near a
-   * face must look along its lamellae to flash, `from` dark to `to` full;
-   * `patch` where on its noise the flash begins and is whole, `ghost` how
-   * much blue shows on the faces that do not flash, and `tilt` how far the
-   * lamellae's own normal may lean off the face's in the normal map. `twins`
-   * are the streaks across the flash, `pitch` apart and `long` along, `fine`
-   * a second, finer set, and `glow` how much the lamellae between them are
-   * lightened; `needles` the black inclusions, cut the same way, `dull` how
-   * much of them shows off the flash. Sizes are in d20 face inradii. `hue` is
-   * the ramp the flash takes, by share of the dice. `sheen` is how much of a
-   * metal the flash is lit as — it reads dark until it catches the light.
+   * Polished labradorite, grey stone washed with a soft flash of blue, teal
+   * and gold, lettered in gold leaf — see `paintLabradorite`. Each die's two
+   * sets of `lamellae` each `lean` off one face's normal; which holds sway
+   * turns gradually over `blend` of noise about `scale` across, and wavers by
+   * up to `waver`. `schiller` is how near a face must look along them to
+   * flash, `from` least to `to` full, with a `floor` it never falls below;
+   * `patch` where on its noise the flash begins and is whole, `strength` how
+   * much of the stone it covers there, `glow` how much paler it is at its
+   * brightest, and `tilt` how far the lamellae's normal may lean off the
+   * face's in the normal map. `silk` is the grain through it, `across` and
+   * `along` in size and `strength` in brightness. `hairlines` are the
+   * cleavages: `count` ways across, `spacing` apart, `width` wide, `broken`
+   * the size of their gaps, `depth` how far they are cut in. `mottle` is
+   * the darker, flecked stone, `specks` the size of a fleck. Sizes are in d20
+   * face inradii. `hue` is the ramp the flash takes, by share of the dice.
+   * `sheen` is how much of a metal the flash is lit as.
    */
   labradorite: {
     kind: "labradorite",
@@ -507,45 +568,162 @@ export const DICE_SKIN_RECIPES = {
     weight: 1,
     engrave: 0.05,
     bleed: 8,
-    metal: "#e2b850",
-    gilt: 0.55,
-    sheen: 0.55,
-    environment: 1.8,
-    domains: { sets: 3, scale: 3, wander: 0.3, lean: 0.3, waver: 0.2 },
+    metal: "#e6b545",
+    gilt: 0.6,
+    sheen: 0.2,
+    environment: 1.3,
+    lamellae: { lean: 0.35, scale: 2.2, blend: [0.35, 0.65], waver: 0.3 },
     schiller: {
-      from: 0.45,
-      to: 0.85,
-      scale: 1.8,
+      from: 0.3,
+      to: 0.95,
+      floor: 0.4,
+      scale: 1.6,
       warp: 0.5,
-      patch: [0.28, 0.48],
-      ghost: 0.07,
-      tilt: 0.6,
+      patch: [0.28, 0.6],
+      strength: 0.92,
+      glow: 0.3,
+      tilt: 0.45,
     },
-    twins: { pitch: 0.04, long: 2, fine: 0.012, strength: 0.45, glow: 0.35 },
-    needles: {
-      pitch: 0.035,
-      long: 0.6,
-      from: 0.84,
-      to: 0.9,
-      strength: 0.7,
-      dull: 0.2,
+    silk: { across: 0.05, along: 0.8, strength: 0.18 },
+    hairlines: {
+      count: 3,
+      spacing: 0.3,
+      width: 0.008,
+      broken: 0.6,
+      depth: 0.02,
+      strength: 0.25,
+      colour: "#34404a",
+    },
+    mottle: {
+      scale: 0.8,
+      from: 0.66,
+      to: 0.82,
+      strength: 0.4,
+      specks: 0.03,
+      colour: "#353b3c",
     },
     hue: {
-      scale: 2.4,
+      scale: 2.2,
+      warp: 0.6,
       stops: [
-        [0, "#0f2f9a"],
-        [0.3, "#1a56d8"],
-        [0.65, "#2f7ff2"],
-        [0.85, "#5fb6f7"],
-        [0.93, "#3fbfb0"],
-        [0.975, "#9cc85a"],
-        [0.995, "#dcbf5c"],
-        [1, "#d99a62"],
+        [0, "#8a6ad0"],
+        [0.06, "#4f6fe0"],
+        [0.22, "#3a8ae8"],
+        [0.45, "#4cb2f0"],
+        [0.66, "#4fc8cc"],
+        [0.8, "#78cc96"],
+        [0.89, "#c4d45e"],
+        [0.95, "#f2c84a"],
+        [1, "#f5a64a"],
       ],
     },
-    stone: { scale: 0.9, smoke: "#121416", grey: "#2a2e31", mist: "#51575b" },
-    finish: { stone: 0.3, flash: 0.2, numerals: 0.32 },
-    coat: { intensity: 1, roughness: 0.02 },
+    stone: {
+      scale: 1.1,
+      dark: "#2c3437",
+      light: "#58656b",
+      haze: "#a7b3b8",
+      mist: 0.18,
+    },
+    finish: { stone: 0.42, flash: 0.3, cracks: 0.2, numerals: 0.32 },
+    coat: { intensity: 0.8, roughness: 0.1 },
+  },
+
+  /*
+   * Overlapping dragon scales in two colours, the player's and the accent
+   * worked out from it — see `paintScales` and lib/dice-accent.mjs — with
+   * raised gold numerals. `accent` asks scripts/dice-assets.mjs for the
+   * fourth map and the numbers the vendored dice-box needs. `toward` is the
+   * way the scales' tips point, through the die. Sizes are in d20 face
+   * inradii: a scale is `width` by `length` and stands `depth` at its tip;
+   * `keel` is how wide its ridge is, as a share of its width, and `ridge`
+   * how high, of its depth; `round` how far its edge rounds over and
+   * `shadow` how far it shadows the scale beneath, as shares of its width.
+   * `shade` darkens its tucked-in top, `tone` varies one from the next,
+   * `sheen` lights its keel, and the numerals stand `numerals` of its depth.
+   * The accent takes the scales where noise `scale` across is over `from`,
+   * and `stray` of the rest. `lacquer` is how much of a metal the scales are
+   * lit as, `gilt` the numerals.
+   */
+  dragonscale: {
+    kind: "scales",
+    name: "Dragonscale",
+    accent: true,
+    weight: 1,
+    bleed: 8,
+    metal: "#e2b850",
+    gilt: 0.85,
+    lacquer: 0.35,
+    toward: [0.2, -1, 0.15],
+    scale: {
+      width: 0.6,
+      length: 0.85,
+      depth: 0.1,
+      keel: 0.16,
+      ridge: 0.3,
+      round: 0.1,
+      shadow: 0.14,
+      shade: 0.55,
+      tone: 0.14,
+      sheen: 0.5,
+      numerals: 1.4,
+    },
+    patch: { scale: 1.2, from: 0.55, stray: 0.05 },
+    finish: { scales: 0.3, numerals: 0.3 },
+  },
+
+  /*
+   * Battered silver spattered with blood in the player's colour, lettered in
+   * black enamel — see `paintBloodied` and `scatterDroplets`. Sizes are in
+   * d20 face inradii. `facets` are the hammered mosaic, `scale` across, each
+   * leaning by up to `tilt` and toned by up to `tone`, split by cracks
+   * `crack` wide and `dark` darker; `dents` are `scale` across and `depth` deep; `scratches`
+   * are `count` lines broken into `pieces`. `wear` polishes `edge` in from
+   * every edge and tarnishes patches `scale` across by up to `tarnish`. The
+   * blood comes as `splashes` — a core of `blobs` about `radius` across,
+   * `tendrils` shot `length` radii out of it, and `drops` flung `spread`
+   * radii, `small` across and drawn out by up to `stretch` — single `drops`
+   * and a fine `mist`, each at a `density` per square inradius. Blobs run
+   * together where their summed field passes `threshold`, `ragged` at the
+   * edge by noise `scale` across; `dome` is how high the thickest blood
+   * stands, `rim` how much darker it is at its edge, and `numerals` how much
+   * of the black shows through it. `metal` is how much
+   * of a metal the silver is lit as.
+   */
+  bloodied: {
+    kind: "bloodied",
+    name: "Bloodied",
+    weight: 1,
+    engrave: 0.06,
+    bleed: 8,
+    silver: "#c9cacd",
+    numerals: "#0e0e10",
+    metal: 0.8,
+    environment: 1.3,
+    facets: { scale: 0.28, tilt: 0.12, tone: 0.12, crack: 0.008, dark: 0.22 },
+    dents: { scale: 0.9, depth: 0.03 },
+    scratches: { count: 30, pieces: 0.35 },
+    wear: { edge: 0.12, scale: 0.8, tarnish: 0.3 },
+    blood: {
+      splashes: {
+        density: 0.09,
+        radius: [0.25, 0.45],
+        blobs: [4, 8],
+        tendrils: [3, 6],
+        length: [1, 2.2],
+        drops: [14, 28],
+        spread: [1.3, 3.4],
+        small: [0.05, 0.11],
+        stretch: 2.5,
+      },
+      drops: { density: 1, radius: [0.05, 0.12] },
+      mist: { density: 4, radius: [0.03, 0.05] },
+      threshold: 0.35,
+      ragged: { scale: 0.07, strength: 0.3 },
+      dome: 0.05,
+      rim: 0.35,
+      numerals: 0.65,
+    },
+    finish: { silver: 0.32, blood: 0.06, numerals: 0.25 },
   },
 
   /*

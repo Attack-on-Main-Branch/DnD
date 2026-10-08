@@ -6,6 +6,7 @@ import {
   isDiceColor,
 } from "sina/rules/character";
 
+import { DICE_ACCENT_SKINS } from "@/lib/dice-accent";
 import { DICE_ASSET_PATH, DICE_SKIN_THEMES } from "@/lib/dice-themes";
 
 import changelingArt from "./race-art/changeling.webp";
@@ -88,6 +89,18 @@ const SKIN_COPY = {
     label: "Brass-inlaid",
     description: "Glitter inlaid round worn brass plates",
   },
+  "metal-cornered": {
+    label: "Metal-cornered",
+    description: "Swirled enamel in your colour, rimmed and cornered in pewter",
+  },
+  "brass-cornered": {
+    label: "Brass-cornered",
+    description: "Swirled enamel in your colour, rimmed and cornered in brass",
+  },
+  "gold-cornered": {
+    label: "Gold-cornered",
+    description: "Swirled enamel in your colour, rimmed and cornered in gold",
+  },
   asiimov: {
     label: "Asiimov",
     description: "White and black panels, cornered in your colour",
@@ -124,10 +137,18 @@ const SKIN_COPY = {
     label: "Case Hardened",
     description: "Heat-tinted steel, mostly blue — keeps its own colour",
   },
+  bloodied: {
+    label: "Bloodied",
+    description: "Battered silver, spattered with blood in your colour",
+  },
+  dragonscale: {
+    label: "Dragonscale",
+    description: "Scales in your colour, patched in a colour to match it",
+  },
   labradorite: {
     label: "Labradorite",
     description:
-      "Smoky stone that flashes blue in the light — keeps its own colour",
+      "Grey stone glowing blue, teal and gold — keeps its own colour",
   },
 };
 
@@ -151,6 +172,20 @@ const RARITY_LOOK = {
     glow: "shadow-[inset_0_0_18px_-4px_var(--color-rarity-common)] opacity-45",
     glowSelected:
       "shadow-[inset_0_0_18px_-4px_var(--color-rarity-common)] opacity-80",
+  },
+  uncommon: {
+    label: "Uncommon",
+    text: "text-rarity-uncommon",
+    stripe: "border-l-rarity-uncommon",
+    bar: "bg-rarity-uncommon",
+    wash: "from-rarity-uncommon/25",
+    edge: "border-rarity-uncommon/40",
+    edgeHover: "hover:border-rarity-uncommon/65",
+    edgeSelected:
+      "border-rarity-uncommon/80 shadow-[0_18px_44px_-29px_var(--color-rarity-uncommon)]",
+    glow: "shadow-[inset_0_0_21px_-4px_var(--color-rarity-uncommon)] opacity-45",
+    glowSelected:
+      "shadow-[inset_0_0_21px_-4px_var(--color-rarity-uncommon)] opacity-80",
   },
   rare: {
     label: "Rare",
@@ -194,6 +229,20 @@ const RARITY_LOOK = {
     glowSelected:
       "shadow-[inset_0_0_42px_-2px_var(--color-rarity-legendary)] opacity-100",
   },
+  iconic: {
+    label: "Iconic",
+    text: "text-rarity-iconic",
+    stripe: "border-l-rarity-iconic",
+    bar: "bg-rarity-iconic",
+    wash: "from-rarity-iconic/25",
+    edge: "border-rarity-iconic/60",
+    edgeHover: "hover:border-rarity-iconic/90",
+    edgeSelected:
+      "border-rarity-iconic shadow-[0_18px_44px_-20px_var(--color-rarity-iconic)]",
+    glow: "shadow-[inset_0_0_52px_-1px_var(--color-rarity-iconic)] opacity-80",
+    glowSelected:
+      "shadow-[inset_0_0_52px_-1px_var(--color-rarity-iconic)] opacity-100",
+  },
 };
 
 const UNDRESSED_SKINS = DICE_SKIN_VALUES.filter(
@@ -234,12 +283,16 @@ export function diceSkinTheme(value) {
  * one d20; `set` is every die in DICE_TYPES side by side.
  */
 export function diceSkinPictures(value) {
-  const folder = `${DICE_ASSET_PATH}themes/${diceSkinTheme(value)}/`;
+  const theme = diceSkinTheme(value);
+  const folder = `${DICE_ASSET_PATH}themes/${theme}/`;
+  const accented = DICE_ACCENT_SKINS.includes(theme);
+  const picture = (name) => ({
+    src: `${folder}${name}.png`,
+    tint: `${folder}${name}-tint.png`,
+    ...(accented && { accent: `${folder}${name}-accent.png` }),
+  });
 
-  return {
-    tile: { src: `${folder}tile.png`, tint: `${folder}tile-tint.png` },
-    set: { src: `${folder}set.png`, tint: `${folder}set-tint.png` },
-  };
+  return { tile: picture("tile"), set: picture("set") };
 }
 
 /**

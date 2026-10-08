@@ -16,6 +16,20 @@
  */
 export const CHANGELOG = [
   {
+    version: "2.1.0",
+    date: "2026-10-08",
+    title: "Cornered in metal",
+    changes: [
+      "Dice sets now come in six rarities instead of four, each with its own colour: Common (grey), Uncommon (blue), Rare (purple), Epic (red), Legendary (gold) and the new Iconic (cyan). Many sets have moved: the metal sets are Uncommon, brass Rare and gold Epic; Epoxy, Labradorite and Bloodied are Legendary; and Asiimov, Companion and Case Hardened are Iconic. A Dice Pouch gives Common 40% of the time, Uncommon 24%, Rare 16%, Epic 12%, Legendary 6% and Iconic 2%.",
+      "Three new dice sets can come out of a Dice Pouch: Metal-cornered (Uncommon), Brass-cornered (Rare) and Gold-cornered (Epic). Each face is framed by a raised metal rim with a bracket in every corner and raised metal numbers, around swirled enamel in your colour.",
+      "A new Legendary dice set, Bloodied: battered, scratched silver with black numbers, splashed with blood in your colour — big ragged splashes with streaks shooting out of them, flung droplets and a fine spray.",
+      "Paper dice look more like paper, with fibres, flecks and a soft, uneven sheet, and their numbers are written in pen: thin strokes that press harder and lighter, with a blot where each one stops.",
+      "On Companion dice the white corners and bars stand well out from the grey, and your colour sits sunk into it. The depth shows as the die turns, not only in its shading. Every number and the circle around it now sits in the middle of its face.",
+      "A new Rare dice set, Dragonscale: overlapping dragon scales with raised gold numbers. The scales are your colour, with patches in a second colour picked to go with it, such as red with teal, gold with blue or violet, and copper with grey, so it changes when you change your colour.",
+      "Labradorite dice look like the stone: soft, glowing washes of blue, teal, violet and gold over grey, fine crisscrossing lines and a silky polish. The flash no longer stops at hard lines across a face.",
+    ],
+  },
+  {
     version: "2.0.0",
     date: "2026-10-07",
     title: "A livelier table",
