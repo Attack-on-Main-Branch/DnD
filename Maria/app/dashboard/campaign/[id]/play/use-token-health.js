@@ -1,16 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readTokenHealth } from "@/app/actions/table-adjustments";
+import { isDying } from "sina/rules/death";
+import {
+  readTokenHealth,
+  readTokenHealthStates,
+} from "@/app/actions/table-adjustments";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
+import { useWireMessage } from "./table-wire";
+import { useIsDying } from "./table-state";
+
+export function useIsTokenKnocked(token) {
+  const characterKnocked = useIsDying(token.characterId);
+  if (token.isDead) return false;
+  if (token.characterId) return characterKnocked;
+  return Number.isFinite(token.health?.current_hp)
+    ? isDying(token.health.current_hp, false)
+    : Boolean(token.health?.is_dying);
+}
 
 export function useTokenHealth(campaignId, canEdit, tokenIds) {
   const [health, setHealth] = useState({});
   const revision = useRef(0);
   const refresh = useCallback(async () => {
-    if (!canEdit) return;
     const run = ++revision.current;
-    const result = await readTokenHealth(campaignId).catch(() => null);
+    const read = canEdit ? readTokenHealth : readTokenHealthStates;
+    const result = await read(campaignId).catch(() => null);
     if (run === revision.current && result?.kind === "success") {
       setHealth(
         Object.fromEntries(result.data.map((row) => [row.token_id, row])),
@@ -27,5 +42,6 @@ export function useTokenHealth(campaignId, canEdit, tokenIds) {
     filter: `campaign_id=eq.${campaignId}`,
     onChange: refresh,
   });
-  return { health: canEdit ? health : {}, refresh };
+  useWireMessage("token-health", refresh);
+  return { health, refresh };
 }

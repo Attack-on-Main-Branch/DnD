@@ -22,6 +22,10 @@
  *
  * A theme a character can choose also carries pictures of its dice for the
  * style picker — see dice-thumbnails.mjs.
+ *
+ * A skin in two colours carries a fourth map, `accent.png`, saying where the
+ * second goes, and the numbers the vendored dice-box works that colour out
+ * from — lib/dice-accent.mjs — in its config.
  */
 
 import { createHash } from "node:crypto";
@@ -37,6 +41,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { DICE_ACCENT, DICE_ACCENT_SKINS } from "../lib/dice-accent.mjs";
 import {
   DARK_NUMERAL_LEVEL,
   DICE_SKIN_THEMES,
@@ -103,19 +108,35 @@ async function isBuilt(systemName, print) {
   }
 }
 
-/** A choosable theme's pictures, beside its maps — see-through if it is. */
-async function writeThumbnails(folder, systemName, colour, surface, opacity) {
+/**
+ * A choosable theme's pictures, beside its maps — see-through if it is, and
+ * with the tint of its second colour if it has one.
+ */
+async function writeThumbnails(
+  folder,
+  systemName,
+  colour,
+  surface,
+  opacity,
+  accent,
+) {
   if (!CHOOSABLE.has(systemName)) {
     return;
   }
 
-  const { tile, set } = drawThumbnails(scene, colour, surface, opacity);
+  const { tile, set } = drawThumbnails(scene, colour, surface, opacity, accent);
 
   await Promise.all([
     writeFile(path.join(folder, "tile.png"), tile.picture),
     writeFile(path.join(folder, "tile-tint.png"), tile.tint),
     writeFile(path.join(folder, "set.png"), set.picture),
     writeFile(path.join(folder, "set-tint.png"), set.tint),
+    ...(accent
+      ? [
+          writeFile(path.join(folder, "tile-accent.png"), tile.accent),
+          writeFile(path.join(folder, "set-accent.png"), set.accent),
+        ]
+      : []),
   ]);
 }
 
@@ -223,6 +244,10 @@ async function writeSkin(systemName, recipe, maps, meshes, print) {
     ...(recipe.environment && { environmentIntensity: recipe.environment }),
     // See-through, for glass: read by the vendored dice-box (its README).
     ...(recipe.opacity !== undefined && { opacity: recipe.opacity }),
+    // Depth, from a height map in the normal map's alpha: the same.
+    ...(recipe.parallax && { parallax: recipe.parallax }),
+    // A second colour, worked out from the first: the same, its README.
+    ...(recipe.accent && { accentTexture: "accent.png", accent: DICE_ACCENT }),
   };
 
   await Promise.all([
@@ -230,12 +255,16 @@ async function writeSkin(systemName, recipe, maps, meshes, print) {
     writeFile(path.join(folder, "skin.png"), maps.colour),
     writeFile(path.join(folder, "normal.png"), maps.normal),
     writeFile(path.join(folder, "surface.png"), maps.surface),
+    ...(maps.accent
+      ? [writeFile(path.join(folder, "accent.png"), maps.accent)]
+      : []),
     writeThumbnails(
       folder,
       systemName,
       maps.colour,
       maps.surface,
       recipe.opacity,
+      maps.accent,
     ),
     writeFile(
       path.join(folder, "theme.config.json"),
@@ -243,6 +272,16 @@ async function writeSkin(systemName, recipe, maps, meshes, print) {
     ),
   ]);
   await writeFile(path.join(folder, STAMP), print);
+}
+
+// The app asks for an accent's pictures by this list, so it must be the
+// recipes' own.
+for (const [systemName, recipe] of Object.entries(DICE_SKIN_RECIPES)) {
+  if (Boolean(recipe.accent) !== DICE_ACCENT_SKINS.includes(systemName)) {
+    throw new Error(
+      `Dice skin "${systemName}" and DICE_ACCENT_SKINS disagree on its accent.`,
+    );
+  }
 }
 
 // A skin the app can throw must be a theme this script writes.
@@ -292,7 +331,7 @@ const prints = Object.fromEntries([
   ]),
   ...Object.entries(DICE_SKIN_RECIPES).map(([systemName, recipe]) => [
     systemName,
-    fingerprint(common, recipe),
+    fingerprint(common, recipe, recipe.accent ? DICE_ACCENT : null),
   ]),
 ]);
 

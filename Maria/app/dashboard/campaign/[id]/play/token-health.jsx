@@ -9,8 +9,10 @@ import HealthBar from "@/app/components/ui/health-bar";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import FormAlert from "@/app/components/ui/form-alert";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
+import { useTableWire } from "./table-wire";
 
 export default function TokenHealth({ token, onChange }) {
+  const { send } = useTableWire();
   const [amount, setAmount] = useState("");
   const [error, setError] = useState(null);
   const [pending, startTransition] = useTransition();
@@ -28,6 +30,7 @@ export default function TokenHealth({ token, onChange }) {
         );
         return;
       }
+      send({ kind: "token-health" });
       await onChange();
     });
   }

@@ -1,11 +1,11 @@
 "use client";
 
 import { memo } from "react";
-import { isDying } from "sina/rules/death";
 
 import Avatar from "@/app/components/ui/avatar";
 import { surfaceClasses } from "@/app/components/ui/surface";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
+import { healthBarClass } from "@/app/dashboard/health-presentation";
 
 import CardCondition from "./card-condition";
 import CardConditions from "./card-conditions";
@@ -14,30 +14,19 @@ import { CARD_CLASSES, cardEntrance } from "./entrance";
 import InspirationPips from "./inspiration-pips";
 import LevelArmor from "./level-armor";
 import { SpellFlare } from "./spell-flares";
-import { useHitPoints, useIsActiveTurn, useIsDead } from "./table-state";
+import {
+  useHealthTier,
+  useIsDying,
+  useIsActiveTurn,
+  useIsDead,
+} from "./table-state";
 
 /**
  * One chair on the rail: a face, a name, the ring, and the bar under it — with
  * the marks of inspiration standing OUTSIDE its left edge, in the gutter the
  * dice capsule comes out into.
  *
- * ITS OWN FILE AND MEMOISED, because it subscribes to NOTHING: the level is read
- * inside the ring and the hit points inside the bar, so a member's numbers
- * moving re-renders the one control that shows them. Every prop is a string, a
- * boolean, or the `member` object page.jsx rendered — whose identity changes
- * only when the route does — which is what makes `memo` mean something here.
- *
- * A lit rim means somebody is here. See table-wire.jsx for the rule that is not
- * obvious: a Dungeon Master who also plays a character leaves that card dark.
- *
- * TWO STATES IT CAN BE IN BESIDES ALIVE, and both are read here rather than
- * inside a control, because both are about the WHOLE card.
- *
- * THE RIM SAYS WHICH, and not the portrait. `.lit-gold` is already the card's
- * one lit edge — it means somebody is sitting here — so amber and rose are the
- * same edge in another colour, which is how every other lit thing in this app
- * is done. A pulsing avatar said it in a second vocabulary, in the one place on
- * the card that is a picture of a person rather than a status light.
+ * A lit rim means somebody is here, with its colour read from their health tier.
  */
 function PartyCard({
   campaignId,
@@ -53,19 +42,18 @@ function PartyCard({
   seatCharacterId,
   actorName,
 }) {
-  const hitPoints = useHitPoints(member.id);
+  const tier = useHealthTier(member.id);
   const dead = useIsDead(member.id);
-  const dying = isDying(hitPoints, dead);
+  const dying = useIsDying(member.id);
 
   /* The one thing on this card the RIM does not say: it is already three states
      deep, so the turn is a halo round the PORTRAIT instead, matching the rung
      the tracker lights. Every chair sees it, not only the head of the table. */
   const myTurn = useIsActiveTurn(member.id);
 
-  /* Rose for gone, amber and breathing for down, and otherwise the gold that
-     means somebody is sitting here. The two states outrank the seat: a player
-     who has left the table is still dead. */
-  const rim = dead ? "lit-rose" : dying ? "lit-amber" : here ? "lit-gold" : "";
+  const rim = here
+    ? `lit-health ${healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))}`
+    : "";
 
   return (
     <li

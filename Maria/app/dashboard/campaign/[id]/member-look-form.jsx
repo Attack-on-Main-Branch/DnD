@@ -100,7 +100,7 @@ export default function MemberLookForm({ campaignId, member, open, onClose }) {
           </p>
         </div>
 
-        <div className="grid items-start gap-5 sm:grid-cols-[13rem_1fr]">
+        <div className="grid items-start gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <div className="flex flex-col gap-1.5">
             <span className={LABEL_CLASSES}>Reference picture</span>
 
@@ -120,11 +120,12 @@ export default function MemberLookForm({ campaignId, member, open, onClose }) {
             />
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 sm:@container">
             <TextAreaField
               label="Description"
               hint={`${description.length} / ${MAX_LOOK_DESCRIPTION_LENGTH}`}
               rows={9}
+              className="sm:h-[calc(100cqw*9/32)] sm:resize-none"
               maxLength={MAX_LOOK_DESCRIPTION_LENGTH}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
@@ -180,7 +181,7 @@ function ReferencePrompt() {
       </svg>
 
       <span className="text-xs text-ink/55">
-        Drop a full-length picture here, or click to choose one.
+        Drop a reference picture here, or click to choose one.
       </span>
     </span>
   );

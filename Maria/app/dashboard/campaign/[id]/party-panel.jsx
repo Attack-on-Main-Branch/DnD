@@ -284,6 +284,8 @@ export default function PartyPanel({ campaignId, members }) {
   );
 }
 
+const REFERENCE_PREVIEW_CLASSES = "aspect-video w-28 shrink-0 rounded-md";
+
 /** What the scene painter is shown of this member. The Dungeon Master's alone. */
 function MemberLook({ member, onEdit }) {
   const look = member.look;
@@ -297,12 +299,12 @@ function MemberLook({ member, onEdit }) {
           alt=""
           loading="lazy"
           decoding="async"
-          className="h-20 w-15 shrink-0 rounded-md bg-surface/60 object-contain ring-1 ring-gold/20"
+          className={`${REFERENCE_PREVIEW_CLASSES} bg-surface/60 object-cover ring-1 ring-gold/20`}
         />
       ) : (
         <span
           aria-hidden="true"
-          className="h-20 w-15 shrink-0 rounded-md border border-dashed border-gold/25"
+          className={`${REFERENCE_PREVIEW_CLASSES} border border-dashed border-gold/25`}
         />
       )}
 

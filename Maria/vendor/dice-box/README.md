@@ -1,4 +1,4 @@
-# dice-box, with physically based metal, glass and a turnable die
+# dice-box, with physically based metal, glass, a second colour, depth and a turnable die
 
 [`@3d-dice/dice-box`](https://github.com/3d-dice/dice-box) 1.1.4 (MIT — see
 `LICENSE`), rebuilt with one addition: a theme whose material is
@@ -29,8 +29,10 @@ A PBR theme's material:
 | `directIntensity`          | optional, default 1                                              |
 | `clearCoat`                | optional `{ intensity, roughness }`: a glossy layer over the lot |
 | `opacity`                  | optional: see-through, for glass — see below                     |
+| `accent`, `accentTexture` | optional: a second colour from the first — see below             |
+| `parallax`                 | optional: depth, from a height in `bumpTexture`'s alpha          |
 
-Three later additions:
+Five later additions:
 
 - **Glass.** `opacity` is how much of what is behind the body it hides.
   Whatever the albedo paints over the body stays solid, so a glass die's
@@ -39,6 +41,16 @@ Three later additions:
 - **Glass casts a lighter shadow.** The directional light's shadow generator
   has `transparencyShadow` on, which only changes the shadow of a material
   that blends — so of an `opacity` theme alone.
+- **A second colour, from the first.** A theme with an `accent` — the
+  numbers `lib/dice-accent.mjs` in Maria works its own copy from — and an
+  `accentTexture` paints a second colour wherever that texture's red says,
+  worked out in the shader from the die's own body colour, so a player's
+  colour comes with a partner whatever it is. A theme without one compiles
+  the same shader as before.
+- **Depth.** A theme with `parallax` keeps a height map in its normal map's
+  alpha — 1 the highest — and Babylon's parallax occlusion looks into it,
+  so raised work stands up and sunk work sinks as the die turns; `parallax`
+  is how deep, in texture units. An accent texture is not offset with it.
 - **A stopped die can be turned.** The offscreen worker answers
   `{ action: "turnDice", options: { x, y } }`, turning every die in the tray
   by `x` and `y` radians as a drag reads — rightward turns the near face

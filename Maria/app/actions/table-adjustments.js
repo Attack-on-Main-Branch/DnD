@@ -5,6 +5,7 @@ import {
   readCharacterProficiencies,
   changeTokenHealth,
   listTokenHealth,
+  listTokenHealthStates,
 } from "sina/data/table-adjustments";
 import {
   proficienciesFor,
@@ -88,6 +89,12 @@ function presentProficiencies(result) {
 export async function readTokenHealth(campaignId) {
   return perform("readTokenHealth", (client) =>
     listTokenHealth(client, campaignId),
+  );
+}
+
+export async function readTokenHealthStates(campaignId) {
+  return perform("readTokenHealthStates", (client) =>
+    listTokenHealthStates(client, campaignId),
   );
 }
 

@@ -181,8 +181,7 @@ export default function TokenForm({
 /**
  * The picture, chosen by dropping one on the disc or pressing it. A round zone
  * because a token IS round on the board — a square preview would promise a crop
- * the map never makes. `frame="panel"` is for a picture that is never cropped,
- * such as a scene painter's reference: the whole of it is shown.
+ * the map never makes. `frame="panel"` fills a landscape reference preview.
  */
 const FRAMES = {
   disc: {
@@ -196,8 +195,8 @@ const FRAMES = {
   },
   panel: {
     field: "w-full",
-    zone: "aspect-[3/4] w-full rounded-lg",
-    fit: "object-contain",
+    zone: "aspect-video w-full rounded-lg",
+    fit: "object-cover",
     scrim: "text-xs",
     remove: "top-2 right-2",
     problem: "",

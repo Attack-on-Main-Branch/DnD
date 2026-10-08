@@ -659,8 +659,8 @@ describe("hit points", () => {
     it("draws both thresholds where the sheet says they are", () => {
       assert.equal(healthTier(51, 100), "healthy");
       assert.equal(healthTier(50, 100), "wounded");
-      assert.equal(healthTier(21, 100), "wounded");
-      assert.equal(healthTier(20, 100), "critical");
+      assert.equal(healthTier(25, 100), "wounded");
+      assert.equal(healthTier(24, 100), "critical");
       assert.equal(healthTier(0, 100), "critical");
     });
 

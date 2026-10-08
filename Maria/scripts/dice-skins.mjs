@@ -23,6 +23,9 @@
  * CRACKED skin is opaque black too, with the colour showing only through its
  * cracks — see `paintCracked` — and the INLAID skins are worn metal with the
  * colour in a channel round a raised plate on every face — see `carveInlay`.
+ * The CORNERED skins are metal too, a raised rim round every face and a
+ * bracket in each of its corners, with the colour as swirled enamel between
+ * them — see `carveCornered`.
  * The ASIIMOV skin paints by the die's corners rather than its faces: white,
  * with each corner capped in black or in the player's colour — see
  * `paintAsiimov`. The WOOD skin is the one the player's colour never reaches:
@@ -35,9 +38,9 @@
  * face, ORNATE is black with raised scrollwork in it, and GLASS is the colour
  * as see-through glass — see `paintFade`, `paintGalaxy`, `paintOrnate` and
  * `paintGlass`. CASE HARDENED is heat-tinted steel, mostly blue, keeping its
- * own colours — see `paintCaseHardened` — and LABRADORITE is smoky stone,
- * keeping its own too, whose blue flash catches the light at an angle of its
- * own — see `paintLabradorite`.
+ * own colours — see `paintCaseHardened` — and LABRADORITE is grey stone,
+ * keeping its own too, washed with a soft flash of blue, teal and gold that
+ * brightens at an angle of its own — see `paintLabradorite`.
  *
  * What each skin is made of — its recipe — is in dice-recipes.mjs.
  *
@@ -1103,6 +1106,144 @@ function creasePlanes(count, reach, salt = 131) {
 }
 
 /**
+ * Numerals as a pen writes them: the glyphs thinned to their middle lines —
+ * Zhang and Suen's thinning — and drawn again along those in a line `width`
+ * wide, the pen pressing harder and lighter by up to `pressure` as it goes,
+ * with a `blot` of ink where a stroke stops. Sizes in d20 face inradii, so
+ * the pen is the same pen on every die.
+ */
+function penNumerals(glyphs, { owner, position, density, reference }, pen) {
+  const solid = Uint8Array.from(glyphs, (value) => (value > 0.5 ? 1 : 0));
+  const at = (pixel, dx, dy) => solid[pixel + dy * SIZE + dx];
+  const inside = [];
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    const x = pixel % SIZE;
+    const y = Math.floor(pixel / SIZE);
+
+    if (solid[pixel] && x > 0 && y > 0 && x < SIZE - 1 && y < SIZE - 1) {
+      inside.push(pixel);
+    }
+  }
+
+  // Round P2 to P9, clockwise from straight up.
+  const ring = [
+    [0, -1],
+    [1, -1],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [-1, 1],
+    [-1, 0],
+    [-1, -1],
+  ];
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const second of [false, true]) {
+      const peeled = inside.filter((pixel) => {
+        if (!solid[pixel]) {
+          return false;
+        }
+
+        const p = ring.map(([dx, dy]) => at(pixel, dx, dy));
+        const filled = p.reduce((sum, value) => sum + value, 0);
+        const turns = p.filter((value, k) => !value && p[(k + 1) % 8]).length;
+        const [p2, , p4, , p6, , p8] = p;
+
+        return (
+          filled >= 2 &&
+          filled <= 6 &&
+          turns === 1 &&
+          (second ? p2 * p4 * p8 === 0 : p2 * p4 * p6 === 0) &&
+          (second ? p2 * p6 * p8 === 0 : p4 * p6 * p8 === 0)
+        );
+      });
+
+      for (const pixel of peeled) {
+        solid[pixel] = 0;
+      }
+
+      changed ||= peeled.length > 0;
+    }
+  }
+
+  /* ---- How far every pixel is from the line, and from a stroke's end. ---- */
+
+  const REACH = 4;
+  const fromLine = new Float32Array(SIZE * SIZE).fill(Infinity);
+  const fromEnd = new Float32Array(SIZE * SIZE).fill(Infinity);
+
+  for (const pixel of inside) {
+    if (!solid[pixel]) {
+      continue;
+    }
+
+    const neighbours = ring.reduce(
+      (sum, [dx, dy]) => sum + at(pixel, dx, dy),
+      0,
+    );
+    const x = pixel % SIZE;
+    const y = Math.floor(pixel / SIZE);
+
+    for (let dy = -REACH; dy <= REACH; dy++) {
+      for (let dx = -REACH; dx <= REACH; dx++) {
+        const tx = x + dx;
+        const ty = y + dy;
+
+        if (tx < 0 || ty < 0 || tx >= SIZE || ty >= SIZE) {
+          continue;
+        }
+
+        const target = ty * SIZE + tx;
+        const gap = Math.hypot(dx, dy);
+
+        fromLine[target] = Math.min(fromLine[target], gap);
+
+        if (neighbours === 1) {
+          fromEnd[target] = Math.min(fromEnd[target], gap);
+        }
+      }
+    }
+  }
+
+  const lettering = new Float32Array(SIZE * SIZE);
+  const width = pen.width * reference;
+  const pressureScale = pen.scale * reference;
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0 || fromLine[pixel] === Infinity) {
+      continue;
+    }
+
+    const perPixel = 1 / density[pixel];
+    const press = valueNoise3(
+      position[pixel * 3] / pressureScale,
+      position[pixel * 3 + 1] / pressureScale,
+      position[pixel * 3 + 2] / pressureScale,
+      851,
+    );
+    const half = (width * (1 - pen.pressure / 2 + pen.pressure * press)) / 2;
+    const soft = 0.5 * perPixel;
+    const line =
+      1 - smoothstep(half - soft, half + soft, fromLine[pixel] * perPixel);
+    const blot =
+      1 -
+      smoothstep(
+        half * pen.blot - soft,
+        half * pen.blot + soft,
+        fromEnd[pixel] * perPixel,
+      );
+
+    lettering[pixel] = Math.max(line, blot);
+  }
+
+  return lettering;
+}
+
+/**
  * A die folded from a sheet of paper and drawn on in pen, in the PLAYER'S
  * colour.
  *
@@ -1115,13 +1256,16 @@ function creasePlanes(count, reach, salt = 131) {
  *             width wanders along the edge the way a pen's pressure does
  *   sketch    a second, thinner line inset along each edge, the bevel a drawn
  *             die is given, broken wherever the pen lifted
- *   numerals  the stock glyphs, wobbled, in the same ink
- *   paper     warm white with a fine grain, matte, and a few creases right
- *             across the die where the sheet was folded and opened out again
+ *   numerals  written in the same pen — the stock glyphs, wobbled, thinned
+ *             to their middle lines and drawn along them — see `penNumerals`
+ *   paper     warm white and matte, clouded the way a sheet is formed, its
+ *             fibres showing as faint streaks every way, a few flecks of pulp,
+ *             a tooth in the normal map, and a few creases right across the
+ *             die where the sheet was folded and opened out again
  */
 function paintPaper(recipe, base) {
   const { ink, reference, owner, distance, density, position } = base;
-  const { pen, sketch, creases, finish } = recipe;
+  const { pen, sketch, creases, fibres, finish } = recipe;
 
   const paper = hex(recipe.paper);
   const outline = pen.outline * reference;
@@ -1132,7 +1276,24 @@ function paintPaper(recipe, base) {
   const creaseWidth = creases.width * reference;
   const creaseDepth = creases.depth * reference;
 
-  const lettering = wobble(ink, recipe.wobble);
+  const lettering = penNumerals(
+    wobble(ink, recipe.wobble),
+    base,
+    recipe.numerals,
+  );
+  const cloudScale = recipe.cloud.scale * reference;
+  const fleckScale = recipe.flecks.scale * reference;
+  // Each set of fibres streaks one way through the sheet.
+  const strands = Array.from({ length: fibres.ways }, (_, way) => {
+    const along = normalise([1, 2, 3].map((k) => hash(way, k, 861) - 0.5));
+    const side = normalise(
+      cross(along, Math.abs(along[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]),
+    );
+
+    return [side, along, cross(along, side)];
+  });
+  const thin = fibres.width * reference;
+  const run = fibres.length * reference;
   const planes = creasePlanes(creases.count, reference);
 
   const colour = new Uint8Array(SIZE * SIZE * 4);
@@ -1209,11 +1370,49 @@ function paintPaper(recipe, base) {
 
       const grain =
         0.6 * valueNoise(x, y, 2, 101) + 0.4 * valueNoise(x, y, 9, 103);
-      const tone = 0.955 + 0.07 * grain - 0.05 * Math.abs(ridge);
+      const cloud = fbm3(
+        px / cloudScale,
+        py / cloudScale,
+        pz / cloudScale,
+        3,
+        857,
+      );
+      let fibre = 0;
+
+      strands.forEach(([side, along, out], way) => {
+        const streak = smoothstep(
+          fibres.from,
+          fibres.to,
+          valueNoise3(
+            (px * side[0] + py * side[1] + pz * side[2]) / thin,
+            (px * along[0] + py * along[1] + pz * along[2]) / run,
+            (px * out[0] + py * out[1] + pz * out[2]) / run,
+            863 + way,
+          ),
+        );
+
+        fibre += way % 2 ? streak : -streak;
+      });
+
+      const fleck = smoothstep(
+        0.93,
+        0.97,
+        valueNoise3(px / fleckScale, py / fleckScale, pz / fleckScale, 869),
+      );
+      const tone =
+        0.955 +
+        0.05 * grain +
+        recipe.cloud.strength * (cloud - 0.5) +
+        fibres.strength * fibre -
+        0.05 * Math.abs(ridge);
 
       for (let channel = 0; channel < 3; channel++) {
         colour[pixel * 4 + channel] = Math.round(
-          clamp(paper[channel] * tone, 0, 255),
+          clamp(
+            paper[channel] * tone * (1 - recipe.flecks.strength * fleck),
+            0,
+            255,
+          ),
         );
       }
 
@@ -1226,7 +1425,8 @@ function paintPaper(recipe, base) {
         metalness: 0,
       });
 
-      height[pixel] = creaseDepth * ridge;
+      height[pixel] =
+        creaseDepth * ridge + fibres.depth * reference * Math.abs(fibre);
       tiltX[pixel] = (valueNoise(x, y, 2, 107) - 0.5) * recipe.grain;
       tiltY[pixel] = (valueNoise(x, y, 2, 109) - 0.5) * recipe.grain;
     }
@@ -1721,6 +1921,292 @@ function paintInlaid(recipe, { owner }, carving) {
   };
 }
 
+/**
+ * Each face's corners, for the CORNERED skins' brackets: the point, the two
+ * edges leaving it — each as its direction, its length, and the way across
+ * it into the face — and how far along either edge a point `inset` in from
+ * both of them sits, per unit of `inset`.
+ *
+ * Some faces' corners are clipped by slivers too short to see — a d4's all
+ * are — so a corner is where two neighbouring SIDES of the face would meet,
+ * the slivers between them dropped. Where two sides run straight on there is
+ * no corner.
+ */
+function faceCorners(faces) {
+  return faces.map(({ edges, centre, normal }) => {
+    const longest = Math.max(...edges.map(({ span }) => span));
+    // `span` is squared: sides at least a tenth as long as the longest.
+    const sides = edges.filter(({ span }) => span > 0.01 * longest);
+    const right = normalise(sub(sides[0].a, centre));
+    const up = cross(normal, right);
+    const bearing = ({ a, b }) => {
+      const middle = sub(
+        a.map((value, k) => (value + b[k]) / 2),
+        centre,
+      );
+
+      return Math.atan2(dot(middle, up), dot(middle, right));
+    };
+
+    sides.sort((one, two) => bearing(one) - bearing(two));
+
+    return sides.flatMap((first, index) => {
+      const second = sides[(index + 1) % sides.length];
+      const u = normalise(first.ab);
+      const v = normalise(second.ab);
+      const both = cross(u, v);
+      const square = dot(both, both);
+
+      if (square < 1e-4) {
+        return [];
+      }
+
+      const t = dot(cross(sub(second.a, first.a), v), both) / square;
+      const at = first.a.map((value, k) => value + u[k] * t);
+      const far = ({ a, b }) =>
+        length(sub(a, at)) > length(sub(b, at)) ? a : b;
+      const ends = [far(first), far(second)];
+      const [one, two] = ends.map((end) => normalise(sub(end, at)));
+      const turn = dot(one, two);
+      const across = (from, to) =>
+        normalise(
+          sub(
+            to,
+            from.map((value) => value * turn),
+          ),
+        );
+
+      return [
+        {
+          at,
+          lead: Math.sqrt((1 + turn) / (1 - turn)),
+          edges: [
+            {
+              along: one,
+              inward: across(one, two),
+              span: length(sub(ends[0], at)),
+            },
+            {
+              along: two,
+              inward: across(two, one),
+              span: length(sub(ends[1], at)),
+            },
+          ],
+        },
+      ];
+    });
+  });
+}
+
+/**
+ * How far inside the nearest corner bracket `point` is — negative outside
+ * it. A bracket is two bands, one along each edge leaving its corner, each
+ * `inset` in from its edge and `width` wide, joined in an L at the corner and
+ * running `arm` along the edge, or `reach` of it if that is shorter. Die units.
+ */
+function bracketDepth(point, corners, { inset, width, arm, reach }) {
+  let deepest = -Infinity;
+
+  for (const { at, lead, edges } of corners) {
+    const rx = point[0] - at[0];
+    const ry = point[1] - at[1];
+    const rz = point[2] - at[2];
+    const off = edges.map(
+      ({ inward }) => rx * inward[0] + ry * inward[1] + rz * inward[2],
+    );
+
+    edges.forEach(({ along, span }, side) => {
+      const run = rx * along[0] + ry * along[1] + rz * along[2];
+      const end = inset * lead + Math.min(arm, reach * span);
+      const inside = Math.min(
+        off[side] - inset,
+        inset + width - off[side],
+        off[1 - side] - inset,
+        end - run,
+      );
+
+      deepest = Math.max(deepest, inside);
+    });
+  }
+
+  return deepest;
+}
+
+/**
+ * The relief the CORNERED skins share, whatever metal they are cast in: a
+ * rim round every face, a bracket in each of its corners and the numerals,
+ * all standing proud of the enamel between them, and the swirl in that
+ * enamel. Sizes are fractions of a d20 face's inradius.
+ *
+ *   rim       a flat band along the face's edge, rounding over into the
+ *             enamel across `bevel`
+ *   brackets  an L in every corner, set `gap` in from the rim — see
+ *             `bracketDepth` — rounded over the whole of their width, so
+ *             they read as cast ridges rather than flat paint
+ *   numerals  the stock glyphs, raised, and shrunk where they would reach
+ *             the rim or a bracket — see `fitNumerals` — keeping `margin` of
+ *             enamel round them; a d4's sit in its corners
+ *   enamel    sunk between them, darkened where the metal stands over it,
+ *             and marbled through the die by warped noise
+ */
+function carveCornered(recipe, base) {
+  const { reference, owner, distance, density, position, faces } = base;
+  const { bracket, enamel } = recipe;
+
+  const frame = recipe.frame * reference;
+  const bevel = recipe.bevel * reference;
+  const depth = recipe.depth * reference;
+  const margin = recipe.margin * reference;
+  const swirl = enamel.scale * reference;
+  const shape = {
+    inset: (recipe.frame + bracket.gap) * reference,
+    width: bracket.width * reference,
+    arm: bracket.arm * reference,
+    reach: bracket.reach,
+  };
+  const corners = faceCorners(faces);
+
+  const brackets = new Float32Array(SIZE * SIZE).fill(-Infinity);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    const face = owner[pixel];
+
+    if (face >= 0) {
+      brackets[pixel] = bracketDepth(
+        position.subarray(pixel * 3, pixel * 3 + 3),
+        corners[face],
+        shape,
+      );
+    }
+  }
+
+  const glyphs = neighbourhood(
+    fitNumerals(
+      base,
+      (pixel) =>
+        distance[pixel] >= frame + margin && brackets[pixel] <= -margin,
+    ),
+    recipe.weight,
+    true,
+  );
+  const relief = neighbourhood(glyphs, 1);
+
+  const metal = new Float32Array(SIZE * SIZE);
+  const height = new Float32Array(SIZE * SIZE);
+  const marble = new Float32Array(SIZE * SIZE);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0) {
+      metal[pixel] = 1;
+      height[pixel] = depth;
+      continue;
+    }
+
+    const soft = 0.75 / density[pixel];
+    const rim = frame - distance[pixel];
+    const ridge = brackets[pixel];
+
+    metal[pixel] = Math.max(
+      smoothstep(-soft, soft, rim),
+      smoothstep(-soft, soft, ridge),
+      glyphs[pixel],
+    );
+    height[pixel] = Math.max(
+      depth * smoothstep(0, bevel, rim),
+      depth * bracket.height * smoothstep(0, shape.width / 2, ridge),
+      depth * 0.8 * relief[pixel],
+    );
+
+    const qx = position[pixel * 3] / swirl;
+    const qy = position[pixel * 3 + 1] / swirl;
+    const qz = position[pixel * 3 + 2] / swirl;
+
+    marble[pixel] = fbm3(
+      qx + (fbm3(qx, qy, qz, 3, 613) - 0.5) * 2 * enamel.warp,
+      qy + (fbm3(qx + 5.2, qy, qz, 3, 617) - 0.5) * 2 * enamel.warp,
+      qz + (fbm3(qx, qy + 9.1, qz, 3, 619) - 0.5) * 2 * enamel.warp,
+      3,
+      631,
+    );
+  }
+
+  const spread = neighbourhood(metal, recipe.shadow);
+  const shade = metal.map((value, pixel) => clamp(spread[pixel] - value));
+  const flat = new Float32Array(SIZE * SIZE);
+
+  return {
+    glyphs,
+    metal,
+    shade,
+    marble,
+    normal: surfaceNormals({ height, tiltX: flat, tiltY: flat }, base),
+  };
+}
+
+/**
+ * One metal's colours over the CORNERED carving: polished metal for the rim,
+ * the brackets and the numerals, and between them enamel in the PLAYER'S
+ * colour — transparent, so the body shows — marbled darker and paler, with
+ * pearly streaks along the swirl and shadow where the metal stands over it.
+ */
+function paintCornered(recipe, { owner }, carving) {
+  const { metal, shade, marble } = carving;
+  const { enamel, finish } = recipe;
+  const cast = hex(recipe.metal);
+
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = y * SIZE + x;
+
+      if (owner[pixel] < 0) {
+        colour.set([...cast, 255], pixel * 4);
+        writeSurface(surface, pixel, {
+          occlusion: 1,
+          roughness: finish.metal,
+          metalness: 1,
+        });
+        continue;
+      }
+
+      const m = metal[pixel];
+      const swirl = marble[pixel];
+      const dark = smoothstep(0.5, 0.3, swirl);
+      const pale = smoothstep(0.52, 0.7, swirl);
+      const pearl = 1 - smoothstep(0, enamel.streak, Math.abs(swirl - 0.56));
+      const polish = 0.92 + 0.14 * valueNoise(x, y, 6, 641);
+
+      const paint = layers();
+
+      paint.over(
+        [0, 0, 0],
+        clamp(enamel.dark * dark + enamel.shadow * shade[pixel]),
+      );
+      paint.over([255, 255, 255], enamel.light * pale + enamel.pearl * pearl);
+      paint.over(
+        cast.map((c) => clamp(c * polish, 0, 255)),
+        m,
+      );
+      paint.write(colour, pixel);
+
+      writeSurface(surface, pixel, {
+        occlusion: 1 - 0.5 * shade[pixel] * (1 - m),
+        roughness:
+          finish.metal * m + (finish.enamel + 0.06 * (1 - pale)) * (1 - m),
+        // A little metal in the pale swirls, for the enamel's pearly sheen.
+        metalness: m + enamel.sheen * Math.max(pale, pearl) * (1 - m),
+      });
+    }
+  }
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: carving.normal,
+  };
+}
 /**
  * Every corner of every die: `out` points through it, `apex` is where its
  * faces' outlines end, and `meeting` holds, for each face there, that end and
@@ -2484,6 +2970,35 @@ function atlasToDie({ triangles }, x, y) {
 }
 
 /**
+ * Where on the atlas a point on a face lies, by the face's triangle that
+ * holds it — `atlasToDie` the other way round.
+ */
+function dieToAtlas({ triangles, normal }, point) {
+  let best = { inside: -Infinity };
+
+  for (const { points, uvs } of triangles) {
+    const [a, b, c] = points;
+    const whole = dot(cross(sub(b, a), sub(c, a)), normal);
+    const weights = [
+      dot(cross(sub(b, point), sub(c, point)), normal) / whole,
+      dot(cross(sub(c, point), sub(a, point)), normal) / whole,
+      dot(cross(sub(a, point), sub(b, point)), normal) / whole,
+    ];
+    const inside = Math.min(...weights);
+
+    if (inside > best.inside) {
+      best = { inside, uvs, weights };
+    }
+  }
+
+  const [u, v] = [0, 1].map((k) =>
+    best.uvs.reduce((sum, uv, corner) => sum + uv[k] * best.weights[corner], 0),
+  );
+
+  return [u * SIZE - 0.5, (1 - v) * SIZE - 0.5];
+}
+
+/**
  * Pixels joined to `start` through `member`, four ways round — returned as
  * a fresh array, `label`led with `index` as they are found.
  */
@@ -2782,20 +3297,33 @@ function paintCompanion(recipe, base, scene) {
   const hearted = faceOfValue(scene, faces, "d20", 20);
   const marks = numeralMarks(base, recipe.join);
   const discs = faces.map(() => []);
+  const count = faces.map(
+    (_, face) => marks.filter((mark) => mark.face === face).length,
+  );
 
   for (const mark of marks) {
     const size = unit[dice[mark.face]];
     const { disc } = cut[dice[mark.face]];
+    // A face's only numeral is its middle's, wherever the stock dice put
+    // it: the disc goes to the middle, and the numeral is moved into it.
+    const alone = count[mark.face] === 1;
     const central =
+      alone ||
       length(sub(mark.middle, faces[mark.face].centre)) < disc.central * size;
+    const centre = alone ? faces[mark.face].centre : mark.middle;
+    const [tx, ty] = alone
+      ? dieToAtlas(faces[mark.face], centre)
+      : [mark.x, mark.y];
 
     discs[mark.face].push({
       ...mark,
-      centre: mark.middle,
+      centre,
+      tx,
+      ty,
       radius: (central ? disc.radius : disc.corner) * size,
       heart: mark.face === hearted && {
-        cx: mark.x,
-        cy: mark.y,
+        cx: tx,
+        cy: ty,
         up: markUp(mark),
       },
     });
@@ -2944,7 +3472,7 @@ function paintCompanion(recipe, base, scene) {
     const marked =
       own?.pixels &&
       plateDepth > -soft &&
-      Math.hypot(x - own.x, y - own.y) <=
+      Math.hypot(x - own.tx, y - own.ty) <=
         1.1 * (own.radius + soft) * density[pixel];
 
     if (marked && own.heart) {
@@ -2954,8 +3482,8 @@ function paintCompanion(recipe, base, scene) {
       });
     } else if (marked) {
       const from = scale[die];
-      const sx = own.x + (x - own.x) / from;
-      const sy = own.y + (y - own.y) / from;
+      const sx = own.x + (x - own.tx) / from;
+      const sy = own.y + (y - own.ty) / from;
       const landing =
         clamp(Math.round(sy), 0, SIZE - 1) * SIZE +
         clamp(Math.round(sx), 0, SIZE - 1);
@@ -3068,7 +3596,11 @@ function paintCompanion(recipe, base, scene) {
   return {
     colour: encodePng(SIZE, SIZE, 4, colour),
     surface: encodePng(SIZE, SIZE, 3, surface),
-    normal: surfaceNormals({ height, tiltX: flat, tiltY: flat }, base),
+    normal: surfaceNormals(
+      { height, tiltX: flat, tiltY: flat },
+      base,
+      Boolean(recipe.parallax),
+    ),
   };
 }
 
@@ -4312,298 +4844,12 @@ function paintCaseHardened(recipe, base) {
 }
 
 /**
- * The sets of lamellae in each die — the thin planes inside labradorite that
- * catch the light. Each leans off one of the die's faces, no two off the same
- * face or opposite ones while the die has faces enough, so every die has
- * faces that flash. `across` is the way the twin streaks run over them.
+ * A lean given in die units across each face — how far a surface's normal
+ * leans, as a vector in the face's plane — as the tilt `surfaceNormals`
+ * takes, in the atlas: each face's own way across, read off the positions
+ * either side of each pixel.
  */
-function lamellaeOf(faces, outward, { sets: count, lean }) {
-  const names = [...new Set(faces.map(({ die }) => die))];
-  const nudge = (index, salt) =>
-    [1, 2, 3].map((k) => 2 * hash(index, k, salt) - 1);
-
-  return Object.fromEntries(
-    names.map((die, index) => {
-      const own = faces.flatMap((face, at) => (face.die === die ? [at] : []));
-      const chosen = [];
-
-      for (let k = 0; k < count; k++) {
-        const open = own.filter((at) =>
-          chosen.every(
-            (taken) => Math.abs(dot(outward[at], outward[taken])) < 0.9,
-          ),
-        );
-        const from = open.length > 0 ? open : own;
-
-        chosen.push(from[Math.floor(hash(index, k, 461) * from.length)]);
-      }
-
-      return [
-        die,
-        chosen.map((face, k) => {
-          const tilt = nudge(index, 463 + k);
-          const normal = normalise(
-            outward[face].map((value, j) => value + lean * tilt[j]),
-          );
-          const across = normalise(cross(normal, nudge(index, 467 + k)));
-
-          return { normal, across, along: cross(across, normal) };
-        }),
-      ];
-    }),
-  );
-}
-
-/**
- * Polished labradorite: smoky grey stone whose lamellae flash blue — and
- * cyan, green and gold here and there — lettered in gold leaf. Its own colours
- * whatever the player's: every pixel is opaque.
- *
- *   stone     dark grey, clouded lighter, with black needles through it
- *   schiller  the flash, strongest on a face that looks along its lamellae
- *             and gone from one turned well away from them, so faces side by
- *             side are bright and dull, as on the stone. The stone is split
- *             into domains, cells of cellular noise THROUGH THE DIE, each
- *             holding one of the die's sets of lamellae — see `lamellaeOf` —
- *             so a flash can stop dead at a line across a face; patches of
- *             dull stone break it up
- *   twins     streaks across the flash, the twinned crystal's own grain
- *   hue       mostly blue, read as a SHARE of the flash like the case-hardened
- *             steel's mottle, running out into cyan, green and gold
- *   numerals  engraved and filled with gold leaf, on a dark foot
- *
- * What makes it flash rather than glow is the lighting: the flash is part
- * metal, and its normal in the normal map is the LAMELLAE's, leaning off the
- * face's, so it catches the light at its own angle as the die turns, while
- * the clear coat over it — which keeps the face's own normal — stays a flat,
- * polished face.
- */
-function paintLabradorite(recipe, base) {
-  const { ink, reference, owner, position, density, faces, dice } = base;
-  const { domains, schiller, twins, needles, hue, stone, finish } = recipe;
-
-  const outward = faces.map(({ normal, centre }) =>
-    dot(normal, centre) < 0 ? normal.map((value) => -value) : normal,
-  );
-  const lamellae = lamellaeOf(faces, outward, domains);
-
-  const glyphs = neighbourhood(ink, recipe.weight, true);
-  const relief = neighbourhood(glyphs, 1);
-  const halo = neighbourhood(glyphs, 2);
-
-  const gold = hex(recipe.metal);
-  const smoke = hex(stone.smoke);
-  const grey = hex(stone.grey);
-  const mist = hex(stone.mist);
-  const engrave = recipe.engrave * reference;
-  const domainScale = domains.scale * reference;
-  const patchScale = schiller.scale * reference;
-  const hueScale = hue.scale * reference;
-  const stoneScale = stone.scale * reference;
-
-  const ramp = rampThrough(
-    hue.stops.map(([share, value]) => [share, hex(value)]),
-  );
-
-  /* ---- The hue everywhere first, so it can be read as a share. ---- */
-
-  const hues = new Float32Array(SIZE * SIZE);
-
-  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
-    if (owner[pixel] < 0) {
-      continue;
-    }
-
-    const qx = position[pixel * 3] / hueScale;
-    const qy = position[pixel * 3 + 1] / hueScale;
-    const qz = position[pixel * 3 + 2] / hueScale;
-    const wx = qx + (fbm3(qx, qy, qz, 2, 491) - 0.5);
-    const wy = qy + (fbm3(qx + 5.2, qy, qz, 2, 499) - 0.5);
-
-    hues[pixel] = clamp(fbm3(wx, wy, qz, 3, 503), 0, 1 - 1e-9);
-  }
-
-  const shareOf = areaShares(hues, base);
-
-  const colour = new Uint8Array(SIZE * SIZE * 4);
-  const surface = new Uint8Array(SIZE * SIZE * 3);
-  const height = new Float32Array(SIZE * SIZE);
-  // How far the lamellae lean off each face, in die units across it.
-  const lean = new Float32Array(SIZE * SIZE * 3);
-
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const pixel = y * SIZE + x;
-      const face = owner[pixel];
-
-      if (face < 0) {
-        colour.set([...smoke, 255], pixel * 4);
-        writeSurface(surface, pixel, {
-          occlusion: 1,
-          roughness: finish.stone,
-          metalness: 0,
-        });
-        continue;
-      }
-
-      const point = position.subarray(pixel * 3, pixel * 3 + 3);
-      const [px, py, pz] = point;
-      const up = outward[face];
-
-      /* ---- Which set of lamellae, and how they lean here. ---- */
-
-      const dx = px / domainScale;
-      const dy = py / domainScale;
-      const dz = pz / domainScale;
-      const domain = cellAt(
-        dx + (fbm3(dx, dy, dz, 2, 509) - 0.5) * 2 * domains.wander,
-        dy + (fbm3(dx, dy + 9.1, dz, 2, 511) - 0.5) * 2 * domains.wander,
-        dz,
-      );
-      const sets = lamellae[dice[face]];
-      const set = sets[Math.floor(domain.trait(513) * sets.length)];
-      const own = dot(set.normal, up) < 0 ? -1 : 1;
-      const lamella = normalise(
-        set.normal.map(
-          (value, k) =>
-            own * value +
-            (fbm3(dx + 3.1 * k, dy, dz + 1.7 * k, 2, 521) - 0.5) *
-              2 *
-              domains.waver,
-        ),
-      );
-      const facing = dot(lamella, up);
-
-      /* ---- How strongly it flashes. ---- */
-
-      const sx = px / patchScale;
-      const sy = py / patchScale;
-      const sz = pz / patchScale;
-      const patch = smoothstep(
-        schiller.patch[0],
-        schiller.patch[1],
-        fbm3(
-          sx + (fbm3(sx, sy, sz, 2, 523) - 0.5) * 2 * schiller.warp,
-          sy + (fbm3(sx, sy + 9.1, sz, 2, 541) - 0.5) * 2 * schiller.warp,
-          sz,
-          4,
-          547,
-        ),
-      );
-      const along = dot(point, set.along) / (twins.long * reference);
-      const normal = dot(point, set.normal) / (twins.long * reference);
-      const streak = smoothstep(
-        0.4,
-        0.8,
-        valueNoise3(
-          dot(point, set.across) / (twins.pitch * reference),
-          along,
-          normal,
-          557,
-        ),
-      );
-      const fine = smoothstep(
-        0.45,
-        0.85,
-        valueNoise3(
-          dot(point, set.across) / (twins.fine * reference),
-          along * 2,
-          normal * 2,
-          563,
-        ),
-      );
-      const flash =
-        smoothstep(schiller.from, schiller.to, facing) *
-        patch *
-        (1 - twins.strength * (0.65 * streak + 0.35 * fine));
-      // Black on the flash; on dull stone, barely there.
-      const needle =
-        needles.strength *
-        (needles.dull + (1 - needles.dull) * clamp(1.5 * flash)) *
-        smoothstep(
-          needles.from,
-          needles.to,
-          valueNoise3(
-            dot(point, set.across) / (needles.pitch * reference),
-            dot(point, set.along) / (needles.long * reference),
-            normal,
-            569,
-          ),
-        );
-
-      /* ---- Colour, bottom to top. ---- */
-
-      const cx = px / stoneScale;
-      const cy = py / stoneScale;
-      const cz = pz / stoneScale;
-      const paint = layers();
-
-      paint.over(
-        mix(smoke, grey, smoothstep(0.3, 0.72, fbm3(cx, cy, cz, 4, 571))),
-        1,
-      );
-      paint.over(
-        mist,
-        0.2 * smoothstep(0.6, 0.8, fbm3(cx + 4.4, cy, cz, 3, 577)),
-      );
-
-      const tint = ramp(shareOf(hues[pixel]));
-
-      paint.over(tint, clamp(schiller.ghost * patch + 0.95 * flash));
-      // The brightest lamellae, between the streaks.
-      paint.over(
-        mix(tint, [255, 255, 255], 0.35),
-        flash * twins.glow * (1 - streak),
-      );
-      paint.over([8, 9, 11], needle);
-      paint.over([0, 0, 0], clamp(halo[pixel] - glyphs[pixel]) * 0.5);
-
-      const leaf = 0.82 + 0.3 * valueNoise(x, y, 2, 587);
-
-      paint.over(
-        gold.map((c) => clamp(c * leaf, 0, 255)),
-        glyphs[pixel],
-      );
-      paint.write(colour, pixel);
-
-      /* ---- Surface: polished stone, the flash part metal, satin gold. ---- */
-
-      const shown = flash * (1 - needle);
-      const bed = finish.stone + (finish.flash - finish.stone) * shown;
-
-      writeSurface(surface, pixel, {
-        occlusion: 1 - 0.4 * clamp(halo[pixel] - glyphs[pixel]),
-        roughness:
-          bed + (finish.numerals + 0.2 * (leaf - 0.82) - bed) * glyphs[pixel],
-        metalness:
-          recipe.sheen * shown +
-          (recipe.gilt - recipe.sheen * shown) * glyphs[pixel],
-      });
-
-      height[pixel] = -engrave * relief[pixel];
-
-      // Only as far as the flash shows: dull stone lies as the face does.
-      const reach =
-        Math.min(
-          schiller.tilt,
-          Math.sqrt(Math.max(0, 1 - facing * facing)) / Math.max(facing, 0.05),
-        ) *
-        patch *
-        smoothstep(schiller.from, schiller.to, facing) *
-        (1 - glyphs[pixel]);
-      const sideways = normalise(
-        lamella.map((value, k) => value - facing * up[k]),
-      );
-
-      lean.set(
-        sideways.map((value) => value * reach),
-        pixel * 3,
-      );
-    }
-  }
-
-  /* ---- The lean, as a tilt in the atlas: each face's own way across. ---- */
-
+function leanToTilt(lean, { owner, position, density }) {
   const tiltX = new Float32Array(SIZE * SIZE);
   const tiltY = new Float32Array(SIZE * SIZE);
   const step = (pixel, back, ahead) => {
@@ -4641,6 +4887,955 @@ function paintLabradorite(recipe, base) {
     }
   }
 
+  return { tiltX, tiltY };
+}
+
+/**
+ * What runs through each die of labradorite: its two sets of lamellae — the
+ * thin planes inside it that catch the light — each leaning off one of its
+ * faces, never the same face or opposite ones; the directions its hairline
+ * cleavages cross it in; and the frame its grain is laid out in, the first
+ * cleavage and two ways across it.
+ */
+function lamellaeOf(faces, outward, { lean }, { count }) {
+  const names = [...new Set(faces.map(({ die }) => die))];
+  const nudge = (index, salt) =>
+    [1, 2, 3].map((k) => 2 * hash(index, k, salt) - 1);
+
+  return Object.fromEntries(
+    names.map((die, index) => {
+      const own = faces.flatMap((face, at) => (face.die === die ? [at] : []));
+      const first = own[Math.floor(hash(index, 0, 461) * own.length)];
+      const open = own.filter(
+        (at) => Math.abs(dot(outward[at], outward[first])) < 0.9,
+      );
+      const second = open[Math.floor(hash(index, 1, 461) * open.length)];
+      const cleavages = Array.from({ length: count }, (_, k) =>
+        normalise(nudge(index, 467 + k)),
+      );
+      const [along] = cleavages;
+      const side = normalise(
+        cross(along, Math.abs(along[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]),
+      );
+
+      return [
+        die,
+        {
+          sets: [first, second].map((face, k) => {
+            const tilt = nudge(index, 463 + k);
+
+            return normalise(
+              outward[face].map((value, j) => value + lean * tilt[j]),
+            );
+          }),
+          cleavages,
+          grain: [along, side, cross(along, side)],
+        },
+      ];
+    }),
+  );
+}
+
+/**
+ * How much of a hairline crack lies at `point`: planes across the die along
+ * `direction`, about `spacing` apart, each `width` wide and softened by `half`
+ * more to the atlas, each at a strength of its own and broken off along its
+ * length where noise `broken` across says so. Sizes in die units.
+ */
+function hairlineAt(point, direction, salt, { spacing, width, broken }, half) {
+  const across = dot(point, direction) / spacing;
+  const cell = Math.floor(across);
+  let gap = Infinity;
+  let line = cell;
+
+  for (let k = cell - 1; k <= cell + 1; k++) {
+    const offset = Math.abs(across - k - 0.15 - 0.7 * hash(k, 1, salt));
+
+    if (offset < gap) {
+      gap = offset;
+      line = k;
+    }
+  }
+
+  const drawn = 1 - smoothstep(width / 2, width / 2 + half, gap * spacing);
+
+  if (drawn === 0) {
+    return 0;
+  }
+
+  const run = valueNoise3(
+    point[0] / broken,
+    point[1] / broken,
+    point[2] / broken + line * 7.31,
+    salt + 1,
+  );
+
+  return (
+    drawn * (0.35 + 0.65 * hash(line, 2, salt)) * smoothstep(0.35, 0.6, run)
+  );
+}
+
+/**
+ * Polished labradorite, in its own colours whatever the player's — every
+ * pixel is opaque — lettered in gold leaf.
+ *
+ *   stone      grey with green in it, clouded lighter and darker, misted pale
+ *              here and there, and mottled darker where it is flecked
+ *   schiller   the flash, over most of the stone in broad, soft washes,
+ *              brightest on a face that looks along the lamellae and never
+ *              quite gone from one that does not. The lamellae lean one way in
+ *              part of each die and another in the rest — see `lamellaeOf` —
+ *              and turn from one to the other gradually, so nothing in the
+ *              flash ends at a line
+ *   hue        read as a SHARE of the dice, like the case-hardened steel's
+ *              mottle, and eased through the colours a thin film gives:
+ *              violet, then blue, sky and teal, which are most of it, into
+ *              green, gold and orange
+ *   silk       a soft grain through the flash, brighter and duller along it
+ *   hairlines  fine cleavages crossing every face, a few ways at once, broken
+ *              off here and there and cut a little into the surface
+ *   numerals   engraved and filled with gold leaf, on a dark foot
+ *
+ * The flash's normal in the normal map is the LAMELLAE's, leaning off the
+ * face's, so it brightens and dims at an angle of its own as the die turns —
+ * with a little metal in it, for a sheen in its own colour — while the clear
+ * coat over it keeps the face's own normal and stays a polished face.
+ */
+function paintLabradorite(recipe, base) {
+  const { ink, reference, owner, position, density, faces, dice } = base;
+  const { lamellae, schiller, silk, hairlines, mottle, hue, stone, finish } =
+    recipe;
+
+  const outward = faces.map(({ normal, centre }) =>
+    dot(normal, centre) < 0 ? normal.map((value) => -value) : normal,
+  );
+  const dies = lamellaeOf(faces, outward, lamellae, hairlines);
+
+  const glyphs = neighbourhood(ink, recipe.weight, true);
+  const relief = neighbourhood(glyphs, 1);
+  const halo = neighbourhood(glyphs, 2);
+
+  const gold = hex(recipe.metal);
+  const dark = hex(stone.dark);
+  const light = hex(stone.light);
+  const haze = hex(stone.haze);
+  const fleck = hex(mottle.colour);
+  const crack = hex(hairlines.colour);
+  const engrave = recipe.engrave * reference;
+  const lamellaScale = lamellae.scale * reference;
+  const patchScale = schiller.scale * reference;
+  const hueScale = hue.scale * reference;
+  const stoneScale = stone.scale * reference;
+  const mottleScale = mottle.scale * reference;
+  const speckScale = mottle.specks * reference;
+  const cracks = {
+    spacing: hairlines.spacing * reference,
+    width: hairlines.width * reference,
+    broken: hairlines.broken * reference,
+  };
+
+  const ramp = rampThrough(
+    hue.stops.map(([share, value]) => [share, hex(value)]),
+  );
+
+  /* ---- The hue everywhere first, so it can be read as a share. ---- */
+
+  const hues = new Float32Array(SIZE * SIZE);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0) {
+      continue;
+    }
+
+    const qx = position[pixel * 3] / hueScale;
+    const qy = position[pixel * 3 + 1] / hueScale;
+    const qz = position[pixel * 3 + 2] / hueScale;
+    const wx = qx + (fbm3(qx, qy, qz, 2, 491) - 0.5) * 2 * hue.warp;
+    const wy = qy + (fbm3(qx + 5.2, qy, qz, 2, 499) - 0.5) * 2 * hue.warp;
+
+    hues[pixel] = clamp(fbm3(wx, wy, qz, 3, 503), 0, 1 - 1e-9);
+  }
+
+  const shareOf = areaShares(hues, base);
+
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const height = new Float32Array(SIZE * SIZE);
+  // How far the lamellae lean off each face, in die units across it.
+  const lean = new Float32Array(SIZE * SIZE * 3);
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = y * SIZE + x;
+      const face = owner[pixel];
+
+      if (face < 0) {
+        colour.set([...mix(dark, light, 0.5), 255], pixel * 4);
+        writeSurface(surface, pixel, {
+          occlusion: 1,
+          roughness: finish.stone,
+          metalness: 0,
+        });
+        continue;
+      }
+
+      const point = position.subarray(pixel * 3, pixel * 3 + 3);
+      const [px, py, pz] = point;
+      const up = outward[face];
+      const { sets, cleavages, grain } = dies[dice[face]];
+
+      /* ---- The lamellae here, turning gradually from one set to the
+         other. ---- */
+
+      const lx = px / lamellaScale;
+      const ly = py / lamellaScale;
+      const lz = pz / lamellaScale;
+      const turn = smoothstep(
+        lamellae.blend[0],
+        lamellae.blend[1],
+        fbm3(lx, ly, lz, 3, 509),
+      );
+      const [first, second] = sets.map((normal) =>
+        dot(normal, up) < 0 ? normal.map((value) => -value) : normal,
+      );
+      const lamella = normalise(
+        first.map(
+          (value, k) =>
+            value +
+            (second[k] - value) * turn +
+            (fbm3(lx + 3.1 * k, ly, lz + 1.7 * k, 2, 521) - 0.5) *
+              2 *
+              lamellae.waver,
+        ),
+      );
+      const facing = dot(lamella, up);
+      const aligned = smoothstep(schiller.from, schiller.to, facing);
+
+      /* ---- How strongly it flashes. ---- */
+
+      const sx = px / patchScale;
+      const sy = py / patchScale;
+      const sz = pz / patchScale;
+      const patch = smoothstep(
+        schiller.patch[0],
+        schiller.patch[1],
+        fbm3(
+          sx + (fbm3(sx, sy, sz, 2, 523) - 0.5) * 2 * schiller.warp,
+          sy + (fbm3(sx, sy + 9.1, sz, 2, 541) - 0.5) * 2 * schiller.warp,
+          sz,
+          4,
+          547,
+        ),
+      );
+      const flash = patch * (schiller.floor + (1 - schiller.floor) * aligned);
+      const sheen =
+        1 +
+        silk.strength *
+          (2 *
+            valueNoise3(
+              dot(point, grain[0]) / (silk.across * reference),
+              dot(point, grain[1]) / (silk.along * reference),
+              dot(point, grain[2]) / (silk.along * reference),
+              557,
+            ) -
+            1);
+
+      /* ---- What the stone holds besides. ---- */
+
+      const mx = px / mottleScale;
+      const my = py / mottleScale;
+      const mz = pz / mottleScale;
+      const mottled =
+        mottle.strength *
+        smoothstep(mottle.from, mottle.to, fbm3(mx, my, mz, 4, 571));
+      const speck =
+        mottled *
+        smoothstep(
+          0.68,
+          0.78,
+          valueNoise3(px / speckScale, py / speckScale, pz / speckScale, 577),
+        );
+      const half = 0.75 / density[pixel];
+      const crackle = Math.max(
+        ...cleavages.map((direction, k) =>
+          hairlineAt(point, direction, 601 + 13 * k, cracks, half),
+        ),
+      );
+
+      /* ---- Colour, bottom to top. ---- */
+
+      const cx = px / stoneScale;
+      const cy = py / stoneScale;
+      const cz = pz / stoneScale;
+      const tint = ramp(shareOf(hues[pixel])).map((value) =>
+        clamp(value * sheen, 0, 255),
+      );
+      const paint = layers();
+
+      paint.over(
+        mix(dark, light, smoothstep(0.3, 0.7, fbm3(cx, cy, cz, 4, 563))),
+        1,
+      );
+      paint.over(
+        haze,
+        stone.mist * smoothstep(0.55, 0.8, fbm3(cx + 4.4, cy, cz, 3, 569)),
+      );
+      paint.over(tint, schiller.strength * flash);
+      // A paler heart where it flashes hardest.
+      paint.over(
+        mix(tint, [255, 255, 255], 0.3),
+        schiller.glow * flash * aligned,
+      );
+      paint.over(fleck, mottled);
+      paint.over([14, 16, 17], 0.85 * speck);
+      paint.over(crack, hairlines.strength * crackle);
+      paint.over([0, 0, 0], clamp(halo[pixel] - glyphs[pixel]) * 0.4);
+
+      const leaf = 0.82 + 0.3 * valueNoise(x, y, 2, 587);
+
+      paint.over(
+        gold.map((c) => clamp(c * leaf, 0, 255)),
+        glyphs[pixel],
+      );
+      paint.write(colour, pixel);
+
+      /* ---- Surface: satin stone, a sheen of metal in the flash, satin
+         gold. ---- */
+
+      const shown = flash * (1 - mottled);
+      const bed =
+        finish.stone +
+        (finish.flash - finish.stone) * shown +
+        finish.cracks * crackle;
+
+      writeSurface(surface, pixel, {
+        occlusion: 1 - 0.4 * clamp(halo[pixel] - glyphs[pixel]),
+        roughness:
+          bed + (finish.numerals + 0.2 * (leaf - 0.82) - bed) * glyphs[pixel],
+        metalness:
+          recipe.sheen * shown +
+          (recipe.gilt - recipe.sheen * shown) * glyphs[pixel],
+      });
+
+      height[pixel] =
+        -engrave * relief[pixel] - hairlines.depth * reference * crackle;
+
+      // Only as far as the flash shows: dull stone lies as the face does.
+      const reach =
+        Math.min(
+          schiller.tilt,
+          Math.sqrt(Math.max(0, 1 - facing * facing)) / Math.max(facing, 0.05),
+        ) *
+        patch *
+        aligned *
+        (1 - glyphs[pixel]);
+      const sideways = normalise(
+        lamella.map((value, k) => value - facing * up[k]),
+      );
+
+      lean.set(
+        sideways.map((value) => value * reach),
+        pixel * 3,
+      );
+    }
+  }
+
+  const { tiltX, tiltY } = leanToTilt(lean, base);
+
+  bleed(
+    owner,
+    [
+      { data: colour, channels: 4 },
+      { data: surface, channels: 3 },
+    ],
+    recipe.bleed,
+  );
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: surfaceNormals({ height, tiltX, tiltY }, base),
+  };
+}
+
+/**
+ * Overlapping scales, the dragon's own, each lacquered in one of TWO colours:
+ * the player's, or the accent worked out from it — see lib/dice-accent.mjs.
+ * Neither is painted. The colour map only shades the scales, transparent
+ * over them so the body shows, and a fourth map, the ACCENT, says which
+ * scales take the second colour; the vendored dice-box works that colour out
+ * from the first, on the GPU.
+ *
+ *   scales    pointed, in rows down each face — the way `toward` leans, the
+ *             same way on every face — each row offset half a scale and laid
+ *             over the row below like tiles on a roof, so what shows of each
+ *             is its lower half, tip down. A scale is a lens, two circles'
+ *             overlap, `width` by `length`. It rises towards its tip and
+ *             along a keel down its middle, and where it overhangs the scale
+ *             beneath, that one sinks into its shadow
+ *   patches   the accent comes in patches, by noise THROUGH THE DIE at each
+ *             scale's middle, so a patch runs on round an edge, with a few
+ *             strays
+ *   numerals  raised in gold, standing over the scales
+ */
+function paintScales(recipe, base) {
+  const { ink, reference, owner, position, density, faces } = base;
+  const { scale, patch, finish } = recipe;
+
+  const width = scale.width * reference;
+  const long = scale.length * reference;
+  const half = long / 2;
+  const depth = scale.depth * reference;
+  // The lens: the overlap of two circles, `radius` round, `apart` either side
+  // of its middle, which leaves it `width` across and `long` from tip to tip.
+  const reach = (long * long) / (2 * width);
+  const radius = (width / 2 + reach) / 2;
+  const apart = (reach - width / 2) / 2;
+  const patchScale = patch.scale * reference;
+
+  const toward = normalise(recipe.toward);
+  const frames = faces.map(({ normal, centre }, face) => {
+    let down = sub(
+      toward,
+      normal.map((value) => value * dot(toward, normal)),
+    );
+
+    // A face square to `toward` takes its rows from another way across.
+    if (length(down) < 0.3) {
+      const aside = normalise(cross(toward, [0, 0, 1]));
+
+      down = sub(
+        aside,
+        normal.map((value) => value * dot(aside, normal)),
+      );
+    }
+
+    down = normalise(down);
+
+    return {
+      centre,
+      down,
+      across: normalise(cross(normal, down)),
+      shift: [hash(face, 1, 701) * width, hash(face, 2, 701) * long],
+    };
+  });
+
+  const glyphs = neighbourhood(ink, recipe.weight, true);
+  const relief = neighbourhood(glyphs, 1);
+  // Wide, so a numeral stands clear of a patch as golden as itself.
+  const halo = neighbourhood(glyphs, 3);
+  const gold = hex(recipe.metal);
+
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const accent = new Uint8Array(SIZE * SIZE);
+  const height = new Float32Array(SIZE * SIZE);
+  // The deepest each candidate row's nearest scale reaches over a pixel.
+  const rows = new Float64Array(5);
+  const columns = new Int32Array(5);
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = y * SIZE + x;
+      const face = owner[pixel];
+
+      if (face < 0) {
+        colour.set([0, 0, 0, 160], pixel * 4);
+        writeSurface(surface, pixel, {
+          occlusion: 0.6,
+          roughness: finish.scales,
+          metalness: recipe.lacquer,
+        });
+        continue;
+      }
+
+      const { centre, down, across, shift } = frames[face];
+      const rx = position[pixel * 3] - centre[0];
+      const ry = position[pixel * 3 + 1] - centre[1];
+      const rz = position[pixel * 3 + 2] - centre[2];
+      const u = rx * across[0] + ry * across[1] + rz * across[2] + shift[0];
+      const v = rx * down[0] + ry * down[1] + rz * down[2] + shift[1];
+
+      /* ---- Which scale lies on top: the highest row reaching here. ---- */
+
+      const row = Math.round(v / half);
+
+      for (let k = 0; k < 5; k++) {
+        const j = row - 2 + k;
+        const offset = (j & 1) * (width / 2);
+        const column = Math.round((u - offset) / width);
+
+        rows[k] = -Infinity;
+
+        for (let i = column - 1; i <= column + 1; i++) {
+          const lx = u - (i * width + offset);
+          const ly = v - j * half;
+          const inside =
+            radius -
+            Math.max(Math.hypot(lx - apart, ly), Math.hypot(lx + apart, ly));
+
+          if (inside > rows[k]) {
+            rows[k] = inside;
+            columns[k] = i;
+          }
+        }
+      }
+
+      const k = rows.findIndex((inside) => inside > 0);
+      const j = row - 2 + Math.max(k, 0);
+      const i = columns[Math.max(k, 0)];
+      const offset = (j & 1) * (width / 2);
+      const lx = u - (i * width + offset);
+      const ly = v - j * half;
+      const inside = k < 0 ? 0 : rows[k];
+      let over = Infinity;
+
+      for (let above = 0; above < k; above++) {
+        over = Math.min(over, -rows[above]);
+      }
+
+      /* ---- Its shape: rising to the tip and along the keel, and sunk
+         under the scale over it. ---- */
+
+      const t = clamp((ly + half) / long);
+      const keel = 1 - smoothstep(0, scale.keel * width, Math.abs(lx));
+      const rise = smoothstep(0, scale.round * width, inside);
+      // Nothing reaching here at all is a gap between scales: deep shadow.
+      const shadow = k < 0 ? 1 : 1 - smoothstep(0, scale.shadow * width, over);
+      const line = 1 - smoothstep(0, 1.2 / density[pixel], inside);
+
+      height[pixel] = Math.max(
+        depth *
+          ((0.25 + 0.75 * t) * (0.75 + 0.25 * Math.sqrt(rise)) +
+            scale.ridge * keel * t * rise -
+            0.4 * shadow),
+        depth * scale.numerals * relief[pixel],
+      );
+
+      /* ---- Which colour it takes: patches through the die, and strays. ---- */
+
+      const cu = i * width + offset - shift[0];
+      const cv = j * half - shift[1];
+      const cx = (centre[0] + across[0] * cu + down[0] * cv) / patchScale;
+      const cy = (centre[1] + across[1] * cu + down[1] * cv) / patchScale;
+      const cz = (centre[2] + across[2] * cu + down[2] * cv) / patchScale;
+      const second =
+        fbm3(cx, cy, cz, 3, 709) > patch.from ||
+        hash(i, j, face * 131 + 7) < patch.stray;
+
+      accent[pixel] = second ? 255 : 0;
+
+      /* ---- The shading over whichever colour it is. ---- */
+
+      const tone = hash(i, j, face * 131 + 11) - 0.5;
+      const paint = layers();
+
+      paint.over([0, 0, 0], scale.shade * (1 - t) ** 1.5);
+      paint.over(
+        tone < 0 ? [0, 0, 0] : [255, 255, 255],
+        Math.abs(tone) * scale.tone,
+      );
+      paint.over([255, 255, 255], scale.sheen * keel * t * t * rise);
+      paint.over([0, 0, 0], clamp(0.92 * shadow + 0.7 * line));
+      paint.over([0, 0, 0], clamp(2 * (halo[pixel] - glyphs[pixel])) * 0.9);
+      paint.over(gold, glyphs[pixel]);
+      paint.write(colour, pixel);
+
+      writeSurface(surface, pixel, {
+        occlusion:
+          (1 - 0.6 * shadow) * (1 - glyphs[pixel]) +
+          glyphs[pixel] -
+          0.3 * clamp(halo[pixel] - glyphs[pixel]),
+        roughness:
+          (finish.scales + 0.1 * tone + 0.3 * shadow) * (1 - glyphs[pixel]) +
+          finish.numerals * glyphs[pixel],
+        metalness:
+          recipe.lacquer * (1 - shadow) +
+          (recipe.gilt - recipe.lacquer * (1 - shadow)) * glyphs[pixel],
+      });
+    }
+  }
+
+  bleed(
+    owner,
+    [
+      { data: colour, channels: 4 },
+      { data: surface, channels: 3 },
+      { data: accent, channels: 1 },
+    ],
+    recipe.bleed,
+  );
+
+  const flat = new Float32Array(SIZE * SIZE);
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: surfaceNormals({ height, tiltX: flat, tiltY: flat }, base),
+    accent: encodePng(SIZE, SIZE, 1, accent),
+  };
+}
+
+/**
+ * The blood on a BLOODIED die, as blobs whose fields run together where they
+ * meet — so a splash is one wet shape, not a cluster of dots. Every blob sits
+ * on a face, its centre on the face\x27s plane, and reaches through the die, so
+ * one near an edge spills over onto the face beside it.
+ *
+ *   splashes  where blood hit: a lumpy CORE of `blobs` overlapping, TENDRILS
+ *             shot out from it and drawn thin, and DROPS flung further,
+ *             radially, each drawn out the further it flew, like a teardrop
+ *             along the way it went
+ *   drops     single drops, here and there
+ *   mist      a fine spray everywhere
+ *
+ * Counts are per square d20 face inradius of each face, sizes in d20 face
+ * inradii. Each blob is its centre, its radius, the way it is drawn out and
+ * how far; `near` finds the blobs reaching a point.
+ */
+function scatterBlood(faces, { splashes, drops, mist }, reference) {
+  const blobs = [];
+  let draw = 0;
+  const roll = () => hash(draw++, 3, 811);
+  const between = ([low, high]) => low + (high - low) * roll();
+  const count = ([low, high]) => Math.round(between([low, high]));
+
+  const pointOn = ({ triangles, area }) => {
+    let pick = roll() * area;
+    const { points } =
+      triangles.find((triangle) => (pick -= triangle.area) <= 0) ??
+      triangles.at(-1);
+    const a = Math.sqrt(roll());
+    const b = roll();
+
+    return [0, 1, 2].map(
+      (k) =>
+        points[0][k] * (1 - a) +
+        points[1][k] * a * (1 - b) +
+        points[2][k] * a * b,
+    );
+  };
+  const flat = (normal, way) =>
+    normalise(
+      sub(
+        way,
+        normal.map((value) => value * dot(way, normal)),
+      ),
+    );
+  const aside = (normal) =>
+    flat(normal, [roll() - 0.5, roll() - 0.5, roll() - 0.5]);
+  const add = (centre, radius, along = [1, 0, 0], stretch = 1) =>
+    blobs.push({ centre, radius, along, stretch });
+  const many = (density, area) => {
+    const expected = (density * area) / reference ** 2;
+
+    return Math.floor(expected) + (roll() < expected % 1 ? 1 : 0);
+  };
+  const out = (centre, way, far) =>
+    centre.map((value, k) => value + way[k] * far);
+
+  for (const face of faces) {
+    const area = face.triangles.reduce((sum, { area }) => sum + area, 0);
+    const shape = { triangles: face.triangles, area };
+    const { normal } = face;
+
+    for (let n = many(splashes.density, area); n > 0; n--) {
+      const centre = pointOn(shape);
+      const size = between(splashes.radius) * reference;
+      // The way the blood was going: most of the spray goes on that way.
+      const thrown = aside(normal);
+
+      for (let k = count(splashes.blobs); k > 0; k--) {
+        add(
+          out(centre, aside(normal), size * 0.55 * roll()),
+          size * (0.45 + 0.55 * roll()),
+        );
+      }
+
+      for (let k = count(splashes.tendrils); k > 0; k--) {
+        const way = flat(
+          normal,
+          thrown.map((value) => value + 1.8 * (roll() - 0.5)),
+        );
+        const reach = size * between(splashes.length);
+
+        // A tendril is a line of blobs thinning as it goes.
+        for (let step = 1; step <= 4; step++) {
+          const t = step / 4;
+
+          add(
+            out(centre, way, size * 0.6 + reach * t),
+            size * 0.32 * (1 - 0.6 * t),
+            way,
+            1.8,
+          );
+        }
+      }
+
+      for (let k = count(splashes.drops); k > 0; k--) {
+        const way = flat(
+          normal,
+          thrown.map((value) => value + 2.6 * (roll() - 0.5)),
+        );
+        const far = between(splashes.spread);
+
+        add(
+          out(centre, way, size * far),
+          between(splashes.small) * reference * (1.2 - 0.25 * far),
+          way,
+          1 + splashes.stretch * (far / splashes.spread[1]),
+        );
+      }
+    }
+
+    for (let n = many(drops.density, area); n > 0; n--) {
+      add(
+        pointOn(shape),
+        between(drops.radius) * reference,
+        aside(normal),
+        1 + 0.6 * roll(),
+      );
+    }
+
+    for (let n = many(mist.density, area); n > 0; n--) {
+      add(pointOn(shape), between(mist.radius) * reference);
+    }
+  }
+
+  // A blob's field is spent by twice its reach.
+  const cell = Math.max(
+    ...blobs.map(({ radius, stretch }) => 2 * radius * stretch),
+  );
+  const grid = new Map();
+  const key = (x, y, z) => ((x + 512) * 1024 + (y + 512)) * 1024 + (z + 512);
+
+  blobs.forEach(({ centre, radius, stretch }, index) => {
+    const reach = 2 * radius * stretch;
+    const [lx, ly, lz] = centre.map((value) =>
+      Math.floor((value - reach) / cell),
+    );
+    const [hx, hy, hz] = centre.map((value) =>
+      Math.floor((value + reach) / cell),
+    );
+
+    for (let x = lx; x <= hx; x++) {
+      for (let y = ly; y <= hy; y++) {
+        for (let z = lz; z <= hz; z++) {
+          const id = key(x, y, z);
+
+          if (!grid.has(id)) {
+            grid.set(id, []);
+          }
+
+          grid.get(id).push(index);
+        }
+      }
+    }
+  });
+
+  return {
+    blobs,
+    near: (x, y, z) =>
+      grid.get(
+        key(Math.floor(x / cell), Math.floor(y / cell), Math.floor(z / cell)),
+      ) ?? [],
+  };
+}
+
+/**
+ * Battered silver spattered with blood in the PLAYER'S colour, lettered in
+ * black enamel.
+ *
+ *   silver    opaque, a crackled mosaic of hammered facets — cellular noise
+ *             THROUGH THE DIE, each facet a tone and a lean of its own in the
+ *             normal map, split by dark hairline cracks — dented, scratched
+ *             bright and dark, tarnished in patches and polished bright along
+ *             the edges, where a die is handled
+ *   blood     the blobs of `scatterBlood`, their fields summed so that
+ *             where they meet they run together, ragged at the edge, and
+ *             TRANSPARENT so the body colour fills them: wet and glossy,
+ *             standing thickest where most has pooled, darker at the rim
+ *             where it is thinnest over the silver
+ *   numerals  engraved and filled with black enamel
+ */
+function paintBloodied(recipe, base) {
+  const { ink, reference, owner, position, density, distance, faces } = base;
+  const { facets, dents, scratches, wear, blood, finish } = recipe;
+
+  const silver = hex(recipe.silver);
+  const enamel = hex(recipe.numerals);
+  const facetScale = facets.scale * reference;
+  const crack = facets.crack / facets.scale;
+  const dentScale = dents.scale * reference;
+  const tarnishScale = wear.scale * reference;
+  const edgeWear = wear.edge * reference;
+  const pieces = scratches.pieces * reference;
+  const engrave = recipe.engrave * reference;
+
+  const glyphs = neighbourhood(ink, recipe.weight, true);
+  const relief = neighbourhood(glyphs, 1);
+  const halo = neighbourhood(glyphs, 2);
+  const planes = creasePlanes(scratches.count, 3 * reference, 821);
+  const { blobs, near } = scatterBlood(faces, blood, reference);
+  const raggedScale = blood.ragged.scale * reference;
+
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const height = new Float32Array(SIZE * SIZE);
+  const lean = new Float32Array(SIZE * SIZE * 3);
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = y * SIZE + x;
+      const face = owner[pixel];
+
+      if (face < 0) {
+        colour.set(
+          [...silver.map((c) => clamp(c * 1.08, 0, 255)), 255],
+          pixel * 4,
+        );
+        writeSurface(surface, pixel, {
+          occlusion: 1,
+          roughness: finish.silver - 0.08,
+          metalness: recipe.metal,
+        });
+        continue;
+      }
+
+      const point = position.subarray(pixel * 3, pixel * 3 + 3);
+      const [px, py, pz] = point;
+      const soft = 0.75 / density[pixel];
+      const up = faces[face].normal;
+
+      /* ---- The silver: facets, cracks, dents, scratches, wear. ---- */
+
+      const facet = cellAt(px / facetScale, py / facetScale, pz / facetScale);
+      const cracked = 1 - smoothstep(0, crack, facet.wall);
+      const tilt = [31, 37, 41].map(
+        (salt) => (facet.trait(salt) - 0.5) * 2 * facets.tilt,
+      );
+      const inPlane = sub(
+        tilt,
+        up.map((value) => value * dot(tilt, up)),
+      );
+
+      let scratch = 0;
+
+      for (const { normal, offset, sign } of planes) {
+        const off = Math.abs(dot(point, normal) - offset);
+
+        if (off < 2 * soft) {
+          const piece = valueNoise3(
+            px / pieces + offset * 97,
+            py / pieces,
+            pz / pieces,
+            823,
+          );
+
+          scratch +=
+            sign *
+            (1 - smoothstep(0, 2 * soft, off)) *
+            smoothstep(0.55, 0.7, piece);
+        }
+      }
+
+      const tarnish = smoothstep(
+        0.45,
+        0.75,
+        fbm3(px / tarnishScale, py / tarnishScale, pz / tarnishScale, 3, 827),
+      );
+      const polish = 1 - smoothstep(0, edgeWear, distance[pixel]);
+      const foot = clamp(halo[pixel] - glyphs[pixel]);
+      const shine =
+        (1 - facets.tone + 2 * facets.tone * facet.trait(43)) *
+        (1 - facets.dark * cracked) *
+        (1 - wear.tarnish * tarnish) *
+        (1 + 0.12 * polish) *
+        (1 + 0.25 * clamp(scratch, 0, 1) - 0.3 * clamp(-scratch, 0, 1)) *
+        (1 - 0.45 * foot);
+      const metal = silver.map((c) => clamp(c * shine, 0, 255));
+
+      /* ---- The blood over it all. ---- */
+
+      let field = 0;
+
+      for (const index of near(px, py, pz)) {
+        const { centre, radius, along, stretch } = blobs[index];
+        const dx = px - centre[0];
+        const dy = py - centre[1];
+        const dz = pz - centre[2];
+        const ahead = dx * along[0] + dy * along[1] + dz * along[2];
+        const side = Math.max(0, dx * dx + dy * dy + dz * dz - ahead * ahead);
+        const reach = ((ahead / stretch) ** 2 + side) / (radius * radius);
+
+        if (reach < 4) {
+          field += Math.exp(-1.4 * reach);
+        }
+      }
+
+      field *=
+        1 +
+        blood.ragged.strength *
+          (2 *
+            valueNoise3(
+              px / raggedScale,
+              py / raggedScale,
+              pz / raggedScale,
+              831,
+            ) -
+            1);
+
+      const edge = blood.threshold;
+      const wet = smoothstep(edge - 0.04, edge + 0.04, field);
+      const dome =
+        blood.dome * reference * smoothstep(edge, edge + 1.5, field) ** 0.6;
+      const rim = wet * (1 - smoothstep(edge, edge + 0.4, field));
+
+      const paint = layers();
+
+      paint.over(mix(metal, enamel, glyphs[pixel]), 1 - wet);
+      paint.over([0, 0, 0], wet * blood.rim * rim);
+      // The numerals still read through the blood filling them.
+      paint.over(enamel, wet * blood.numerals * glyphs[pixel]);
+      paint.write(colour, pixel);
+
+      /* ---- Surface: worn silver, glossy enamel, wet blood. ---- */
+
+      const roughSilver =
+        finish.silver +
+        0.5 * facets.dark * cracked +
+        0.08 * (facet.trait(47) - 0.5) +
+        0.1 * tarnish -
+        0.1 * polish -
+        0.1 * clamp(scratch, 0, 1);
+      const dry = roughSilver + (finish.numerals - roughSilver) * glyphs[pixel];
+
+      writeSurface(surface, pixel, {
+        occlusion: (1 - facets.dark * cracked - 0.4 * foot) * (1 - wet) + wet,
+        roughness: dry + (finish.blood - dry) * wet,
+        metalness: recipe.metal * (1 - glyphs[pixel]) * (1 - wet),
+      });
+
+      height[pixel] =
+        dents.depth *
+          reference *
+          fbm3(px / dentScale, py / dentScale, pz / dentScale, 3, 829) -
+        engrave * relief[pixel] -
+        0.002 * reference * Math.abs(scratch) +
+        dome;
+
+      // Each facet leans its own way; blood and enamel lie flat over it.
+      const flat = Math.max(wet, glyphs[pixel]);
+
+      lean.set(
+        inPlane.map((value) => value * (1 - flat)),
+        pixel * 3,
+      );
+    }
+  }
+
+  const { tiltX, tiltY } = leanToTilt(lean, base);
+
   bleed(
     owner,
     [
@@ -4662,9 +5857,29 @@ function paintLabradorite(recipe, base) {
  * top for detail too fine to be a height. Faces only: bevels and gutters stay
  * flat. The stock atlas's convention, read off its own engraving: red is
  * −∂h/∂x and green −∂h/∂y, both in image space.
+ *
+ * With `parallax`, the height itself rides along in the alpha — 1 the
+ * highest point of any face, 0 the lowest — for the vendored dice-box's
+ * parallax occlusion, which looks into it as a die turns.
  */
-function surfaceNormals({ height, tiltX, tiltY }, { owner, density }) {
-  const normal = new Uint8Array(SIZE * SIZE * 3);
+function surfaceNormals(
+  { height, tiltX, tiltY },
+  { owner, density },
+  parallax = false,
+) {
+  const channels = parallax ? 4 : 3;
+  const normal = new Uint8Array(SIZE * SIZE * channels);
+  let low = Infinity;
+  let high = -Infinity;
+
+  if (parallax) {
+    for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+      if (owner[pixel] >= 0) {
+        low = Math.min(low, height[pixel]);
+        high = Math.max(high, height[pixel]);
+      }
+    }
+  }
 
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
@@ -4685,13 +5900,19 @@ function surfaceNormals({ height, tiltX, tiltY }, { owner, density }) {
 
       const norm = Math.hypot(nx, ny, 1);
 
-      normal[pixel * 3] = Math.round((nx / norm) * 127.5 + 127.5);
-      normal[pixel * 3 + 1] = Math.round((ny / norm) * 127.5 + 127.5);
-      normal[pixel * 3 + 2] = Math.round((1 / norm) * 127.5 + 127.5);
+      normal[pixel * channels] = Math.round((nx / norm) * 127.5 + 127.5);
+      normal[pixel * channels + 1] = Math.round((ny / norm) * 127.5 + 127.5);
+      normal[pixel * channels + 2] = Math.round((1 / norm) * 127.5 + 127.5);
+
+      if (parallax) {
+        normal[pixel * channels + 3] = Math.round(
+          255 * clamp((height[pixel] - low) / (high - low || 1)),
+        );
+      }
     }
   }
 
-  return encodePng(SIZE, SIZE, 3, normal);
+  return encodePng(SIZE, SIZE, channels, normal);
 }
 
 /**
@@ -4713,6 +5934,44 @@ const PAINTERS = {
   glass: paintGlass,
   "case-hardened": paintCaseHardened,
   labradorite: paintLabradorite,
+  scales: paintScales,
+  bloodied: paintBloodied,
+};
+
+/**
+ * Skins cut alike in different metals: the carving is done once and painted
+ * over per metal, keyed by everything it reads and nothing about the metal.
+ */
+const CARVED = {
+  inlaid: {
+    carve: carveInlay,
+    paint: paintInlaid,
+    cut: (recipe) => [
+      recipe.frame,
+      recipe.channel,
+      recipe.depth,
+      recipe.engrave,
+      recipe.margin,
+      recipe.weight,
+      recipe.wear,
+      recipe.fleck.density,
+    ],
+  },
+  cornered: {
+    carve: carveCornered,
+    paint: paintCornered,
+    cut: (recipe) => [
+      recipe.frame,
+      recipe.bevel,
+      recipe.depth,
+      recipe.bracket,
+      recipe.margin,
+      recipe.weight,
+      recipe.shadow,
+      recipe.enamel.scale,
+      recipe.enamel.warp,
+    ],
+  },
 };
 
 export function paintSkins(recipes, sources) {
@@ -4727,25 +5986,16 @@ export function paintSkins(recipes, sources) {
         return [name, painter(recipe, base, sources.meshes)];
       }
 
-      if (recipe.kind === "inlaid") {
-        // Everything the carving reads, and nothing about the metal.
-        const key = JSON.stringify([
-          recipe.kind,
-          recipe.frame,
-          recipe.channel,
-          recipe.depth,
-          recipe.engrave,
-          recipe.margin,
-          recipe.weight,
-          recipe.wear,
-          recipe.fleck.density,
-        ]);
+      const carved = CARVED[recipe.kind];
+
+      if (carved) {
+        const key = JSON.stringify([recipe.kind, ...carved.cut(recipe)]);
 
         if (!shapes.has(key)) {
-          shapes.set(key, carveInlay(recipe, base));
+          shapes.set(key, carved.carve(recipe, base));
         }
 
-        return [name, paintInlaid(recipe, base, shapes.get(key))];
+        return [name, carved.paint(recipe, base, shapes.get(key))];
       }
 
       const key = JSON.stringify([

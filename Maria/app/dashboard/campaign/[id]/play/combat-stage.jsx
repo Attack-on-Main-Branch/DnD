@@ -33,7 +33,7 @@ export default function CombatStage({ campaignId, faces }) {
       alarm={inCombat}
       bare
     >
-      <CombatTracker campaignId={campaignId} faces={faces} />
+      <CombatTracker campaignId={campaignId} faces={faces} canManage />
     </DmTray>
   );
 }

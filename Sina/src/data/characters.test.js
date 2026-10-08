@@ -3,6 +3,9 @@ import { describe, it } from "node:test";
 
 import { postgrestError, stubQuery } from "../supabase-stub.js";
 import {
+  applyDamage,
+  applyHeal,
+  grantTemporaryHitPoints,
   getCharacter,
   insertCharacter,
   listCharacters,
@@ -15,6 +18,69 @@ import {
 const ARGS = { id: "6f1c3d2e-0000-4000-8000-000000000000", userId: "user-1" };
 const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
 const SEAT = "6f1c3d2e-0000-4000-8000-00000000005e";
+
+describe("health writes return both bars together", () => {
+  const answer = {
+    current_hp: 80,
+    temp_hp: 8,
+    temp_hp_max: 20,
+    is_dead: false,
+    successes: 1,
+    failures: 0,
+  };
+
+  for (const [operation, rpc, amountKey, argument] of [
+    [applyDamage, "apply_damage", "p_damage", "damage"],
+    [applyHeal, "apply_heal", "p_heal", "heal"],
+    [
+      grantTemporaryHitPoints,
+      "grant_temporary_hit_points",
+      "p_amount",
+      "amount",
+    ],
+  ]) {
+    it(`${rpc} carries the acting seat and reads the complete health state`, async () => {
+      const q = stubQuery({ data: answer, error: null });
+      const { data, error } = await operation(q, {
+        id: ARGS.id,
+        [argument]: 12,
+        campaignId: CAMPAIGN,
+        seatCharacterId: SEAT,
+      });
+      assert.equal(error, null);
+      assert.deepEqual(q.lastRpc, {
+        name: rpc,
+        params: {
+          p_char_id: ARGS.id,
+          [amountKey]: 12,
+          p_campaign: CAMPAIGN,
+          p_seat: SEAT,
+        },
+      });
+      assert.deepEqual(data, {
+        currentHp: 80,
+        tempHp: 8,
+        maxTempHp: 20,
+        isDead: false,
+        deathSaves: { successes: 1, failures: 0 },
+        instantDeath: false,
+      });
+    });
+
+    it(`${rpc} reports a database refusal`, async () => {
+      const { data, error } = await operation(
+        stubQuery({ data: null, error: null }),
+        {
+          id: ARGS.id,
+          [argument]: 12,
+          campaignId: CAMPAIGN,
+        },
+      );
+      assert.equal(data, null);
+      assert.equal(error.reason, "not_found");
+    });
+  }
+});
 
 /** Every SQLSTATE this layer promises to say something specific about. */
 const SQLSTATES = [

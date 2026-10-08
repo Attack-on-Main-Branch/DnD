@@ -81,3 +81,9 @@ export async function listTokenHealth(supabase, campaignId, templates = false) {
     .eq("campaign_id", campaignId);
   return error ? failure(error) : { data: data ?? [], error: null };
 }
+
+export function listTokenHealthStates(supabase, campaignId) {
+  return rpc(supabase, "campaign_token_health_states", {
+    p_campaign_id: campaignId,
+  });
+}

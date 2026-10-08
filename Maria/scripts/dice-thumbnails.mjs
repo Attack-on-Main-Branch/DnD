@@ -15,6 +15,10 @@
  * `skin over (colour × tint)` is the die in any colour at all. A skin that
  * paints everything, like wood, has a tint of nothing.
  *
+ * A skin in TWO colours — the player's and the accent worked out from it,
+ * see lib/dice-accent.mjs — has a third image, `<name>-accent.png`, the
+ * tint of the parts in the accent, which the tint then leaves out.
+ *
  *   tile  one d20, for the style picker
  *   set   every die in DICE_TYPES side by side, one cell each
  */
@@ -140,7 +144,7 @@ function reader({ width, samples }, channels) {
 function drawDie(
   mesh,
   pose,
-  { skin, tint, width },
+  { skin, tint, accent, width },
   offset,
   size,
   maps,
@@ -154,6 +158,7 @@ function drawDie(
   };
   const colourAt = reader(maps.colour, 4);
   const surfaceAt = reader(maps.surface, 3);
+  const accentAt = maps.accent ? greyReader(maps.accent) : null;
   const texel = new Float32Array(4);
   const finish = new Float32Array(4);
 
@@ -300,18 +305,73 @@ function drawDie(
                   through * (behind ? behind.skin[local * 4 + k] : 0));
           }
 
-          tint[out / 4] = behind
+          const body = behind
             ? opacity * clamp(diffuse * occlusion) +
               (1 - opacity) * behind.tint[local]
             : clamp(diffuse * occlusion);
+
+          if (accentAt) {
+            const share = accentAt(u, v);
+
+            tint[out / 4] = body * (1 - share);
+            accent[out / 4] = body * share;
+          } else {
+            tint[out / 4] = body;
+          }
         }
       }
     }
   }
 }
 
+/** One channel of a map, read between its texels, 0..1. */
+function greyReader({ width, samples, channels }) {
+  return (u, v) => {
+    const x = clamp(u * width - 0.5, 0, width - 1);
+    const y = clamp((1 - v) * width - 0.5, 0, width - 1);
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const x1 = Math.min(width - 1, x0 + 1);
+    const y1 = Math.min(width - 1, y0 + 1);
+    const at = (px, py) => samples[(py * width + px) * channels] / 255;
+    const fx = x - x0;
+    const fy = y - y0;
+
+    return (
+      (at(x0, y0) * (1 - fx) + at(x1, y0) * fx) * (1 - fy) +
+      (at(x0, y1) * (1 - fx) + at(x1, y1) * fx) * fy
+    );
+  };
+}
+
+/** A strip's tint or accent, averaged down to its pixels, as a mask. */
+function encodeMask(values, width, height) {
+  const stride = width * SUPERSAMPLE;
+  const samples = SUPERSAMPLE * SUPERSAMPLE;
+  const mask = new Uint8Array(width * height * 4);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+
+      for (let dy = 0; dy < SUPERSAMPLE; dy++) {
+        for (let dx = 0; dx < SUPERSAMPLE; dx++) {
+          sum += values[(y * SUPERSAMPLE + dy) * stride + x * SUPERSAMPLE + dx];
+        }
+      }
+
+      mask.set(
+        [255, 255, 255, Math.round(clamp(sum / samples) * 255)],
+        (y * width + x) * 4,
+      );
+    }
+  }
+
+  return encodePng(width, height, 4, mask);
+}
+
 /** The supersampled strip averaged down to its pixels, as the two images. */
-function encode({ skin, tint, width, height }) {
+function encode({ skin, tint, accent, width, height }) {
   const pixels = width * height;
   const picture = new Uint8Array(pixels * 4);
   const mask = new Uint8Array(pixels * 4);
@@ -350,10 +410,11 @@ function encode({ skin, tint, width, height }) {
   return {
     picture: encodePng(width, height, 4, picture),
     tint: encodePng(width, height, 4, mask),
+    ...(accent && { accent: encodeMask(accent, width, height) }),
   };
 }
 
-function canvas(width, height) {
+function canvas(width, height, accented) {
   const pixels = width * SUPERSAMPLE * height * SUPERSAMPLE;
 
   return {
@@ -361,22 +422,35 @@ function canvas(width, height) {
     height,
     skin: new Float32Array(pixels * 4),
     tint: new Float32Array(pixels),
+    accent: accented ? new Float32Array(pixels) : null,
   };
 }
 
 /**
  * Both pictures of one theme, from its scene and its colour and surface maps
- * (PNG), and its `opacity` if it is see-through. Returns `{ tile, set }`, each `{ picture, tint }` PNG buffers.
+ * (PNG), its `opacity` if it is see-through and its accent map if it has a
+ * second colour. Returns `{ tile, set }`, each `{ picture, tint }` PNG
+ * buffers, and `accent` beside them for a theme with an accent.
  */
-export function drawThumbnails(scene, colourPng, surfacePng, opacity) {
-  const maps = { colour: decodePng(colourPng), surface: decodePng(surfacePng) };
+export function drawThumbnails(
+  scene,
+  colourPng,
+  surfacePng,
+  opacity,
+  accentPng,
+) {
+  const maps = {
+    colour: decodePng(colourPng),
+    surface: decodePng(surfacePng),
+    accent: accentPng ? decodePng(accentPng) : null,
+  };
   const mesh = (name) => scene.meshes.find((one) => one.name === name);
 
-  const tile = canvas(TILE, TILE);
+  const tile = canvas(TILE, TILE, Boolean(accentPng));
 
   drawDie(mesh("d20"), TILE_POSE, tile, 0, TILE, maps, opacity);
 
-  const set = canvas(CELL * DICE_TYPES.length, CELL);
+  const set = canvas(CELL * DICE_TYPES.length, CELL, Boolean(accentPng));
 
   DICE_TYPES.forEach((die, index) => {
     drawDie(mesh(die), POSES[die], set, index * CELL, CELL, maps, opacity);

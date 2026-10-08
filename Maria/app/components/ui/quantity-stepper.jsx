@@ -21,6 +21,7 @@ const TONES = {
   /* Experience, and the long rest that is also a gain: the emerald the XP bar
      wears — see `.hp-verdant` in globals.css. */
   emerald: "hover:border-emerald-400/60 hover:text-emerald-300",
+  sapphire: "hover:border-temp-hp/60 hover:text-temp-hp",
 };
 
 export function StepButton({

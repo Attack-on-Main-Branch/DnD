@@ -1,3 +1,5 @@
+import { healthFraction } from "sina/rules/health";
+
 import PlasmaBar from "./plasma-bar";
 
 /**
@@ -25,6 +27,8 @@ export default function HealthBar({
   tierClass,
   label = "Health",
   compact = false,
+  temp = 0,
+  tempMax = 0,
 }) {
   return (
     <section className="w-full">
@@ -35,8 +39,8 @@ export default function HealthBar({
               default leading back and cost six pixels a card. */}
           <span className="text-[0.6875rem] leading-none text-gold">
             {current}
-          </span>{" "}
-          / {max} HP
+          </span>
+          <TempCount temp={temp} /> / {max} HP
         </p>
       ) : (
         <div className="flex items-baseline justify-between gap-4">
@@ -45,21 +49,43 @@ export default function HealthBar({
           </h3>
 
           <p className="shrink-0 font-mono text-xs text-ink/50 tabular-nums">
-            <span className="text-sm text-gold">{current}</span> / {max} HP
+            <span className="text-sm text-gold">{current}</span>
+            <TempCount temp={temp} /> / {max} HP
           </p>
         </div>
       )}
 
-      <PlasmaBar
-        fraction={fraction}
-        toneClass={tierClass}
-        label={label}
-        valueNow={current}
-        valueMax={max}
-        valueText={`${current} of ${max} hit points`}
-        compact={compact}
-        className={compact ? "mt-1" : "mt-3"}
-      />
+      <div className={`flex items-center ${compact ? "mt-1" : "mt-3"}`}>
+        <PlasmaBar
+          fraction={fraction}
+          toneClass={tierClass}
+          label={label}
+          valueNow={current}
+          valueMax={max}
+          valueText={`${current} of ${max} hit points`}
+          compact={compact}
+          className="min-w-0 flex-1"
+        />
+        <div
+          className="hp-temp-track"
+          data-active={temp > 0 || undefined}
+          aria-hidden={temp <= 0 || undefined}
+        >
+          <PlasmaBar
+            fraction={healthFraction(temp, tempMax)}
+            toneClass="hp-sapphire"
+            label={`${label}, temporary hit points`}
+            valueNow={temp}
+            valueMax={tempMax}
+            valueText={`${temp} temporary hit points`}
+            compact={compact}
+          />
+        </div>
+      </div>
     </section>
   );
+}
+
+function TempCount({ temp }) {
+  return temp > 0 ? <span className="text-temp-hp"> (+{temp})</span> : null;
 }

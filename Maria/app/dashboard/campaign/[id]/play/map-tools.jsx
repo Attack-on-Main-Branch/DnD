@@ -7,7 +7,7 @@ import {
   MIN_GRID_SIZE,
 } from "sina/rules/grid";
 
-import { MAP_CLASSES, MAP_DELAY } from "./entrance";
+import { surfaceClasses } from "@/app/components/ui/surface";
 import { useTableMaps } from "./table-maps";
 
 /**
@@ -28,9 +28,12 @@ export default function MapTools() {
 
   return (
     <div
-      data-shrink
-      className={`mx-auto flex w-full max-w-[56rem] flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-gold/20 bg-surface/40 px-3 py-2 ${MAP_CLASSES}`}
-      style={MAP_DELAY}
+      role="group"
+      aria-label="Grid and fog tools"
+      className={surfaceClasses({
+        className:
+          "flex min-h-[calc(3.25rem_+_2px)] min-w-min flex-1 flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-xl px-3 py-2",
+      })}
     >
       <GridTools />
 

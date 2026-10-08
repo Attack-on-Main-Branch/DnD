@@ -2,9 +2,9 @@
  * Which dice sets a character has found, and what a Dice Pouch can still hold
  * for them.
  *
- * The draw itself is the database's — `open_dice_pouch` in
- * 20261004230000_dice_pouches.sql — and the odds here mirror it, so the reel a
- * player watches is filled the way a real pouch would be.
+ * The draw itself is the database's — `open_dice_pouch`, as
+ * 20261008120000_rarity_tiers.sql last wrote it — and the odds here mirror
+ * it, so the reel a player watches is filled the way a real pouch would be.
  */
 
 import {
@@ -22,10 +22,12 @@ export const DICE_POUCH_SLUG = "dice-pouch";
  * in `open_dice_pouch`.
  */
 export const DICE_POUCH_ODDS = {
-  common: 60,
-  rare: 25,
-  epic: 11,
-  legendary: 4,
+  common: 40,
+  uncommon: 24,
+  rare: 16,
+  epic: 12,
+  legendary: 6,
+  iconic: 2,
 };
 
 /** What every character starts with. Never stored. */

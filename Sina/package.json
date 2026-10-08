@@ -20,6 +20,7 @@
     "./rules/features": "./src/rules/features.js",
     "./rules/fog": "./src/rules/fog.js",
     "./rules/grid": "./src/rules/grid.js",
+    "./rules/map-drawing": "./src/rules/map-drawing.js",
     "./rules/health": "./src/rules/health.js",
     "./rules/hp": "./src/rules/hp.js",
     "./rules/inspiration": "./src/rules/inspiration.js",
