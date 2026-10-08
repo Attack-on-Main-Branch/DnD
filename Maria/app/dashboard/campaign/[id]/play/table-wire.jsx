@@ -171,7 +171,13 @@ export default function TableWire({
     };
   }, [campaignId, chairs, receive, seatCharacterId, seatId]);
 
-  const send = useCallback((message) => share.current?.(message), []);
+  const send = useCallback((message) => {
+    // Each recipient re-reads HP through its own permissions.
+    const shared = ["health", "condition"].includes(message.kind)
+      ? { kind: "health", characterId: message.characterId }
+      : message;
+    share.current?.(shared);
+  }, []);
 
   const listen = useCallback((listener) => {
     listeners.current.add(listener);

@@ -17,7 +17,7 @@ const SUBJECT = "avatar";
  */
 const COLUMNS =
   "id, kind, name, discriminator, race, archetype, class_id, alignment, dice_color, dice_skin, avatar_url, level, xp, current_hp, max_hp, " +
-  "armor_class, death_saves, is_dead, hit_dice_spent, custom_proficiencies, conditions, " +
+  "temp_hp, temp_hp_max, armor_class, death_saves, is_dead, hit_dice_spent, custom_proficiencies, conditions, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +
   "skills, spell_slots, backstory, personality, created_at";
@@ -387,6 +387,8 @@ async function deed(supabase, name, args, shape) {
 function readState(answer) {
   return {
     currentHp: answer.current_hp,
+    tempHp: answer.temp_hp,
+    maxTempHp: answer.temp_hp_max,
     isDead: Boolean(answer.is_dead),
     deathSaves: {
       successes: answer.successes ?? 0,
@@ -423,6 +425,23 @@ export async function applyHeal(
     {
       p_char_id: id,
       p_heal: heal,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
+    readState,
+  );
+}
+
+export async function grantTemporaryHitPoints(
+  supabase,
+  { id, amount, campaignId, seatCharacterId = null },
+) {
+  return deed(
+    supabase,
+    "grant_temporary_hit_points",
+    {
+      p_char_id: id,
+      p_amount: amount,
       p_campaign: campaignId,
       p_seat: seatCharacterId,
     },

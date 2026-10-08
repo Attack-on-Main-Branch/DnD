@@ -26,7 +26,7 @@ const CARDS_AT = FRAME_AT + FRAME_MS;
 const CARD_STEP_MS = 100;
 
 /** The scroll of marks rises a beat after the party has finished arriving. */
-const NOTES_AT = CARDS_AT + 160;
+export const TABLE_CONTROLS_AT = CARDS_AT + 160;
 
 /** Asked for reduced motion, every beat becomes the app's plain opacity ramp. */
 const STILL = "motion-reduce:animate-[view-fade_200ms_ease-out]";
@@ -83,11 +83,11 @@ export const NOTES_CLASSES = UNDER_MAP;
 
 /** It leaves the way it came — `data-tuck="down"` at the call site. */
 export function notesEntrance() {
-  return { "--enter-delay": `${NOTES_AT}ms` };
+  return { "--enter-delay": `${TABLE_CONTROLS_AT}ms` };
 }
 
 export function railEntrance() {
-  return { "--enter-delay": `${NOTES_AT}ms` };
+  return { "--enter-delay": `${TABLE_CONTROLS_AT}ms` };
 }
 
 /**
@@ -103,5 +103,5 @@ export function railEntrance() {
 export const LOG_CLASSES = "log-in";
 
 export function logEntrance() {
-  return { "--enter-delay": `${NOTES_AT}ms` };
+  return { "--enter-delay": `${TABLE_CONTROLS_AT}ms` };
 }

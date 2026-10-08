@@ -3,10 +3,34 @@ import { test } from "node:test";
 import { stubQuery, postgrestError } from "../supabase-stub.js";
 import {
   listTokenHealth,
+  listTokenHealthStates,
   changeTokenHealth,
   writeTokenTemplate,
   changeCharacterProficiency,
 } from "./table-adjustments.js";
+
+test("shared token health reads use the restricted tier RPC", async () => {
+  const query = stubQuery({
+    data: [{ token_id: "enemy", health_tier: "wounded", is_dying: false }],
+    error: null,
+  });
+  const result = await listTokenHealthStates(query, "campaign");
+  assert.deepEqual(query.lastRpc, {
+    name: "campaign_token_health_states",
+    params: { p_campaign_id: "campaign" },
+  });
+  assert.equal(result.data[0].health_tier, "wounded");
+  assert.equal(result.data[0].is_dying, false);
+  assert.equal(
+    (
+      await listTokenHealthStates(
+        stubQuery(postgrestError("42883")),
+        "campaign",
+      )
+    ).error.reason,
+    "not_ready",
+  );
+});
 
 test("private HP reads have explicit columns and campaign filters", async () => {
   for (const templates of [true, false]) {

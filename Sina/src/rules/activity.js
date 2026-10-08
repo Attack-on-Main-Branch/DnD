@@ -30,6 +30,7 @@ export const ACTION_TYPES = [
   "dice_roll",
   "secret_dice_roll",
   "hp_change",
+  "temp_hp_change",
   "level_change",
   "item_used",
   "item_dropped",
@@ -218,7 +219,7 @@ export function readActivity(row) {
       : { ...entry, level, delta, target: text(payload.targetName) };
   }
 
-  if (action === "hp_change") {
+  if (action === "hp_change" || action === "temp_hp_change") {
     const delta = whole(payload.delta);
 
     // No target is somebody moving their own bar. The database omits the key

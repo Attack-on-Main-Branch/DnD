@@ -65,6 +65,20 @@ describe("isDying", () => {
 });
 
 describe("isMassiveDamage", () => {
+  it("measures overflow after temporary HP absorbs its share", () => {
+    assert.equal(
+      isMassiveDamage({ hitPoints: 3, maxHp: 20, tempHp: 10, damage: 32 }),
+      false,
+    );
+    assert.equal(
+      isMassiveDamage({ hitPoints: 3, maxHp: 20, tempHp: 10, damage: 33 }),
+      true,
+    );
+    assert.equal(
+      isMassiveDamage({ hitPoints: 0, maxHp: 20, tempHp: 30, damage: 20 }),
+      false,
+    );
+  });
   // 5e: the overflow past zero is what is measured, not the blow.
   it("kills outright only once the overflow reaches the maximum", () => {
     assert.equal(

@@ -40,6 +40,7 @@ const ACCENTS = {
   dice_roll: "border-l-gold/70",
   secret_dice_roll: "border-l-arcane",
   hp_change: "border-l-orange-500",
+  temp_hp_change: "border-l-temp-hp",
   /* One step back from a hit point's own orange: what moved is the FRAME the
      bar is drawn in, not anything that happened to the character inside it. */
   max_hp_change: "border-l-orange-300",
@@ -284,13 +285,17 @@ function Experience({ delta }) {
  * plain text rather than a badge, so it sits in the sentence the way the roll's
  * own number does. The true minus sign, as the health band's stepper uses.
  */
-function HitPoints({ delta }) {
+function HitPoints({ delta, temporary = false }) {
   const healed = delta > 0;
 
   return (
     <span
       className={`font-semibold tabular-nums ${
-        healed ? "text-emerald-300" : "text-orange-300"
+        temporary
+          ? "text-temp-hp"
+          : healed
+            ? "text-emerald-300"
+            : "text-orange-300"
       }`}
     >
       {healed ? "+" : "−"}
@@ -501,20 +506,24 @@ function Body({ entry }) {
     );
   }
 
-  if (entry.action === "hp_change") {
+  if (entry.action === "hp_change" || entry.action === "temp_hp_change") {
     const healed = entry.delta > 0;
+    const temporary = entry.action === "temp_hp_change";
+    const unit = temporary ? "temporary HP" : "HP";
 
     if (!entry.target) {
       return (
         <>
-          {healed ? "gained" : "lost"} <HitPoints delta={entry.delta} /> HP
+          {healed ? "gained" : "lost"}{" "}
+          <HitPoints delta={entry.delta} temporary={temporary} /> {unit}
         </>
       );
     }
 
     return (
       <>
-        {healed ? "gave" : "dealt"} <HitPoints delta={entry.delta} /> HP to{" "}
+        {healed ? "gave" : "dealt"}{" "}
+        <HitPoints delta={entry.delta} temporary={temporary} /> {unit} to{" "}
         <span className={NAME_CLASSES}>{entry.target}</span>
       </>
     );

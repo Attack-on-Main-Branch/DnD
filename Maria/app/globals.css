@@ -80,6 +80,7 @@
    */
   --color-ink: #fdf6e8;
   --color-gold: #ffdf9c;
+  --color-temp-hp: var(--color-sky-200);
   --color-surface: #0f0c08;
 
   /*
@@ -376,7 +377,8 @@ body {
    * only exists while it applies cannot animate its own removal. It sits after
    * `.glass` in this layer, which is what puts its border over that one's.
    */
-  .lit-gold {
+  .lit-gold,
+  .lit-health.hp-solar {
     border-color: var(--gold-70);
     box-shadow:
       inset 0 1px 0 var(--gold-20),
@@ -385,37 +387,19 @@ body {
       0 16px 40px -20px rgba(0, 0, 0, 0.9);
   }
 
-  /*
-   * The same lit edge in the two colours a party card can be in besides alive.
-   * `.lit-gold` above means somebody is sitting here; these say the seat is in
-   * trouble, and they REPLACE it rather than sitting beside it — one rim, one
-   * meaning, whichever of the three it is wearing.
-   *
-   * Written out at the same four strengths instead of a `--rim` variable each
-   * class sets, because that is how `.lit-cast` is written and a second idiom
-   * for one border buys nothing.
-   *
-   * STEADY AND NOT BREATHING. The card already carries its own entry animation,
-   * and `animation` is one property: a pulse declared here is a pulse the
-   * arrival shorthand overwrites, so it would have been a keyframe that never
-   * ran. Hue alone carries the state, which is what the rest of the rail does.
-   */
-  .lit-amber {
-    border-color: rgba(249, 115, 22, 0.75);
+  .lit-health:not(.hp-solar) {
+    border-color: color-mix(in srgb, var(--hp-c3) 75%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(249, 115, 22, 0.2),
-      0 0 0 1px rgba(249, 115, 22, 0.3),
-      0 0 28px -4px rgba(249, 115, 22, 0.6),
-      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+      inset 0 1px 0 color-mix(in srgb, var(--hp-c3) 20%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--hp-c3) 30%, transparent),
+      0 0 28px -4px color-mix(in srgb, var(--hp-c3) 60%, transparent),
+      0 16px 40px -20px rgb(0 0 0 / 90%);
   }
 
-  .lit-rose {
-    border-color: rgba(225, 29, 72, 0.8);
-    box-shadow:
-      inset 0 1px 0 rgba(225, 29, 72, 0.2),
-      0 0 0 1px rgba(225, 29, 72, 0.35),
-      0 0 28px -4px rgba(225, 29, 72, 0.65),
-      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  .health-rhombus {
+    color: var(--hp-c2);
+    fill: var(--hp-c3);
+    filter: drop-shadow(0 0 0.125rem var(--hp-glow));
   }
 
   /*
@@ -616,7 +600,7 @@ body {
     position: relative;
     min-height: 0;
     overflow: clip;
-    overflow-clip-margin: 1.5rem;
+    overflow-clip-margin: 4rem;
   }
 
   .tray-folded .fold-body {
@@ -790,7 +774,7 @@ body {
    */
   .hp-bar {
     /* Sine-shaped easing, shared by everything on this component that breathes. */
-    --hp-wave: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    --hp-wave: cubic-bezier(0.37, 0, 0.63, 1);
 
     animation: hp-breathe var(--hp-breathe-time) var(--hp-wave) infinite;
     transition:
@@ -1296,7 +1280,7 @@ body {
    * already on the rim of the card this sits inside.
    *
    * One shadow list rather than a ring utility, so the edge and the two blooms
-   * arrive and leave together. It does NOT breathe — `.lit-amber` on the rim
+   * arrive and leave together. It does NOT breathe — the health glow on the rim
    * already does, and that means a character is down.
    */
   .turn-lit {
@@ -1366,17 +1350,24 @@ body {
 
   .dice-capsule {
     margin-right: 0.75rem;
+    visibility: visible;
     /* Spelled out rather than left at `none`, which is what `translate`
        computes to unset. A length and a keyword have nothing to interpolate
        between, so the browser transitions them DISCRETELY — the pill teleported
        across the gap at the halfway mark instead of sliding it. */
     translate: 0 0;
-    transition: translate 420ms var(--ease-tray);
+    transition:
+      translate 420ms var(--ease-tray),
+      visibility 0s;
   }
 
   .dice-capsule[data-away] {
     translate: calc(100% + 0.75rem) 0;
-    transition: translate 300ms var(--ease-tray-in);
+    /* The tucked pill’s shadow can still cross the slot’s clipped edge. */
+    visibility: hidden;
+    transition:
+      translate 300ms var(--ease-tray-in),
+      visibility 0s 300ms;
   }
 
   /* 2.25rem, not 0.75: the map's glass mat stands 1.5rem proud of the picture,
@@ -1390,13 +1381,8 @@ body {
     translate: 0 calc(-100% - 2.25rem);
   }
 
-  .hp-solar {
-    --hp-base: var(--color-gold);
-    --hp-c1: #fffadc;
-    --hp-c2: #ffdf9c;
-    --hp-c3: #f59e0b;
-    --hp-c4: #dd9700;
-    --hp-glow: #ffdf9c;
+  .hp-solar,
+  .hp-sapphire {
     --hp-breathe-min: 0.4;
     --hp-breathe-max: 0.8;
     --hp-breathe-time: 6s;
@@ -1405,6 +1391,49 @@ body {
     --hp-flare-min: 1;
     --hp-flare-max: 1.05;
     --hp-flare-time: 7s;
+  }
+
+  .hp-temp-track {
+    width: 0;
+    min-width: 0;
+    flex-shrink: 0;
+    margin-left: 0;
+    opacity: 0;
+    visibility: hidden;
+    translate: 0.375rem 0;
+    transition:
+      width 700ms var(--ease-tray),
+      margin-left 700ms var(--ease-tray),
+      translate 420ms var(--ease-tray),
+      opacity 260ms var(--ease-tray),
+      visibility 0s 700ms;
+  }
+
+  .hp-temp-track[data-active] {
+    width: 25%;
+    margin-left: 0.5rem;
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
+    transition-delay: 0s;
+  }
+
+  .hp-solar {
+    --hp-base: var(--color-gold);
+    --hp-c1: #fffadc;
+    --hp-c2: #ffdf9c;
+    --hp-c3: #f59e0b;
+    --hp-c4: #dd9700;
+    --hp-glow: #ffdf9c;
+  }
+
+  .hp-sapphire {
+    --hp-base: #2b7fff;
+    --hp-c1: #a1d8fc;
+    --hp-c2: #57c4ff;
+    --hp-c3: #00a2ff;
+    --hp-c4: #0a56fc;
+    --hp-glow: #b8e6fe;
   }
 
   .hp-ember {
@@ -3209,6 +3238,7 @@ body {
   .hp-aura,
   .hp-bar,
   .hp-fill,
+  .hp-temp-track,
   .tab-shell,
   .tab-clip,
   .tab-shell[data-state="collapsed"] .tab-clip,
@@ -3223,6 +3253,7 @@ body {
    * the flare stop, and the breath narrows to a tenth of its range.
    */
   .hp-solar,
+  .hp-sapphire,
   .hp-ember,
   .hp-ruby,
   .hp-verdant {

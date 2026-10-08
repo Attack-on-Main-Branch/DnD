@@ -41,7 +41,7 @@ export default function ActivityColumn({ campaignId, faces, children = null }) {
      * height, over the board, and the log is left out as it is for a player.
      */
     <div className="relative w-full lg:min-h-[calc(37.125rem_+_3px)] lg:self-stretch">
-      <div className="flex flex-col gap-3 lg:absolute lg:inset-0">
+      <div className="flex flex-col gap-3 lg:absolute lg:inset-0 lg:justify-center">
         {children}
 
         <div className="hidden max-h-[32.375rem] min-h-48 flex-1 basis-0 lg:flex">

@@ -10,7 +10,13 @@ import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
 
 import { changeCharacterHealth } from "./actions";
-import { useHitPoints, useMaxHitPoints, useTableStore } from "./table-state";
+import {
+  useHitPoints,
+  useMaxHitPoints,
+  useTempHitPoints,
+  useMaxTempHitPoints,
+  useTableStore,
+} from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 
 /**
@@ -46,6 +52,8 @@ export default function CardHealth({
 
   const current = useHitPoints(characterId);
   const ceiling = useMaxHitPoints(characterId);
+  const temp = useTempHitPoints(characterId);
+  const tempMax = useMaxTempHitPoints(characterId);
 
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
@@ -54,17 +62,25 @@ export default function CardHealth({
   // wait until there is one.
   const [amount, setAmount] = useState("");
   const step = Number(amount);
-  const typed = amount.trim() !== "" && Number.isFinite(step) && step > 0;
+  const typed =
+    amount.trim() !== "" &&
+    Number.isInteger(step) &&
+    step > 0 &&
+    step <= MAX_HP;
 
-  function apply(delta) {
+  function apply(delta, temporary = false) {
     // Shut on the press: the bar behind it has already moved, which is the
     // answer to "did that land".
     setOpen(false);
 
-    const moved = store.moveHealth(characterId, delta);
+    let moved;
+    const note = [];
 
     // Already at the floor or the ceiling: the press did not happen.
-    if (!moved) {
+    if (
+      (temporary && delta <= temp) ||
+      (!temporary && delta > 0 && current === ceiling)
+    ) {
       return;
     }
 
@@ -72,25 +88,38 @@ export default function CardHealth({
        damage. Painted here so the card dims on the press; `apply_damage` reads
        it again off the locked row, which is the run that counts. */
     const killed =
+      !temporary &&
       delta < 0 &&
-      isMassiveDamage({ hitPoints: current, maxHp: ceiling, damage: -delta });
-
-    if (killed) {
-      store.setCondition(characterId, { isDead: true });
-    }
+      isMassiveDamage({
+        hitPoints: current,
+        maxHp: ceiling,
+        damage: -delta,
+        tempHp: temp,
+      });
 
     run({
-      /* Shown to whoever pressed, until the real list lands. The entry that is
-         KEPT is written by a trigger on the bar, and its names come from rows. */
-      note: [
-        {
-          action: "hp_change",
-          actor: actorName,
-          // Moving your own bar names nobody, as `write_table_log` decides it.
-          target: seatCharacterId === characterId ? null : name,
-          delta: moved.moved,
-        },
-      ],
+      note,
+      paint: () => {
+        moved = store.moveHealth(characterId, delta, temporary);
+
+        for (const [action, change] of [
+          ["hp_change", moved?.moved],
+          ["temp_hp_change", moved?.tempMoved],
+        ]) {
+          if (change) {
+            note.push({
+              action,
+              actor: actorName,
+              delta: change,
+              target: characterId === seatCharacterId ? null : name,
+            });
+          }
+        }
+
+        if (killed) {
+          store.setCondition(characterId, { isDead: true });
+        }
+      },
 
       /* THE BLOW, and not what the bar had left to give. Both are changes
          rather than totals — a total posted a round trip later undoes whatever
@@ -100,15 +129,21 @@ export default function CardHealth({
          twelve would have `apply_damage` decide against a blow nobody struck.
          The clamped figure stays where it belongs, painting. */
       work: () =>
-        changeCharacterHealth(campaignId, characterId, delta, seatCharacterId),
+        changeCharacterHealth(
+          campaignId,
+          characterId,
+          delta,
+          seatCharacterId,
+          temporary,
+        ),
 
       tell: (result) => {
         // Only while this press is still the last word: an older answer laid
         // down here would rewind the bar on every screen at the table.
         const settled = store.reconcileHealth(
           characterId,
-          moved.hitPoints,
-          result.hitPoints,
+          moved?.health,
+          result,
         );
 
         /* The flag and the tallies are not reconciled the way the bar is:
@@ -125,6 +160,8 @@ export default function CardHealth({
             kind: "condition",
             characterId,
             hitPoints: result.hitPoints,
+            tempHp: result.tempHp,
+            maxTempHp: result.maxTempHp,
             isDead: result.isDead,
             successes: result.deathSaves.successes,
             failures: result.deathSaves.failures,
@@ -142,6 +179,8 @@ export default function CardHealth({
         <HealthBar
           compact
           current={current}
+          temp={temp}
+          tempMax={tempMax}
           max={ceiling}
           fraction={healthFraction(current, ceiling)}
           tierClass={healthBarClass(healthTier(current, ceiling))}
@@ -210,7 +249,7 @@ export default function CardHealth({
                 wide
                 tone="danger"
                 onClick={() => apply(-step)}
-                disabled={!typed || current === 0}
+                disabled={!typed || (current === 0 && temp === 0)}
                 label={`Take hit points from ${name}`}
               >
                 Damage
@@ -223,6 +262,15 @@ export default function CardHealth({
                 label={`Give hit points to ${name}`}
               >
                 Heal
+              </StepButton>
+              <StepButton
+                wide
+                tone="sapphire"
+                onClick={() => apply(step, true)}
+                disabled={!typed || step <= temp}
+                label={`Give temporary hit points to ${name}`}
+              >
+                +Temp
               </StepButton>
             </div>
           </div>

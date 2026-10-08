@@ -13,6 +13,9 @@ import { conditionDress } from "@/app/dashboard/condition-presentation";
 
 import { SpellFlare } from "./spell-flares";
 import TokenMenu from "./token-menu";
+import HealthRhombi from "./health-rhombi";
+import { useHealthTier } from "./table-state";
+import { useIsTokenKnocked } from "./use-token-health";
 
 /**
  * One piece on the board: a face, what it is suffering, and what the head of the
@@ -82,6 +85,7 @@ export default function MapToken({
 }) {
   const discRef = useRef(null);
   const reduceMotion = useReducedMotion();
+  const knocked = useIsTokenKnocked(token);
 
   /* Where the tooltip stands, in the VIEWPORT'S own pixels. Measured on the
      way in rather than laid out beside the piece: the layer around it carries
@@ -225,7 +229,7 @@ export default function MapToken({
         <span
           className={`flex rounded-full transition-[filter] duration-300 ${
             cell ? "size-full" : ""
-          } ${token.isDead ? "grayscale brightness-60" : ""}`}
+          } ${token.isDead || knocked ? "grayscale brightness-60" : ""}`}
         >
           <Face token={token} cell={cell} />
         </span>
@@ -257,7 +261,7 @@ export default function MapToken({
         {token.characterId && <SpellFlare characterId={token.characterId} />}
       </span>
 
-      {note && !menu && <TokenNote token={token} at={note} />}
+      {note && !menu && <TokenNote token={token} at={note} knocked={knocked} />}
 
       {menu && (
         <TokenMenu
@@ -365,8 +369,9 @@ function Face({ token, cell }) {
  * It arrives rather than appearing: `shown` flips one frame after the mount, so
  * the transition below has two ends to travel between.
  */
-function TokenNote({ token, at }) {
+function TokenNote({ token, at, knocked }) {
   const [shown, setShown] = useState(false);
+  const characterTier = useHealthTier(token.characterId);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true));
@@ -388,8 +393,14 @@ function TokenNote({ token, at }) {
         ].join(" "),
       })}
     >
-      <span className="block truncate font-display text-xs font-semibold tracking-wide text-gold">
-        {token.label}
+      <span className="flex items-center gap-2 font-display text-xs font-semibold tracking-wide text-gold">
+        <span className="truncate">{token.label}</span>
+        {(token.characterId || !token.commandable) && (
+          <HealthRhombi
+            tier={characterTier ?? token.health?.health_tier}
+            dead={token.isDead}
+          />
+        )}
         {token.commandable && token.health && (
           <span className="ml-2 font-mono text-[10px] tabular-nums">
             {token.health.current_hp} / {token.health.max_hp} HP
@@ -412,9 +423,11 @@ function TokenNote({ token, at }) {
         </span>
       )}
 
-      {token.isDead && (
-        <span className="mt-1 block font-mono text-[0.625rem] tracking-[0.16em] text-rose-400 uppercase">
-          Dead
+      {(token.isDead || knocked) && (
+        <span
+          className={`mt-1 block font-mono text-[0.625rem] tracking-[0.16em] uppercase ${token.isDead ? "text-rose-400" : "text-orange-400"}`}
+        >
+          {token.isDead ? "Dead" : "Knocked"}
         </span>
       )}
 

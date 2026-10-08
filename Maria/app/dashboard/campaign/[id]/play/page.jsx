@@ -32,7 +32,6 @@ import DmMarks from "./dm-marks";
 import { loadTable } from "./load-table";
 import LeaveTable from "./leave-table";
 import MapStage from "./map-stage";
-import MapTools from "./map-tools";
 import SceneStage from "./scene-stage";
 import SceneStaging from "./scene-staging";
 import { NOTES_CLASSES, notesEntrance } from "./entrance";
@@ -40,6 +39,7 @@ import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
 import FeatureShelf from "./feature-shelf";
 import PartyRail from "./party-rail";
+import PlayerCombatStage from "./player-combat-stage";
 import ProficienciesSection from "./proficiencies-section";
 import SessionStage from "./session-stage";
 import SpellBook from "./spell-book";
@@ -424,7 +424,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
 
                 {/* Three columns so the title is centred on the viewport rather than on
           what is left beside the way out. The empty third balances the first. */}
-                <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+                <div className="z-20 grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:col-start-1 lg:row-start-1">
                   <LeaveTable
                     href={wayOut}
                     className="float-in cursor-pointer justify-self-start font-sans text-sm text-ink/60 transition hover:text-gold"
@@ -468,7 +468,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
         rather than off the page, which is where they came from.
       */}
                     <div
-                      className={`flex justify-center ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
+                      className={`z-20 flex justify-center lg:col-start-1 lg:row-start-2 ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
                       style={notesEntrance()}
                       data-tuck="down"
                     >
@@ -531,13 +531,6 @@ export default async function CampaignTablePage({ params, searchParams }) {
                     {/* The grid stands inside the provider and outside all three of its
           own columns: the rail is pressed in one, the dice land in another, and
           the result comes out from under a card in the third. */}
-                    {/* `content-start` is load-bearing: this row is the grid's `1fr`, so
-            it takes every pixel the rows above do not, and a track with nothing
-            told to it stretches — which centred the board, the log and the rail
-            in that leftover instead of putting them under the marks. The health
-            band used to spend it, so the bug had nowhere to show.
-
-            `items-center` beside it is what makes the three columns straddle. */}
                     {/* What the table is fighting, kept current on every chair —
             outside the grid, since it renders nothing. */}
                     <CombatSync campaignId={campaign.id} />
@@ -550,7 +543,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
             rail beside the board pulls the board back by exactly that. A
             viewer with no chair has neither log nor dice, so even columns. */}
                     <div
-                      className={`grid content-start items-center justify-items-center gap-6 lg:gap-8 ${
+                      className={`grid content-start items-center justify-items-center gap-6 lg:col-start-1 lg:row-start-1 lg:row-end-4 lg:content-center lg:gap-8 ${
                         seat
                           ? "lg:grid-cols-[25.75rem_minmax(0,1fr)_20rem]"
                           : "lg:grid-cols-[20rem_minmax(0,1fr)_20rem]"
@@ -565,7 +558,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
                 no seat reads nothing else at this table either. */}
                       {seat ? (
                         <ActivityColumn campaignId={campaign.id} faces={faces}>
-                          {isDungeonMaster && (
+                          {isDungeonMaster ? (
                             <DmMarks>
                               {/* First: what the party is fighting is decided
                                   before the picture it is fought over. */}
@@ -597,6 +590,11 @@ export default async function CampaignTablePage({ params, searchParams }) {
                                   token-palette.jsx. */}
                               <TokenStage members={carriers} />
                             </DmMarks>
+                          ) : (
+                            <PlayerCombatStage
+                              campaignId={campaign.id}
+                              faces={faces}
+                            />
                           )}
                         </ActivityColumn>
                       ) : (
@@ -616,35 +614,29 @@ export default async function CampaignTablePage({ params, searchParams }) {
               leave on their own beats — see panel-fold.js. */}
                       {/* The board, and under it what rules the map on it: the
               same 1.5rem of mat to clear, and half a rem of air past it. */}
-                      <div className="flex w-full min-w-0 flex-col items-center gap-8">
-                        <div className="flex w-full min-w-0 items-center justify-center gap-9">
-                          <MapStage
-                            url={campaign.map_url}
-                            title={campaign.title}
-                            campaignId={campaign.id}
-                            faces={faces}
-                            // Every other chair's comes out from under its own card.
-                            // Keyed, as is the board below: an element crossing to a
-                            // Client Component can arrive unmarked as checked, and
-                            // React then warns about it as a child in a list.
-                            cast={seat && <DiceCapsule key="cast" under />}
-                            // The token this viewer puts down, drawn before the write so it
-                            // appears under the pointer at once.
-                            seat={seat && markFace(seat.characterId, members)}
-                            canSweep={isDungeonMaster}
-                            canRule={isDungeonMaster}
-                          >
-                            {seat && <DiceBoard key="board" />}
-                          </MapStage>
+                      <div className="flex w-full min-w-0 items-center justify-center gap-9">
+                        <MapStage
+                          url={campaign.map_url}
+                          title={campaign.title}
+                          campaignId={campaign.id}
+                          faces={faces}
+                          // Every other chair's comes out from under its own card.
+                          // Keyed, as is the board below: an element crossing to a
+                          // Client Component can arrive unmarked as checked, and
+                          // React then warns about it as a child in a list.
+                          cast={seat && <DiceCapsule key="cast" under />}
+                          // The token this viewer puts down, drawn before the write so it
+                          // appears under the pointer at once.
+                          seat={seat && markFace(seat.characterId, members)}
+                          canSweep={isDungeonMaster}
+                          canRule={isDungeonMaster}
+                        >
+                          {seat && <DiceBoard key="board" />}
+                        </MapStage>
 
-                          {/* The seat, not the deed, decides who may keep a roll back — the
+                        {/* The seat, not the deed, decides who may keep a roll back — the
                 same line the health band and the board are drawn on. */}
-                          {seat && (
-                            <DiceRail canKeepSecrets={isDungeonMaster} />
-                          )}
-                        </div>
-
-                        {isDungeonMaster && <MapTools />}
+                        {seat && <DiceRail canKeepSecrets={isDungeonMaster} />}
                       </div>
 
                       {/* Not `data-fade`: the cards carry `data-slide` instead and leave

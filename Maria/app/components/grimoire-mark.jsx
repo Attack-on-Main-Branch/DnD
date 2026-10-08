@@ -19,13 +19,14 @@ const useCommitEffect =
  * The book's size, and with it the rings at 152%. Set here rather than at the
  * call sites: the sign-in flight is a move and nothing else only while both
  * copies are the same size, otherwise the book appears to shrink on its way.
+ * Pixel bounds keep it independent of the table's root font scale.
  */
-const MARK_SIZE = "w-[clamp(9rem,14vw,17.875rem)]";
+const MARK_SIZE = "w-[clamp(144px,14vw,286px)]";
 
 /**
  * The same widths in the form `next/image` needs. Changes with MARK_SIZE or the
  * browser picks a srcset candidate the element cannot use. The breakpoints are
- * where the clamp changes hands: 14vw crosses 9rem at 1028px and 17.875rem at
+ * where the clamp changes hands: 14vw crosses 144px at 1028px and 286px at
  * 2043px.
  */
 const MARK_SIZES = "(max-width: 1028px) 144px, (max-width: 2042px) 14vw, 286px";
@@ -41,7 +42,8 @@ const MARK_SIZES = "(max-width: 1028px) 144px, (max-width: 2042px) 14vw, 286px";
  * `default="none"` beside it. The framework guide pairs the two, but here that
  * combination stopped the groups forming at all — only
  * `::view-transition-old(root)` animated, so every rule below was dead. Nothing
- * is lost: no other route change unmounts this component.
+ * is lost: no other route change unmounts this component. `update="none"`
+ * leaves the persistent corner mark's dismissal to its own CSS transition.
  *
  * @param className  spacing only. NOT a position utility — the box is already
  *                   `relative` for the halo and rings, and a second one is
@@ -73,7 +75,7 @@ export default function GrimoireMark({ className = "", tilt }) {
         same picture — rotating them with the book made them snap 30° back on
         landing. Their own drift over 900ms is 4° and 6°, below notice.
       */}
-      <ViewTransition name="grimoire-aura" share="aura-morph">
+      <ViewTransition name="grimoire-aura" share="aura-morph" update="none">
         <span
           aria-hidden="true"
           // The hook globals.css uses to stand the rings down ahead of the
@@ -136,7 +138,7 @@ export default function GrimoireMark({ className = "", tilt }) {
         interpolated between two rotated boxes and the book set off in the wrong
         direction. The wrapper has no transform.
       */}
-      <ViewTransition name="grimoire-book" share="book-morph">
+      <ViewTransition name="grimoire-book" share="book-morph" update="none">
         {/* The dismissal rides here, not on the image, which already owns
             `transform` for its drift. */}
         <span className="mark-plate relative block w-full">

@@ -103,7 +103,7 @@ export default function ChangelogPanel({ children }) {
         inert={away || undefined}
         // `mark-launcher` rather than a hover utility: scaling the button
         // scaled the rings too. globals.css lifts the book alone.
-        className={`mark-launcher fixed bottom-20 left-20 z-0 cursor-pointer rounded-full ${
+        className={`mark-launcher fixed bottom-[80px] left-[80px] z-0 cursor-pointer rounded-full ${
           away ? "mark-away" : ""
         }`}
       >

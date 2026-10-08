@@ -14,9 +14,16 @@ import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 import { readCombat } from "sina/rules/combat";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
-import { parseArmorClass, readDeathSaves } from "sina/rules/death";
+import { isDying, parseArmorClass, readDeathSaves } from "sina/rules/death";
 import { readConditions } from "sina/rules/conditions";
 import { readFeatures } from "sina/rules/features";
+import {
+  changeHitPoints,
+  grantTempHitPoints,
+  healthTier,
+  HEALTH_TIERS,
+  parseHitPoints,
+} from "sina/rules/health";
 import { parseInspiration, steppedInspiration } from "sina/rules/inspiration";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
 import { readPlacedTokens } from "sina/rules/tokens";
@@ -117,6 +124,17 @@ function readTokens(rows) {
   return new Map(readPlacedTokens(rows).map((token) => [token.id, token]));
 }
 
+function readHealth(member) {
+  return {
+    current: member.current_hp,
+    max: member.max_hp,
+    tier: HEALTH_TIERS.includes(member.health_tier) ? member.health_tier : null,
+    dying: Boolean(member.is_dying),
+    temp: member.temp_hp ?? 0,
+    tempMax: member.temp_hp_max ?? 0,
+  };
+}
+
 /**
  * The seed, as the store holds it. Levels and health are separate slices so that
  * an award does not re-render everything watching a hit point.
@@ -154,7 +172,7 @@ function readSeed({
     /* Null where this viewer may not read them — `campaign_party` answers with
        one for anybody but their own, so the card draws no pips at all. */
     inspired[member.id] = parseInspiration(member.inspiration);
-    health[member.id] = { current: member.current_hp, max: member.max_hp };
+    health[member.id] = readHealth(member);
     /* Null the same way, and for the same reason: an armour class is the head
        of the table's to read across the party and a player's for their own. */
     shields[member.id] = parseArmorClass(member.armor_class);
@@ -519,24 +537,30 @@ function createTableStore(seed) {
      * have moved since the press, so two quick presses would both aim at the
      * same figure instead of stacking. Null is a press that did nothing.
      */
-    moveHealth(characterId, delta) {
+    moveHealth(characterId, delta, temporary = false) {
       const bar = state.health[characterId];
 
       if (!bar) {
         return null;
       }
 
-      const next = Math.min(bar.max, Math.max(0, bar.current + delta));
+      const next = temporary
+        ? grantTempHitPoints(bar, delta)
+        : changeHitPoints(bar, delta);
 
-      if (next === bar.current) {
+      if (next.current === bar.current && next.temp === bar.temp) {
         return null;
       }
 
-      amend("health", characterId, { ...bar, current: next });
+      amend("health", characterId, next);
 
       // What the bar ACTUALLY moved by: ten damage against seven hit points is
       // a change of seven.
-      return { hitPoints: next, moved: next - bar.current };
+      return {
+        health: next,
+        moved: next.current - bar.current,
+        tempMoved: next.temp - bar.temp,
+      };
     },
 
     /**
@@ -551,13 +575,16 @@ function createTableStore(seed) {
     reconcileHealth(characterId, expected, actual) {
       const bar = state.health[characterId];
 
-      if (!bar || bar.current !== expected) {
+      if (!bar || bar !== expected) {
         return false;
       }
 
-      if (actual !== bar.current) {
-        amend("health", characterId, { ...bar, current: actual });
-      }
+      amend("health", characterId, {
+        ...bar,
+        current: parseHitPoints(actual.hitPoints, bar.max),
+        temp: parseHitPoints(actual.tempHp),
+        tempMax: parseHitPoints(actual.maxTempHp),
+      });
 
       return true;
     },
@@ -591,6 +618,7 @@ function createTableStore(seed) {
       }
 
       amend("health", characterId, {
+        ...bar,
         max: maxHp,
         current: Math.min(maxHp, Math.max(0, hitPoints)),
       });
@@ -605,7 +633,10 @@ function createTableStore(seed) {
      * Every field is optional: a press that only moved the bar leaves the rest
      * where they are.
      */
-    setCondition(characterId, { hitPoints, isDead, deathSaves } = {}) {
+    setCondition(
+      characterId,
+      { hitPoints, tempHp, maxTempHp, isDead, deathSaves } = {},
+    ) {
       const bar = state.health[characterId];
 
       if (!bar) {
@@ -615,13 +646,22 @@ function createTableStore(seed) {
       const next = { ...state };
       let moved = false;
 
-      if (hitPoints !== null && hitPoints !== undefined) {
-        const landed = Math.min(bar.max, Math.max(0, hitPoints));
+      if (hitPoints != null || tempHp != null || maxTempHp != null) {
+        const landed =
+          hitPoints == null ? bar.current : parseHitPoints(hitPoints, bar.max);
+        const tempMax =
+          maxTempHp == null ? bar.tempMax : parseHitPoints(maxTempHp);
+        const temp =
+          tempHp == null ? bar.temp : parseHitPoints(tempHp, tempMax);
 
-        if (landed !== bar.current) {
+        if (
+          landed !== bar.current ||
+          temp !== bar.temp ||
+          tempMax !== bar.tempMax
+        ) {
           next.health = {
             ...state.health,
-            [characterId]: { ...bar, current: landed },
+            [characterId]: { ...bar, current: landed, temp, tempMax },
           };
           moved = true;
         }
@@ -1444,10 +1484,7 @@ function createTableStore(seed) {
             levels[member.id] = member.level;
             experience[member.id] = member.xp ?? 0;
             marked[member.id] = parseInspiration(member.inspiration);
-            health[member.id] = {
-              current: member.current_hp,
-              max: member.max_hp,
-            };
+            health[member.id] = readHealth(member);
             shields[member.id] = parseArmorClass(member.armor_class);
             saves[member.id] = readDeathSaves(member.death_saves);
             gone[member.id] = Boolean(member.is_dead);
@@ -1610,6 +1647,42 @@ function useTableValue(select) {
   return useSyncExternalStore(store.subscribe, read, read);
 }
 
+export function useHealthTier(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => {
+        const bar = state.health[characterId];
+        if (!bar) return null;
+        return Number.isFinite(bar.current) && Number.isFinite(bar.max)
+          ? healthTier(bar.current, bar.max)
+          : HEALTH_TIERS.includes(bar.tier)
+            ? bar.tier
+            : null;
+      },
+      [characterId],
+    ),
+  );
+}
+
+export function useIsDying(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => {
+        const bar = state.health[characterId];
+        return isDying(
+          Number.isFinite(bar?.current)
+            ? bar.current
+            : bar?.dying
+              ? 0
+              : undefined,
+          state.dead[characterId],
+        );
+      },
+      [characterId],
+    ),
+  );
+}
+
 export function useHitPoints(characterId) {
   return useTableValue(
     useCallback(
@@ -1622,6 +1695,21 @@ export function useHitPoints(characterId) {
 export function useMaxHitPoints(characterId) {
   return useTableValue(
     useCallback((state) => state.health[characterId]?.max ?? 0, [characterId]),
+  );
+}
+
+export function useTempHitPoints(characterId) {
+  return useTableValue(
+    useCallback((state) => state.health[characterId]?.temp ?? 0, [characterId]),
+  );
+}
+
+export function useMaxTempHitPoints(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => state.health[characterId]?.tempMax ?? 0,
+      [characterId],
+    ),
   );
 }
 

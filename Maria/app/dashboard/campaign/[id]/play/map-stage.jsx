@@ -6,7 +6,7 @@ import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
 import {
   MAP_HEIGHT_CLASS,
   MAP_MAX_HEIGHT_CLASS,
-  MAP_MAX_HEIGHT_RULED_CLASS,
+  MAP_MAX_HEIGHT_TOOLS_CLASS,
 } from "./map-height";
 import { useMapToolsShown } from "./map-tools";
 import TableMap from "./table-map";
@@ -62,11 +62,12 @@ export default function MapStage({
   cast = null,
   children,
 }) {
-  const { activeUrl } = useTableMaps();
+  const { activeUrl, isScene } = useTableMaps();
   const { inCombat } = useCombatState();
   const ruled = useMapToolsShown(canRule);
 
   const url = activeUrl ?? served;
+  const drawing = !canSweep && seat?.characterId && !isScene;
 
   if (!url) {
     return (
@@ -125,14 +126,15 @@ export default function MapStage({
         faces={faces}
         seat={seat}
         canSweep={canSweep}
-        heightClass={ruled ? MAP_MAX_HEIGHT_RULED_CLASS : MAP_MAX_HEIGHT_CLASS}
+        cast={cast}
+        heightClass={
+          ruled || drawing ? MAP_MAX_HEIGHT_TOOLS_CLASS : MAP_MAX_HEIGHT_CLASS
+        }
         className={`relative ${MAP_CLASSES}`}
         style={MAP_DELAY}
       />
 
       {children}
-
-      {cast}
     </div>
   );
 }

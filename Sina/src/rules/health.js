@@ -24,7 +24,7 @@ export const HEALTH_TIERS = ["critical", "wounded", "healthy"];
 
 // Fractions rather than hit points: 40 of 200 is the same trouble as 20 of 100.
 const WOUNDED_AT = 0.5;
-const CRITICAL_AT = 0.2;
+const CRITICAL_AT = 0.25;
 
 /** Clamped, so a corrupt row cannot draw a bar past its track. */
 export function healthFraction(current, max = CEILING) {
@@ -42,7 +42,7 @@ export function healthTier(current, max = CEILING) {
     return "healthy";
   }
 
-  return fraction > CRITICAL_AT ? "wounded" : "critical";
+  return fraction >= CRITICAL_AT ? "wounded" : "critical";
 }
 
 /**
@@ -59,4 +59,20 @@ export function parseHitPoints(value, max = CEILING) {
   }
 
   return Math.min(max, Math.max(0, Math.round(number)));
+}
+
+export function changeHitPoints(bar, delta) {
+  const absorbed = delta < 0 ? Math.min(bar.temp ?? 0, -delta) : 0;
+
+  return {
+    ...bar,
+    current: Math.min(bar.max, Math.max(0, bar.current + delta + absorbed)),
+    temp: (bar.temp ?? 0) - absorbed,
+  };
+}
+
+export function grantTempHitPoints(bar, amount) {
+  return amount > (bar.temp ?? 0)
+    ? { ...bar, temp: amount, tempMax: amount }
+    : bar;
 }

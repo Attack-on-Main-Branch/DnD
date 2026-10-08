@@ -543,7 +543,8 @@ export function useMapTokens({
       tokens.find((token) =>
         ownPiece?.kind === "party"
           ? token.isPartyMarker
-          : token.characterId === ownPiece?.characterId,
+          : Boolean(seat?.characterId) &&
+            token.characterId === seat.characterId,
       ) ?? null,
 
     ownPiece,

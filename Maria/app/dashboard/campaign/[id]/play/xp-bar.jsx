@@ -94,7 +94,6 @@ export function XpStepper({ campaignId, targets, whom, disabled, onLevelled }) {
               characterId: landed.id,
               xp: landed.xp,
               level: landed.level,
-              ...frames.get(landed.id),
             });
           } else {
             agreed = false;

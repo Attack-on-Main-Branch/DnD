@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { parseArmorClass, readDeathSaves } from "sina/rules/death";
+import { parseArmorClass } from "sina/rules/death";
 import { readConditions } from "sina/rules/conditions";
 import { readFeatures } from "sina/rules/features";
 import { parseHitPoints } from "sina/rules/health";
@@ -94,30 +94,19 @@ export default function PartyRail({
     onChange: refresh,
   });
 
-  /* Nothing off the wire is believed beyond its shape: the number goes through
-     the same rule that bound the sender's own write, and the id only ever picks
-     out a card this rail already has from the server — `setHealth` and
-     `setLevel` write to no slot they were not seeded with. */
-  useWireMessage("health", (message) => {
-    store.setHealth(message.characterId, parseHitPoints(message.hitPoints));
+  useLiveRefresh({
+    channel: `health:${campaignId}`,
+    table: "characters",
+    onChange: useCallback(() => resync({ party: true }), [resync]),
   });
 
-  /* EVERYTHING ZERO HIT POINTS DECIDES, in one message. The bar, the flag and
-     the two tallies move together in the database — `apply_damage` and
-     `roll_death_save` each write all three in one statement — so they travel
-     together too, and `setCondition` lays them down in one commit. Read on the
-     same rails as everything else here: through the rules that bound the
-     sender's own write, into a slot this rail was already seeded with. */
-  useWireMessage("condition", (message) => {
-    store.setCondition(message.characterId, {
-      hitPoints: parseHitPoints(message.hitPoints),
-      isDead: Boolean(message.isDead),
-      deathSaves: readDeathSaves({
-        successes: message.successes,
-        failures: message.failures,
-      }),
-    });
-  });
+  const refreshHealth = (message) => {
+    if (members.some((member) => member.id === message.characterId)) {
+      resync({ party: true });
+    }
+  };
+  useWireMessage("health", refreshHealth);
+  useWireMessage("condition", refreshHealth);
 
   /* ONE FEATURE, EITHER WAY. A name and a description are TEXT off the socket,
      which nothing else at this table takes — so it goes through the rules layer
@@ -201,14 +190,7 @@ export default function PartyRail({
 
     store.setXp(message.characterId, xp, level);
 
-    /* A rung that moved took the frame with it: `characters_sync_max_hp`
-       recomputed the maximum and carried the bar across. Both figures came off
-       the server's own party list before this was sent. */
-    store.setFrame(
-      message.characterId,
-      parseHitPoints(message.maxHp),
-      parseHitPoints(message.hitPoints),
-    );
+    resync({ party: true });
 
     if (moved) {
       refresh();

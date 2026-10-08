@@ -11,6 +11,7 @@ import {
 import {
   applyDamage,
   applyHeal,
+  grantTemporaryHitPoints,
   deleteCharacterNote,
   insertCharacterNote,
   listCharacterNotes,
@@ -104,10 +105,11 @@ export async function changeCharacterHealth(
   characterId,
   value,
   seatCharacterId = null,
+  temporary = false,
 ) {
   const delta = parseHealthChange(value);
 
-  if (delta === null) {
+  if (delta === null || (temporary && delta < 0)) {
     return rejected("Hit points have to be a number.");
   }
 
@@ -122,8 +124,14 @@ export async function changeCharacterHealth(
      point going up does not — massive damage, and the tallies a character
      collects at zero. `apply_damage` and `apply_heal` are the halves; the sign
      is what decides which. */
-  const { data, error } =
-    delta < 0
+  const { data, error } = temporary
+    ? await grantTemporaryHitPoints(supabase, {
+        id: characterId,
+        amount: delta,
+        campaignId,
+        seatCharacterId,
+      })
+    : delta < 0
       ? await applyDamage(supabase, {
           id: characterId,
           damage: -delta,
@@ -162,6 +170,8 @@ export async function changeCharacterHealth(
  */
 function condition(data) {
   return {
+    tempHp: data.tempHp,
+    maxTempHp: data.maxTempHp,
     isDead: data.isDead,
     deathSaves: data.deathSaves,
     instantDeath: Boolean(data.instantDeath),

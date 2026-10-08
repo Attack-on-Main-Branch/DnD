@@ -1,8 +1,10 @@
 "use client";
 
 import { FEET_PER_HEX } from "sina/rules/grid";
+import { DEFAULT_CONE_ANGLE, MAP_DRAWING_SHAPES } from "sina/rules/map-drawing";
 
 import { hexDistance } from "@/lib/hex-math";
+import { conePath, drawingGeometry } from "@/lib/map-drawing";
 
 /**
  * The reach of a move, while it is being made: a line from where a token IS to
@@ -15,7 +17,7 @@ import { hexDistance } from "@/lib/hex-math";
  * is what every other thing a person does at this table is already marked with.
  * Gold is the head of the table's, who rolls the house's own dice.
  *
- * TWO LAYERS AND NOT ONE, which is what `DragDistance` below is for: the line
+ * TWO LAYERS AND NOT ONE, which is what `DrawingDistance` below is for: the line
  * belongs UNDER the pieces, so an arrow across a crowded board runs behind the
  * faces rather than over them, and the figure belongs OVER them, or a move of
  * one cell puts the distance behind the very token that moved. table-map.jsx
@@ -41,25 +43,7 @@ const LINE_OF_A_CELL = 0.11;
 const RIM_OF_A_CELL = 0.045;
 const HEAD_OF_A_CELL = 0.5;
 
-/**
- * How far off the piece's centre the shaft begins. A token covers
- * `TOKEN_OF_A_CELL / 2` of a cell — see table-map.jsx — so this clears its rim.
- *
- * IT IS WHAT MADE THE ARROW CLEAN. It used to start dead centre with a disc
- * marking the spot, which on a small piece was a line drawn straight through a
- * face and a dot on top of it; leaving the piece alone says the same thing with
- * nothing added.
- *
- * ONLY THE TAIL. The point lands exactly where the move does — the pointer on a
- * bare map, the cell's centre on a ruled one — so nobody has to guess which
- * cell an arrow that stopped short was aiming at.
- */
-const TAIL_OF_A_CELL = 0.72;
-
-/** Room for the tail and a whole head; any shorter and the shaft runs backwards. */
-const SHORTEST_OF_A_CELL = TAIL_OF_A_CELL + HEAD_OF_A_CELL;
-
-export default function DragArrow({
+export default function MapDrawing({
   width,
   height,
   from,
@@ -67,14 +51,16 @@ export default function DragArrow({
   size,
   color,
   layerStyle,
+  shape = MAP_DRAWING_SHAPES[0],
+  angle: coneAngle = DEFAULT_CONE_ANGLE,
 }) {
-  const drawn = reach(width, height, from, to, size);
+  const drawn = reach(width, height, from, to, size, shape);
 
   if (!drawn) {
     return null;
   }
 
-  const { start, tip, angle } = drawn;
+  const { start, end: tip, angle } = drawn;
 
   const line = size * LINE_OF_A_CELL;
   const rim = size * RIM_OF_A_CELL;
@@ -96,49 +82,93 @@ export default function DragArrow({
         preserveAspectRatio="none"
         className="size-full"
       >
-        {/* Drawn twice, dark underneath: a bright line over a bright map is one
+        {shape !== "arrow" ? (
+          <>
+            {[
+              {
+                stroke: OUTLINE,
+                strokeWidth: line + rim * 2,
+                fill: color,
+                fillOpacity: 0.14,
+              },
+              { stroke: color, strokeWidth: line, fill: "none" },
+            ].map((paint, index) =>
+              shape === "circle" ? (
+                <circle
+                  key={index}
+                  cx={start.x}
+                  cy={start.y}
+                  r={drawn.length}
+                  {...paint}
+                />
+              ) : (
+                <path
+                  key={index}
+                  d={conePath(drawn, coneAngle)}
+                  strokeLinejoin="round"
+                  {...paint}
+                />
+              ),
+            )}
+            {shape === "circle" && (
+              <circle
+                cx={start.x}
+                cy={start.y}
+                r={line}
+                fill={color}
+                stroke={OUTLINE}
+                strokeWidth={rim * 2}
+                style={{ paintOrder: "stroke" }}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {/* Drawn twice, dark underneath: a bright line over a bright map is one
             nobody can follow. */}
-        <line
-          x1={start.x}
-          y1={start.y}
-          x2={shaftX}
-          y2={shaftY}
-          stroke={OUTLINE}
-          strokeWidth={line + rim * 2}
-          strokeLinecap="round"
-        />
+            <line
+              x1={start.x}
+              y1={start.y}
+              x2={shaftX}
+              y2={shaftY}
+              stroke={OUTLINE}
+              strokeWidth={line + rim * 2}
+              strokeLinecap="round"
+            />
 
-        <line
-          x1={start.x}
-          y1={start.y}
-          x2={shaftX}
-          y2={shaftY}
-          stroke={color}
-          strokeWidth={line}
-          strokeLinecap="round"
-        />
+            <line
+              x1={start.x}
+              y1={start.y}
+              x2={shaftX}
+              y2={shaftY}
+              stroke={color}
+              strokeWidth={line}
+              strokeLinecap="round"
+            />
 
-        {/*
-         * A triangle rather than a marker, which would inherit the stroke's
-         * scaling instead of keeping its proportions against the cell.
-         *
-         * NARROW, at 2.7 radians off the point rather than 2.5: a broad head on
-         * a long shaft reads as a signpost, and this is a hand showing a move.
-         */}
-        <polygon
-          points={`${tip.x},${tip.y} ${
-            tip.x + Math.cos(angle + 2.7) * head
-          },${tip.y + Math.sin(angle + 2.7) * head} ${
-            tip.x + Math.cos(angle - 2.7) * head
-          },${tip.y + Math.sin(angle - 2.7) * head}`}
-          fill={color}
-          stroke={OUTLINE}
-          strokeWidth={rim * 2}
-          strokeLinejoin="round"
-          // Under the fill, so the half that would have eaten into the colour is
-          // covered and `rim` is all that stands out — the shaft's rim exactly.
-          style={{ paintOrder: "stroke" }}
-        />
+            {/*
+             * A triangle rather than a marker, which would inherit the stroke's
+             * scaling instead of keeping its proportions against the cell.
+             *
+             * NARROW, at 2.7 radians off the point rather than 2.5: a broad head on
+             * a long shaft reads as a signpost, and this is a hand showing a move.
+             */}
+            <polygon
+              points={`${tip.x},${tip.y} ${
+                tip.x + Math.cos(angle + 2.7) * head
+              },${tip.y + Math.sin(angle + 2.7) * head} ${
+                tip.x + Math.cos(angle - 2.7) * head
+              },${tip.y + Math.sin(angle - 2.7) * head}`}
+              fill={color}
+              stroke={OUTLINE}
+              strokeWidth={rim * 2}
+              strokeLinejoin="round"
+              // Under the fill, so the half that would have eaten into the colour is
+              // covered and `rim` is all that stands out — the shaft's rim exactly.
+              style={{ paintOrder: "stroke" }}
+            />
+          </>
+        )}
       </svg>
     </div>
   );
@@ -153,8 +183,16 @@ export default function DragArrow({
  * distance is read by a person rather than measured, so it counter-scales the
  * zoom and stays the same size on screen at every step.
  */
-export function DragDistance({ width, height, from, to, size, layerStyle }) {
-  const drawn = reach(width, height, from, to, size);
+export function DrawingDistance({
+  width,
+  height,
+  from,
+  to,
+  size,
+  layerStyle,
+  shape = MAP_DRAWING_SHAPES[0],
+}) {
+  const drawn = reach(width, height, from, to, size, shape);
 
   // Cells or nothing: a board with no grid has no whole number of them to give.
   if (!drawn || !Number.isInteger(from.q) || !Number.isInteger(to.q)) {
@@ -192,33 +230,14 @@ export function DragDistance({ width, height, from, to, size, layerStyle }) {
  * Null for a move too short to draw — which is also how both layers agree to
  * show nothing rather than one of them drawing alone.
  */
-function reach(width, height, from, to, size) {
-  if (!from || !to) {
+function reach(width, height, from, to, size, shape) {
+  const geometry = drawingGeometry(width, height, from, to);
+  if (
+    !geometry ||
+    (shape === "arrow" && geometry.length < size * HEAD_OF_A_CELL)
+  ) {
     return null;
   }
 
-  const start = { x: from.x * width, y: from.y * height };
-  const end = { x: to.x * width, y: to.y * height };
-
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const length = Math.hypot(dx, dy);
-
-  if (length < size * SHORTEST_OF_A_CELL) {
-    return null;
-  }
-
-  const angle = Math.atan2(dy, dx);
-  const tail = size * TAIL_OF_A_CELL;
-
-  return {
-    // Clear of the piece it comes from, and pointing at exactly where it goes.
-    start: {
-      x: start.x + Math.cos(angle) * tail,
-      y: start.y + Math.sin(angle) * tail,
-    },
-    tip: end,
-    end,
-    angle,
-  };
+  return geometry;
 }

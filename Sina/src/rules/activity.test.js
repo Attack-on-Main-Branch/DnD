@@ -30,6 +30,7 @@ describe("the catalogue", () => {
       "dice_roll",
       "secret_dice_roll",
       "hp_change",
+      "temp_hp_change",
       "level_change",
       "item_used",
       "item_dropped",
@@ -63,6 +64,22 @@ describe("the catalogue", () => {
   it("holds the ceiling the purge trigger keeps", () => {
     assert.equal(MAX_ACTIVITY_ENTRIES, 10);
   });
+});
+
+describe("temporary HP activity", () => {
+  for (const delta of [-12, 20]) {
+    it(`reads a ${delta} change with its target`, () => {
+      const entry = readActivity(
+        row({
+          action_type: "temp_hp_change",
+          payload: { delta, targetName: "Frieren" },
+        }),
+      );
+      assert.equal(entry.action, "temp_hp_change");
+      assert.equal(entry.delta, delta);
+      assert.equal(entry.target, "Frieren");
+    });
+  }
 });
 
 describe("readActivity, on a fight", () => {
