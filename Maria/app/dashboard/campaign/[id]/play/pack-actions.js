@@ -6,6 +6,7 @@ import {
 } from "sina/data/activity";
 import {
   grantInventoryItem,
+  holdInHand,
   moveInventoryItem,
   spendInventoryItem,
   transferInventoryItem,
@@ -48,6 +49,7 @@ const PACK_COPY = {
   missing_function: "That part of the app is not ready yet.",
   missing_table: "That part of the app is not ready yet.",
   bad_id: "That character is no longer at this table.",
+  dm_only: "A dice pouch stays with whoever it was given to.",
 };
 
 async function signedIn(action) {
@@ -365,6 +367,30 @@ export async function stowPackItem(
 
   if (error) {
     return refused("stowPackItem", error, "Could not move that.");
+  }
+
+  return { kind: "success" };
+}
+
+/**
+ * One stack of the pack into the hand, or — with no item — the hand emptied.
+ * Like `stowPackItem`, no campaign: what somebody is holding is not a line in
+ * the log. Which stacks may be held is `hold_in_hand`'s to decide.
+ */
+export async function holdPackItem(characterId, itemId) {
+  const { supabase, rejection } = await signedIn("holdPackItem");
+
+  if (rejection) {
+    return rejection;
+  }
+
+  const { error } = await holdInHand(supabase, {
+    characterId,
+    itemId: itemId ?? null,
+  });
+
+  if (error) {
+    return refused("holdPackItem", error, "Could not take that in hand.");
   }
 
   return { kind: "success" };

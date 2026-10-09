@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   getCharacterAvatarUrl,
   removeCharacterAvatar,
+  setCharacterDice,
   toggleCondition as toggleCharacterCondition,
   togglePartyCondition,
   updateCharacter as writeCharacter,
@@ -14,7 +15,9 @@ import {
   avatarObjectPath,
   avatarPathFromUrl,
   readCharacterValues,
+  readDiceValues,
   validateCharacter,
+  validateDice,
 } from "sina/rules/character";
 
 import { AVATAR_COPY } from "@/app/actions/avatar-copy";
@@ -40,6 +43,11 @@ const EDIT_COPY = {
     field: null,
   },
   bad_id: { message: "That character could not be found.", field: null },
+  skin_locked: {
+    message:
+      "Those dice have not been found yet. Open a Dice Pouch at the table to find more.",
+    field: "diceSkin",
+  },
   invalid_value: {
     message:
       "The database refused one of those values. Try shortening the name or the written sections.",
@@ -188,6 +196,47 @@ export async function updateCharacter(characterId, formData) {
   }
 
   // The sheet the edit was made on, and the roster tile that repeats it.
+  revalidatePath(characterSheetPath(characterId));
+  revalidatePath("/dashboard");
+
+  return { kind: "success" };
+}
+
+/** The Dice tab: a colour and a style, and nothing else on the sheet. */
+export async function saveCharacterDice(characterId, values) {
+  if (typeof characterId !== "string" || characterId.length === 0) {
+    return rejected("Missing character id.");
+  }
+
+  const dice = readDiceValues(values);
+  const malformed = validateDice(dice);
+
+  if (malformed) {
+    return rejected(malformed.message, malformed.field);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (authError || !user) {
+    return sessionRejection("saveCharacterDice", authError);
+  }
+
+  const { error } = await setCharacterDice(supabase, {
+    id: characterId,
+    ...dice,
+  });
+
+  if (error) {
+    const copy = EDIT_COPY[error.reason];
+    logUncovered("saveCharacterDice", error, copy);
+
+    return rejected(
+      copy?.message ?? "Could not save the dice. Please try again.",
+    );
+  }
+
+  // The disc behind a missing portrait wears the colour too.
   revalidatePath(characterSheetPath(characterId));
   revalidatePath("/dashboard");
 

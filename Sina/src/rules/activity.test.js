@@ -30,6 +30,8 @@ describe("the catalogue", () => {
       "dice_roll",
       "secret_dice_roll",
       "hp_change",
+      "temp_hp_change",
+      "armor_class_change",
       "level_change",
       "item_used",
       "item_dropped",
@@ -46,7 +48,6 @@ describe("the catalogue", () => {
       "bag_transferred",
       "xp_change",
       "rest_taken",
-      "max_hp_change",
       "instant_death",
       "death_save",
       "character_died",
@@ -55,6 +56,7 @@ describe("the catalogue", () => {
       "condition_removed",
       "combat_started",
       "combat_ended",
+      "dice_pouch_opened",
     ]);
     assert.deepEqual(ACTOR_TYPES, ["dm", "player"]);
   });
@@ -62,6 +64,22 @@ describe("the catalogue", () => {
   it("holds the ceiling the purge trigger keeps", () => {
     assert.equal(MAX_ACTIVITY_ENTRIES, 10);
   });
+});
+
+describe("temporary HP activity", () => {
+  for (const delta of [-12, 20]) {
+    it(`reads a ${delta} change with its target`, () => {
+      const entry = readActivity(
+        row({
+          action_type: "temp_hp_change",
+          payload: { delta, targetName: "Frieren" },
+        }),
+      );
+      assert.equal(entry.action, "temp_hp_change");
+      assert.equal(entry.delta, delta);
+      assert.equal(entry.target, "Frieren");
+    });
+  }
 });
 
 describe("readActivity, on a fight", () => {
@@ -90,6 +108,34 @@ describe("readActivity, on a fight", () => {
 
   it("still wants a payload object, as every row does", () => {
     assert.equal(readActivity({ ...called, payload: null }), null);
+  });
+});
+
+describe("readActivity, on a dice pouch", () => {
+  const opened = row({
+    action_type: "dice_pouch_opened",
+    payload: { skin: "galaxy", rarity: "rare" },
+  });
+
+  it("reads the set and the rarity it was opened at", () => {
+    assert.deepEqual(readActivity(opened), {
+      id: ROW.id,
+      action: "dice_pouch_opened",
+      actor: "Fern",
+      seat: ROW.actor_character,
+      head: false,
+      skin: "galaxy",
+      rarity: "rare",
+    });
+  });
+
+  it("drops a set or a rarity it does not know", () => {
+    for (const payload of [
+      { skin: "gold-plated", rarity: "rare" },
+      { skin: "galaxy", rarity: "mythic" },
+    ]) {
+      assert.equal(readActivity({ ...opened, payload }), null);
+    }
   });
 });
 
@@ -351,50 +397,54 @@ describe("readActivity, on a rest", () => {
   });
 });
 
-describe("readActivity, on a frame that moved", () => {
-  it("reads where the maximum landed and the rung it landed on", () => {
-    const moved = readActivity(
-      row({
-        actor_name: "Dungeon Master",
-        actor_type: "dm",
-        action_type: "max_hp_change",
-        payload: { maxHp: 12, level: 2, targetName: "Frieren" },
-      }),
-    );
+describe("armour class activity", () => {
+  for (const delta of [-2, 3, -99, 99]) {
+    it(`reads a ${delta} delta without carrying the private total`, () => {
+      const entry = readActivity(
+        row({
+          action_type: "armor_class_change",
+          payload: { delta, armorClass: 15, targetName: "Frieren" },
+        }),
+      );
+      assert.equal(entry.delta, delta);
+      assert.equal(entry.target, "Frieren");
+      assert.equal("armorClass" in entry, false);
+    });
+  }
 
-    assert.equal(moved.maxHp, 12);
-    assert.equal(moved.level, 2);
-    assert.equal(moved.target, "Frieren");
-  });
-
-  it("refuses a maximum or a rung outside its own ends", () => {
+  it("reads a change to the actor's own shield without a target", () => {
     assert.equal(
       readActivity(
-        row({ action_type: "max_hp_change", payload: { maxHp: 0, level: 2 } }),
-      ),
+        row({
+          action_type: "armor_class_change",
+          payload: { delta: 3 },
+        }),
+      ).target,
       null,
     );
+  });
+
+  for (const delta of [0, -100, 100, 1.5, null, undefined]) {
+    it(`refuses invalid delta ${delta}`, () => {
+      assert.equal(
+        readActivity(
+          row({
+            action_type: "armor_class_change",
+            payload: { delta },
+          }),
+        ),
+        null,
+      );
+    });
+  }
+
+  it("ignores retired maximum-HP entries", () => {
     assert.equal(
       readActivity(
         row({
           action_type: "max_hp_change",
-          payload: { maxHp: 9999, level: 2 },
+          payload: { maxHp: 12, level: 2 },
         }),
-      ),
-      null,
-    );
-    assert.equal(
-      readActivity(
-        row({ action_type: "max_hp_change", payload: { maxHp: 12, level: 0 } }),
-      ),
-      null,
-    );
-  });
-
-  it("refuses a row missing either half", () => {
-    assert.equal(
-      readActivity(
-        row({ action_type: "max_hp_change", payload: { maxHp: 12 } }),
       ),
       null,
     );

@@ -14,9 +14,9 @@ Sina has no dependency on Next.js. It owns the Supabase clients, every data
 query, and every validation rule; where something genuinely needs the framework
 — the request-scoped cookie store, for instance — Maria passes it in.
 
-The one Supabase call Maria makes for itself is `auth.getUser()`, in `proxy.js`
-and in `lib/supabase.js`, because the token has to be revalidated before
-anything can be decided about the request. Even there the _decision_ stays in
+The one Supabase call Maria makes for itself is `auth.getClaims()`, in
+`proxy.js` and in `lib/supabase.js`, because the token has to be verified
+before anything can be decided about the request. Even there the _decision_ stays in
 Sina: `authCouldNotAnswer` and `resolveRedirect` in `src/supabase/session.js`.
 That keeps the backend portable and makes the seam between the two obvious
 rather than implied.
@@ -69,6 +69,99 @@ browser, and only grant what your Row Level Security policies allow.
 
 **Never** put the secret key — `sb_secret_…`, or the legacy `service_role` JWT
 — in this file or in any `NEXT_PUBLIC_` variable. It bypasses RLS entirely.
+
+The scene painter (the camera on the Dungeon Master's rail) paints with Gemini
+on Google Cloud's Vertex AI, billed to the project's billing account (free-trial
+credits included). In the [Google Cloud console](https://console.cloud.google.com),
+pick the project and enable the **Vertex AI API** under **APIs & Services →
+Library**. The server then signs in by the first of these it finds; with none,
+the rest of the app works and painting says it is not set up.
+
+**On your own machine — no key.** Install the
+[Google Cloud CLI](https://cloud.google.com/sdk/docs/install), then:
+
+```bash
+gcloud auth application-default login
+```
+
+```bash
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
+```
+
+Set `VERTEX_PROJECT_ID=YOUR_PROJECT_ID` in `Maria/.env.local` and restart the dev
+server. The app reads the login gcloud saved; when it expires, painting says so
+and the first command signs you in again.
+
+**On Vercel — no key either**, through Workload Identity Federation. A local
+gcloud login does not travel with the deployment.
+
+1. In the [Google Cloud console](https://console.cloud.google.com), select the
+   project and confirm its **Billing** account is active. Under **APIs &
+   Services → Library**, enable **Vertex AI API**, **Identity and Access
+   Management (IAM) API**, **Cloud Resource Manager API**, **IAM Service Account
+   Credentials API**, and **Security Token Service API**. Note the **Project ID**
+   and **Project number** under **IAM & Admin → Settings**.
+2. In Vercel, note the team slug from the team's URL and the project name under
+   **Project → Settings → General**. Under **Settings → Security → Secure backend
+   access with OIDC federation**, enable OIDC and check its issuer mode: the
+   configuration below uses **Team**, with issuer
+   `https://oidc.vercel.com/YOUR_TEAM_SLUG`. A project using **Global** instead
+   needs issuer `https://oidc.vercel.com` in the next step.
+3. In Google Cloud, open **IAM & Admin → Workload Identity Federation → Create
+   pool**, with pool ID `vercel` and an **OpenID Connect** provider with ID
+   `vercel`. Enter the issuer from step 2, select **Allowed audiences** and enter
+   `https://vercel.com/YOUR_TEAM_SLUG`. Leave the JWK file empty and map
+   `google.subject` to `assertion.sub`. Use **Allowed audiences** for the current
+   code, which requests Vercel's standard audience.
+4. Under **IAM & Admin → Service accounts → Create service account**, create
+   `scene-painter` with the **Vertex AI User** role (`roles/aiplatform.user`)
+   on the project. Do not create a key. Open that service account's
+   **Permissions → Grant access** and grant **Workload Identity User**
+   (`roles/iam.workloadIdentityUser`) to this principal, replacing the three
+   placeholders with the project number, Vercel team slug and Vercel project name:
+
+   ```text
+   principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:YOUR_TEAM_SLUG:project:YOUR_VERCEL_PROJECT:environment:production
+   ```
+
+5. In **Vercel → Project → Settings → Environment Variables**, add these for the
+   **Production** environment. Use the app's `VERTEX_*` names below, rather than
+   the `GCP_*` names in Vercel's general examples:
+
+| Variable                       | Value                                       |
+| ------------------------------ | ------------------------------------------- |
+| `VERTEX_PROJECT_ID`            | The project ID                              |
+| `VERTEX_WIF_PROJECT_NUMBER`    | The project number (IAM & Admin → Settings) |
+| `VERTEX_WIF_POOL_ID`           | The pool's ID, e.g. `vercel`                |
+| `VERTEX_WIF_PROVIDER_ID`       | The provider's ID, e.g. `vercel`            |
+| `VERTEX_SERVICE_ACCOUNT_EMAIL` | The service account's email                 |
+
+6. Redeploy after saving the settings. `Maria/vercel.json` enables **Fluid
+   Compute** and the table page sets `maxDuration = 120`; Fluid Compute supports
+   this on Hobby too. Open a campaign as its
+   Dungeon Master, place a camera and paint a scene. Confirm the image appears
+   on the map shelf. If it fails, inspect the deployment's runtime logs for
+   `paintScene`: setup errors indicate credentials/API permissions, rejected
+   requests indicate the model/request, and timeouts indicate duration limits or
+   a slow upstream request.
+
+Preview deployments need their own environment variables and an additional
+service-account binding ending in `environment:preview`; the production binding
+does not authorise previews. If using a different pool/provider ID, substitute it
+in the principal and environment variables. Keep the existing Supabase variables
+pointing at the database where the scene migrations were applied.
+
+The console setup follows [Vercel's GCP federation guide](https://vercel.com/docs/oidc/gcp)
+and [Google's federation prerequisites](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers).
+
+**Or with a service account key**, where your organisation allows creating one:
+put the JSON key, base64-encoded, in `VERTEX_SERVICE_ACCOUNT_KEY`. It takes
+precedence over the other two.
+
+`VERTEX_LOCATION` (default `global`) and `VERTEX_IMAGE_MODEL` (default
+`gemini-3.1-flash-image`; `gemini-3-pro-image` is sharper but slower and about
+twice the price) are optional everywhere. All of these are read on the
+server alone: never give one a `NEXT_PUBLIC_` prefix.
 
 ### 4. Create the database schema
 
@@ -250,8 +343,10 @@ A few decisions worth knowing before changing things.
 - **The proxy is what keeps you signed in.** Server Components cannot write
   cookies, so it is the only place a rotated refresh token gets back to the
   browser. Deleting it causes logouts that look random.
-- **`getUser()`, never `getSession()`, on the server.** Only the former
-  verifies the JWT; the latter just reads a cookie.
+- **`getClaims()`, never `getSession()`, on the server.** Only the former
+  verifies the JWT; the latter just reads a cookie. With the project's
+  asymmetric signing key the check is local, so no request waits on Auth for
+  it.
 - **"Cannot reach auth" is not "signed out".** Collapsing the two made an
   outage look like an expired session, so users signed in, got bounced, and
   tried again. `authCouldNotAnswer` draws the line once, and the proxy lets
@@ -310,5 +405,10 @@ root install creates — so the install has to run with the repository root in
 view. If a build fails to resolve `sina`, that is the setting to check first.
 
 Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` under the
-project's Environment Variables. If email confirmation is on, add the
+project's Environment Variables, and the scene painter's Workload Identity
+Federation variables (see step 3 above). A painting can take over a minute, and
+the table page asks for a `maxDuration` of 120 seconds. `Maria/vercel.json` enables
+**Fluid Compute**; its duration limits support this on all plans, including Hobby.
+See [Vercel's duration documentation](https://vercel.com/docs/functions/configuring-functions/duration).
+If email confirmation is on, add the
 deployment's full `/auth/confirm` URL to Supabase's Redirect URLs as well.

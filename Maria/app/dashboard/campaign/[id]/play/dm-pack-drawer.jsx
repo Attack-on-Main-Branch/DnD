@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { parseQuantity } from "sina/rules/inventory";
 
-import { controlClasses } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
 import {
   containerTagClasses,
@@ -17,13 +16,12 @@ import { rowItem } from "@/app/dashboard/inventory-presentation";
 
 import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
-import { Action } from "./pack-controls";
+import { Action, QuantityField } from "./pack-controls";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
 import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import {
   PopoverAside,
   POPOVER_BODY_CLASSES,
-  POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
 import { useContainers, useTableStore } from "./table-state";
@@ -124,7 +122,7 @@ export default function DmPackDrawer({
   }
 
   function show(item, containerId = null) {
-    setTyped("");
+    setTyped("1");
     setNote(null);
     setReading((standing) =>
       standing?.item.slug === item.slug &&
@@ -225,9 +223,8 @@ export default function DmPackDrawer({
 
   return (
     <div
-      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${
-        open ? POPOVER_BODY_SHORT_CLASSES : POPOVER_BODY_CLASSES
-      }`}
+      data-popover-body
+      className={`scroll-gold overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
     >
       <PartyPills
         members={members}
@@ -242,7 +239,7 @@ export default function DmPackDrawer({
         >
           All party
           {members.length > 0 && (
-            <span className="font-mono text-[10px] text-ink/50 tabular-nums">
+            <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
               {members.length}
             </span>
           )}
@@ -307,13 +304,13 @@ export default function DmPackDrawer({
               </p>
             ) : (
               <>
-                <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+                <p className="mt-5 font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
                   {selected.name} · {pack.length} carried
                 </p>
 
                 {pack.length === 0 ? (
                   <p className="mt-2.5 text-xs text-ink/50 italic">
-                    Nothing in hand — it is all in the bags below.
+                    Nothing loose — it is all in the bags below.
                   </p>
                 ) : (
                   <ul className="mt-2.5 grid grid-cols-3 gap-2">
@@ -323,6 +320,7 @@ export default function DmPackDrawer({
                           item={rowItem(row)}
                           quantity={row.quantity}
                           open={held?.id === row.id}
+                          inHand={row.in_hand}
                           onOpen={() => show(rowItem(row), null)}
                         />
                       </li>
@@ -360,26 +358,15 @@ export default function DmPackDrawer({
         <PopoverAside>
           <ItemDetail item={open} quantity={held?.quantity}>
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-              <div className="w-20 shrink-0">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={typed}
-                  placeholder="Qty"
-                  onChange={(event) => setTyped(event.target.value)}
-                  aria-label={`How many ${open.name}`}
-                  className={controlClasses({
-                    className: "px-2 py-1 text-center tabular-nums",
-                  })}
-                />
-              </div>
-
-              {held && (
-                <p className="mr-auto text-xs text-ink/45">
-                  of {held.quantity}
-                </p>
-              )}
+              {/* No ceiling but the rules': a Dungeon Master gives as many as
+                  they like, and a take is clamped to the stack. */}
+              <QuantityField
+                value={typed}
+                onChange={setTyped}
+                name={open.name}
+                of={held?.quantity ?? null}
+                className={held ? "mr-auto" : ""}
+              />
 
               {held && selected && (
                 <Action
@@ -432,7 +419,7 @@ function BagSection({ bag, inside, unfolded, onFold, openId, onOpen }) {
         </span>
 
         <span className="flex shrink-0 items-center gap-2">
-          <span className="font-mono text-[10px] text-ink/45 tabular-nums">
+          <span className="font-mono text-[0.625rem] text-ink/45 tabular-nums">
             {inside.length}
           </span>
 

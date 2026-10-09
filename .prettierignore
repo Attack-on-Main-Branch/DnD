@@ -5,3 +5,6 @@ package-lock.json
 
 # Supabase CLI scratch state, not source.
 Sina/supabase/.temp/
+
+# A built third-party bundle, vendored as built. See its README.
+Maria/vendor/

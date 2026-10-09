@@ -10,7 +10,7 @@ import { readSpellcasting } from "sina/rules/spellcasting";
 import { classLabel } from "sina/rules/character";
 
 import ToastProvider from "@/app/components/ui/toast";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { CharacterStats } from "@/app/dashboard/character-stats";
 import { campaignSheetPath, characterSheetPath } from "@/lib/routes";
 
@@ -19,38 +19,43 @@ import ActivityColumn from "./activity-column";
 import AbilityScoreField from "./ability-score-field";
 import CharacterVitals from "./character-vitals";
 import ChestStage from "./chest-stage";
-import CombatDrawer from "./combat-drawer";
+import CombatBackdrop from "./combat-backdrop";
 import CombatStage from "./combat-stage";
+import CombatSync from "./combat-sync";
 import DiceBoard from "./dice-board";
 import DiceCapsule from "./dice-capsule";
 import MapShelfStage from "./map-shelf-stage";
-import TokenPalette from "./token-palette";
 import TableMaps from "./table-maps";
 import DiceRail from "./dice-rail";
 import DiceTable from "./dice-table";
+import DmMarks from "./dm-marks";
 import { loadTable } from "./load-table";
 import LeaveTable from "./leave-table";
 import MapStage from "./map-stage";
-import {
-  NOTES_CLASSES,
-  notesEntrance,
-  RAIL_MIRRORED_CLASSES,
-  railEntrance,
-} from "./entrance";
+import SceneStage from "./scene-stage";
+import SceneStaging from "./scene-staging";
+import { NOTES_CLASSES, notesEntrance } from "./entrance";
 import InventoryPack from "./inventory-pack";
 import NotesScroll from "./notes-scroll";
 import FeatureShelf from "./feature-shelf";
 import PartyRail from "./party-rail";
+import PlayerCombatStage from "./player-combat-stage";
 import ProficienciesSection from "./proficiencies-section";
-import RailMarks from "./rail-marks";
 import SessionStage from "./session-stage";
 import SpellBook from "./spell-book";
+import SpellFlares from "./spell-flares";
 import XpBar from "./xp-bar";
 import TableMarks from "./table-marks";
 import TableState from "./table-state";
 import TableWire from "./table-wire";
 import TableTitle from "./table-title";
+import TokenStage from "./token-stage";
 import WorldLore from "./world-lore";
+
+/** For `paintScene`: Server Actions take the page's limit, and a painting can
+    run past a minute. Under the three minutes `begin_scene_painting` holds a
+    claim for. */
+export const maxDuration = 120;
 
 export async function generateMetadata({ params, searchParams }) {
   const { id } = await params;
@@ -98,7 +103,7 @@ function markFace(characterId, members) {
       characterId,
       label: member.name,
       src: member.avatar_url,
-      colorClass: diceColorClass(member.dice_color),
+      color: diceColorHex(member.dice_color),
       /* The slug and not a class: the board draws this chair's ARROW in it, and
          an SVG stroke takes a colour rather than a utility. See table-map.jsx. */
       diceColor: member.dice_color,
@@ -120,6 +125,10 @@ function markFace(characterId, members) {
  * will not shrink under its content, so this box always grows to fit and the
  * clip only ever catches what has been transformed out of view; with `min-h-0`
  * a short window squashed it and the clip ate the health band.
+ *
+ * `data-table-scale` is what globals.css sizes the document's rem off, so the
+ * table keeps one proportion on every monitor — which only holds while what
+ * is drawn here is measured in rem rather than in pixels.
  */
 export default async function CampaignTablePage({ params, searchParams }) {
   const { id } = await params;
@@ -300,6 +309,9 @@ export default async function CampaignTablePage({ params, searchParams }) {
 
                 <div className="mt-3">
                   <ProficienciesSection
+                    campaignId={id}
+                    characterId={sheet.id}
+                    canEdit={own}
                     proficiencies={vitals[sheet.id].proficiencies}
                   />
                 </div>
@@ -345,15 +357,18 @@ export default async function CampaignTablePage({ params, searchParams }) {
     : campaignSheetPath(campaign.id);
 
   return (
-    <main className="grid flex-1 grid-rows-[auto_auto_1fr] gap-4 overflow-clip px-4 py-6 sm:px-6">
+    <main
+      data-table-scale
+      className="grid flex-1 grid-rows-[auto_auto_1fr] gap-3 overflow-clip px-4 py-4"
+    >
       {/* Somewhere for a refusal to go once the control that caused it has
           already closed, which at this table is every control: a deed here
           paints before it is written. Outside the socket, because a session
           that expired has to be able to say so too. */}
       <ToastProvider>
         {/* One socket for everything this table tells itself: who is sitting
-          down, a bar moved, a token put down. Outside the dice provider and the
-          grid both, because the way out and the health band are neither. */}
+          down, a bar moved, a token put down. Outside every other provider,
+          since all of them talk over it. */}
         <TableWire
           campaignId={campaign.id}
           seatId={seat?.id ?? null}
@@ -378,55 +393,72 @@ export default async function CampaignTablePage({ params, searchParams }) {
                every switch after it agree. */
             worldUrl={campaign.map_url}
           >
-            <TableState
-              seed={{
-                members,
-                activity,
-                /* Whether the party is fighting, whose turn it is and which
+            {/* The camera and the directions: the head of the table's alone,
+                and never told to the table's channel. */}
+            <SceneStaging
+              campaignId={campaign.id}
+              seed={isDungeonMaster ? loaded.staging : null}
+            >
+              <TableState
+                seed={{
+                  members,
+                  activity,
+                  /* Whether the party is fighting, whose turn it is and which
                    round — three columns off the same row `campaign_table`
                    answers with, so no query was added to load them. */
-                combat: campaign,
-                tokens: loaded.tokens,
-                templates: loaded.templates,
-                inventory,
-                spells,
-                purses,
-                casters: spellcasters,
-                containers,
-                containerItems: loaded.containerItems,
-                vitals,
-                features: loaded.features,
-              }}
-            >
-              {/* Three columns so the title is centred on the viewport rather than on
+                  combat: campaign,
+                  tokens: loaded.tokens,
+                  templates: loaded.templates,
+                  inventory,
+                  spells,
+                  purses,
+                  casters: spellcasters,
+                  containers,
+                  containerItems: loaded.containerItems,
+                  vitals,
+                  features: loaded.features,
+                }}
+              >
+                {/* The background behind the whole page, reddened for a fight. */}
+                <CombatBackdrop />
+
+                {/* Three columns so the title is centred on the viewport rather than on
           what is left beside the way out. The empty third balances the first. */}
-              <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-                <LeaveTable
-                  href={wayOut}
-                  className="float-in cursor-pointer justify-self-start font-sans text-sm text-ink/60 transition hover:text-gold"
-                />
+                <div className="z-20 grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:col-start-1 lg:row-start-1">
+                  <LeaveTable
+                    href={wayOut}
+                    className="float-in cursor-pointer justify-self-start font-sans text-sm text-ink/60 transition hover:text-gold"
+                  />
 
-                <div data-fade className="min-w-0">
-                  <TableTitle title={campaign.title} />
+                  <div data-fade className="min-w-0">
+                    <TableTitle title={campaign.title} />
+                  </div>
                 </div>
-              </div>
 
-              {/* Renders no element of its own, so the two rows below are still the
+                {/* Renders no element of its own, so the two rows below are still the
           grid's. It reaches up over the marks because the spellbook casts from
           in there and the arena it throws into is down here. */}
-              <DiceTable
-                campaignId={campaign.id}
-                seatId={seat?.id ?? null}
-                characterId={seat?.characterId ?? null}
-                // What this chair's dice are cast in, null at the head of the
-                // table. It rides out with every roll this browser starts.
-                diceColor={seat?.diceColor ?? null}
-                // For the line shown while the entry is being written; the one
-                // the log keeps comes off a row. See write_table_log.
-                seatTitle={seat?.title ?? null}
-                canKeepSecrets={isDungeonMaster}
-              >
-                {/*
+                {/* A cast lights the caster on the rail and the board alike. */}
+                <SpellFlares>
+                  <DiceTable
+                    campaignId={campaign.id}
+                    seatId={seat?.id ?? null}
+                    characterId={seat?.characterId ?? null}
+                    // What this chair's dice are cast in, null at the head of the
+                    // table. It rides out with every roll this browser starts.
+                    diceColor={seat?.diceColor ?? null}
+                    diceSkin={seat?.diceSkin ?? null}
+                    // Every style at the table, loaded before anybody throws one.
+                    skins={[
+                      campaign.dice_skin,
+                      ...members.map((member) => member.dice_skin),
+                    ]}
+                    // For the line shown while the entry is being written; the one
+                    // the log keeps comes off a row. See write_table_log.
+                    seatTitle={seat?.title ?? null}
+                    canKeepSecrets={isDungeonMaster}
+                  >
+                    {/*
         A row of their own above the board: sharing the map's column pulled the
         party cards up, since they centre against whatever sits beside them.
 
@@ -438,142 +470,111 @@ export default async function CampaignTablePage({ params, searchParams }) {
         on a page it was put. `data-tuck` is the departure — behind the board
         rather than off the page, which is where they came from.
       */}
-                <div
-                  className={`flex justify-center ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
-                  style={notesEntrance()}
-                  data-tuck="down"
-                >
-                  {seat && (
-                    <TableMarks>
-                      <WorldLore
-                        title={campaign.title}
-                        lore={campaign.world_description}
-                        mapId={worldMap?.id ?? null}
-                        mapUrl={worldMap?.url ?? null}
-                      />
-                      <NotesScroll campaignId={campaign.id} seat={seat} />
-                      {/* Split up in the browser; RLS has already decided which
+                    <div
+                      className={`z-20 flex justify-center lg:col-start-1 lg:row-start-2 ${NOTES_CLASSES} ${seat ? "pb-6" : ""}`}
+                      style={notesEntrance()}
+                      data-tuck="down"
+                    >
+                      {seat && (
+                        <TableMarks>
+                          <WorldLore
+                            title={campaign.title}
+                            lore={campaign.world_description}
+                            mapId={worldMap?.id ?? null}
+                            mapUrl={worldMap?.url ?? null}
+                          />
+                          <NotesScroll campaignId={campaign.id} seat={seat} />
+                          {/* Split up in the browser; RLS has already decided which
                   packs this viewer was handed. */}
-                      <InventoryPack
-                        campaignId={campaign.id}
-                        seat={{
-                          characterId: seat.characterId,
-                          title: seat.title,
-                        }}
-                        members={carriers}
-                        isDungeonMaster={isDungeonMaster}
-                      />
-                      {readable.length > 0 && (
-                        <AbilitySheet
-                          label={
-                            isDungeonMaster
-                              ? "The party’s scores and skills"
-                              : `Scores and skills as ${seat.title}`
-                          }
-                          members={readable}
-                          panels={scorePanels}
-                        />
-                      )}
-                      {/* Split up in the browser; RLS has already decided which books
+                          <InventoryPack
+                            campaignId={campaign.id}
+                            seat={{
+                              characterId: seat.characterId,
+                              title: seat.title,
+                              diceColor: seat.diceColor,
+                              diceSkins: seat.diceSkins,
+                            }}
+                            members={carriers}
+                            isDungeonMaster={isDungeonMaster}
+                          />
+                          {readable.length > 0 && (
+                            <AbilitySheet
+                              label={
+                                isDungeonMaster
+                                  ? "The party’s scores and skills"
+                                  : `Scores and skills as ${seat.title}`
+                              }
+                              members={readable}
+                              panels={scorePanels}
+                            />
+                          )}
+                          {/* Split up in the browser; RLS has already decided which books
                   this viewer was handed. */}
-                      <SpellBook
-                        campaignId={campaign.id}
-                        seat={{
-                          characterId: seat.characterId,
-                          title: seat.title,
-                        }}
-                        members={carriers}
-                        casters={spellcasters}
-                        isDungeonMaster={isDungeonMaster}
-                      />
-                    </TableMarks>
-                  )}
-                </div>
+                          <SpellBook
+                            campaignId={campaign.id}
+                            seat={{
+                              characterId: seat.characterId,
+                              title: seat.title,
+                            }}
+                            members={carriers}
+                            casters={spellcasters}
+                            isDungeonMaster={isDungeonMaster}
+                          />
+                        </TableMarks>
+                      )}
+                    </div>
 
-                {/*
+                    {/*
         A grid, and the empty first column is the reason: matching side columns
         straddle the map on the viewport's centre line whether the party is full
         or empty, and the rail keeps its 20rem instead of being squeezed by a
         wide map. 20rem and not 18: the level ring takes 56px out of the name's
         line, and at 18rem a fourteen-letter name no longer fit.
       */}
-                {/* The grid stands inside the provider and outside all three of its
+                    {/* The grid stands inside the provider and outside all three of its
           own columns: the rail is pressed in one, the dice land in another, and
           the result comes out from under a card in the third. */}
-                {/* `content-start` is load-bearing: this row is the grid's `1fr`, so
-            it takes every pixel the rows above do not, and a track with nothing
-            told to it stretches — which centred the board, the log and the rail
-            in that leftover instead of putting them under the marks. The health
-            band used to spend it, so the bug had nowhere to show.
+                    {/* What the table is fighting, kept current on every chair —
+            outside the grid, since it renders nothing. */}
+                    <CombatSync campaignId={campaign.id} />
 
-            `items-center` beside it is what makes the three columns straddle. */}
-                {/* Whether the initiative tracker is open — held above the grid
-            because the mark that opens it is on the rail in the middle column
-            and the panel it opens is in the first. See combat-drawer.jsx. */}
-                <CombatDrawer campaignId={campaign.id}>
-                  <div className="grid content-start items-center justify-items-center gap-6 lg:grid-cols-[20rem_minmax(0,1fr)_20rem] lg:gap-8">
-                    {/* The column that used to be empty. It was there to balance the
+                    {/* AT ANY CHAIR THE FIRST COLUMN IS WIDER, by the dice rail
+            and its gap: the log, and the head of the table's box over it,
+            take the room an empty box beside the board used to balance the
+            dice with. The board stays on the viewport's centre line — the
+            middle column's centre sits 2.875rem right of it, and the dice
+            rail beside the board pulls the board back by exactly that. A
+            viewer with no chair has neither log nor dice, so even columns. */}
+                    <div
+                      className={`grid content-start items-center justify-items-center gap-6 lg:col-start-1 lg:row-start-1 lg:row-end-4 lg:content-center lg:gap-8 ${
+                        seat
+                          ? "lg:grid-cols-[25.75rem_minmax(0,1fr)_20rem]"
+                          : "lg:grid-cols-[20rem_minmax(0,1fr)_20rem]"
+                      }`}
+                    >
+                      {/* The column that used to be empty. It was there to balance the
                 party rail so the board stayed on the viewport's centre line,
-                and the log is what it now holds — the same width, so the board
-                has not moved. The head of the table's initiative ladder shares
-                that box; see activity-column.jsx. Only for somebody with a
-                chair: a viewer with no seat reads nothing else at this table
-                either. */}
-                    {seat ? (
-                      <ActivityColumn
-                        campaignId={campaign.id}
-                        faces={faces}
-                        canCommand={isDungeonMaster}
-                      />
-                    ) : (
-                      <div aria-hidden="true" className="hidden lg:block" />
-                    )}
+                and the log is what it now holds. The head of the table's box
+                of tools stands over it — the initiative ladder, the maps, the
+                scene painter, the chest, the session and the hand of pieces;
+                see dm-marks.jsx. Only for somebody with a chair: a viewer with
+                no seat reads nothing else at this table either. */}
+                      {seat ? (
+                        <ActivityColumn campaignId={campaign.id} faces={faces}>
+                          {isDungeonMaster ? (
+                            <DmMarks>
+                              {/* First: what the party is fighting is decided
+                                  before the picture it is fought over. */}
+                              <CombatStage
+                                campaignId={campaign.id}
+                                faces={faces}
+                              />
 
-                    {/* The dice stand immediately to the right of the board, and the
-              empty box on the left is what keeps the board itself on the
-              viewport's centre line — the same trick the grid outside plays
-              with its own first column, one level in. Both are the rail's
-              width.
-
-              `gap-10` and not the row's own `gap-3`: the map's glass mat
-              stands 1.5rem proud of the picture on every side, so the gap has
-              to clear that before it is a gap at all. At 2.5rem the marks sit
-              1rem off the frame; at anything under 1.5rem they sit on it. */}
-                    {/* No `data-fade` on the row: the board and the rail beside it
-              leave on their own beats — see panel-fold.js. */}
-                    <div className="flex w-full min-w-0 items-center justify-center gap-10">
-                      {/* THE HEAD OF THE TABLE'S RAIL — the chest, and the session
-                under it. What a player may reach is in the pack above the board,
-                and their own experience is under the skills on the scores sheet.
-
-                Empty for everybody else, and the same width either way: it is
-                what balances the dice rail so the board keeps the viewport's
-                centre line, and it must not move between the two chairs. */}
-                      {seat &&
-                        (isDungeonMaster ? (
-                          /* One column, two marks and ONE panel behind them — the
-                         marks above the board are built the same way, and moving
-                         between the two morphs a single box rather than closing
-                         one and opening another. See rail-marks.jsx.
-
-                         The arrival and the tuck belong to the column rather
-                         than to each mark on it. */
-                          <div
-                            data-tuck="right"
-                            style={railEntrance()}
-                            className={RAIL_MIRRORED_CLASSES}
-                          >
-                            <RailMarks>
-                              {/* Above the shelf, and first on the rail: what the
-                              party is fighting is decided before the picture it
-                              is fought over. Not a tray — what it opens stands
-                              in the log's column, where it covers no board. */}
-                              <CombatStage />
-
-                              {/* Above the chest: which picture the party is
-                              looking at is the first thing a session changes,
-                              and the shelf is the head of the table's alone. */}
+                              {/* Which picture the party is looking at is the
+                                  first thing a session changes. */}
                               <MapShelfStage campaignId={campaign.id} />
+
+                              <SceneStage faces={faces} />
 
                               <ChestStage
                                 campaignId={campaign.id}
@@ -587,56 +588,81 @@ export default async function CampaignTablePage({ params, searchParams }) {
                                 />
                               )}
 
-                              {/* Under the session: what the head of the table
-                                puts on the board. What is IN it depends on the
-                                picture — see token-palette.jsx. */}
-                              <TokenPalette members={carriers} />
-                            </RailMarks>
-                          </div>
-                        ) : (
-                          <div aria-hidden="true" className="w-14 shrink-0" />
-                        ))}
+                              {/* What the head of the table puts on the board.
+                                  What is IN it depends on the picture — see
+                                  token-palette.jsx. */}
+                              <TokenStage members={carriers} />
+                            </DmMarks>
+                          ) : (
+                            <PlayerCombatStage
+                              campaignId={campaign.id}
+                              faces={faces}
+                            />
+                          )}
+                        </ActivityColumn>
+                      ) : (
+                        <div aria-hidden="true" className="hidden lg:block" />
+                      )}
 
-                      <MapStage
-                        url={campaign.map_url}
-                        title={campaign.title}
-                        campaignId={campaign.id}
-                        faces={faces}
-                        // Every other chair's comes out from under its own card.
-                        cast={seat && <DiceCapsule under />}
-                        // The token this viewer puts down, drawn before the write so it
-                        // appears under the pointer at once.
-                        seat={seat && markFace(seat.characterId, members)}
-                        canSweep={isDungeonMaster}
-                      >
-                        {seat && <DiceBoard />}
-                      </MapStage>
+                      {/* The dice stand immediately to the right of the board, with
+              nothing to balance them on the left: the wider first column of
+              the grid outside keeps the board on the viewport's centre line.
 
-                      {/* The seat, not the deed, decides who may keep a roll back — the
+              `gap-9` and not the row's own `gap-3`: the map's glass mat
+              stands 1.5rem proud of the picture on every side, so the gap has
+              to clear that before it is a gap at all. At 2.25rem the marks sit
+              a little over half a rem off the frame — every rem past that is
+              one the board cannot have; under 1.5rem they sit on it. */}
+                      {/* No `data-fade` on the row: the board and the rail beside it
+              leave on their own beats — see panel-fold.js. */}
+                      {/* The board, and under it what rules the map on it: the
+              same 1.5rem of mat to clear, and half a rem of air past it. */}
+                      <div className="flex w-full min-w-0 items-center justify-center gap-9">
+                        <MapStage
+                          url={campaign.map_url}
+                          title={campaign.title}
+                          campaignId={campaign.id}
+                          faces={faces}
+                          // Every other chair's comes out from under its own card.
+                          // Keyed, as is the board below: an element crossing to a
+                          // Client Component can arrive unmarked as checked, and
+                          // React then warns about it as a child in a list.
+                          cast={seat && <DiceCapsule key="cast" under />}
+                          // The token this viewer puts down, drawn before the write so it
+                          // appears under the pointer at once.
+                          seat={seat && markFace(seat.characterId, members)}
+                          canSweep={isDungeonMaster}
+                          canRule={isDungeonMaster}
+                        >
+                          {seat && <DiceBoard key="board" />}
+                        </MapStage>
+
+                        {/* The seat, not the deed, decides who may keep a roll back — the
                 same line the health band and the board are drawn on. */}
-                      {seat && <DiceRail canKeepSecrets={isDungeonMaster} />}
-                    </div>
+                        {seat && <DiceRail canKeepSecrets={isDungeonMaster} />}
+                      </div>
 
-                    {/* Not `data-fade`: the cards carry `data-slide` instead and leave
+                      {/* Not `data-fade`: the cards carry `data-slide` instead and leave
               the way they arrived. See play/entrance.js. */}
-                    {/* The seat, not the deed, decides who may award a level. */}
-                    <PartyRail
-                      campaignId={campaign.id}
-                      members={roster}
-                      isDungeonMaster={isDungeonMaster}
-                      seatCharacterId={seat?.characterId ?? null}
-                      // For the optimistic line alone; `write_table_log` derives
-                      // the one that is written down.
-                      seatTitle={
-                        isDungeonMaster
-                          ? "Dungeon Master"
-                          : (seat?.title ?? null)
-                      }
-                    />
-                  </div>
-                </CombatDrawer>
-              </DiceTable>
-            </TableState>
+                      {/* The seat, not the deed, decides who may award a level. */}
+                      <PartyRail
+                        campaignId={campaign.id}
+                        members={roster}
+                        isDungeonMaster={isDungeonMaster}
+                        seatCharacterId={seat?.characterId ?? null}
+                        // For the optimistic line alone; `write_table_log` derives
+                        // the one that is written down.
+                        seatTitle={
+                          isDungeonMaster
+                            ? "Dungeon Master"
+                            : (seat?.title ?? null)
+                        }
+                      />
+                    </div>
+                  </DiceTable>
+                </SpellFlares>
+              </TableState>
+            </SceneStaging>
           </TableMaps>
         </TableWire>
       </ToastProvider>

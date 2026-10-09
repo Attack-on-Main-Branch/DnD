@@ -14,6 +14,7 @@ import {
   removeCharacterAvatar,
   uploadCharacterAvatar,
 } from "sina/data/characters";
+import { readMemberLook, removeLookImage } from "sina/data/member-looks";
 import { sendCampaignInvite } from "sina/data/notifications";
 import {
   mapObjectPath,
@@ -32,6 +33,7 @@ import {
   readCharacterValues,
   validateCharacter,
 } from "sina/rules/character";
+import { lookImagePathFromUrl } from "sina/rules/member-looks";
 
 import { AVATAR_COPY } from "@/app/actions/avatar-copy";
 import { applyMapShelf, MAP_SHELF_COPY } from "@/app/actions/map-shelf";
@@ -506,10 +508,24 @@ export async function removeCharacterFromParty(campaignId, characterId) {
     return sessionRejection("removeCharacterFromParty", authError);
   }
 
+  // Read before the membership goes: the look cascades away with it, and its
+  // picture would be left with nothing pointing at it.
+  const look = await readMemberLook(supabase, { campaignId, characterId });
+
   const { error } = await removePartyMember(supabase, {
     campaignId,
     characterId,
   });
+
+  const lookPath = lookImagePathFromUrl(look.data?.image_url);
+
+  if (!error && lookPath) {
+    const cleanup = await removeLookImage(supabase, lookPath);
+
+    if (cleanup.error) {
+      logFailure("removeCharacterFromParty/look", cleanup.error);
+    }
+  }
 
   if (error) {
     // Already gone is the outcome the click wanted, so it is a success with

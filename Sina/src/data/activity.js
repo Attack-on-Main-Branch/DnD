@@ -92,6 +92,7 @@ export async function listCampaignActivity(supabase, campaignId, limit) {
     .from("campaign_activity_logs")
     .select(COLUMNS)
     .eq("campaign_id", campaignId)
+    .neq("action_type", "max_hp_change")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(limit);

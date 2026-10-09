@@ -31,17 +31,31 @@ let authorised = null;
 const TOKEN_HELD_MS = 60000;
 let held = { token: null, at: 0 };
 
-async function accessToken() {
+/**
+ * The ask already out, shared. The header's inbox, the page's own listeners
+ * and supabase-js all reach for a token as a page mounts, before any answer has
+ * landed to be held — and Next runs a browser's Actions one at a time, so three
+ * identical asks queued every Action the visitor pressed next behind them.
+ */
+let asking = null;
+
+function accessToken() {
   const now = Date.now();
 
   if (held.token && now - held.at < TOKEN_HELD_MS) {
-    return held.token;
+    return Promise.resolve(held.token);
   }
 
-  const token = await realtimeToken();
-  held = { token, at: now };
+  asking ??= realtimeToken()
+    .then((token) => {
+      held = { token, at: now };
+      return token;
+    })
+    .finally(() => {
+      asking = null;
+    });
 
-  return token;
+  return asking;
 }
 
 /** The client and the ways of listening on it, in one await. */

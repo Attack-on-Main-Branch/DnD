@@ -13,6 +13,7 @@ import {
   editCampaignToken,
   writeCampaignToken,
 } from "@/app/actions/campaign-tokens";
+import { MAX_TOKEN_HP } from "sina/rules/token-health";
 import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
 import { CHOICE_CARD_FOCUS_CLASSES } from "@/app/components/ui/field-styles";
 import FormActions from "@/app/components/ui/form-actions";
@@ -21,7 +22,7 @@ import TextField from "@/app/components/ui/text-field";
 import { AVATAR_EDGE, compressToken } from "@/lib/image-compression";
 
 /**
- * A piece for the board: a picture and a name, and nothing else to decide.
+ * A piece for the board: a picture, a name, and optional private hit points.
  *
  * WHAT COLOUR IT WEARS IS NOT ASKED HERE. One invented piece is placed as many
  * times as the encounter needs, and the rim is what tells the copies apart — so
@@ -48,6 +49,7 @@ export default function TokenForm({
   notice = null,
 }) {
   const [name, setName] = useState(editing?.name ?? "");
+  const [maxHp, setMaxHp] = useState(editing?.max_hp ?? "");
   const [image, setImage] = useState(() =>
     editing ? { preview: editing.image_url } : null,
   );
@@ -73,6 +75,7 @@ export default function TokenForm({
        assigned a File — only a DataTransfer's list. */
     const body = new FormData();
     body.set("name", name);
+    body.set("maxHp", String(maxHp));
 
     if (image.file) {
       body.set("image", image.file);
@@ -101,6 +104,7 @@ export default function TokenForm({
       }
 
       setName("");
+      setMaxHp("");
       setImage(null);
       setError(null);
       setField(null);
@@ -124,20 +128,37 @@ export default function TokenForm({
         />
 
         <div className="min-w-56 flex-1">
-          <TextField
-            label="Name"
-            value={name}
-            maxLength={MAX_TOKEN_NAME_LENGTH}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Goblin"
-            disabled={blocked}
-            invalid={field === "name"}
-            aria-describedby={FEEDBACK_ID}
-          />
-
+          <div className="grid grid-cols-[minmax(0,1fr)_9rem] items-end gap-3">
+            <TextField
+              label="Name"
+              value={name}
+              maxLength={MAX_TOKEN_NAME_LENGTH}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Goblin"
+              disabled={blocked}
+              invalid={field === "name"}
+              aria-describedby={FEEDBACK_ID}
+            />
+            <TextField
+              label="Hit points"
+              type="number"
+              min={1}
+              max={MAX_TOKEN_HP}
+              step={1}
+              value={maxHp}
+              onChange={(event) => setMaxHp(event.target.value)}
+              placeholder="Optional"
+              disabled={blocked}
+              invalid={field === "maxHp"}
+              aria-describedby={FEEDBACK_ID}
+            />
+          </div>
           <p className="mt-2 text-xs text-ink/50">
             It joins the palette at the table, under the party. Put it down as
             many times as you need — each copy takes a rim colour of its own.
+          </p>
+          <p className="mt-2 text-xs text-ink/50">
+            Each new copy starts at full HP. Only you can see and change it.
           </p>
         </div>
       </div>
@@ -160,9 +181,42 @@ export default function TokenForm({
 /**
  * The picture, chosen by dropping one on the disc or pressing it. A round zone
  * because a token IS round on the board — a square preview would promise a crop
- * the map never makes.
+ * the map never makes. `frame="panel"` fills a landscape reference preview.
  */
-function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
+const FRAMES = {
+  disc: {
+    field: "items-center",
+    zone: "size-20 rounded-full",
+    fit: "object-cover",
+    scrim: "text-[10px]",
+    remove: "-top-0.5 -right-0.5",
+    problem: "max-w-40 text-center",
+    hintsWhenEmpty: true,
+  },
+  panel: {
+    field: "w-full",
+    zone: "aspect-video w-full rounded-lg",
+    fit: "object-cover",
+    scrim: "text-xs",
+    remove: "top-2 right-2",
+    problem: "",
+    hintsWhenEmpty: false,
+  },
+};
+
+export function TokenImageField({
+  image,
+  onChange,
+  onBusyChange,
+  disabled,
+  invalid,
+  compress = compressToken,
+  maxBytes = MAX_TOKEN_IMAGE_BYTES,
+  hint = `${AVATAR_EDGE}px WebP`,
+  empty = <TokenCameo />,
+  frame = "disc",
+}) {
+  const shape = FRAMES[frame];
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -206,7 +260,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
     onBusyChange(true);
 
     try {
-      const result = await compressToken(file, MAX_TOKEN_IMAGE_BYTES);
+      const result = await compress(file, maxBytes);
 
       // A newer pick started while this one was encoding; it owns the field.
       if (run !== runId.current) {
@@ -218,9 +272,9 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
         return;
       }
 
-      if (result.file.size > MAX_TOKEN_IMAGE_BYTES) {
+      if (result.file.size > maxBytes) {
         reject(
-          `That picture is ${formatBytes(result.file.size)} even after compression, over the ${formatBytes(MAX_TOKEN_IMAGE_BYTES)} limit.`,
+          `That picture is ${formatBytes(result.file.size)} even after compression, over the ${formatBytes(maxBytes)} limit.`,
         );
         return;
       }
@@ -242,7 +296,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
       : "border-gold/25 hover:border-gold/55";
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${shape.field}`}>
       <div className="relative">
         {/* A label wrapping a file input: the input is the control. */}
         <label
@@ -259,7 +313,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
               accept(event.dataTransfer.files?.[0]);
             }
           }}
-          className={`group relative grid size-20 place-items-center overflow-hidden rounded-full border border-dashed bg-surface/40 transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
+          className={`group relative grid ${shape.zone} place-items-center overflow-hidden border border-dashed bg-surface/40 transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
           } ${rim}`}
           aria-invalid={invalid || undefined}
@@ -281,19 +335,21 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
             <img
               src={image.preview}
               alt=""
-              className="absolute inset-0 size-full object-cover"
+              className={`absolute inset-0 size-full ${shape.fit}`}
             />
           ) : (
-            <TokenCameo />
+            empty
           )}
 
           {/* Always drawn and only revealed: a scrim that mounts on hover
               cannot be transitioned in, and reads as a flicker. */}
           <span
-            className={`absolute inset-0 grid place-items-center bg-surface/75 text-center font-display text-[10px] leading-tight tracking-[0.12em] text-gold uppercase transition-opacity duration-300 ${
+            className={`absolute inset-0 grid place-items-center bg-surface/75 text-center font-display ${shape.scrim} leading-tight tracking-[0.12em] text-gold uppercase transition-opacity duration-300 ${
               busy || dragging
                 ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100"
+                : image || shape.hintsWhenEmpty
+                  ? "opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100"
+                  : "opacity-0"
             }`}
           >
             {busy ? "…" : image ? "Change" : "Picture"}
@@ -313,7 +369,7 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
               }
             }}
             aria-label="Remove the picture"
-            className="absolute -top-0.5 -right-0.5 grid size-6 cursor-pointer place-items-center rounded-full border border-gold/30 bg-surface/90 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400"
+            className={`absolute ${shape.remove} grid size-6 cursor-pointer place-items-center rounded-full border border-gold/30 bg-surface/90 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400`}
           >
             ×
           </button>
@@ -321,12 +377,12 @@ function TokenImageField({ image, onChange, onBusyChange, disabled, invalid }) {
       </div>
 
       {problem ? (
-        <p role="alert" className="max-w-40 text-center text-xs text-red-400">
+        <p role="alert" className={`text-xs text-red-400 ${shape.problem}`}>
           {problem}
         </p>
       ) : (
         <p className="font-mono text-[10px] text-ink/40">
-          {image?.bytes ? formatBytes(image.bytes) : `${AVATAR_EDGE}px WebP`}
+          {image?.bytes ? formatBytes(image.bytes) : hint}
         </p>
       )}
     </div>

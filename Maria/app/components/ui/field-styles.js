@@ -68,4 +68,4 @@ export const INVALID_GROUP_CLASSES = "ring-2 ring-red-500/40";
  * out at each zone — change the field's padding or type scale and this is the
  * one place that has to follow. A literal, or Tailwind's scanner never sees it.
  */
-export const PROSE_FIELD_HEIGHT_CLASS = "min-h-[138px]";
+export const PROSE_FIELD_HEIGHT_CLASS = "min-h-[8.625rem]";

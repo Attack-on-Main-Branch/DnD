@@ -1,11 +1,9 @@
 "use client";
 
-import { isDying } from "sina/rules/death";
-
 import CardHealth from "./card-health";
 import DeathSaves from "./death-saves";
 import ReviveButton from "./revive-button";
-import { useHitPoints, useIsDead } from "./table-state";
+import { useIsDying, useIsDead } from "./table-state";
 
 /**
  * The bottom half of a party card: whichever of the three a character is
@@ -37,9 +35,8 @@ export default function CardCondition({
   canEdit,
   isDungeonMaster,
 }) {
-  const hitPoints = useHitPoints(characterId);
   const dead = useIsDead(characterId);
-  const dying = isDying(hitPoints, dead);
+  const dying = useIsDying(characterId);
 
   return (
     <>

@@ -3,7 +3,12 @@
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
-import { MAP_HEIGHT_CLASS, MAP_MAX_WIDTH_CLASS } from "./map-height";
+import {
+  MAP_HEIGHT_CLASS,
+  MAP_MAX_HEIGHT_CLASS,
+  MAP_MAX_HEIGHT_TOOLS_CLASS,
+} from "./map-height";
+import { useMapToolsShown } from "./map-tools";
 import TableMap from "./table-map";
 import { useCombatState } from "./table-state";
 import { useTableMaps } from "./table-maps";
@@ -42,6 +47,9 @@ import { useTableMaps } from "./table-maps";
  * what is actually on the table is whatever the Dungeon Master last reached
  * for — which arrives over a socket rather than through a render. The prop is
  * still the fallback, and the only picture a table with no shelf ever shows.
+ *
+ * `canRule` is the head of the table: the map tools stand under the board for
+ * them, and the picture gives up their height.
  */
 export default function MapStage({
   url: served,
@@ -50,13 +58,16 @@ export default function MapStage({
   faces,
   seat,
   canSweep,
+  canRule = false,
   cast = null,
   children,
 }) {
-  const { activeUrl } = useTableMaps();
+  const { activeUrl, isScene } = useTableMaps();
   const { inCombat } = useCombatState();
+  const ruled = useMapToolsShown(canRule);
 
   const url = activeUrl ?? served;
+  const drawing = !canSweep && seat?.characterId && !isScene;
 
   if (!url) {
     return (
@@ -83,13 +94,11 @@ export default function MapStage({
        narrow for the map at its own size did not shrink the picture, it painted
        it over the log and the party.
 
-       THE WIDTH CEILING IS HERE AND NOT ON THE PICTURE, because the mat below
-       is `-inset-6` of THIS box: a box wider than what is inside it is a mat
-       that stands proud of the map on one side. See map-height.js. */
-    <div
-      data-shrink
-      className={`relative w-fit min-w-0 ${MAP_MAX_WIDTH_CLASS}`}
-    >
+       NO WIDTH CEILING HERE OR ON THE PICTURE: the mat below is `-inset-6` of
+       THIS box, and a ceiling on either alone leaves the box wider than what is
+       inside it — a mat standing proud of the map on one side. The column is
+       the only width limit. See map-height.js. */
+    <div data-shrink className="relative w-fit min-w-0">
       {/* No `glow`: the rim would light under the pointer, which promises a
           control where there is only a picture.
 
@@ -117,13 +126,15 @@ export default function MapStage({
         faces={faces}
         seat={seat}
         canSweep={canSweep}
+        cast={cast}
+        heightClass={
+          ruled || drawing ? MAP_MAX_HEIGHT_TOOLS_CLASS : MAP_MAX_HEIGHT_CLASS
+        }
         className={`relative ${MAP_CLASSES}`}
         style={MAP_DELAY}
       />
 
       {children}
-
-      {cast}
     </div>
   );
 }

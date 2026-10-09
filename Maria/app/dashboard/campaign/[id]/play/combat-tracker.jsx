@@ -24,7 +24,11 @@ import { useCombat } from "./use-combat";
  * ONLY WHAT IS ON THE BOARD — the rows of `map_placed_tokens` for the picture on
  * the table, not the party rail and not the hand of pieces.
  */
-export default function CombatTracker({ campaignId, faces }) {
+export default function CombatTracker({
+  campaignId,
+  faces,
+  canManage = false,
+}) {
   const {
     inCombat,
     activeTokenId,
@@ -47,38 +51,38 @@ export default function CombatTracker({ campaignId, faces }) {
         {/* It moves on the wrap and nothing else, so the number is exactly how
             many times the ladder has been round. */}
         {inCombat && (
-          <p className="shrink-0 font-mono text-[10px] tracking-[0.2em] text-rose-300/80 uppercase">
+          <p className="shrink-0 font-mono text-[0.625rem] tracking-[0.2em] text-rose-300/80 uppercase">
             Round {round}
           </p>
         )}
       </div>
 
-      {/* Both controls on one line: the ladder is what the panel is for, and
-          stacked these spent 110px on two words each. */}
-      <div className="flex items-center gap-2 px-4 pb-3">
-        <button
-          type="button"
-          onClick={inCombat ? conclude : begin}
-          className={`flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-[10px] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
-            inCombat
-              ? "border-rose-500 bg-rose-950/60 text-rose-300 shadow-[0_0_12px_rgba(225,29,72,0.6)] motion-safe:animate-pulse"
-              : "border-gold/30 text-gold hover:bg-gold/10"
-          }`}
-        >
-          {inCombat ? "End combat" : "Start combat"}
-        </button>
-
-        {/* Nothing to hand on when nobody has rolled. */}
-        {inCombat && order.length > 0 && (
+      {canManage && (
+        <div className="flex items-center gap-2 px-4 pb-3">
           <button
             type="button"
-            onClick={nextTurn}
-            className="flex-1 cursor-pointer rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-2 font-mono text-[10px] tracking-[0.16em] text-amber-200 uppercase transition duration-300 hover:bg-amber-400/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            onClick={inCombat ? conclude : begin}
+            className={`flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+              inCombat
+                ? "border-rose-500 bg-rose-950/60 text-rose-300 shadow-[0_0_12px_rgba(225,29,72,0.6)] motion-safe:animate-pulse"
+                : "border-gold/30 text-gold hover:bg-gold/10"
+            }`}
           >
-            Next turn
+            {inCombat ? "End combat" : "Start combat"}
           </button>
-        )}
-      </div>
+
+          {/* Nothing to hand on when nobody has rolled. */}
+          {inCombat && order.length > 0 && (
+            <button
+              type="button"
+              onClick={nextTurn}
+              className="flex-1 cursor-pointer rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] text-amber-200 uppercase transition duration-300 hover:bg-amber-400/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Next turn
+            </button>
+          )}
+        </div>
+      )}
 
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
@@ -104,7 +108,7 @@ export default function CombatTracker({ campaignId, faces }) {
                 active={inCombat && piece.id === activeTokenId}
                 offset={stepAbove(pieces, at)}
                 ruled={hasBelow(pieces, at)}
-                onWrite={setInitiative}
+                onWrite={canManage ? setInitiative : undefined}
               />
             ))}
           </ol>
@@ -121,11 +125,12 @@ export default function CombatTracker({ campaignId, faces }) {
  * costs nothing, and half a capsule is what says one went after the other.
  * DOWN ONE SIDE, A WHOLE ONE, or two capsules would pass through each other.
  *
- * Pixels and not a `-mt-*` utility: it is arithmetic off the pill's height, and
- * a class built from a value is one Tailwind's scanner never sees.
+ * Not a `-mt-*` utility: it is arithmetic off the pill's height, and a class
+ * built from a value is one Tailwind's scanner never sees. In rem, as the
+ * pill's `size-7` is, so the two scale with the table together.
  */
-const PILL_PX = 28;
-const SIDE_GAP_PX = 10;
+const PILL_REM = 1.75;
+const SIDE_GAP_REM = 0.625;
 
 /** Which column a piece stands in: what the table invented is on the right. */
 function side(piece) {
@@ -138,8 +143,8 @@ function stepAbove(pieces, at) {
   }
 
   return side(pieces[at]) === side(pieces[at - 1])
-    ? SIDE_GAP_PX
-    : (SIDE_GAP_PX - PILL_PX) / 2;
+    ? SIDE_GAP_REM
+    : (SIDE_GAP_REM - PILL_REM) / 2;
 }
 
 /**
@@ -168,14 +173,14 @@ function Rung({ piece, active, offset, ruled, onWrite }) {
 
   return (
     <li
-      style={{ marginTop: offset }}
+      style={{ marginTop: `${offset}rem` }}
       className={`relative flex ${enemy ? "justify-end" : "justify-start"}`}
     >
       {/* Its own side's rule, run to the middle and no further. */}
       {ruled && (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute -bottom-[5px] h-px bg-gold/12 ${
+          className={`pointer-events-none absolute -bottom-[0.3125rem] h-px bg-gold/12 ${
             enemy ? "right-0 left-1/2" : "right-1/2 left-0"
           }`}
         />
@@ -203,11 +208,20 @@ function Rung({ piece, active, offset, ruled, onWrite }) {
         {/* KEYED ON THE NUMBER, which is what reconciles the box with the
             table: a value that changes under it is a fresh box holding the fresh
             number. A commit only lands on the way out, so no caret is lost. */}
-        <InitiativeBox
-          key={written(piece.initiative)}
-          piece={piece}
-          onWrite={onWrite}
-        />
+        {onWrite ? (
+          <InitiativeBox
+            key={written(piece.initiative)}
+            piece={piece}
+            onWrite={onWrite}
+          />
+        ) : (
+          <span
+            aria-label={`Initiative for ${piece.label}`}
+            className="w-9 shrink-0 text-center font-display text-sm font-bold text-gold tabular-nums"
+          >
+            {written(piece.initiative) || "—"}
+          </span>
+        )}
       </div>
     </li>
   );
@@ -270,7 +284,7 @@ function Face({ piece, edge }) {
     return (
       <Avatar
         src={piece.src}
-        colorClass={piece.colorClass}
+        color={piece.color}
         size="xs"
         ring={false}
         className={`shrink-0 ${edge}`}

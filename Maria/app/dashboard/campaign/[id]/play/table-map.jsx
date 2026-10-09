@@ -1,19 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  DEFAULT_CONE_ANGLE,
+  MAP_DRAWING_SHAPES,
+  isDrawingCell,
+  isDrawingPoint,
+  readMapDrawing,
+} from "sina/rules/map-drawing";
 
 import { hexToPixel, pixelToHex } from "@/lib/hex-math";
 
 import { useMapZoom } from "../use-map-zoom";
 
 import { holdTray } from "./dice-engine";
-import DragArrow, { DragDistance } from "./drag-arrow";
+import MapDrawing, { DrawingDistance } from "./map-drawing";
+import MapDrawingTools, { MapControlTray } from "./map-drawing-tools";
+import MapTools from "./map-tools";
 import FogOverlay from "./fog-overlay";
+import FogBrushPreview from "./fog-brush-preview";
 import HexGridOverlay from "./hex-grid-overlay";
 import { HEAD_OF_TABLE } from "./dice-table";
 import { useTableMaps } from "./table-maps";
 import { useTableWire, useWireMessage } from "./table-wire";
 import MapTokens, { TokenRoll } from "./map-tokens";
+import SceneCamera from "./scene-camera";
+import { useSceneStaging } from "./scene-staging";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { MAP_MAX_HEIGHT_CLASS } from "./map-height";
 import { useMapTokens } from "./use-map-tokens";
@@ -21,19 +33,16 @@ import { useMapTokens } from "./use-map-tokens";
 /**
  * The board, and the two hands over it.
  *
- * THE WHEEL ZOOMS and the left button belongs to the pieces; a press that did
- * not start on one pans instead. The campaign sheet's modal still zooms on a
- * click, having nothing standing on it to fight for the press.
+ * The wheel zooms. Players with a token draw with either button; only arrow
+ * mode also moves pieces. Other chairs keep the left-button pan.
  *
  * The frame clips the zoom and shrink-wraps the picture, so the glass mat round
  * it stays the same rim at every size and the pieces lie over it on a plain
  * `inset-0`. The entrance rides on the frame rather than the image, which is
  * already carrying the pan and the scale.
  *
- * THE RIGHT BUTTON IS A RULER over bare map, and the piece's own menu over a
- * piece — see map-token.jsx, which stops the press before it reaches here. Held
- * down the ruler measures, and letting go does nothing. It exists so the rest of
- * the table can watch — see `announce`.
+ * Drawings are ephemeral and shared through `announce`. Releasing a drawing
+ * clears it without changing any pieces.
  *
  * It also announces the picture's own size: the dice tray IS this picture, and
  * `naturalWidth` is a property of the file rather than of the box it is drawn
@@ -52,6 +61,8 @@ export default function TableMap({
   faces,
   seat,
   canSweep,
+  cast = null,
+  heightClass = MAP_MAX_HEIGHT_CLASS,
   className = "",
   style,
 }) {
@@ -83,7 +94,9 @@ export default function TableMap({
   const {
     activeId,
     isWorldMap,
+    isScene,
     grid,
+    gridSettled,
     holding,
     hold,
     fog,
@@ -98,40 +111,64 @@ export default function TableMap({
     campaignId,
     mapId: activeId,
     isWorldMap,
-    ruled: grid.enabled,
+    isScene,
+    settled: gridSettled,
+    natural,
     faces,
     seat,
     canSweep,
   });
 
   const { send } = useTableWire();
+  const [shape, setShape] = useState(MAP_DRAWING_SHAPES[0]);
+  const [angle, setAngle] = useState(DEFAULT_CONE_ANGLE);
+  const canDraw = Boolean(
+    activeId && !isScene && (canSweep || (seat?.characterId && ownToken)),
+  );
 
-  /* The ruler: where the right button was pressed, and nothing else. */
+  const scene = useSceneStaging();
+  const staged = Boolean(
+    canSweep && scene.enabled && activeId && !isWorldMap && !isScene,
+  );
+  const camera = staged ? (scene.cameras.get(activeId) ?? null) : null;
+
+  /** The selected shape and where its drag began. */
   const [measure, setMeasure] = useState(null);
 
   /* Everybody else's arrows, by seat. A ruled board names cells and an unruled
      one names points; `anchorOf` takes whichever it can use. */
   const [aims, setAims] = useState({});
 
+  useEffect(() => setAims({}), [activeId]);
+
   useWireMessage(
     "aim",
-    useCallback((message) => {
-      const at = typeof message.seat === "string" ? message.seat : null;
+    useCallback(
+      (message) => {
+        const at = typeof message.seat === "string" ? message.seat : null;
 
-      if (!at) {
-        return;
-      }
-
-      setAims((standing) => {
-        if (!aimed(message.from) || !aimed(message.to)) {
-          const { [at]: gone, ...rest } = standing;
-
-          return gone === undefined ? standing : rest;
+        if (
+          !at ||
+          message.mapId !== activeId ||
+          (at !== HEAD_OF_TABLE &&
+            !faces.some((face) => face.characterId === at))
+        ) {
+          return;
         }
 
-        return { ...standing, [at]: { from: message.from, to: message.to } };
-      });
-    }, []),
+        const drawing = readMapDrawing(message);
+        setAims((standing) => {
+          if (!drawing) {
+            const { [at]: gone, ...rest } = standing;
+
+            return gone === undefined ? standing : rest;
+          }
+
+          return { ...standing, [at]: { ...drawing, mapId: activeId } };
+        });
+      },
+      [activeId, faces],
+    ),
   );
 
   useEffect(() => {
@@ -228,7 +265,21 @@ export default function TableMap({
    */
   const onTap = useCallback(
     (point) => {
-      if (!point || !place) {
+      if (!point) {
+        return false;
+      }
+
+      if (staged && scene.armed) {
+        scene.place(
+          activeId,
+          point,
+          tokens.map((token) => ({ x: token.x, y: token.y })),
+        );
+
+        return true;
+      }
+
+      if (!place) {
         return false;
       }
 
@@ -249,7 +300,20 @@ export default function TableMap({
 
       return false;
     },
-    [carrying, hold, holding, ownPiece, ownToken, place, put, snap],
+    [
+      activeId,
+      carrying,
+      hold,
+      holding,
+      ownPiece,
+      ownToken,
+      place,
+      put,
+      scene,
+      snap,
+      staged,
+      tokens,
+    ],
   );
 
   const { zoomed, frameProps, imageStyle, scale, pointAt } = useMapZoom({
@@ -277,14 +341,14 @@ export default function TableMap({
   const spoke = useRef(0);
 
   const announce = useCallback(
-    (from, to) => {
-      const ruled = cell(from) && cell(to);
+    (from, to, shape = MAP_DRAWING_SHAPES[0], angle = DEFAULT_CONE_ANGLE) => {
+      const ruled = isDrawingCell(from) && isDrawingCell(to);
       const next =
         !from || !to
           ? null
           : ruled
-            ? `${from.q},${from.r}:${to.q},${to.r}`
-            : `${to.x.toFixed(4)},${to.y.toFixed(4)}`;
+            ? `${activeId}:${shape}:${angle}:${from.q},${from.r}:${to.q},${to.r}`
+            : `${activeId}:${shape}:${angle}:${from.x.toFixed(4)},${from.y.toFixed(4)}:${to.x.toFixed(4)},${to.y.toFixed(4)}`;
 
       if (told.current === next) {
         return;
@@ -301,12 +365,15 @@ export default function TableMap({
 
       send({
         kind: "aim",
+        mapId: activeId,
         seat: seat?.characterId ?? HEAD_OF_TABLE,
+        shape,
+        angle,
         from: from && named(from),
         to: to && named(to),
       });
     },
-    [seat, send],
+    [activeId, seat, send],
   );
 
   /* Kept current without the effect below naming them: `pointAt` is rebuilt on
@@ -324,6 +391,14 @@ export default function TableMap({
       fogSize,
     };
   });
+
+  useEffect(() => {
+    setMeasure(null);
+    setLifted(null);
+    setHover(null);
+
+    return () => latest.current?.announce(null, null);
+  }, [activeId, canDraw, shape, angle]);
 
   /**
    * The lit cell under a moving hand. Compared rather than assigned, or the
@@ -360,6 +435,9 @@ export default function TableMap({
     }
 
     function follow(event) {
+      if (measure && event.pointerId !== measure.pointerId) {
+        return;
+      }
       const point = aimAt(event);
 
       /* A HIDDEN PIECE DRAGS IN SILENCE. Its row is withheld from every player,
@@ -371,10 +449,18 @@ export default function TableMap({
 
       const anchor = carrying ? carrying.from : measure.from;
 
-      latest.current.announce(anchor && latest.current.snap(anchor), point);
+      latest.current.announce(
+        anchor && latest.current.snap(anchor),
+        point,
+        measure?.shape,
+        measure?.angle,
+      );
     }
 
     function release(event) {
+      if (measure && event.pointerId !== measure.pointerId) {
+        return;
+      }
       const { pointAt: at, snap: pull } = latest.current;
 
       if (measure) {
@@ -412,14 +498,24 @@ export default function TableMap({
       setHover(null);
     }
 
+    function cancel() {
+      setMeasure(null);
+      setLifted(null);
+      setHover(null);
+      handled.current = false;
+      latest.current.announce(null, null);
+    }
+
     document.addEventListener("pointermove", follow);
     document.addEventListener("pointerup", release);
-    document.addEventListener("pointercancel", release);
+    document.addEventListener("pointercancel", cancel);
+    window.addEventListener("blur", cancel);
 
     return () => {
       document.removeEventListener("pointermove", follow);
       document.removeEventListener("pointerup", release);
-      document.removeEventListener("pointercancel", release);
+      document.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("blur", cancel);
     };
   }, [aimAt, carrying, hold, lifted, measure]);
 
@@ -501,23 +597,36 @@ export default function TableMap({
         from: snap(measure ? measure.from : carrying.from),
         to: hover,
         color: seatColor(seat, faces),
+        shape: measure?.shape ?? MAP_DRAWING_SHAPES[0],
+        angle: measure?.angle ?? DEFAULT_CONE_ANGLE,
       });
     }
 
     // And everybody else's, from the cell they named on a ruled board or the
     // point they named on one without lines.
     for (const [at, beam] of Object.entries(aims)) {
+      if (beam.mapId !== activeId) {
+        continue;
+      }
       const from = anchorOf(beam.from, grid.enabled, grid.size, natural);
       const to = anchorOf(beam.to, grid.enabled, grid.size, natural);
 
       if (from && to) {
-        drawn.push({ key: at, from, to, color: chairColor(at, faces) });
+        drawn.push({
+          key: at,
+          from,
+          to,
+          shape: beam.shape,
+          angle: beam.angle,
+          color: chairColor(at, faces),
+        });
       }
     }
 
     return drawn;
   }, [
     aims,
+    activeId,
     carrying,
     faces,
     grid.enabled,
@@ -529,11 +638,9 @@ export default function TableMap({
     snap,
   ]);
 
-  /* The ruler is a held right button, so the menu under it is refused — over
-     the picture and on a ruled board only. A press that started on a PIECE
-     never reaches this: map-token.jsx stops both halves. */
+  /** Right-button drawings suppress the browser's menu over the map. */
   function onContextMenu(event) {
-    if (grid.enabled && pointAt(event)) {
+    if ((grid.enabled || canDraw) && pointAt(event)) {
       event.preventDefault();
     }
   }
@@ -561,13 +668,24 @@ export default function TableMap({
             return;
           }
 
-          // The ruler, and only on a ruled board: what it measures is cells.
-          if (event.button === 2 && grid.enabled) {
+          if (
+            event.isPrimary &&
+            ((event.button === 2 && (grid.enabled || canDraw)) ||
+              (event.button === 0 &&
+                canDraw &&
+                !holding &&
+                !(staged && scene.armed)))
+          ) {
             const from = snap(pointAt(event));
 
             if (from) {
               event.preventDefault();
-              setMeasure({ from });
+              setMeasure({
+                from,
+                shape: canDraw ? shape : MAP_DRAWING_SHAPES[0],
+                angle,
+                pointerId: event.pointerId,
+              });
 
               // The whole point, for the reason `aimAt` keeps it.
               setHover(from);
@@ -599,7 +717,11 @@ export default function TableMap({
            so a cursor promising one was pointing at a control that is not
            there. Zoomed in it is a hand, because then it pans. */
         className={`group relative w-fit touch-none overflow-hidden rounded-xl select-none ${
-          zoomed ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+          (staged && scene.armed) || canDraw
+            ? "cursor-crosshair"
+            : zoomed
+              ? "cursor-grab active:cursor-grabbing"
+              : "cursor-default"
         } ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -611,7 +733,7 @@ export default function TableMap({
           // Without this the browser starts its own image drag on mousedown,
           // which cancels the pan before it begins.
           draggable={false}
-          className={`block max-w-full ${MAP_MAX_HEIGHT_CLASS}`}
+          className={`block max-w-full ${heightClass}`}
           style={imageStyle}
           onLoad={(event) => {
             const size = {
@@ -655,12 +777,14 @@ export default function TableMap({
         {/* UNDER THE PIECES: an arrow across a crowded board runs behind the
             faces rather than over them. The figures go over — see below. */}
         {beams.map((beam) => (
-          <DragArrow
+          <MapDrawing
             key={beam.key}
             width={natural.width}
             height={natural.height}
             from={beam.from}
             to={beam.to}
+            shape={beam.shape}
+            angle={beam.angle}
             // The cell, ruled or not — the piece it points at is that size too.
             size={grid.size}
             color={beam.color}
@@ -669,6 +793,8 @@ export default function TableMap({
         ))}
 
         <MapTokens
+          campaignId={campaignId}
+          canSweep={canSweep}
           tokens={tokens}
           scale={scale}
           layerStyle={imageStyle}
@@ -685,7 +811,7 @@ export default function TableMap({
           /* Where the press began travels with it: a press that goes nowhere
              is not a drag, and now does nothing at all. */
           onGrab={
-            place
+            place && (!canDraw || shape === MAP_DRAWING_SHAPES[0])
               ? (token, event) =>
                   setLifted({
                     piece: pieceOf(token),
@@ -702,12 +828,13 @@ export default function TableMap({
             of the arrow on the piece that is moving, so the figure was drawn
             behind a face; nothing but tree order lifts it clear. */}
         {beams.map((beam) => (
-          <DragDistance
+          <DrawingDistance
             key={beam.key}
             width={natural.width}
             height={natural.height}
             from={beam.from}
             to={beam.to}
+            shape={beam.shape}
             size={grid.size}
             layerStyle={imageStyle}
           />
@@ -715,16 +842,51 @@ export default function TableMap({
 
         {/* LAST, AND OVER EVERYTHING: a piece standing in a room nobody has
             opened is part of what the darkness is hiding. */}
-        {fog.enabled && (
-          <FogOverlay
-            maskRef={mask.maskRef}
-            subscribe={mask.subscribe}
-            seeThrough={canSweep}
-            style={imageStyle}
+        <FogOverlay
+          key={activeId}
+          maskRef={mask.maskRef}
+          subscribe={mask.subscribe}
+          seeThrough={canSweep}
+          enabled={fog.enabled}
+          style={imageStyle}
+        />
+        <FogBrushPreview
+          size={fogSize}
+          scale={scale}
+          canSweep={canSweep}
+          brush={brush}
+          frameRef={frameRef}
+          pointAt={pointAt}
+        />
+
+        {/* Over the fog: the Dungeon Master sees through it anyway. */}
+        {camera && (
+          <SceneCamera
+            camera={camera}
+            natural={natural}
+            scale={scale}
+            layerStyle={imageStyle}
+            pointAt={pointAt}
+            onPaint={(patch) => scene.paintCamera(activeId, patch)}
+            onCommit={(patch) => scene.commitCamera(activeId, patch)}
           />
         )}
       </div>
 
+      <div className="pointer-events-none absolute inset-x-0 top-full z-10">
+        {(canSweep || seat?.characterId) && (
+          <MapControlTray shown={canDraw}>
+            {canSweep && <MapTools />}
+            <MapDrawingTools
+              shape={shape}
+              angle={angle}
+              onShape={setShape}
+              onAngle={setAngle}
+            />
+          </MapControlTray>
+        )}
+        <div className="relative">{cast}</div>
+      </div>
       <TokenRoll tokens={tokens} />
     </>
   );
@@ -790,27 +952,6 @@ function chairColor(at, faces) {
   return face?.diceColor ? diceColorHex(face.diceColor) : "var(--color-gold)";
 }
 
-/** A cell off the wire, believed only as far as its shape. */
-function cell(value) {
-  return Boolean(
-    value && Number.isInteger(value.q) && Number.isInteger(value.r),
-  );
-}
-
-function fraction(value) {
-  return Number.isFinite(value) && value >= 0 && value <= 1;
-}
-
-/** A point on the picture, whether or not it also names a cell. */
-function spot(value) {
-  return Boolean(value && fraction(value.x) && fraction(value.y));
-}
-
-/** Enough off the wire to draw an end of an arrow from. */
-function aimed(value) {
-  return cell(value) || spot(value);
-}
-
 /** The pair as this chair sends them: the point always, the cell where there is one. */
 function named(at) {
   return {
@@ -823,11 +964,11 @@ function named(at) {
 
 /** And back again, on the board that received them. */
 function anchorOf(named, ruled, size, natural) {
-  if (ruled && cell(named)) {
+  if (ruled && isDrawingCell(named)) {
     return pointOfCell(named, size, natural);
   }
 
-  return spot(named) ? named : null;
+  return isDrawingPoint(named) ? named : null;
 }
 
 /** And the point it names, in this board's own fractions. */

@@ -8,6 +8,7 @@ import {
   listPartySheets,
 } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
+import { listDiceSkinUnlocks } from "sina/data/dice-pouch";
 import { listPartyFeatures } from "sina/data/features";
 import {
   listCampaignContainers,
@@ -15,12 +16,14 @@ import {
 } from "sina/data/containers";
 import { listPartyPurses } from "sina/data/currency";
 import { listPartyInventory } from "sina/data/inventory";
+import { listSceneStaging } from "sina/data/scenes";
 import { listPartySpells } from "sina/data/spells";
 import {
   listCampaignTokenTemplates,
   listMapPlacedTokens,
 } from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
+import { unlockedDiceSkins } from "sina/rules/dice-pouch";
 
 import { logFailure } from "@/lib/errors";
 import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
@@ -49,7 +52,40 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     return "signed-out";
   }
 
-  const { data: campaign, error } = await getCampaignTable(supabase, id);
+  /* Together rather than one after the other, the way load-campaign.js does —
+     the campaign included, since nothing in this wave needs more than its id
+     and on a miss the rest is thrown away unread. Not only the first paint:
+     every doorbell here is answered by re-rendering the whole route. The seat
+     still waits for the party, being chosen out of it. */
+  const [
+    { data: campaign, error },
+    party,
+    templates,
+    log,
+    purses,
+    containers,
+    maps,
+  ] = await Promise.all([
+    getCampaignTable(supabase, id),
+    listPartyMembers(supabase, id),
+    /* The hand a Dungeon Master invented on the campaign sheet. Every chair is
+       handed it, not only the one that deals: a player's board draws the
+       monster standing in front of them from the same list. */
+    listCampaignTokenTemplates(supabase, id),
+    listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
+    /* Beside the party rather than after it: `campaign_purses` is asked about
+       the campaign, and it decides for itself whose purses the caller may
+       read — the whole party's for a Dungeon Master, their own for a player. */
+    listPartyPurses(supabase, id),
+    /* And beside it for the same reason: the SELECT policy on `containers`
+       decides which this viewer may see, so neither the party nor the seat is
+       needed to ask. */
+    listCampaignContainers(supabase, id),
+    /* And beside those: the shelf answers the Dungeon Master and the party
+       alike, so it needs neither. Every chair is handed it, not only the one
+       that can switch — a player's board paints from the same list. */
+    listCampaignMaps(supabase, id),
+  ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
   // failure. Everything else is handed to the page to throw on.
@@ -74,35 +110,11 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
       features: [],
       containers: [],
       containerItems: [],
+      staging: null,
       seat: null,
       error: realFailure,
     };
   }
-
-  /* Together rather than one after the other, the way load-campaign.js does.
-     Not only the first paint: every doorbell here is answered by re-rendering
-     the whole route. The seat still waits for the party, being chosen out of
-     it. */
-  const [party, templates, log, purses, containers, maps] = await Promise.all([
-    listPartyMembers(supabase, id),
-    /* The hand a Dungeon Master invented on the campaign sheet. Every chair is
-       handed it, not only the one that deals: a player's board draws the
-       monster standing in front of them from the same list. */
-    listCampaignTokenTemplates(supabase, id),
-    listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
-    /* Beside the party rather than after it: `campaign_purses` is asked about
-       the campaign, and it decides for itself whose purses the caller may
-       read — the whole party's for a Dungeon Master, their own for a player. */
-    listPartyPurses(supabase, id),
-    /* And beside it for the same reason: the SELECT policy on `containers`
-       decides which this viewer may see, so neither the party nor the seat is
-       needed to ask. */
-    listCampaignContainers(supabase, id),
-    /* And beside those: the shelf answers the Dungeon Master and the party
-       alike, so it needs neither. Every chair is handed it, not only the one
-       that can switch — a player's board paints from the same list. */
-    listCampaignMaps(supabase, id),
-  ]);
 
   if (party.error) {
     logFailure("listPartyMembers", party.error);
@@ -135,7 +147,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
   /* All three wait on the party and none on the others. RLS decides what comes
      back: the Dungeon Master reads the whole table's packs, a player their
      own. */
-  const [seat, packs, books, sheets, held, features, placed] =
+  const [seat, packs, books, sheets, held, features, placed, staging] =
     await Promise.all([
       readSeat(supabase, campaign, members, requestedSeat, user.id),
       listPartyInventory(
@@ -177,6 +189,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
         supabase,
         pictures.map((map) => map.id),
       ),
+      // The camera and the directions answer the owner alone.
+      campaign.is_owner
+        ? listSceneStaging(supabase, id)
+        : { data: null, error: null },
     ]);
 
   if (packs.error) {
@@ -203,6 +219,10 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     logFailure("listMapPlacedTokens", placed.error);
   }
 
+  if (staging.error) {
+    logFailure("listSceneStaging", staging.error);
+  }
+
   // Logged rather than thrown on: the map is the page, and neither a party nor
   // a board that could not load is a reason to replace it with an error.
   return {
@@ -219,6 +239,7 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     features: features.error ? [] : features.data,
     containers: shelf,
     containerItems: held.error ? [] : held.data,
+    staging: staging.error ? null : staging.data,
     seat,
     error: null,
   };
@@ -236,8 +257,8 @@ function seatsAt(campaign, members) {
         {
           id: DUNGEON_MASTER_SEAT,
           characterId: null,
-          // No colour: the head of the table rolls the house's own dice.
-          diceColor: null,
+          diceColor: campaign.dice_color,
+          diceSkin: campaign.dice_skin,
           title: "Dungeon Master",
         },
       ]
@@ -249,6 +270,7 @@ function seatsAt(campaign, members) {
         id: member.id,
         characterId: member.id,
         diceColor: member.dice_color,
+        diceSkin: member.dice_skin,
         title: member.name,
       });
     }
@@ -283,13 +305,16 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     return null;
   }
 
-  const [notes, sheet] = await Promise.all([
+  const [notes, sheet, unlocks] = await Promise.all([
     seat.characterId
       ? listCharacterNotes(supabase, seat.characterId)
       : listCampaignNotes(supabase, campaign.id),
     seat.characterId
       ? getCharacter(supabase, { id: seat.characterId, userId })
       : { data: null, error: null },
+    /* The sets this chair has found, which is what a Dice Pouch's reel is
+       filled from: it shows only what the pouch could still hold. */
+    listDiceSkinUnlocks(supabase, [seat.characterId].filter(Boolean)),
   ]);
 
   if (notes.error) {
@@ -303,9 +328,14 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     logFailure("table/getCharacter", sheet.error);
   }
 
+  if (unlocks.error) {
+    logFailure("table/listDiceSkinUnlocks", unlocks.error);
+  }
+
   return {
     ...seat,
     notes: notes.error ? [] : notes.data,
     sheet: sheet.error ? null : sheet.data,
+    diceSkins: unlockedDiceSkins(unlocks.error ? [] : unlocks.data),
   };
 }

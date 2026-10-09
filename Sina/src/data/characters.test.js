@@ -3,17 +3,109 @@ import { describe, it } from "node:test";
 
 import { postgrestError, stubQuery } from "../supabase-stub.js";
 import {
+  applyDamage,
+  applyHeal,
+  grantTemporaryHitPoints,
   getCharacter,
   insertCharacter,
   listCharacters,
   removeCharacter,
+  setCharacterDice,
   updateCharacter,
   updateCharacterHealth,
+  updateArmorClass,
 } from "./characters.js";
 
 const ARGS = { id: "6f1c3d2e-0000-4000-8000-000000000000", userId: "user-1" };
 const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
 const SEAT = "6f1c3d2e-0000-4000-8000-00000000005e";
+
+describe("armour class writes", () => {
+  for (const seatCharacterId of [SEAT, null]) {
+    it(`carries the ${seatCharacterId ? "player" : "DM"} seat to the log writer`, async () => {
+      const query = stubQuery({ data: 15, error: null });
+      const result = await updateArmorClass(query, {
+        id: ARGS.id,
+        armorClass: 15,
+        campaignId: CAMPAIGN,
+        seatCharacterId,
+      });
+      assert.deepEqual(query.lastRpc, {
+        name: "update_armor_class",
+        params: {
+          p_char_id: ARGS.id,
+          p_ac: 15,
+          p_campaign: CAMPAIGN,
+          p_seat: seatCharacterId,
+        },
+      });
+      assert.deepEqual(result, { data: { armorClass: 15 }, error: null });
+    });
+  }
+});
+
+describe("health writes return both bars together", () => {
+  const answer = {
+    current_hp: 80,
+    temp_hp: 8,
+    temp_hp_max: 20,
+    is_dead: false,
+    successes: 1,
+    failures: 0,
+  };
+
+  for (const [operation, rpc, amountKey, argument] of [
+    [applyDamage, "apply_damage", "p_damage", "damage"],
+    [applyHeal, "apply_heal", "p_heal", "heal"],
+    [
+      grantTemporaryHitPoints,
+      "grant_temporary_hit_points",
+      "p_amount",
+      "amount",
+    ],
+  ]) {
+    it(`${rpc} carries the acting seat and reads the complete health state`, async () => {
+      const q = stubQuery({ data: answer, error: null });
+      const { data, error } = await operation(q, {
+        id: ARGS.id,
+        [argument]: 12,
+        campaignId: CAMPAIGN,
+        seatCharacterId: SEAT,
+      });
+      assert.equal(error, null);
+      assert.deepEqual(q.lastRpc, {
+        name: rpc,
+        params: {
+          p_char_id: ARGS.id,
+          [amountKey]: 12,
+          p_campaign: CAMPAIGN,
+          p_seat: SEAT,
+        },
+      });
+      assert.deepEqual(data, {
+        currentHp: 80,
+        tempHp: 8,
+        maxTempHp: 20,
+        isDead: false,
+        deathSaves: { successes: 1, failures: 0 },
+        instantDeath: false,
+      });
+    });
+
+    it(`${rpc} reports a database refusal`, async () => {
+      const { data, error } = await operation(
+        stubQuery({ data: null, error: null }),
+        {
+          id: ARGS.id,
+          [argument]: 12,
+          campaignId: CAMPAIGN,
+        },
+      );
+      assert.equal(data, null);
+      assert.equal(error.reason, "not_found");
+    });
+  }
+});
 
 /** Every SQLSTATE this layer promises to say something specific about. */
 const SQLSTATES = [
@@ -265,6 +357,7 @@ describe("the query shape itself", () => {
         "class_id",
         "alignment",
         "dice_color",
+        "dice_skin",
         "avatar_url",
         "level",
         "skills",
@@ -291,7 +384,6 @@ describe("the query shape itself", () => {
       archetype: "warrior",
       classId: "fighter",
       alignment: "lawful_good",
-      diceColor: "violet",
       avatarUrl:
         "https://project.supabase.co/storage/v1/object/public/character-avatars/user-1/c-9.webp",
       abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
@@ -318,9 +410,6 @@ describe("the query shape itself", () => {
         archetype: "warrior",
         class_id: "fighter",
         alignment: "lawful_good",
-        // `color_theme` is the trigger's, not this module's — see
-        // 20260919090000_a_face_and_a_colour.sql.
-        dice_color: "violet",
         avatar_url: VALUES.avatarUrl,
         // No maximum and no current: `characters_sync_max_hp` derives one from
         // the path, the rung and the Constitution, and starts them whole.
@@ -389,6 +478,35 @@ describe("the query shape itself", () => {
   });
 });
 
+describe("setCharacterDice", () => {
+  it("sends the colour and the style to their own definer function", async () => {
+    const q = stubQuery({ data: true, error: null });
+    const result = await setCharacterDice(q, {
+      id: ARGS.id,
+      diceColor: "#00ff88",
+      diceSkin: "gold-rimmed",
+    });
+
+    assert.deepEqual(result, { data: true, error: null });
+    assert.equal(q.lastRpc.name, "set_character_dice");
+    assert.deepEqual(q.lastRpc.params, {
+      target_character: ARGS.id,
+      new_dice_color: "#00ff88",
+      new_dice_skin: "gold-rimmed",
+    });
+  });
+
+  it("reads a false answer as a refusal or a miss", async () => {
+    const { data, error } = await setCharacterDice(
+      stubQuery({ data: false, error: null }),
+      { id: ARGS.id, diceColor: "#00ff88", diceSkin: "classic" },
+    );
+
+    assert.equal(data, null);
+    assert.equal(error.reason, "not_found");
+  });
+});
+
 describe("updateCharacter's parameter map", () => {
   const VALUES = {
     name: "Gandalf",
@@ -397,7 +515,6 @@ describe("updateCharacter's parameter map", () => {
     archetype: "warrior",
     classId: "fighter",
     alignment: "lawful_good",
-    diceColor: "violet",
     avatarUrl: null,
     abilities: { str: 15, dex: 14, con: 13, int: 12, wis: 11, cha: 7 },
     skills: { stealth: { proficient: true, custom_bonus: null } },
@@ -418,7 +535,6 @@ describe("updateCharacter's parameter map", () => {
       new_archetype: "warrior",
       new_class_id: "fighter",
       new_alignment: "lawful_good",
-      new_dice_color: "violet",
       new_avatar_url: null,
       new_ability_str: 15,
       new_ability_dex: 14,

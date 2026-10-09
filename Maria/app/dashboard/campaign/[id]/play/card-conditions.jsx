@@ -53,14 +53,14 @@ export default function CardConditions({ characterId }) {
                    four pixels taller than the first. */
                 <span
                   aria-hidden="true"
-                  className="text-[11px] leading-none text-ink/25"
+                  className="text-[0.6875rem] leading-none text-ink/25"
                 >
                   ·
                 </span>
               )}
 
               <span
-                className={`font-display text-[12px] leading-none tracking-wide ${conditionDress(key).color}`}
+                className={`font-display text-[0.75rem] leading-none tracking-wide ${conditionDress(key).color}`}
               >
                 {CONDITIONS[key].name}
               </span>

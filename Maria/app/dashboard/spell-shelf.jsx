@@ -14,7 +14,7 @@ export default function Shelf({ label, count, children }) {
           {label}
         </h3>
 
-        <span className="shrink-0 font-mono text-[10px] text-ink/40 tabular-nums">
+        <span className="shrink-0 font-mono text-[0.625rem] text-ink/40 tabular-nums">
           {count}
         </span>
 

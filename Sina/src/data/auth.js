@@ -69,7 +69,7 @@ export async function signOut(supabase) {
  * The current session's access token, for the Realtime socket and nothing else.
  *
  * The one deliberate `getSession()` in the project, and it is not an
- * authorisation decision: callers verify with `getUser()` first and only then
+ * authorisation decision: callers verify with `getClaims()` first and only then
  * ask for the token to hand over. `getSession()` reads the cookie without
  * checking the signature, which is exactly why it must never be the thing that
  * decides whether somebody is signed in — but it is the only way to reach the

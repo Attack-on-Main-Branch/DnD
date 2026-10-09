@@ -8,9 +8,14 @@ import Avatar from "@/app/components/ui/avatar";
 import EyeIcon from "@/app/components/ui/eye-icon";
 import PartyMark from "@/app/components/ui/party-mark";
 import { surfaceClasses } from "@/app/components/ui/surface";
+import { useReducedMotion } from "@/app/components/use-reduced-motion";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
 
+import { SpellFlare } from "./spell-flares";
 import TokenMenu from "./token-menu";
+import HealthRhombi from "./health-rhombi";
+import { useHealthTier } from "./table-state";
+import { useIsTokenKnocked } from "./use-token-health";
 
 /**
  * One piece on the board: a face, what it is suffering, and what the head of the
@@ -59,6 +64,14 @@ const NOTE_GAP = 10;
 const MENU_HOLD_MS = 400;
 const MENU_SLOP_PX = 6;
 
+/**
+ * A move GLIDES rather than jumps, so a piece somebody else let go of travels
+ * the arrow they were just drawing instead of vanishing from one cell and
+ * appearing in another. Short, because it is also the hand that moved it.
+ */
+const SCALING = "transform 250ms ease";
+const STRIDE = `${SCALING}, left 180ms ease-out, top 180ms ease-out`;
+
 export default function MapToken({
   token,
   scale,
@@ -67,8 +80,12 @@ export default function MapToken({
   onGrab,
   onMark,
   onLift,
+  sector,
+  onHealthChange,
 }) {
   const discRef = useRef(null);
+  const reduceMotion = useReducedMotion();
+  const knocked = useIsTokenKnocked(token);
 
   /* Where the tooltip stands, in the VIEWPORT'S own pixels. Measured on the
      way in rather than laid out beside the piece: the layer around it carries
@@ -178,12 +195,13 @@ export default function MapToken({
         }
       }}
       style={{
+        clipPath: sector,
         left: `${token.x * 100}%`,
         top: `${token.y * 100}%`,
         transform: cell
           ? "translate(-50%, -50%)"
           : `translate(-50%, -50%) scale(${1 / scale})`,
-        transition: "transform 250ms ease",
+        transition: reduceMotion ? SCALING : STRIDE,
         ...(cell ? { width: `${cell * 100}%`, aspectRatio: "1" } : null),
       }}
     >
@@ -211,7 +229,7 @@ export default function MapToken({
         <span
           className={`flex rounded-full transition-[filter] duration-300 ${
             cell ? "size-full" : ""
-          } ${token.isDead ? "grayscale brightness-60" : ""}`}
+          } ${token.isDead || knocked ? "grayscale brightness-60" : ""}`}
         >
           <Face token={token} cell={cell} />
         </span>
@@ -239,9 +257,11 @@ export default function MapToken({
             <EyeIcon crossedOut className="size-[70%]" />
           </span>
         )}
+
+        {token.characterId && <SpellFlare characterId={token.characterId} />}
       </span>
 
-      {note && !menu && <TokenNote token={token} at={note} />}
+      {note && !menu && <TokenNote token={token} at={note} knocked={knocked} />}
 
       {menu && (
         <TokenMenu
@@ -262,6 +282,7 @@ export default function MapToken({
             onLift(token);
           }}
           onClose={() => setMenu(null)}
+          onHealthChange={onHealthChange}
         />
       )}
     </span>
@@ -300,7 +321,7 @@ function Face({ token, cell }) {
       >
         <Avatar
           src={token.src}
-          colorClass={token.colorClass}
+          color={token.color}
           size="xs"
           // One rim at a time: the gold one above says whose piece this is.
           ring={!token.mine}
@@ -348,8 +369,9 @@ function Face({ token, cell }) {
  * It arrives rather than appearing: `shown` flips one frame after the mount, so
  * the transition below has two ends to travel between.
  */
-function TokenNote({ token, at }) {
+function TokenNote({ token, at, knocked }) {
   const [shown, setShown] = useState(false);
+  const characterTier = useHealthTier(token.characterId);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true));
@@ -371,8 +393,19 @@ function TokenNote({ token, at }) {
         ].join(" "),
       })}
     >
-      <span className="block truncate font-display text-xs font-semibold tracking-wide text-gold">
-        {token.label}
+      <span className="flex items-center gap-2 font-display text-xs font-semibold tracking-wide text-gold">
+        <span className="truncate">{token.label}</span>
+        {(token.characterId || !token.commandable) && (
+          <HealthRhombi
+            tier={characterTier ?? token.health?.health_tier}
+            dead={token.isDead}
+          />
+        )}
+        {token.commandable && token.health && (
+          <span className="ml-2 font-mono text-[10px] tabular-nums">
+            {token.health.current_hp} / {token.health.max_hp} HP
+          </span>
+        )}
       </span>
 
       {token.conditions.length > 0 && (
@@ -382,7 +415,7 @@ function TokenNote({ token, at }) {
             // it is read as words. The classes are the catalogue's literals.
             <span
               key={key}
-              className={`font-display text-[10px] leading-tight tracking-wide ${conditionDress(key).color}`}
+              className={`font-display text-[0.625rem] leading-tight tracking-wide ${conditionDress(key).color}`}
             >
               {CONDITIONS[key].name}
             </span>
@@ -390,14 +423,16 @@ function TokenNote({ token, at }) {
         </span>
       )}
 
-      {token.isDead && (
-        <span className="mt-1 block font-mono text-[10px] tracking-[0.16em] text-rose-400 uppercase">
-          Dead
+      {(token.isDead || knocked) && (
+        <span
+          className={`mt-1 block font-mono text-[0.625rem] tracking-[0.16em] uppercase ${token.isDead ? "text-rose-400" : "text-orange-400"}`}
+        >
+          {token.isDead ? "Dead" : "Knocked"}
         </span>
       )}
 
       {token.isHidden && (
-        <span className="mt-1 block font-mono text-[10px] tracking-[0.16em] text-ink/50 uppercase">
+        <span className="mt-1 block font-mono text-[0.625rem] tracking-[0.16em] text-ink/50 uppercase">
           Hidden from the party
         </span>
       )}

@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { classLabel } from "sina/rules/character";
 
+import { saveCampaignDice } from "@/app/actions/campaigns";
 import NoteList from "@/app/components/ui/note-list";
 import PlayButton from "@/app/components/ui/play-button";
 import TabStrip from "@/app/components/ui/tab-strip";
 import { surfaceClasses } from "@/app/components/ui/surface";
+import SheetDice from "@/app/dashboard/sheet-dice";
+import { DICE_THEMES } from "@/lib/dice-themes";
 import { campaignTablePath, DUNGEON_MASTER_SEAT } from "@/lib/routes";
 
 import CampaignMap from "./campaign-map";
@@ -28,6 +31,7 @@ const CAMPAIGN_TABS = [
   // `focusable: false` for the reason the party tab has it: the panel opens
   // with a choice and a text field, so a stop on it is an empty step.
   { value: "create", label: "Create", focusable: false },
+  { value: "dice", label: "Dice", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -175,6 +179,14 @@ export default async function CampaignPage({ params }) {
                 containerItems={containerItems}
                 features={features}
                 tokens={tokens}
+              />
+            ),
+            dice: (
+              <SheetDice
+                allUnlocked
+                diceColor={campaign.dice_color ?? DICE_THEMES.obsidian.body}
+                diceSkin={campaign.dice_skin}
+                saveDice={saveCampaignDice.bind(null, campaign.id)}
               />
             ),
           }}

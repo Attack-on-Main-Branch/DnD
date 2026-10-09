@@ -141,7 +141,7 @@ export function isDying(hitPoints, isDead) {
  * the overflow, not the blow, is measured against the maximum, so a character
  * on 3 of 20 is killed outright by 23 and knocked out by 22.
  */
-export function isMassiveDamage({ hitPoints, maxHp, damage }) {
+export function isMassiveDamage({ hitPoints, maxHp, damage, tempHp = 0 }) {
   const from = figure(hitPoints);
   const ceiling = figure(maxHp);
   const blow = figure(damage);
@@ -150,7 +150,7 @@ export function isMassiveDamage({ hitPoints, maxHp, damage }) {
     return false;
   }
 
-  return from - blow <= -ceiling;
+  return from - Math.max(0, blow - tempHp) <= -ceiling;
 }
 
 /** What one face of the die is worth, before the tallies are counted. */

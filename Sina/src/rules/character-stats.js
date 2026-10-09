@@ -246,6 +246,18 @@ const QUALIFIERS = {
 
 const NONE = { armor: [], weapons: [], tools: [] };
 
+export const PROFICIENCY_GROUPS = ["armor", "weapons", "tools"];
+export const MAX_PROFICIENCIES = 24;
+export const MAX_PROFICIENCY_LENGTH = 60;
+
+export function readProficiencyName(value) {
+  if (typeof value !== "string") return null;
+  const name = value.replace(/\s+/g, " ").trim();
+  return name && Array.from(name).length <= MAX_PROFICIENCY_LENGTH
+    ? name
+    : null;
+}
+
 /** Whatever a table has written down on top of what the path grants. */
 export function readCustomProficiencies(value) {
   if (!value || typeof value !== "object") {
@@ -272,14 +284,16 @@ function list(values) {
       continue;
     }
 
-    const text = entry.replace(/\s+/g, " ").trim().slice(0, 60);
+    const text = Array.from(entry.replace(/\s+/g, " ").trim())
+      .slice(0, MAX_PROFICIENCY_LENGTH)
+      .join("");
 
     if (text && !kept.includes(text)) {
       kept.push(text);
     }
   }
 
-  return kept.slice(0, 24);
+  return kept.slice(0, MAX_PROFICIENCIES);
 }
 
 /**
@@ -293,11 +307,17 @@ export function proficienciesFor(classId, custom) {
   const key = normalise(classId);
   const path = PROFICIENCIES[ALIASES[key] ?? key] ?? NONE;
   const extra = readCustomProficiencies(custom);
+  function held(group) {
+    const override = custom?.overrides?.[group];
+    return Array.isArray(override)
+      ? list(override)
+      : merge(path[group], extra[group]);
+  }
 
   return {
-    armor: merge(path.armor, extra.armor),
-    weapons: merge(path.weapons, extra.weapons),
-    tools: merge(path.tools, extra.tools),
+    armor: held("armor"),
+    weapons: held("weapons"),
+    tools: held("tools"),
     qualifier: QUALIFIERS[ALIASES[key] ?? key] ?? null,
   };
 }

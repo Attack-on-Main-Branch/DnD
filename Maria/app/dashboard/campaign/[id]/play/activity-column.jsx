@@ -1,83 +1,57 @@
 "use client";
 
-import { surfaceClasses } from "@/app/components/ui/surface";
-
 import ActivityLog from "./activity-log";
-import CombatTracker from "./combat-tracker";
-import { useCombatDrawer } from "./combat-drawer";
 
 /**
- * The column opposite the dice rail, and the two panels that share it.
- *
- * ABSOLUTE AND NOT A FLEX PAIR: the log is pinned to the BOTTOM, so shrinking it
- * moves its top edge down — it compresses and travels on one property. A flex
- * column would have had to animate a gap, a basis and a height against each
- * other.
- *
- * The tracker stays MOUNTED once it exists, collapsed rather than removed: an
- * element merely taken away has no second state to travel towards. `inert` keeps
- * a collapsed one off the Tab order.
+ * The column opposite the dice rail: the log, and at the head of the table the
+ * box of their tools above it (dm-marks.jsx), passed in as `children`.
  */
 
 /** As tall as the dice rail, so the two straddle the board at a matching height.
     A flat literal: the rail's height is its glyphs stacked up, which nothing
-    here can derive. */
-const COLUMN_HEIGHT_CLASS = "h-[518px]";
+    here can derive. In rem, as the rail is, so the two scale together. */
+const COLUMN_HEIGHT_CLASS = "h-[32.375rem]";
 
-/**
- * And how tall while the ladder is out: THE COLUMN GROWS RATHER THAN THE LOG
- * SHRINKING, because an encounter grows with the fight and ten log lines do not.
- *
- * Bounded by the board's own reserve — `100vh - 15rem` is the middle term of the
- * map's ceiling in map-height.js, measured there against the header, the title,
- * the marks and the mat. A column held to that can never stand taller than the
- * board beside it is already allowed to.
- */
-const COLUMN_SPLIT_CLASS = "h-[clamp(518px,100vh_-_15rem,660px)]";
-
-/** The log's half of the ORIGINAL column, flat and not a fraction: a percentage
-    would follow the column as it grows, which is the one thing it must not do.
-    The ladder is measured from the other end and takes the remainder. */
-const LOG_SPLIT_CLASS = "h-[259px]";
-const TRACKER_CLASS = "bottom-[calc(259px_+_0.75rem)]";
-
-export default function ActivityColumn({ campaignId, faces, canCommand }) {
-  const { open } = useCombatDrawer();
-
-  /* Stated rather than assumed: a player's column holds the log at full height
-     and nothing else in the tree at all. */
-  const split = canCommand && open;
+export default function ActivityColumn({ campaignId, faces, children = null }) {
+  /* `hidden lg:block`: below that width the table is one stack. */
+  if (!children) {
+    return (
+      <div className={`hidden w-full lg:block ${COLUMN_HEIGHT_CLASS}`}>
+        <ActivityLog campaignId={campaignId} faces={faces} className="h-full" />
+      </div>
+    );
+  }
 
   return (
-    /* `hidden lg:block`: below that width the table is one stack. */
-    <div
-      className={`relative hidden w-full transition-[height] duration-300 ease-in-out motion-reduce:transition-none lg:block ${
-        split ? COLUMN_SPLIT_CLASS : COLUMN_HEIGHT_CLASS
-      }`}
-    >
-      {canCommand && (
-        <section
-          aria-label="Initiative and combat turns"
-          inert={!split || undefined}
-          className={surfaceClasses({
-            className: `absolute inset-x-0 top-0 flex flex-col overflow-hidden rounded-2xl ${TRACKER_CLASS} transition-[opacity,transform] duration-300 ease-in-out motion-reduce:transition-none ${
-              split
-                ? "opacity-100"
-                : "pointer-events-none -translate-y-2 opacity-0"
-            }`,
-          })}
-        >
-          <CombatTracker campaignId={campaignId} faces={faces} />
-        </section>
-      )}
+    /*
+     * AS TALL AS THE ROW, AND NEVER WHAT MAKES IT TALLER. The box and the log
+     * are absolute inside, so neither counts towards the row's height — the
+     * board does — and opening a panel cannot push the board down. The box
+     * takes what its panel needs; the log under it is a player's 32.375rem tall
+     * while there is room for it, and gives way down to a floor of its own when
+     * a panel needs more. Past that the panel scrolls.
+     *
+     * THE FLOOR OF THE ROW is the box's closed height (its 4rem strip, its
+     * hairline and its two borders), the gap, and a player's log — so with
+     * nothing open the log is a player's whatever the board beside it. Spelled
+     * out rather than measured: change the strip in dm-marks.jsx and change
+     * this with it.
+     *
+     * Below `lg` the table is one stack: the box stands in it at its own
+     * height, over the board, and the log is left out as it is for a player.
+     */
+    <div className="relative w-full lg:min-h-[calc(37.125rem_+_3px)] lg:self-stretch">
+      <div className="flex flex-col gap-3 lg:absolute lg:inset-0 lg:justify-center">
+        {children}
 
-      <ActivityLog
-        campaignId={campaignId}
-        faces={faces}
-        className={`absolute inset-x-0 bottom-0 transition-[height] duration-300 ease-in-out motion-reduce:transition-none ${
-          split ? LOG_SPLIT_CLASS : "h-full"
-        }`}
-      />
+        <div className="hidden max-h-[32.375rem] min-h-48 flex-1 basis-0 lg:flex">
+          <ActivityLog
+            campaignId={campaignId}
+            faces={faces}
+            className="min-h-0 flex-1"
+          />
+        </div>
+      </div>
     </div>
   );
 }

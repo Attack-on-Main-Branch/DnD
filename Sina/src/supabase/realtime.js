@@ -32,9 +32,81 @@ export function createRealtimeSupabase(getAccessToken) {
        them back. Four was written when the socket carried only doorbells; it
        now carries the dice, the hit points, the tokens and the chairs, and a
        busy moment reaches four in a breath. */
-    realtime: { params: { eventsPerSecond: 30 } },
+    realtime: {
+      params: { eventsPerSecond: 30 },
+
+      /* The heartbeat from a worker rather than a page timer. A tab in the
+         background has its timers throttled to one a minute, which is longer
+         than the server waits for a heartbeat — so somebody who looked at
+         another window for a while came back to a socket that had been closed
+         under them, and missed every roll thrown in the meantime. */
+      worker: true,
+    },
   });
 }
+
+/**
+ * Topics this browser is still leaving, and the promise that says it has left.
+ *
+ * `client.channel(topic)` hands back the EXISTING channel for a topic rather
+ * than a new one, and a channel is only forgotten once the server has answered
+ * its leave. So a subscriber that came back before that answer — a page left and
+ * returned to, an effect run again — was handed the one on its way out, whose
+ * `subscribe()` does nothing on a channel that is not closed. It never joined,
+ * never said so, and heard nothing until the page was reloaded.
+ */
+const departing = new Map();
+
+function depart(client, topic, subscription) {
+  const gone = client
+    .removeChannel(subscription)
+    .catch(() => {})
+    .finally(() => {
+      if (departing.get(topic) === gone) {
+        departing.delete(topic);
+      }
+    });
+
+  departing.set(topic, gone);
+}
+
+/**
+ * A channel on a topic other browsers share, opened once any earlier one on the
+ * same topic has finished leaving. `open` builds and subscribes it; `stop`
+ * before then means it is never built at all.
+ */
+function joinWhenFree(client, topic, open) {
+  let subscription = null;
+  let stopped = false;
+
+  Promise.resolve(departing.get(topic)).then(() => {
+    if (!stopped) {
+      subscription = open();
+    }
+  });
+
+  return {
+    current: () => subscription,
+    stop: () => {
+      stopped = true;
+
+      if (subscription) {
+        depart(client, topic, subscription);
+        subscription = null;
+      }
+    },
+  };
+}
+
+/** Nothing is said on a channel still waiting for its topic to come free. */
+function say(subscription, event, payload) {
+  return subscription
+    ? subscription.send({ type: "broadcast", event, payload }).catch(() => {})
+    : Promise.resolve();
+}
+
+/** Postgres changes are named by the subscriber, so every watch gets its own. */
+let watches = 0;
 
 /**
  * Watches one table for changes the subscriber is allowed to see, and returns
@@ -51,8 +123,12 @@ export function watchTable(
   client,
   { channel, table, filter, onChange, onStatus },
 ) {
+  /* A doorbell's topic is a label and nothing else — the table and the filter
+     are what the server listens on — so it is made unique. Two watches on one
+     name would otherwise share a channel, and the first to stop would stop
+     both. */
   const subscription = client
-    .channel(channel)
+    .channel(`${channel}#${++watches}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table, filter },
@@ -89,43 +165,46 @@ export function joinTable(
   client,
   { channel, key, meta, event, onChairs, onMessage, onReady },
 ) {
-  const subscription = client.channel(channel, {
-    config: {
-      private: true,
-      presence: { key, enabled: true },
-      broadcast: { self: false },
-    },
-  });
-
-  subscription
-    .on("presence", { event: "sync" }, () =>
-      onChairs(Object.values(subscription.presenceState()).flat()),
-    )
-    .on("broadcast", { event }, ({ payload }) => onMessage(payload))
-    .subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        Promise.resolve(subscription.track(meta)).catch(() => {});
-        // Every SUBSCRIBED, first join and rejoin alike: it is the only moment
-        // a caller can be sure anything it says will be heard.
-        onReady?.();
-        return;
-      }
-
-      /* Only when the channel has genuinely gone. A dropped socket is not a
-         table that emptied, and supabase-js rejoins one by itself and resyncs
-         the roster when it does — so blanking on `CHANNEL_ERROR` and
-         `TIMED_OUT` as well turned every blip into the whole party appearing
-         to stand up and sit back down. */
-      if (status === "CLOSED") {
-        onChairs([]);
-      }
+  const joined = joinWhenFree(client, channel, () => {
+    const subscription = client.channel(channel, {
+      config: {
+        private: true,
+        presence: { key, enabled: true },
+        broadcast: { self: false },
+      },
     });
 
+    subscription
+      .on("presence", { event: "sync" }, () =>
+        onChairs(Object.values(subscription.presenceState()).flat()),
+      )
+      .on("broadcast", { event }, ({ payload }) => onMessage(payload))
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          Promise.resolve(subscription.track(meta)).catch(() => {});
+          // Every SUBSCRIBED, first join and rejoin alike: it is the only
+          // moment a caller can be sure anything it says will be heard.
+          onReady?.();
+          return;
+        }
+
+        /* Only when the channel has genuinely gone. A dropped socket is not a
+           table that emptied, and supabase-js rejoins one by itself and
+           resyncs the roster when it does — so blanking on `CHANNEL_ERROR` and
+           `TIMED_OUT` as well turned every blip into the whole party appearing
+           to stand up and sit back down. */
+        if (status === "CLOSED") {
+          onChairs([]);
+        }
+      });
+
+    return subscription;
+  });
+
   return {
-    send: (payload) =>
-      subscription.send({ type: "broadcast", event, payload }).catch(() => {}),
-    leave: () => Promise.resolve(subscription.untrack()).catch(() => {}),
-    stop: () => client.removeChannel(subscription),
+    send: (payload) => say(joined.current(), event, payload),
+    leave: () => Promise.resolve(joined.current()?.untrack()).catch(() => {}),
+    stop: joined.stop,
   };
 }
 
@@ -148,21 +227,24 @@ export function joinTable(
  * catch a newcomer up.
  */
 export function watchBroadcast(client, { channel, event, onMessage, onReady }) {
-  const subscription = client.channel(channel, {
-    config: { private: true, broadcast: { self: false } },
-  });
-
-  subscription
-    .on("broadcast", { event }, ({ payload }) => onMessage(payload))
-    .subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        onReady?.();
-      }
+  const joined = joinWhenFree(client, channel, () => {
+    const subscription = client.channel(channel, {
+      config: { private: true, broadcast: { self: false } },
     });
 
+    subscription
+      .on("broadcast", { event }, ({ payload }) => onMessage(payload))
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          onReady?.();
+        }
+      });
+
+    return subscription;
+  });
+
   return {
-    send: (payload) =>
-      subscription.send({ type: "broadcast", event, payload }).catch(() => {}),
-    stop: () => client.removeChannel(subscription),
+    send: (payload) => say(joined.current(), event, payload),
+    stop: joined.stop,
   };
 }

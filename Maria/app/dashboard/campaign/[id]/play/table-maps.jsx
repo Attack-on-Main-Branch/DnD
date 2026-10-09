@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -17,7 +18,7 @@ import { useToast } from "@/app/components/ui/toast";
 
 import { ruleMapGrid } from "./actions";
 import { paintMapFog, switchMapFog } from "./fog-actions";
-import { readTableSlice } from "./table-actions";
+import { gatherReads } from "./read-table";
 import { useFogMask } from "./use-fog";
 import { useWireMessage, useTableWire } from "./table-wire";
 
@@ -39,10 +40,14 @@ const RESTING = {
   activeId: null,
   activeUrl: null,
   isWorldMap: false,
+  isScene: false,
+  natural: null,
+  resync: () => {},
   choose: () => {},
   grid: { enabled: false, size: 48, luminance: 1 },
   ruleGrid: () => {},
   commitGrid: () => {},
+  gridSettled: null,
   holding: null,
   hold: () => {},
   fog: { enabled: true, maskUrl: null },
@@ -104,21 +109,25 @@ export default function TableMaps({
     );
   }, []);
 
-  /** The database's own answer, for a chair that cannot be sure. */
-  const resync = useCallback(() => {
-    readTableSlice(campaignId, { maps: true }).then(
-      (slices) => {
-        if (slices?.maps) {
+  /** The database's own answer, for a chair that cannot be sure. Gathered: a
+      switch rings both doorbells below at once. */
+  const reread = useMemo(
+    () =>
+      gatherReads(campaignId, (slices) => {
+        if (slices.maps) {
           setMaps(slices.maps);
         }
 
-        if (slices?.activeMapId !== undefined) {
+        if (slices.activeMapId !== undefined) {
           setActiveId(slices.activeMapId);
         }
-      },
-      () => {},
-    );
-  }, [campaignId]);
+      }),
+    [campaignId],
+  );
+
+  const resync = useCallback(() => {
+    reread({ maps: true });
+  }, [reread]);
 
   /* A map ruled. Believed only as far as its shape; `readGridSettings` bounds
      every value on the way in. */
@@ -209,6 +218,10 @@ export default function TableMaps({
     [active],
   );
 
+  /* The grid as this chair last COMMITTED it — a fresh object each time, which
+     is what tells the pieces to line up. See `useMapTokens`. */
+  const [gridSettled, setGridSettled] = useState(null);
+
   /**
    * `patch` is for the toggle, which changes and commits in one breath: `active`
    * is this render's row, so reading it after `ruleGrid` would write back the
@@ -221,6 +234,12 @@ export default function TableMaps({
       }
 
       const settled = readGridSettings({ ...active, ...patch });
+
+      setGridSettled({
+        mapId: active.id,
+        enabled: settled.enabled,
+        size: settled.size,
+      });
 
       send({
         kind: "grid",
@@ -436,10 +455,15 @@ export default function TableMaps({
            other map takes the faces and the invented pieces. A table with no
            shelf at all is showing its world map — see `activeUrl` above. */
         isWorldMap: world,
+        // A painted scene takes no pieces, grid, fog or camera.
+        isScene: Boolean(active?.is_scene),
+        natural,
+        resync,
         choose,
         grid,
         ruleGrid,
         commitGrid,
+        gridSettled,
         holding,
         hold: setHolding,
 

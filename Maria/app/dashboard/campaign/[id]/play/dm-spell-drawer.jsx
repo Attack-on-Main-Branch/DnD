@@ -15,7 +15,6 @@ import SpellSlotTracker from "./spell-slot-tracker";
 import {
   PopoverAside,
   POPOVER_BODY_CLASSES,
-  POPOVER_BODY_SHORT_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
 import { useTableStore } from "./table-state";
@@ -140,15 +139,8 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
   }
 
   return (
-    /* A column, so the slot bar can be pinned by layout rather than by
-       `position: sticky` — see the tracker. Shorter while a spell is open under
-       it: the two panels hang off the marks together and the pair has to clear
-       the bottom of the window. */
-    <div
-      className={`flex flex-col ${
-        open ? POPOVER_BODY_SHORT_CLASSES : POPOVER_BODY_CLASSES
-      }`}
-    >
+    /* A column keeps the slot bar pinned while the shelves scroll. */
+    <div data-popover-body className={`flex flex-col ${POPOVER_BODY_CLASSES}`}>
       {/* `min-h-0`, or a flex item will not shrink under its own content and
           the shelves would push the bar off the foot of the panel. */}
       <div className="scroll-gold min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5">
@@ -165,7 +157,7 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
           >
             All party
             {members.length > 0 && (
-              <span className="font-mono text-[10px] text-ink/50 tabular-nums">
+              <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
                 {members.length}
               </span>
             )}
@@ -194,7 +186,7 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
                 </p>
               ) : (
                 <>
-                  <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+                  <p className="mt-5 font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
                     {selected.name} · {book.length} known
                   </p>
 

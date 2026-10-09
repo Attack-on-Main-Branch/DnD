@@ -118,7 +118,7 @@ function PageSwitch({ page, onTurn }) {
         <span
           key={one}
           aria-hidden="true"
-          className={`grid size-5 place-items-center rounded-full font-mono text-[11px] leading-none tabular-nums transition duration-300 ${
+          className={`grid size-5 place-items-center rounded-full font-mono text-[0.6875rem] leading-none tabular-nums transition duration-300 ${
             page === one
               ? "bg-gold/20 text-gold shadow-[0_0_10px_-2px_rgba(255,223,156,0.8)]"
               : "text-ink/45"

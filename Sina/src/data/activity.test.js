@@ -68,7 +68,10 @@ describe("listCampaignActivity", () => {
     const query = stubQuery({ data: [], error: null });
     await listCampaignActivity(query, CAMPAIGN, MAX_ACTIVITY_ENTRIES);
 
-    assert.deepEqual(query.filters, [["campaign_id", CAMPAIGN]]);
+    assert.deepEqual(query.filters, [
+      ["campaign_id", CAMPAIGN],
+      ["action_type", "max_hp_change", "neq"],
+    ]);
     assert.equal(query.lastLimit, MAX_ACTIVITY_ENTRIES);
   });
 

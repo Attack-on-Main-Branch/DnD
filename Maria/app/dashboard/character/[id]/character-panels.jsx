@@ -15,6 +15,8 @@ import { spellsByShelf } from "@/app/dashboard/spell-presentation";
 import SpellSlotBar from "@/app/dashboard/spell-slot-bar";
 import XpMeter from "@/app/dashboard/xp-meter";
 
+import SheetDice from "@/app/dashboard/sheet-dice";
+import { saveCharacterDice } from "@/app/actions/characters";
 import SheetFeatures from "./sheet-features";
 import SheetPack from "./sheet-pack";
 import SheetSpellbook from "./sheet-spellbook";
@@ -149,6 +151,18 @@ export function SpellsPanel({ character, spells }) {
  */
 export function FeaturePanel({ characterId, features }) {
   return <SheetFeatures characterId={characterId} features={features} />;
+}
+
+/** The dice this character throws. Its own client component — see sheet-dice.jsx. */
+export function DicePanel({ character, unlocked }) {
+  return (
+    <SheetDice
+      saveDice={saveCharacterDice.bind(null, character.id)}
+      diceColor={character.dice_color}
+      diceSkin={character.dice_skin}
+      unlocked={unlocked}
+    />
+  );
 }
 
 /** What this character's player wrote at the table. */

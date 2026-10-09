@@ -26,8 +26,7 @@ import { useWireMessage } from "./table-wire";
 
 /**
  * What keeps the fight current, on EVERY chair. Mounted once for the whole table
- * — see combat-drawer.jsx — because a player has no tracker in their tree and
- * would otherwise never hear the turn pass.
+ * — see combat-sync.jsx — independently of which tracker is open.
  *
  * The wire is the fast half and Postgres the honest one. Neither payload is
  * trusted further than its shape: `setCombat` puts both through `readCombat`.

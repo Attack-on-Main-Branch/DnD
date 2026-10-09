@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import Avatar from "@/app/components/ui/avatar";
 import PartyMark from "@/app/components/ui/party-mark";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 import { usePlacedTokens, useTokenTemplates } from "./table-state";
 import { useTableMaps } from "./table-maps";
@@ -13,8 +13,9 @@ import { ringWorn } from "./use-map-tokens";
 /**
  * The pieces to be put down — the Dungeon Master's hand.
  *
- * ON THE RAIL AND NOT IN A DRAWER, because it is used WHILE looking at the
- * board: pick a face, click a hex, pick the next.
+ * A PANEL THAT STAYS OPEN, because it is used WHILE looking at the board: pick a
+ * face, click a hex, pick the next — see token-stage.jsx. A row for the party
+ * and one for the tokens, each wrapping.
  *
  * WHAT IS IN IT DEPENDS ON THE PICTURE, and that is the whole of the placement
  * rule made visible. The world map takes the party's marker alone — six faces
@@ -29,11 +30,11 @@ import { ringWorn } from "./use-map-tokens";
  * dropped — see `snap` in table-map.jsx, which passes the point through.
  *
  * The Dungeon Master's alone — page.jsx mounts it inside the branch that decides
- * that. The selection lives in table-maps.jsx, the face being on the rail and
+ * that. The selection lives in table-maps.jsx, the face being in the box and
  * the hex on the map.
  */
 export default function TokenPalette({ members }) {
-  const { activeId, holding, hold, isWorldMap } = useTableMaps();
+  const { activeId, holding, hold, isWorldMap, isScene } = useTableMaps();
   const templates = useTokenTemplates();
   const placed = usePlacedTokens();
 
@@ -59,93 +60,117 @@ export default function TokenPalette({ members }) {
   // Everything else is offered on a battle map; the world map takes the one.
   const hand = isWorldMap ? [] : templates;
 
+  // A painted scene takes no pieces at all.
+  if (isScene) {
+    return <Empty>A painted scene takes no pieces.</Empty>;
+  }
+
   if (!isWorldMap && members.length === 0 && hand.length === 0) {
-    return null;
+    return (
+      <Empty>
+        Nobody has joined the party, and this campaign has no tokens yet.
+      </Empty>
+    );
   }
 
   return (
     <div
       role="group"
       aria-label="Place a piece"
-      className="flex w-14 shrink-0 flex-col items-center gap-1.5 pt-1"
+      className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-5 pt-4 pb-5"
     >
       <Heading>Party</Heading>
 
-      {isWorldMap ? (
-        <Piece
-          held={holding?.kind === "party"}
-          onHold={() => hold(holding?.kind === "party" ? null : PARTY_PIECE)}
-          label="the party's marker"
-        >
-          {/* The same pin the board draws — see map-token.jsx. */}
-          <PartyMark className="size-10" />
-        </Piece>
-      ) : (
-        members.map((member) => {
-          const held = holding?.characterId === member.id;
+      <div className="flex flex-wrap gap-1.5">
+        {isWorldMap ? (
+          <Piece
+            held={holding?.kind === "party"}
+            onHold={() => hold(holding?.kind === "party" ? null : PARTY_PIECE)}
+            label="the party's marker"
+          >
+            {/* The same pin the board draws — see map-token.jsx. */}
+            <PartyMark className="size-10" />
+          </Piece>
+        ) : (
+          members.map((member) => {
+            const held = holding?.characterId === member.id;
 
-          return (
-            <Piece
-              key={member.id}
-              held={held}
-              onHold={() =>
-                hold(
-                  held ? null : { kind: "character", characterId: member.id },
-                )
-              }
-              label={member.name}
-            >
-              <Avatar
-                src={member.avatar_url}
-                colorClass={diceColorClass(member.dice_color)}
-                size="sm"
-                ring={false}
-              />
-            </Piece>
-          );
-        })
-      )}
+            return (
+              <Piece
+                key={member.id}
+                held={held}
+                onHold={() =>
+                  hold(
+                    held ? null : { kind: "character", characterId: member.id },
+                  )
+                }
+                label={member.name}
+              >
+                <Avatar
+                  src={member.avatar_url}
+                  color={diceColorHex(member.dice_color)}
+                  size="sm"
+                  ring={false}
+                />
+              </Piece>
+            );
+          })
+        )}
+      </div>
 
       {hand.length > 0 && (
         <>
           {/* Directly under the faces, and no rule between them: it is one hand
               with two halves, not two lists. */}
-          <Heading className="pt-1.5">Tokens</Heading>
+          <Heading>Tokens</Heading>
 
-          {hand.map((piece) => {
-            const held = holding?.templateId === piece.id;
+          <div className="flex flex-wrap gap-1.5">
+            {hand.map((piece) => {
+              const held = holding?.templateId === piece.id;
 
-            return (
-              <Piece
-                key={piece.id}
-                held={held}
-                onHold={() =>
-                  hold(held ? null : { kind: "template", templateId: piece.id })
-                }
-                label={piece.name}
-              >
-                {/* The rim the next copy will wear, shown before it is dealt.
-                    An inline colour, for the reason map-token.jsx gives. */}
-                <span
-                  style={{ borderColor: rims.get(piece.id) }}
-                  className="box-border grid size-10 place-items-center overflow-hidden rounded-full border-2 bg-surface"
+              return (
+                <Piece
+                  key={piece.id}
+                  held={held}
+                  onHold={() =>
+                    hold(
+                      held ? null : { kind: "template", templateId: piece.id },
+                    )
+                  }
+                  label={piece.name}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={piece.image_url}
-                    alt=""
-                    draggable={false}
-                    loading="lazy"
-                    decoding="async"
-                    className="size-full object-cover"
-                  />
-                </span>
-              </Piece>
-            );
-          })}
+                  {/* The rim the next copy will wear, shown before it is dealt.
+                    An inline colour, for the reason map-token.jsx gives. */}
+                  <span
+                    style={{ borderColor: rims.get(piece.id) }}
+                    className="box-border grid size-10 place-items-center overflow-hidden rounded-full border-2 bg-surface"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={piece.image_url}
+                      alt=""
+                      draggable={false}
+                      loading="lazy"
+                      decoding="async"
+                      className="size-full object-cover"
+                    />
+                  </span>
+                </Piece>
+              );
+            })}
+          </div>
         </>
       )}
     </div>
+  );
+}
+
+/** What the panel says when there is nothing in the hand to deal. */
+function Empty({ children }) {
+  return (
+    <p className="px-5 py-6 text-center text-sm text-ink/50 italic">
+      {children}
+    </p>
   );
 }
 
@@ -156,7 +181,7 @@ function Heading({ children, className = "" }) {
   return (
     <p
       aria-hidden="true"
-      className={`font-mono text-[9px] tracking-[0.12em] text-ink/40 uppercase ${className}`}
+      className={`font-mono text-[0.5625rem] tracking-[0.12em] text-ink/40 uppercase ${className}`}
     >
       {children}
     </p>

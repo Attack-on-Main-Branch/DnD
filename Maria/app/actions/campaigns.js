@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   listCampaignMaps,
   removeCampaignMap,
+  setCampaignDice,
   updateCampaign as writeCampaign,
   uploadCampaignMap,
 } from "sina/data/campaigns";
@@ -15,6 +16,7 @@ import {
   validateCampaign,
   validateCampaignMaps,
 } from "sina/rules/campaign";
+import { readDiceValues, validateDice } from "sina/rules/character";
 
 import { applyMapShelf, MAP_SHELF_COPY } from "@/app/actions/map-shelf";
 import { logFailure, logUncovered } from "@/lib/errors";
@@ -67,6 +69,44 @@ const EDIT_COPY = {
     field: "map",
   },
 };
+
+export async function saveCampaignDice(campaignId, values) {
+  if (typeof campaignId !== "string" || campaignId.length === 0) {
+    return rejected("Missing campaign id.");
+  }
+
+  const dice = readDiceValues(values);
+  const malformed = validateDice(dice);
+
+  if (malformed) {
+    return rejected(malformed.message, malformed.field);
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (authError || !user) {
+    return sessionRejection("saveCampaignDice", authError);
+  }
+
+  const { error } = await setCampaignDice(supabase, {
+    id: campaignId,
+    ...dice,
+  });
+
+  if (error) {
+    const copy = EDIT_COPY[error.reason];
+    logUncovered("saveCampaignDice", error, copy);
+    return rejected(
+      copy?.message ?? "Could not save the dice. Please try again.",
+    );
+  }
+
+  revalidatePath(campaignSheetPath(campaignId));
+  revalidatePath(campaignTablePath(campaignId));
+
+  return { kind: "success" };
+}
 
 /**
  * The campaign as its Dungeon Master rewrote it.

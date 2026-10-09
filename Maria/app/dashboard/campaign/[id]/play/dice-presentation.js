@@ -20,7 +20,10 @@
  * them. A PLAYER's dice are that same set repainted — see `diceMaterial`.
  */
 
-import { diceColorHex } from "@/app/dashboard/character-presentation";
+import {
+  diceColorHex,
+  diceSkinTheme,
+} from "@/app/dashboard/character-presentation";
 import { DICE_THEMES } from "@/lib/dice-themes";
 
 const CASTS = {
@@ -90,15 +93,21 @@ export function diceCast(secret) {
  * the table has no character and therefore no colour of their own. A kept roll
  * takes the house's body too — a secret roll is the head of the table's by
  * definition, and 20260919090000 gives nobody else a way to make one.
+ *
+ * `skin` is what a player's dice are made of; the house's dice have none.
  */
-export function diceMaterial({ secret = false, color = null } = {}) {
+export function diceMaterial({
+  secret = false,
+  color = null,
+  skin = null,
+} = {}) {
   const { theme } = diceCast(secret);
 
-  return {
-    theme,
-    themeColor:
-      secret || !color ? DICE_THEMES[theme].body : diceColorHex(color),
-  };
+  if (secret || !color) {
+    return { theme, themeColor: DICE_THEMES[theme].body };
+  }
+
+  return { theme: diceSkinTheme(skin), themeColor: diceColorHex(color) };
 }
 
 /** dice-box's own notation, for however many of one die the rail was set to. */

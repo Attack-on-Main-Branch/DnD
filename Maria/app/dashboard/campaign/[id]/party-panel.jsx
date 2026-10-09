@@ -7,17 +7,20 @@ import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh"
 import { useRouteRefresh } from "@/app/components/use-route-refresh";
 import Avatar from "@/app/components/ui/avatar";
 import Button from "@/app/components/ui/button";
+import PencilButton from "@/app/components/ui/pencil-button";
 import {
   controlClasses,
   LABEL_CLASSES,
 } from "@/app/components/ui/field-styles";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 import {
   inviteCharacterToParty,
   removeCharacterFromParty,
 } from "../../actions";
+
+import MemberLookForm from "./member-look-form";
 
 /**
  * The party: who is in it, and how to ask somebody to join.
@@ -43,6 +46,9 @@ export default function PartyPanel({ campaignId, members }) {
   const [error, setError] = useState(null);
   const [invited, setInvited] = useState(() => new Set());
   const [isPending, startTransition] = useTransition();
+  /* `run` keys the form, so each opening starts from the look as it now
+     stands; the closed form stays mounted for its fold. */
+  const [describe, setDescribe] = useState(null);
 
   const refresh = useRouteRefresh();
 
@@ -120,6 +126,10 @@ export default function PartyPanel({ campaignId, members }) {
   }
 
   const busy = isPending;
+
+  const described = describe
+    ? members.find((member) => member.id === describe.id)
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -242,11 +252,82 @@ export default function PartyPanel({ campaignId, members }) {
                 >
                   Remove
                 </button>
+
+                <MemberLook
+                  member={member}
+                  onEdit={() =>
+                    setDescribe((standing) => ({
+                      id: member.id,
+                      run: (standing?.run ?? 0) + 1,
+                      open: true,
+                    }))
+                  }
+                />
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {described && (
+        <MemberLookForm
+          key={`${described.id}-${describe.run}`}
+          campaignId={campaignId}
+          member={described}
+          open={describe.open}
+          onClose={() =>
+            setDescribe((standing) => ({ ...standing, open: false }))
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+const REFERENCE_PREVIEW_CLASSES = "aspect-video w-28 shrink-0 rounded-md";
+
+/** What the scene painter is shown of this member. The Dungeon Master's alone. */
+function MemberLook({ member, onEdit }) {
+  const look = member.look;
+
+  return (
+    <div className="flex w-full items-center gap-3 border-t border-gold/10 pt-3">
+      {look?.image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={look.image_url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={`${REFERENCE_PREVIEW_CLASSES} bg-surface/60 object-cover ring-1 ring-gold/20`}
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className={`${REFERENCE_PREVIEW_CLASSES} border border-dashed border-gold/25`}
+        />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="font-mono text-[10px] tracking-[0.15em] text-ink/45 uppercase">
+          Reference
+        </p>
+        <p
+          className={`line-clamp-2 text-xs ${
+            look?.description ? "text-ink/75" : "text-ink/40 italic"
+          }`}
+        >
+          {look?.description ||
+            (look?.image_url
+              ? "A picture, no description."
+              : "How they look to the scene painter: a picture, and their height and build.")}
+        </p>
+      </div>
+
+      <PencilButton
+        label={`Describe how ${member.name} looks`}
+        onClick={onEdit}
+      />
     </div>
   );
 }
@@ -258,7 +339,7 @@ function MemberIdentity({ character }) {
     <div className="flex min-w-0 items-center gap-3">
       <Avatar
         src={character.avatar_url}
-        colorClass={diceColorClass(character.dice_color)}
+        color={diceColorHex(character.dice_color)}
       />
 
       <div className="min-w-0">

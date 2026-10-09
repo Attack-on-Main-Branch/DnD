@@ -11,12 +11,14 @@ export const CONTAINER_KINDS = [
   {
     value: "bag",
     label: "Traveller’s Bag",
+    plural: "Traveller’s Bags",
     hint: "Carried by one character, and handed over whole.",
     placeholder: "Bag of Holding",
   },
   {
     value: "chest",
     label: "Loot Chest",
+    plural: "Loot Chests",
     hint: "Sits in the world until you reveal it to the party.",
     placeholder: "Crypt Treasure Chest",
   },
@@ -48,7 +50,7 @@ export const CONTAINER_CARD_CLASSES =
 /** The kind tag, the item category tag's twin. */
 const TAG_BASE =
   "inline-flex items-center rounded-full border px-2 py-0.5 " +
-  "font-mono text-[10px] tracking-[0.14em] uppercase";
+  "font-mono text-[0.625rem] tracking-[0.14em] uppercase";
 
 const BAG_TAG_CLASSES = `${TAG_BASE} border-gold/25 bg-gold/10 text-gold/80`;
 

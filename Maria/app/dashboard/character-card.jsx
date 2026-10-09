@@ -9,7 +9,7 @@ import ConfirmDialog from "@/app/components/ui/confirm-dialog";
 import { surfaceClasses } from "@/app/components/ui/surface";
 
 import { deleteCharacter } from "./actions";
-import { diceColorClass, raceImage } from "./character-presentation";
+import { diceColorHex, raceImage } from "./character-presentation";
 
 /** How long "Copied" stays up before the label goes back to the invitation. */
 const COPIED_MS = 1600;
@@ -147,7 +147,7 @@ export default function CharacterCard({ character, handle, facts }) {
           <div className="flex items-center gap-3">
             <Avatar
               src={character.avatar_url}
-              colorClass={diceColorClass(character.dice_color)}
+              color={diceColorHex(character.dice_color)}
             />
 
             {/*

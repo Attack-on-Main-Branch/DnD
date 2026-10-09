@@ -42,8 +42,11 @@ verifies SQL, and `npm run db:list` is the only thing that catches a migration
 committed but never pushed. Maria has no test suite.
 
 Running the app needs `Maria/.env.local` (`NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and a Supabase project with the migrations
-applied; the README covers setup from a fresh clone.
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `VERTEX_PROJECT_ID` plus a Google sign-in
+for the scene painter — locally `gcloud auth application-default login`, on
+Vercel the `VERTEX_WIF_*` variables; all server-only, never `NEXT_PUBLIC_`) and
+a Supabase project with the migrations applied; the README covers setup from a
+fresh clone.
 
 ## Architecture
 
@@ -92,8 +95,13 @@ What keeps that seam intact:
   every non-static request. Server Components cannot write cookies, so it is the
   only place a rotated refresh token gets back to the browser; deleting it
   causes logouts that look random.
-- `getUser()` on the server, never `getSession()`. Only the former verifies the
-  JWT.
+- `getClaims()` on the server, never `getSession()`. Both read the cookie, but
+  only `getClaims()` verifies the JWT — locally, against the project's
+  asymmetric signing key, so the proxy, pages, Actions and table reads pay no
+  round trip to Auth. Claims are a snapshot from when the token was minted:
+  `setDisplayName` refreshes the session so a rename reaches the header, and
+  the settings page and its Actions use `getAccount` (`getUser()`) for the
+  account as it stands.
 - **"Cannot reach auth" is not "signed out."** `authCouldNotAnswer` in
   [session.js](Sina/src/supabase/session.js) draws that line once, for the proxy
   and the pages together. Transport failures arrive as status `0`, so a plain
@@ -147,6 +155,25 @@ highest-numbered file that touches it.
   been told about.
 - `SELECT` column lists are explicit and never include `user_id`; a test asserts
   it stays out.
+- **Dice sets are found, not chosen.** `character_dice_skins` has no write
+  policy: `open_dice_pouch` draws the set in SQL (odds mirror
+  `DICE_POUCH_ODDS`), and `guard_dice_skin` refuses a locked `dice_skin` on
+  every path. A pouch is a pack stack under the reserved slug `dice-pouch`;
+  `guard_dice_pouch` lets only the Dungeon Master add one. Its log line waits
+  for `announce_dice_skins`, called once the reel stops.
+
+- **A painted scene is a `campaign_maps` row with `is_scene`**, so the table
+  shows it like any map; `hang_scene` keeps four and evicts the oldest not on
+  the table. The sheet never sees scenes — `applyMapShelf` treats rows the
+  sheet omits as removed. The camera (`scene_cameras`) and what each piece is
+  doing (`scene_directions`) are DM-only tables, never sent on the table wire.
+  `paintScene` reads the board server-side, fetches pictures only from the
+  project's own buckets (`isOwnStorageImage`), calls Gemini on Vertex AI
+  through `sina/services/vertex`, and stores WebP made with `sharp`. Sign-in is
+  `services/google-auth.js`, by the first configured of a service-account key,
+  Vercel Workload Identity Federation (Maria passes `getVercelOidcToken` in), or
+  the gcloud ADC file; tokens are cached per instance. `env.js` must not import
+  `node:fs` — the proxy loads it.
 
 ### Frontend
 
@@ -159,6 +186,46 @@ highest-numbered file that touches it.
   [character-presentation.js](Maria/app/dashboard/character-presentation.js)
   throws at module load if Sina lists an avatar colour it has no class for, and
   its Tailwind class strings must stay literal for the scanner to find them.
+- **Dice skins are painted at build time**, not drawn by hand:
+  [dice-skins.mjs](Maria/scripts/dice-skins.mjs) generates each skin's textures
+  from the stock dice meshes' UV layout on `predev`/`prebuild`, keeping the
+  meshes so the shared roll's physics never changes. A theme is repainted only
+  when its fingerprint changes — its recipe, the painting code or the stock
+  dice — so recipes are data in
+  [dice-recipes.mjs](Maria/scripts/dice-recipes.mjs), apart from the code. A
+  new skin needs a recipe there named after it, a place under its rarity in
+  Sina's `DICE_SKINS_BY_RARITY` (which `DICE_SKIN_VALUES` and
+  `lib/dice-themes.mjs` are read off), a row in the `dice_skins` table (which
+  `characters.dice_skin` references), and copy in
+  `character-presentation.js`. dice-box reads a theme's dice list before
+  loading it, so load a theme before rolling in it.
+- **dice-box is loaded through [lib/dice-box.js](Maria/lib/dice-box.js) and
+  nothing else.** It builds its physics worker's source once, when its module
+  is first evaluated, and the table can only pin a seeded worker — so a direct
+  `import()` from a new roller would leave the table with no 3D dice. Builds go
+  through its one queue too: each stands on `window.Worker` while it runs.
+- **dice-box is vendored**, at [Maria/vendor/dice-box](Maria/vendor/dice-box):
+  upstream 1.1.4 plus a physically based variant of its colour material —
+  with an `opacity` for glass — and a `turnDice` worker message that turns a
+  landed die, whole in `grimoire.patch`. Every theme `dice-assets.mjs` writes uses it
+  (`shading: "pbr"`): each ships a `surface.png` (red occlusion, green
+  roughness, blue metalness) instead of a specular map, optionally a
+  `clearCoat`, and reflects a studio the worker paints itself. A recipe's
+  `finish` is how rough each of its materials is.
+  `dice-engine.js` reaches into the physics worker inside
+  `dist/dice-box.es.js`, which the fork leaves byte for byte as published — a
+  rebuild that changes that file has changed the seeded rolls. Its README says
+  how to rebuild.
+- **A natural 20 or 1 flares from each chair's own simulation**, with nothing
+  on the wire. The physics prelude in `lib/dice-box.js` reads each step's
+  buffer and posts `RESTED_MESSAGE` with a die's pose as it falls asleep;
+  `throwDie`'s `onRest` hands that on, and
+  [crit-flare.js](Maria/app/dashboard/campaign/[id]/play/crit-flare.js) draws
+  over the dice in a Three.js canvas of its own (`plus-lighter`, so it adds
+  light), disposed when it ends — canvas off the page BEFORE its context is
+  lost, since a lost canvas draws solid white and `plus-lighter` adds that to
+  the whole map. Its camera constants are copied out of dice-box's render
+  worker — a rebuild that moves that camera must move them.
 - **Both ESLint configs turn on `no-undef` and `no-unused-vars`**, which
   `eslint-config-next` leaves off for TypeScript's sake. In a plain-JS project
   they are the only thing that catches a missing import — one shipped past a

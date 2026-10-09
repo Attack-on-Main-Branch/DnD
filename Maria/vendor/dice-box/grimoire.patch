@@ -1,0 +1,440 @@
+diff --git a/src/components/ThemeLoader.js b/src/components/ThemeLoader.js
+index 8909d2e..3d7335f 100644
+--- a/src/components/ThemeLoader.js
++++ b/src/components/ThemeLoader.js
+@@ -1,8 +1,10 @@
+ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
+ import { Texture } from '@babylonjs/core/Materials/Textures/texture'
+ import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
++import { PBRCustomMaterial } from '@babylonjs/materials/custom/pbrCustomMaterial';
+ import { SerializationHelper } from '@babylonjs/core/Misc/decorators'
+ import { deepCopy } from '../helpers'
++import { createStudioEnvironment } from './world/environment'
+ 
+ // this is a monkey patch for cloning CustomMaterial in BabylonJS
+ CustomMaterial.prototype.clone = function (name)  {
+@@ -30,6 +32,65 @@ CustomMaterial.prototype.clone = function (name)  {
+   return result
+ }
+ 
++// Grimoire Tales: Babylon 5.57 names both custom materials' generated shaders
++// "custom_" + a counter of their own, so the first PBR die and the first
++// colour die each wrote "custom_2" and one compiled the other's code. Starting
++// the PBR counter a million on keeps the two in different names.
++PBRCustomMaterial.ShaderIndexer = 1000000
++
++// Grimoire Tales: a die's SECOND colour, worked out from its body colour, for
++// a theme whose material has an `accent` — and an `accentTexture` saying
++// where on the die it goes. Maria works it out the same way for its pictures
++// (lib/dice-accent.mjs), from the same numbers; change one and change the
++// other. In sRGB, as the colour arrives: the hue turned by `turn`, a turned
++// hue between `fold.from` and `fold.to` squeezed in up to `fold.into`, the
++// saturation held to `saturation`, the lightness taken towards
++// `lightness.middle` and leaning away from the body's, and a greyish body —
++// with no hue to turn — given `grey`'s instead. Hues are in turns, 0 to 1.
++const glslFloat = (value) => Number(value).toFixed(6)
++
++function accentShader({turn, fold, saturation, lightness, grey}) {
++  return `
++vec3 grimoireHsl(vec3 c) {
++  float high = max(c.r, max(c.g, c.b));
++  float low = min(c.r, min(c.g, c.b));
++  float light = (high + low) * 0.5;
++  float span = high - low;
++  if (span < 0.00001) {
++    return vec3(0.0, 0.0, light);
++  }
++  float hue = high == c.r ? mod((c.g - c.b) / span, 6.0)
++    : high == c.g ? (c.b - c.r) / span + 2.0
++    : (c.r - c.g) / span + 4.0;
++  return vec3(hue / 6.0, span / (1.0 - abs(2.0 * light - 1.0)), light);
++}
++vec3 grimoireRgb(vec3 hsl) {
++  vec3 k = mod(vec3(0.0, 8.0, 4.0) + hsl.x * 12.0, 12.0);
++  float reach = hsl.y * min(hsl.z, 1.0 - hsl.z);
++  return hsl.z - reach * max(vec3(-1.0), min(min(k - 3.0, 9.0 - k), vec3(1.0)));
++}
++vec3 grimoireAccent(vec3 body) {
++  vec3 hsl = grimoireHsl(body);
++  float hue = fract(hsl.x + ${glslFloat(turn)});
++  if (hue > ${glslFloat(fold.from)} && hue < ${glslFloat(fold.to)}) {
++    hue = ${glslFloat(fold.from)} + (hue - ${glslFloat(fold.from)}) * ${glslFloat((fold.into - fold.from) / (fold.to - fold.from))};
++  }
++  float light = clamp(
++    ${glslFloat(lightness.middle)} + ${glslFloat(lightness.lean)} * (0.5 - hsl.z),
++    ${glslFloat(lightness.range[0])},
++    ${glslFloat(lightness.range[1])}
++  );
++  vec3 turned = grimoireRgb(vec3(
++    hue,
++    clamp(hsl.y, ${glslFloat(saturation[0])}, ${glslFloat(saturation[1])}),
++    light
++  ));
++  vec3 fallback = grimoireRgb(vec3(${glslFloat(grey.hue)}, ${glslFloat(grey.saturation)}, light));
++  return mix(fallback, turned, smoothstep(${glslFloat(grey.from)}, ${glslFloat(grey.to)}, hsl.y));
++}
++`
++}
++
+ class ThemeLoader {
+   loadedThemes = {}
+   themeData = {}
+@@ -67,9 +128,125 @@ class ThemeLoader {
+ 
+   }
+ 
++  // Grimoire Tales: the "color" material, lit physically. Same two materials
++  // under the same two names, and the same per-instance colour, so nothing
++  // outside this file can tell the difference - what changes is that the
++  // surface is described as metal or not and rough or smooth (a glTF-style
++  // map: red occlusion, green roughness, blue metalness), and that it reflects
++  // the room in environment.js.
++  async loadPbrColorMaterial(options) {
++    const {theme, material: matParams} = options
++
++    if (!this.scene.environmentTexture) {
++      this.scene.environmentTexture = createStudioEnvironment(this.scene)
++    }
++
++    const opts = deepCopy(options)
++    const bump = matParams.bumpTexture ? await this.getTexture('bump', options) : null
++    const surface = matParams.metallicTexture ? await this.getTexture('metallic', options) : null
++    const accent = matParams.accent && matParams.accentTexture ? await this.getTexture('accent', options) : null
++
++    for (const variant of ['light', 'dark']) {
++      const material = new PBRCustomMaterial(`${theme}_${variant}`, this.scene)
++
++      if (matParams.diffuseTexture && matParams.diffuseTexture[variant]) {
++        opts.material.diffuseTexture = matParams.diffuseTexture[variant]
++        material.albedoTexture = await this.getTexture('diffuse', opts)
++      }
++      if (bump) {
++        material.bumpTexture = bump
++      }
++      // Grimoire Tales: the bump texture's alpha as a height map, looked into
++      // by parallax occlusion, for a theme with `parallax` — how far, in the
++      // texture's own units, its lowest point lies under its highest. The
++      // accent texture is read without the offset this gives the others.
++      if (bump && matParams.parallax) {
++        material.useParallax = true
++        material.useParallaxOcclusion = true
++        material.parallaxScaleBias = matParams.parallax
++      }
++      if (surface) {
++        material.metallicTexture = surface
++        material.useAmbientOcclusionFromMetallicTextureRed = true
++        // On by default, and it outranks the green channel: an RGB map's
++        // alpha is 1, which read every texel as fully rough.
++        material.useRoughnessFromMetallicTextureAlpha = false
++        material.useRoughnessFromMetallicTextureGreen = true
++        material.useMetallnessFromMetallicTextureBlue = true
++        material.metallic = 1
++        material.roughness = 1
++      }
++
++      material.environmentIntensity = matParams.environmentIntensity ?? 1
++      material.directIntensity = matParams.directIntensity ?? 1
++      material.allowShaderHotSwapping = false
++
++      // A clear, glossy layer over everything else: resin over foil, lacquer
++      // over paint.
++      if (matParams.clearCoat) {
++        material.clearCoat.isEnabled = true
++        material.clearCoat.intensity = matParams.clearCoat.intensity ?? 1
++        material.clearCoat.roughness = matParams.clearCoat.roughness ?? 0
++      }
++
++      // Grimoire Tales: see-through, for glass. `opacity` is how much of what
++      // is behind the body it hides; whatever the texture paints over the
++      // body stays solid, so numerals and scratches do not fade with it. Both
++      // sides are drawn, back first, so the far faces show through the near.
++      if (matParams.opacity !== undefined) {
++        material.alpha = matParams.opacity
++        material.backFaceCulling = false
++        material.separateCullingPass = true
++        material.twoSidedLighting = true
++        material.Fragment_Custom_Alpha(`
++#ifdef ALBEDO
++alpha = mix(alpha, 1.0, albedoTexture.a);
++#endif
++`)
++      }
++
++      // The colour material's instance colour, mixed in linear space where
++      // PBR works: the body colour wherever the texture is transparent.
++      material.Vertex_Definitions(`
++        attribute vec3 customColor;
++        varying vec3 vDiceColor;
++      `)
++      .Vertex_MainEnd(`
++        vDiceColor = customColor;
++      `)
++      .Fragment_Definitions(`
++        varying vec3 vDiceColor;
++      ` + (accent ? accentShader(matParams.accent) : ''))
++      // Babylon's preprocessor wants its directives at the start of a line,
++      // and Babylon renames the FIRST `result` in this part to the albedo, so
++      // it appears once. With an accent, the accent texture's red is how much
++      // of the second colour stands in for the body.
++      .Fragment_Custom_Albedo(accent ? `
++#ifdef ALBEDO
++vec3 diceBody = mix(vDiceColor, grimoireAccent(vDiceColor), texture2D(accentSampler, vAlbedoUV).r);
++result = mix(toLinearSpace(diceBody), toLinearSpace(albedoTexture.rgb), albedoTexture.a) * albedoInfos.y;
++#endif
++` : `
++#ifdef ALBEDO
++result = mix(toLinearSpace(vDiceColor), toLinearSpace(albedoTexture.rgb), albedoTexture.a) * albedoInfos.y;
++#endif
++`)
++
++      if (accent) {
++        material.AddUniform('accentSampler', 'sampler2D', accent)
++      }
++
++      material.AddAttribute('customColor')
++    }
++  }
++
+   // this will create two materials - one with light text and one with dark text, the underlying color can be changed by color instance buffers
+   async loadColorMaterial(options) {
+     const {theme, material: matParams} = options
++
++    if (matParams.shading === 'pbr') {
++      return this.loadPbrColorMaterial(options)
++    }
+     // create the custom color material with white/light numbers
+     const diceMatLight = new CustomMaterial(theme+'_light',this.scene)
+     // Other fun params for the future
+@@ -140,12 +317,22 @@ class ThemeLoader {
+             texture.level = matParams[level]
+           }
+           break;
+-        case "specular":    
++        case "specular":
+             texture = await this.importTextureAsync(`${basePath}/${matParams[textureKey]}`, theme)
+             if(matParams.specularPower){
+               texture.specularPower = matParams.specularPower
+             }
+           break;
++        case "metallic":
++          texture = await this.importTextureAsync(`${basePath}/${matParams[textureKey]}`, theme)
++          // Data, not colour: roughness and metalness are read as written.
++          texture.gammaSpace = false
++          break;
++        // Grimoire Tales: where a die's second colour goes — data too.
++        case "accent":
++          texture = await this.importTextureAsync(`${basePath}/${matParams[textureKey]}`, theme)
++          texture.gammaSpace = false
++          break;
+       
+         default:
+           throw new Error(`Texture type: ${type} is not supported`)
+diff --git a/src/components/offscreenCanvas.worker.js b/src/components/offscreenCanvas.worker.js
+index 6ad7617..168a487 100644
+--- a/src/components/offscreenCanvas.worker.js
++++ b/src/components/offscreenCanvas.worker.js
+@@ -29,6 +29,10 @@ self.onmessage = async (e) => {
+     case "resize":
+ 			WorldOffscreen.resize(e.data.options)
+       break
++		// Grimoire Tales: posted straight to this worker by the app, which holds it
++		case "turnDice":
++			WorldOffscreen.turn(e.data.options)
++			break
+     case "init":
+       // WorldOffscreen.initScene(e.data)
+ 			WorldOffscreen = new WorldOnscreen({
+diff --git a/src/components/world.onscreen.js b/src/components/world.onscreen.js
+index 6b00298..e71e151 100644
+--- a/src/components/world.onscreen.js
++++ b/src/components/world.onscreen.js
+@@ -1,4 +1,5 @@
+-import { Vector3 } from '@babylonjs/core/Maths/math.vector'
++import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector'
++import { VertexBuffer } from '@babylonjs/core/Buffers/buffer'
+ import { createEngine } from './world/engine'
+ import { createScene } from './world/scene'
+ import { createCamera } from './world/camera'
+@@ -420,6 +421,55 @@ class WorldOnscreen {
+ 		this.#sleeperCount++
+ 	}
+ 	
++	// Grimoire Tales: the dice turned in place, once they have stopped, so a
++	// player can look a die over. `x` and `y` are radians, as a drag across
++	// the canvas reads: rightward turns the near face right, downward turns it
++	// down. Each die is drawn towards the middle of the tray as it turns — a
++	// d4 turns about its centre of mass, which is not the middle of what is
++	// seen — and set back down on the floor it came to rest on.
++	turn({x = 0, y = 0}) {
++		if (this.#engine.activeRenderLoops.length) {
++			return
++		}
++
++		const spin = Quaternion.RotationAxis(this.#camera.getDirection(Vector3.Up()), -x)
++			.multiply(Quaternion.RotationAxis(this.#camera.getDirection(Vector3.Right()), -y))
++
++		Object.values(this.#dieCache).forEach(({mesh}) => {
++			if (!mesh) {
++				return
++			}
++
++			const extent = () => {
++				const corners = mesh.getVerticesData(VertexBuffer.PositionKind)
++				const world = mesh.computeWorldMatrix(true)
++				const at = new Vector3()
++				const low = new Vector3(Infinity, Infinity, Infinity)
++				const high = new Vector3(-Infinity, -Infinity, -Infinity)
++
++				for (let i = 0; i < corners.length; i += 3) {
++					Vector3.TransformCoordinatesFromFloatsToRef(corners[i], corners[i + 1], corners[i + 2], world, at)
++					low.minimizeInPlace(at)
++					high.maximizeInPlace(at)
++				}
++
++				return {low, high}
++			}
++
++			mesh.metadata ??= {}
++			mesh.metadata.restingOn ??= extent().low.y
++			mesh.rotationQuaternion = spin.multiply(mesh.rotationQuaternion)
++
++			const {low, high} = extent()
++
++			mesh.position.x -= (low.x + high.x) / 2 * .5
++			mesh.position.z -= (low.z + high.z) / 2 * .5
++			mesh.position.y += mesh.metadata.restingOn - low.y
++		})
++
++		this.#scene.render()
++	}
++
+ 	resize(options) {
+ 		// redraw the dicebox
+ 		const width = this.#canvas.width = options.width
+diff --git a/src/components/world/environment.js b/src/components/world/environment.js
+new file mode 100644
+index 0000000..caa1259
+--- /dev/null
++++ b/src/components/world/environment.js
+@@ -0,0 +1,108 @@
++import { Constants } from '@babylonjs/core/Engines/constants'
++import { RawCubeTexture } from '@babylonjs/core/Materials/Textures/rawCubeTexture'
++import { HDRFiltering } from '@babylonjs/core/Materials/Textures/Filtering/hdrFiltering'
++
++// Grimoire Tales: what a PBR die reflects. Painted here rather than fetched,
++// so a table whose dice are all standard materials downloads nothing for it.
++
++const SIZE = 128
++
++// Where dice-box's directional light shines from (its direction, reversed),
++// so the softbox in a reflection agrees with the highlight the light draws.
++const KEY = normalize([0.3, 1, -0.4])
++const FILL = normalize([-0.7, 0.55, 0.45])
++
++function normalize([x, y, z]) {
++  const span = Math.hypot(x, y, z) || 1
++  return [x / span, y / span, z / span]
++}
++
++function smoothstep(edge0, edge1, value) {
++  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)))
++  return t * t * (3 - 2 * t)
++}
++
++// A dark studio, the way metal is photographed: what makes a surface read as
++// metal is neighbouring faces showing very different things, so the room is
++// mostly shadow with a few large lights in it — a warm key softbox where
++// dice-box's own light hangs, a cooler fill, and windows round the horizon
++// that the side faces catch as the die turns.
++function radiance([x, y, z]) {
++  const base = y >= 0 ? 0.075 + 0.08 * y : 0.035
++
++  const key = smoothstep(0.82, 0.92, x * KEY[0] + y * KEY[1] + z * KEY[2])
++  const fill = smoothstep(0.86, 0.94, x * FILL[0] + y * FILL[1] + z * FILL[2])
++
++  const azimuth = Math.atan2(z, x)
++  const band = smoothstep(0.02, 0.08, y) * (1 - smoothstep(0.24, 0.32, y))
++  const windows = band * smoothstep(0.35, 0.75, Math.cos(3 * azimuth + 0.6))
++
++  return [
++    Math.min(1, base + key * 1.0 + fill * 0.6 + windows * 0.55),
++    Math.min(1, base + key * 0.95 + fill * 0.66 + windows * 0.55),
++    Math.min(1, base + key * 0.86 + fill * 0.76 + windows * 0.58),
++  ]
++}
++
++// The cube's faces in WebGL's order and orientation: +X, -X, +Y, -Y, +Z, -Z.
++const FACES = [
++  (u, v) => [1, -v, -u],
++  (u, v) => [-1, -v, u],
++  (u, v) => [u, 1, v],
++  (u, v) => [u, -1, -v],
++  (u, v) => [u, -v, 1],
++  (u, v) => [-u, -v, -1],
++]
++
++function createStudioEnvironment(scene) {
++  const faces = FACES.map((direction) => {
++    const data = new Uint8Array(SIZE * SIZE * 4)
++
++    for (let row = 0; row < SIZE; row++) {
++      for (let column = 0; column < SIZE; column++) {
++        const u = ((column + 0.5) / SIZE) * 2 - 1
++        const v = ((row + 0.5) / SIZE) * 2 - 1
++        const [r, g, b] = radiance(normalize(direction(u, v)))
++        const at = (row * SIZE + column) * 4
++
++        data[at] = Math.round(Math.pow(r, 1 / 2.2) * 255)
++        data[at + 1] = Math.round(Math.pow(g, 1 / 2.2) * 255)
++        data[at + 2] = Math.round(Math.pow(b, 1 / 2.2) * 255)
++        data[at + 3] = 255
++      }
++    }
++
++    return data
++  })
++
++  const texture = new RawCubeTexture(
++    scene,
++    faces,
++    SIZE,
++    Constants.TEXTUREFORMAT_RGBA,
++    Constants.TEXTURETYPE_UNSIGNED_BYTE,
++    true,
++    false,
++    Constants.TEXTURE_TRILINEAR_SAMPLINGMODE
++  )
++  texture.gammaSpace = true
++
++  // Blurred properly by roughness where the GPU can (WebGL 2); the mip chain
++  // alone where it cannot, which is coarser but still right for a room this
++  // smooth. The filtered maps swap in under the same texture, so the
++  // materials are told to look again once they have.
++  try {
++    new HDRFiltering(scene.getEngine(), {
++      quality: Constants.TEXTURE_FILTERING_QUALITY_HIGH,
++    })
++      .prefilter(texture)
++      .then(() => scene.markAllMaterialsAsDirty(Constants.MATERIAL_TextureDirtyFlag))
++      .catch(() => {})
++  } catch (error) {
++    // Left to the mip chain.
++  }
++
++  return texture
++}
++
++export { createStudioEnvironment }
+diff --git a/src/components/world/lights.js b/src/components/world/lights.js
+index b5347c7..6022f52 100644
+--- a/src/components/world/lights.js
++++ b/src/components/world/lights.js
+@@ -24,6 +24,8 @@ function createLights(options = defaultOptions) {
+     d_light.shadowGenerator = new ShadowGenerator(2048, d_light);
+     d_light.shadowGenerator.useCloseExponentialShadowMap = true; // best
+     d_light.shadowGenerator.darkness = shadowTransparency
++    // Grimoire Tales: a see-through die's shadow is as light as the die is clear.
++    d_light.shadowGenerator.transparencyShadow = true
+     // d_light.shadowGenerator.usePoissonSampling = true
+     // d_light.shadowGenerator.bias = .01
+   }

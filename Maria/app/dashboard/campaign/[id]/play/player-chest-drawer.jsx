@@ -124,7 +124,7 @@ export default function PlayerChestDrawer({
               </span>
 
               <span className="flex shrink-0 items-center gap-2">
-                <span className="font-mono text-[10px] text-ink/45 tabular-nums">
+                <span className="font-mono text-[0.625rem] text-ink/45 tabular-nums">
                   {inside.length}
                 </span>
 
@@ -151,7 +151,7 @@ export default function PlayerChestDrawer({
                           {row.name}
                         </span>
 
-                        <span className="shrink-0 font-mono text-[10px] text-ink/45 tabular-nums">
+                        <span className="shrink-0 font-mono text-[0.625rem] text-ink/45 tabular-nums">
                           of {row.quantity}
                         </span>
 

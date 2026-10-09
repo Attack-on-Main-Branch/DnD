@@ -1,5 +1,9 @@
 import { CONDITIONS } from "sina/rules/conditions";
 
+import {
+  diceRarityLook,
+  diceSkinDetails,
+} from "@/app/dashboard/character-presentation";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
 
 import { coinName } from "@/app/dashboard/currency-presentation";
@@ -36,9 +40,8 @@ const ACCENTS = {
   dice_roll: "border-l-gold/70",
   secret_dice_roll: "border-l-arcane",
   hp_change: "border-l-orange-500",
-  /* One step back from a hit point's own orange: what moved is the FRAME the
-     bar is drawn in, not anything that happened to the character inside it. */
-  max_hp_change: "border-l-orange-300",
+  temp_hp_change: "border-l-temp-hp",
+  armor_class_change: "border-l-sky-300",
   item_used: "border-l-emerald-400",
   item_dropped: "border-l-zinc-500",
   item_transferred: "border-l-sky-400",
@@ -154,8 +157,13 @@ const SAVE_ACCENTS = {
   critical_failure: "border-l-amber-700",
 };
 
-/** The entry rather than its action: two of these need to look inside. */
+/** The entry rather than its action: some of these need to look inside. */
 export function accentClass(entry) {
+  // A set out of a pouch wears its rarity, as its card on the Dice tab does.
+  if (entry.action === "dice_pouch_opened") {
+    return diceRarityLook(entry.rarity).stripe;
+  }
+
   if (entry.action === "level_change") {
     return entry.delta > 0 ? LEVEL_ACCENTS.up : LEVEL_ACCENTS.down;
   }
@@ -275,13 +283,17 @@ function Experience({ delta }) {
  * plain text rather than a badge, so it sits in the sentence the way the roll's
  * own number does. The true minus sign, as the health band's stepper uses.
  */
-function HitPoints({ delta }) {
+function HitPoints({ delta, temporary = false }) {
   const healed = delta > 0;
 
   return (
     <span
       className={`font-semibold tabular-nums ${
-        healed ? "text-emerald-300" : "text-orange-300"
+        temporary
+          ? "text-temp-hp"
+          : healed
+            ? "text-emerald-300"
+            : "text-orange-300"
       }`}
     >
       {healed ? "+" : "−"}
@@ -328,7 +340,6 @@ function Coins({ amount, coin }) {
    about the person who did it. */
 const ABOUT_THE_TARGET = new Set([
   "level_change",
-  "max_hp_change",
   "instant_death",
   "death_save",
   "character_died",
@@ -416,6 +427,23 @@ function Body({ entry }) {
     );
   }
 
+  /* The rarity in its own colour, and the set by the name the Dice tab gives
+     it. */
+  if (entry.action === "dice_pouch_opened") {
+    const look = diceRarityLook(entry.rarity);
+
+    return (
+      <>
+        opened a new{" "}
+        <span className={`font-semibold ${look.text}`}>{look.label}</span> dice
+        set:{" "}
+        <span className={EMPHASIS_CLASSES}>
+          {diceSkinDetails(entry.skin).label}
+        </span>
+      </>
+    );
+  }
+
   /* The condition in its own colour, and the target named either way — a
      Dungeon Master is never the one it happened to. */
   if (entry.action === "condition_applied") {
@@ -445,15 +473,20 @@ function Body({ entry }) {
     );
   }
 
-  /* The frame the bar is drawn in, and the rung that decided it. No direction:
-     what it came TO is the fact, and the bar beside it already shows where that
-     left them. */
-  if (entry.action === "max_hp_change") {
+  if (entry.action === "armor_class_change") {
     return (
       <>
-        Max HP updated to{" "}
-        <span className={EMPHASIS_CLASSES}>{entry.maxHp}</span> (Lvl{" "}
-        {entry.level})
+        changed AC by{" "}
+        <span className="font-semibold text-sky-300 tabular-nums">
+          {entry.delta > 0 ? "+" : "−"}
+          {Math.abs(entry.delta)}
+        </span>
+        {entry.target && (
+          <>
+            {" for "}
+            <span className={NAME_CLASSES}>{entry.target}</span>
+          </>
+        )}
       </>
     );
   }
@@ -475,20 +508,24 @@ function Body({ entry }) {
     );
   }
 
-  if (entry.action === "hp_change") {
+  if (entry.action === "hp_change" || entry.action === "temp_hp_change") {
     const healed = entry.delta > 0;
+    const temporary = entry.action === "temp_hp_change";
+    const unit = temporary ? "temporary HP" : "HP";
 
     if (!entry.target) {
       return (
         <>
-          {healed ? "gained" : "lost"} <HitPoints delta={entry.delta} /> HP
+          {healed ? "gained" : "lost"}{" "}
+          <HitPoints delta={entry.delta} temporary={temporary} /> {unit}
         </>
       );
     }
 
     return (
       <>
-        {healed ? "gave" : "dealt"} <HitPoints delta={entry.delta} /> HP to{" "}
+        {healed ? "gave" : "dealt"}{" "}
+        <HitPoints delta={entry.delta} temporary={temporary} /> {unit} to{" "}
         <span className={NAME_CLASSES}>{entry.target}</span>
       </>
     );

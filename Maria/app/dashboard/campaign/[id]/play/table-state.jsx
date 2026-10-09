@@ -14,9 +14,16 @@ import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
 import { readCombat } from "sina/rules/combat";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
-import { parseArmorClass, readDeathSaves } from "sina/rules/death";
+import { isDying, parseArmorClass, readDeathSaves } from "sina/rules/death";
 import { readConditions } from "sina/rules/conditions";
 import { readFeatures } from "sina/rules/features";
+import {
+  changeHitPoints,
+  grantTempHitPoints,
+  healthTier,
+  HEALTH_TIERS,
+  parseHitPoints,
+} from "sina/rules/health";
 import { parseInspiration, steppedInspiration } from "sina/rules/inspiration";
 import { MAX_ITEM_QUANTITY } from "sina/rules/inventory";
 import { readPlacedTokens } from "sina/rules/tokens";
@@ -117,6 +124,17 @@ function readTokens(rows) {
   return new Map(readPlacedTokens(rows).map((token) => [token.id, token]));
 }
 
+function readHealth(member) {
+  return {
+    current: member.current_hp,
+    max: member.max_hp,
+    tier: HEALTH_TIERS.includes(member.health_tier) ? member.health_tier : null,
+    dying: Boolean(member.is_dying),
+    temp: member.temp_hp ?? 0,
+    tempMax: member.temp_hp_max ?? 0,
+  };
+}
+
 /**
  * The seed, as the store holds it. Levels and health are separate slices so that
  * an award does not re-render everything watching a hit point.
@@ -154,7 +172,7 @@ function readSeed({
     /* Null where this viewer may not read them — `campaign_party` answers with
        one for anybody but their own, so the card draws no pips at all. */
     inspired[member.id] = parseInspiration(member.inspiration);
-    health[member.id] = { current: member.current_hp, max: member.max_hp };
+    health[member.id] = readHealth(member);
     /* Null the same way, and for the same reason: an armour class is the head
        of the table's to read across the party and a player's for their own. */
     shields[member.id] = parseArmorClass(member.armor_class);
@@ -289,22 +307,46 @@ const KEYED = new Set([
 ]);
 
 /**
- * How long this browser's own copy of a value outranks the server's.
+ * WHEN THIS BROWSER'S COPY OF A VALUE OUTRANKS THE SERVER'S.
  *
- * A ROUTE RENDER READS THE DATABASE BEFORE IT LANDS, and at a busy table things
- * move in between — so adopting its answer whole put a dragged token, a spent
+ * Every answer from the database was read before it landed, and at a busy table
+ * things move in between — so adopting one whole put a dragged token, a spent
  * hit point and a written line back where they had been and forward again a
- * moment later. A value touched more recently than this is kept instead, which
- * costs nothing and waits for nobody.
+ * moment later. Three things keep a value standing instead:
+ *
+ *   in the air    a deed's paint, until its own write has been answered — see
+ *                 `hold`. However slow the write, no read can undo it first.
+ *   newer         touched after the read was ASKED, which therefore cannot
+ *                 have seen it, however long it took to come back.
+ *   recent        touched within HELD_MS, for what cannot be ordered against a
+ *                 read: a value heard off the wire, whose write is another
+ *                 browser's, and every route render, which carries no time.
+ *
+ * A deed's own write, once answered, needs only the first two: a read asked
+ * after the answer has seen it, and is the truth.
  */
 const HELD_MS = 2500;
+
+/** A write unanswered this long has stopped being a reason to wait. */
+const PINNED_MS = 15000;
 
 function createTableStore(seed) {
   let state = readSeed(seed);
   const listeners = new Set();
 
-  /** Path -> when this browser last wrote it. */
+  /** Path -> when this browser last wrote it, and whether a write answered it. */
   const touched = new Map();
+
+  /** Path -> the deeds painted over it whose writes are still in the air. */
+  const pins = new Map();
+
+  /** The paths a deed's paint is touching, while it paints. */
+  let pinning = null;
+
+  function touch(path, at) {
+    touched.set(path, { at, exact: false });
+    pinning?.add(path);
+  }
 
   function mark(before, after) {
     const at = Date.now();
@@ -318,7 +360,7 @@ function createTableStore(seed) {
       }
 
       if (!KEYED.has(slice)) {
-        touched.set(slice, at);
+        touch(slice, at);
         continue;
       }
 
@@ -334,20 +376,38 @@ function createTableStore(seed) {
         const theirs = was instanceof Map ? was.get(key) : was?.[key];
 
         if (mine !== theirs) {
-          touched.set(`${slice}\u0000${key}`, at);
+          touch(`${slice}\u0000${key}`, at);
         }
       }
     }
   }
 
-  /** Server data with anything this browser has just written left standing. */
-  function preserve(next) {
+  /**
+   * Server data with anything it cannot have seen left standing. `askedAt` is
+   * when the read was asked for; a route render does not know, and is held to
+   * the clock alone.
+   */
+  function preserve(next, askedAt = Infinity) {
     const now = Date.now();
     let held = next;
 
-    for (const [path, at] of touched) {
-      if (now - at > HELD_MS) {
+    for (const [path, { at, exact }] of touched) {
+      const pin = pins.get(path);
+      const pinned = Boolean(pin) && now - pin.since <= PINNED_MS;
+      const newer = at >= askedAt;
+      const recent = now - at <= HELD_MS;
+
+      if (pin && !pinned) {
+        pins.delete(path);
+      }
+
+      if (!pinned && !newer && !recent) {
         touched.delete(path);
+        continue;
+      }
+
+      // Answered, and asked about since: what came back has seen it.
+      if (!pinned && !newer && exact && askedAt !== Infinity) {
         continue;
       }
 
@@ -419,28 +479,88 @@ function createTableStore(seed) {
     },
 
     /**
+     * A deed's paint, and every value it touched held against the database
+     * until the deed's write has been answered. Returns the answer: `true` for
+     * written, which hands the values back to the ordinary rules, and `false`
+     * for refused, which lets them go at once so the re-read that follows can
+     * put them back where they really are.
+     */
+    hold(paint) {
+      const painted = new Set();
+
+      pinning = painted;
+
+      try {
+        paint?.();
+      } finally {
+        pinning = null;
+      }
+
+      const since = Date.now();
+
+      for (const path of painted) {
+        pins.set(path, { count: (pins.get(path)?.count ?? 0) + 1, since });
+      }
+
+      let answered = false;
+
+      return (written) => {
+        if (answered) {
+          return;
+        }
+
+        answered = true;
+
+        const at = Date.now();
+
+        for (const path of painted) {
+          const pin = pins.get(path);
+          const left = (pin?.count ?? 1) - 1;
+
+          if (left > 0) {
+            pins.set(path, { ...pin, count: left });
+          } else {
+            pins.delete(path);
+          }
+
+          if (written) {
+            touched.set(path, { at, exact: true });
+          } else if (left <= 0) {
+            touched.delete(path);
+          }
+        }
+      };
+    },
+
+    /**
      * A CHANGE and not a total: a total is computed against a number that may
      * have moved since the press, so two quick presses would both aim at the
      * same figure instead of stacking. Null is a press that did nothing.
      */
-    moveHealth(characterId, delta) {
+    moveHealth(characterId, delta, temporary = false) {
       const bar = state.health[characterId];
 
       if (!bar) {
         return null;
       }
 
-      const next = Math.min(bar.max, Math.max(0, bar.current + delta));
+      const next = temporary
+        ? grantTempHitPoints(bar, delta)
+        : changeHitPoints(bar, delta);
 
-      if (next === bar.current) {
+      if (next.current === bar.current && next.temp === bar.temp) {
         return null;
       }
 
-      amend("health", characterId, { ...bar, current: next });
+      amend("health", characterId, next);
 
       // What the bar ACTUALLY moved by: ten damage against seven hit points is
       // a change of seven.
-      return { hitPoints: next, moved: next - bar.current };
+      return {
+        health: next,
+        moved: next.current - bar.current,
+        tempMoved: next.temp - bar.temp,
+      };
     },
 
     /**
@@ -455,13 +575,16 @@ function createTableStore(seed) {
     reconcileHealth(characterId, expected, actual) {
       const bar = state.health[characterId];
 
-      if (!bar || bar.current !== expected) {
+      if (!bar || bar !== expected) {
         return false;
       }
 
-      if (actual !== bar.current) {
-        amend("health", characterId, { ...bar, current: actual });
-      }
+      amend("health", characterId, {
+        ...bar,
+        current: parseHitPoints(actual.hitPoints, bar.max),
+        temp: parseHitPoints(actual.tempHp),
+        tempMax: parseHitPoints(actual.maxTempHp),
+      });
 
       return true;
     },
@@ -495,6 +618,7 @@ function createTableStore(seed) {
       }
 
       amend("health", characterId, {
+        ...bar,
         max: maxHp,
         current: Math.min(maxHp, Math.max(0, hitPoints)),
       });
@@ -509,7 +633,10 @@ function createTableStore(seed) {
      * Every field is optional: a press that only moved the bar leaves the rest
      * where they are.
      */
-    setCondition(characterId, { hitPoints, isDead, deathSaves } = {}) {
+    setCondition(
+      characterId,
+      { hitPoints, tempHp, maxTempHp, isDead, deathSaves } = {},
+    ) {
       const bar = state.health[characterId];
 
       if (!bar) {
@@ -519,13 +646,22 @@ function createTableStore(seed) {
       const next = { ...state };
       let moved = false;
 
-      if (hitPoints !== null && hitPoints !== undefined) {
-        const landed = Math.min(bar.max, Math.max(0, hitPoints));
+      if (hitPoints != null || tempHp != null || maxTempHp != null) {
+        const landed =
+          hitPoints == null ? bar.current : parseHitPoints(hitPoints, bar.max);
+        const tempMax =
+          maxTempHp == null ? bar.tempMax : parseHitPoints(maxTempHp);
+        const temp =
+          tempHp == null ? bar.temp : parseHitPoints(tempHp, tempMax);
 
-        if (landed !== bar.current) {
+        if (
+          landed !== bar.current ||
+          temp !== bar.temp ||
+          tempMax !== bar.tempMax
+        ) {
           next.health = {
             ...state.health,
-            [characterId]: { ...bar, current: landed },
+            [characterId]: { ...bar, current: landed, temp, tempMax },
           };
           moved = true;
         }
@@ -983,23 +1119,6 @@ function createTableStore(seed) {
       commit({ ...state, tokens });
     },
 
-    /** Every piece off one map: what ruling a free-form board does. */
-    sweepTokens(mapId) {
-      const tokens = new Map(state.tokens);
-      let swept = false;
-
-      for (const [id, token] of tokens) {
-        if (token.mapId === mapId) {
-          tokens.delete(id);
-          swept = true;
-        }
-      }
-
-      if (swept) {
-        commit({ ...state, tokens });
-      }
-    },
-
     /* ---------------------------------------------------------------------
      * Packs.
      * ------------------------------------------------------------------ */
@@ -1044,6 +1163,7 @@ function createTableStore(seed) {
             quantity: Math.min(MAX_ITEM_QUANTITY, delta),
             is_custom: Boolean(item.isCustom),
             facts: item.facts ?? {},
+            in_hand: false,
             created_at: null,
           },
         ]);
@@ -1062,6 +1182,31 @@ function createTableStore(seed) {
         quantity === 0
           ? pack.filter((row) => !here(row))
           : pack.map((row) => (here(row) ? { ...row, quantity } : row)),
+      );
+    },
+
+    /** One row of a pack taken in hand and any other let go; null empties it. */
+    holdPack(characterId, rowId) {
+      const pack = state.packs[characterId];
+
+      if (!pack) {
+        return;
+      }
+
+      const target = rowId ?? null;
+
+      if (!pack.some((row) => Boolean(row.in_hand) !== (row.id === target))) {
+        return;
+      }
+
+      amend(
+        "packs",
+        characterId,
+        pack.map((row) =>
+          Boolean(row.in_hand) === (row.id === target)
+            ? row
+            : { ...row, in_hand: row.id === target },
+        ),
       );
     },
 
@@ -1282,8 +1427,9 @@ function createTableStore(seed) {
      * answered with: rather than unpicking a change that may have been stacked
      * on since, the store asks what is actually there. Only the slices that came
      * back are replaced, and only for characters this browser already has.
+     * `askedAt` is when the read was asked for — see `preserve`.
      */
-    sync(slices) {
+    sync(slices, askedAt) {
       if (!slices) {
         return;
       }
@@ -1338,10 +1484,7 @@ function createTableStore(seed) {
             levels[member.id] = member.level;
             experience[member.id] = member.xp ?? 0;
             marked[member.id] = parseInspiration(member.inspiration);
-            health[member.id] = {
-              current: member.current_hp,
-              max: member.max_hp,
-            };
+            health[member.id] = readHealth(member);
             shields[member.id] = parseArmorClass(member.armor_class);
             saves[member.id] = readDeathSaves(member.death_saves);
             gone[member.id] = Boolean(member.is_dead);
@@ -1430,7 +1573,7 @@ function createTableStore(seed) {
         next = { ...next, slots, hitDice: dice };
       }
 
-      commit(preserve(next), false);
+      commit(preserve(next, askedAt), false);
     },
 
     /**
@@ -1504,6 +1647,42 @@ function useTableValue(select) {
   return useSyncExternalStore(store.subscribe, read, read);
 }
 
+export function useHealthTier(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => {
+        const bar = state.health[characterId];
+        if (!bar) return null;
+        return Number.isFinite(bar.current) && Number.isFinite(bar.max)
+          ? healthTier(bar.current, bar.max)
+          : HEALTH_TIERS.includes(bar.tier)
+            ? bar.tier
+            : null;
+      },
+      [characterId],
+    ),
+  );
+}
+
+export function useIsDying(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => {
+        const bar = state.health[characterId];
+        return isDying(
+          Number.isFinite(bar?.current)
+            ? bar.current
+            : bar?.dying
+              ? 0
+              : undefined,
+          state.dead[characterId],
+        );
+      },
+      [characterId],
+    ),
+  );
+}
+
 export function useHitPoints(characterId) {
   return useTableValue(
     useCallback(
@@ -1516,6 +1695,21 @@ export function useHitPoints(characterId) {
 export function useMaxHitPoints(characterId) {
   return useTableValue(
     useCallback((state) => state.health[characterId]?.max ?? 0, [characterId]),
+  );
+}
+
+export function useTempHitPoints(characterId) {
+  return useTableValue(
+    useCallback((state) => state.health[characterId]?.temp ?? 0, [characterId]),
+  );
+}
+
+export function useMaxTempHitPoints(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => state.health[characterId]?.tempMax ?? 0,
+      [characterId],
+    ),
   );
 }
 

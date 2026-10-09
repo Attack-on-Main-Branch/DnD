@@ -51,12 +51,24 @@ export async function verifyPassword(supabase, { email, password }) {
   return error ? failure(error) : { data: true, error: null };
 }
 
+/**
+ * The header reads the name off the access token, which `updateUser` leaves as
+ * it was — so the session is turned over to mint one carrying the new name. A
+ * refresh that fails is not a rename that failed: the token turns over within
+ * the hour regardless.
+ */
 export async function setDisplayName(supabase, displayName) {
   const { error } = await supabase.auth.updateUser({
     data: { display_name: displayName },
   });
 
-  return error ? failure(error) : { data: true, error: null };
+  if (error) {
+    return failure(error);
+  }
+
+  await supabase.auth.refreshSession();
+
+  return { data: true, error: null };
 }
 
 export async function setEmail(supabase, email) {

@@ -17,7 +17,7 @@
  */
 const COLUMNS =
   "id, character_id, container_id, item_slug, name, category, description, " +
-  "quantity, is_custom, facts, created_at";
+  "quantity, is_custom, facts, in_hand, created_at";
 
 const CATALOGUE_COLUMNS =
   "id, item_slug, name, category, description, cost_quantity, cost_unit, " +
@@ -45,6 +45,12 @@ function classify(error) {
   // and stops being recognised if the migration changes the string.
   if (error.message?.includes("item_limit_reached")) {
     return "limit_reached";
+  }
+
+  // `guard_dice_pouch`: a pouch handed over or stowed by anybody but the head
+  // of the table.
+  if (error.message?.includes("dice_pouch_dm_only")) {
+    return "dm_only";
   }
 
   // Past validateItem but refused by the bounds CHECK: a disagreement between
@@ -405,6 +411,27 @@ export async function moveInventoryItem(
   }
 
   return { data: { remaining: data }, error: null };
+}
+
+/**
+ * One stack of the pack taken in hand, letting go of whatever was there; a null
+ * `itemId` empties the hand. The row stays in the pack and nothing is logged.
+ * `false` is a refusal — a bag's stack, a Dice Pouch, or not the caller's — and
+ * reads as `not_found`, as every other refusal here does.
+ */
+export async function holdInHand(supabase, { characterId, itemId = null }) {
+  const { data, error } = await supabase.rpc("hold_in_hand", {
+    target_character: characterId,
+    p_item_id: itemId,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data: { itemId }, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
 }
 
 /**

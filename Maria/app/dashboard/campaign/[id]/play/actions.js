@@ -11,6 +11,7 @@ import {
 import {
   applyDamage,
   applyHeal,
+  grantTemporaryHitPoints,
   deleteCharacterNote,
   insertCharacterNote,
   listCharacterNotes,
@@ -24,7 +25,6 @@ import {
 } from "sina/data/characters";
 import { moveCharacterInspiration } from "sina/data/inspiration";
 import {
-  clearMapPlacedTokens,
   moveMapToken,
   placeMapToken,
   removeMapToken,
@@ -105,10 +105,11 @@ export async function changeCharacterHealth(
   characterId,
   value,
   seatCharacterId = null,
+  temporary = false,
 ) {
   const delta = parseHealthChange(value);
 
-  if (delta === null) {
+  if (delta === null || (temporary && delta < 0)) {
     return rejected("Hit points have to be a number.");
   }
 
@@ -123,8 +124,14 @@ export async function changeCharacterHealth(
      point going up does not — massive damage, and the tallies a character
      collects at zero. `apply_damage` and `apply_heal` are the halves; the sign
      is what decides which. */
-  const { data, error } =
-    delta < 0
+  const { data, error } = temporary
+    ? await grantTemporaryHitPoints(supabase, {
+        id: characterId,
+        amount: delta,
+        campaignId,
+        seatCharacterId,
+      })
+    : delta < 0
       ? await applyDamage(supabase, {
           id: characterId,
           damage: -delta,
@@ -163,6 +170,8 @@ export async function changeCharacterHealth(
  */
 function condition(data) {
   return {
+    tempHp: data.tempHp,
+    maxTempHp: data.maxTempHp,
     isDead: data.isDead,
     deathSaves: data.deathSaves,
     instantDeath: Boolean(data.instantDeath),
@@ -339,12 +348,12 @@ const HIT_DICE_COPY = {
   bad_id: "That character is no longer at this table.",
 };
 
-/**
- * The shield. No line in the log and nothing to reconcile beyond the number
- * itself: an armour class is a fact about a character rather than something
- * that happens at a table.
- */
-export async function setArmorClass(campaignId, characterId, value) {
+export async function setArmorClass(
+  campaignId,
+  characterId,
+  value,
+  seatCharacterId = null,
+) {
   const armorClass = parseArmorClass(value);
 
   if (armorClass === null) {
@@ -362,6 +371,7 @@ export async function setArmorClass(campaignId, characterId, value) {
     id: characterId,
     armorClass,
     campaignId,
+    seatCharacterId,
   });
 
   if (error) {
@@ -371,7 +381,11 @@ export async function setArmorClass(campaignId, characterId, value) {
     return rejected(copy ?? "Could not set that. Try again.");
   }
 
-  return { kind: "success", armorClass: data.armorClass };
+  return {
+    kind: "success",
+    armorClass: data.armorClass,
+    activity: await freshLog(supabase, campaignId),
+  };
 }
 
 /**
@@ -770,33 +784,6 @@ export async function removeMapPiece(tokenId) {
       error,
       "Could not remove that piece.",
     );
-  }
-
-  return { kind: "success" };
-}
-
-/**
- * Every piece off one map, which is what ruling a free-form board does: the
- * pieces on it were put down at points the new grid knows nothing about, and
- * scattering them across the nearest cells would be the app guessing at
- * positions the Dungeon Master is about to set deliberately.
- */
-export async function sweepMapPieces(mapId) {
-  if (typeof mapId !== "string" || mapId.length === 0) {
-    return rejected("Missing map id.");
-  }
-
-  const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
-
-  if (!user) {
-    return sessionRejection("sweepMapPieces", authError);
-  }
-
-  const { error } = await clearMapPlacedTokens(supabase, { mapId });
-
-  if (error) {
-    return refusedToken("sweepMapPieces", error, "Could not clear the board.");
   }
 
   return { kind: "success" };

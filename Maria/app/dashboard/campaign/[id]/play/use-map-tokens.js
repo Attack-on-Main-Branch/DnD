@@ -9,13 +9,13 @@ import {
 
 import { toggleCondition } from "@/app/actions/characters";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
+import { alignToLattice } from "@/lib/hex-math";
 
 import {
   markMapPiece,
   moveMapPiece,
   placeMapPiece,
   removeMapPiece,
-  sweepMapPieces,
 } from "./actions";
 import {
   useAllConditions,
@@ -58,11 +58,16 @@ import { useWireMessage } from "./table-wire";
  * 20260924090000 shut it again — a faint disc is still a disc, and a party that
  * can see where the unseen thing stands is not surprised by it.
  */
+/** Under a millionth of the picture: a piece this close is on its centre. */
+const ALIGNED = 1e-6;
+
 export function useMapTokens({
   campaignId,
   mapId,
   isWorldMap,
-  ruled,
+  isScene = false,
+  settled,
+  natural,
   faces,
   seat,
   canSweep,
@@ -89,6 +94,11 @@ export function useMapTokens({
     const token = readPlacedToken(message.token);
 
     if (!token || !known(token, faces, templates)) {
+      return;
+    }
+
+    // Only the head of the table may know where a hidden piece stands.
+    if (token.isHidden && !canSweep) {
       return;
     }
 
@@ -132,35 +142,6 @@ export function useMapTokens({
   }, [mapId, resync]);
 
   /**
-   * RULING A BOARD SWEEPS IT. The pieces standing on it were put down at points
-   * the new grid knows nothing about, and scattering them across the nearest
-   * cells would be the app guessing at positions the Dungeon Master is about to
-   * set deliberately. So the board is cleared and the pieces are dealt again,
-   * onto the hexes they belong on.
-   *
-   * Every chair paints it, because every chair hears the grid go up — see the
-   * `grid` message in table-maps.jsx. Only the head of the table writes it.
-   */
-  const wasRuled = useRef(null);
-
-  useEffect(() => {
-    const before = wasRuled.current;
-
-    wasRuled.current = { mapId, ruled };
-
-    // A different picture is not a transition: this watches ONE map's grid.
-    if (!mapId || before?.mapId !== mapId || before.ruled || !ruled) {
-      return;
-    }
-
-    store.sweepTokens(mapId);
-
-    if (canSweep) {
-      sweepMapPieces(mapId).catch(() => {});
-    }
-  }, [canSweep, mapId, ruled, store]);
-
-  /**
    * A piece put down. `piece` is what the hand is holding: the party's marker,
    * a character's face, or one of the invented pieces.
    *
@@ -180,6 +161,7 @@ export function useMapTokens({
       if (
         !point ||
         !mapId ||
+        isScene ||
         !mayPlace(piece, { isWorldMap, canSweep, seat })
       ) {
         return;
@@ -236,11 +218,37 @@ export function useMapTokens({
         }
       });
     },
-    [canSweep, isWorldMap, mapId, run, seat, send, store],
+    [canSweep, isScene, isWorldMap, mapId, run, seat, send, store],
   );
 
-  /** One already down, moved. The id names the row, so there is nothing to
-      settle and nothing to guess. */
+  /**
+   * One piece as the database has it, told to the table: the correction after
+   * a refused deed that had already been foretold. A piece that is gone, or
+   * hidden, is told as gone.
+   */
+  const retellToken = useCallback(
+    (tokenId) => {
+      const token = store.read().tokens.get(tokenId);
+
+      send(
+        token && !token.isHidden
+          ? { kind: "token", token }
+          : { kind: "token-gone", tokenId },
+      );
+    },
+    [send, store],
+  );
+
+  /**
+   * One already down, moved. The id names the row, so there is nothing to
+   * settle and nothing to guess.
+   *
+   * FORETOLD, NOT TOLD: the other chairs hear it as it is let go, beside the
+   * arrow they were already watching, rather than a round trip later. A move
+   * the database refuses is put right on every board by `retellToken`.
+   *
+   * A hidden piece moves in silence, as its arrow does — see table-map.jsx.
+   */
   const move = useCallback(
     (tokenId, point) => {
       const standing = placed.get(tokenId);
@@ -257,15 +265,84 @@ export function useMapTokens({
         r: point.r ?? null,
       };
 
+      const silent = moved.isHidden;
+
       run({
         paint: () => store.setToken(tokenId, moved),
+        foretell: () => !silent && send({ kind: "token", token: moved }),
         work: () => moveMapPiece(tokenId, point),
-        tell: () => send({ kind: "token", token: moved }),
+        retell: () => !silent && retellToken(tokenId),
         want: { tokens: true },
       });
     },
-    [placed, run, send, store],
+    [placed, retellToken, run, send, store],
   );
+
+  /**
+   * RULING A BOARD ALIGNS IT. Switching the grid on, or settling on a new size,
+   * moves every piece on this map onto the centre of the hex it stands in, and
+   * never two to one hex — see `alignToLattice`. On the release rather than on
+   * every frame of the slider, or each frame would snap from the last and the
+   * pieces would creep.
+   *
+   * The head of the table's browser does it, as ordinary moves, so every other
+   * chair hears it the way it hears any piece moved.
+   */
+  const aligned = useRef(null);
+
+  useEffect(() => {
+    if (
+      !canSweep ||
+      !natural ||
+      !settled?.enabled ||
+      settled.mapId !== mapId ||
+      aligned.current === settled
+    ) {
+      return;
+    }
+
+    aligned.current = settled;
+
+    // A piece still being placed has no row to move yet.
+    const standing = [...store.read().tokens.values()].filter(
+      (token) => token.mapId === mapId && !token.id.startsWith("pending:"),
+    );
+
+    const answers = alignToLattice(
+      standing.map((token) => ({
+        id: token.id,
+        x: token.x * natural.width,
+        y: token.y * natural.height,
+      })),
+      settled.size,
+      natural,
+    );
+
+    for (const token of standing) {
+      const centre = answers.get(token.id);
+
+      if (!centre) {
+        continue;
+      }
+
+      const point = {
+        x: centre.x / natural.width,
+        y: centre.y / natural.height,
+        q: centre.q,
+        r: centre.r,
+      };
+
+      const already =
+        token.q === point.q &&
+        token.r === point.r &&
+        Math.abs(token.x - point.x) < ALIGNED &&
+        Math.abs(token.y - point.y) < ALIGNED;
+
+      if (!already) {
+        move(token.id, point);
+      }
+    }
+  }, [canSweep, mapId, move, natural, settled, store]);
 
   /** One off the board, which is the menu's `Remove from map` and nothing
       else — a press on a piece no longer takes it off. */
@@ -273,12 +350,13 @@ export function useMapTokens({
     (tokenId) => {
       run({
         paint: () => store.setToken(tokenId, null),
+        foretell: () => send({ kind: "token-gone", tokenId }),
         work: () => removeMapPiece(tokenId),
-        tell: () => send({ kind: "token-gone", tokenId }),
+        retell: () => retellToken(tokenId),
         want: { tokens: true },
       });
     },
-    [run, send, store],
+    [retellToken, run, send, store],
   );
 
   /**
@@ -378,20 +456,22 @@ export function useMapTokens({
 
       run({
         paint: () => store.setToken(token.id, next),
-        work: () => markMapPiece(token.id, written),
 
         /* HIDING IS TOLD AS A REMOVAL, and revealing as a placement: the piece
            has genuinely left every player's board, so that is both the honest
-           message and the one that paints correctly. */
-        tell: () =>
+           message and the one that paints correctly. Foretold, so a piece
+           pulled out of sight is gone from their boards as the press lands. */
+        foretell: () =>
           next.isHidden
             ? send({ kind: "token-gone", tokenId: token.id })
             : send({ kind: "token", token: next }),
 
+        work: () => markMapPiece(token.id, written),
+        retell: () => retellToken(token.id),
         want: { tokens: true },
       });
     },
-    [afflict, placed, run, send, store],
+    [afflict, placed, retellToken, run, send, store],
   );
 
   /**
@@ -463,7 +543,8 @@ export function useMapTokens({
       tokens.find((token) =>
         ownPiece?.kind === "party"
           ? token.isPartyMarker
-          : token.characterId === ownPiece?.characterId,
+          : Boolean(seat?.characterId) &&
+            token.characterId === seat.characterId,
       ) ?? null,
 
     ownPiece,
@@ -592,7 +673,7 @@ function drawnOn(placed, mapId, isWorldMap, faces, templates) {
           ...token,
           label: face.label,
           src: face.src,
-          colorClass: face.colorClass,
+          color: face.color,
         });
       }
 

@@ -10,8 +10,10 @@ import {
 } from "sina/data/containers";
 import { listPartyFeatures } from "sina/data/features";
 import { listCampaignItems } from "sina/data/inventory";
+import { listMemberLooks } from "sina/data/member-looks";
 import { listCampaignSpells } from "sina/data/spells";
 import { listCampaignTokenTemplates } from "sina/data/tokens";
+import { listTokenHealth } from "sina/data/table-adjustments";
 import { cache } from "react";
 
 import { logFailure } from "@/lib/errors";
@@ -38,10 +40,33 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     return "signed-out";
   }
 
-  const { data: campaign, error } = await getCampaign(supabase, {
-    id,
-    userId: user.id,
-  });
+  /* The campaign rides in the same wave as everything hung off it, rather than
+     a wave ahead: the lists only need the id, RLS answers them for whoever is
+     asking, and on a miss they are thrown away below unread. Eight round trips,
+     one wait. */
+  const [
+    { data: campaign, error },
+    party,
+    notes,
+    maps,
+    items,
+    spells,
+    containers,
+    tokens,
+    looks,
+    tokenHealth,
+  ] = await Promise.all([
+    getCampaign(supabase, { id, userId: user.id }),
+    listPartyMembers(supabase, id),
+    listCampaignNotes(supabase, id),
+    listCampaignMaps(supabase, id),
+    listCampaignItems(supabase, id),
+    listCampaignSpells(supabase, id),
+    listCampaignContainers(supabase, id),
+    listCampaignTokenTemplates(supabase, id),
+    listMemberLooks(supabase, id),
+    listTokenHealth(supabase, id, true),
+  ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
   // failure. Everything else is handed to the page to throw on.
@@ -66,18 +91,6 @@ export const loadCampaign = cache(async function loadCampaign(id) {
       error: realFailure,
     };
   }
-
-  // Together rather than one after the other: seven round trips, one wait.
-  const [party, notes, maps, items, spells, containers, tokens] =
-    await Promise.all([
-      listPartyMembers(supabase, id),
-      listCampaignNotes(supabase, id),
-      listCampaignMaps(supabase, id),
-      listCampaignItems(supabase, id),
-      listCampaignSpells(supabase, id),
-      listCampaignContainers(supabase, id),
-      listCampaignTokenTemplates(supabase, id),
-    ]);
 
   if (party.error) {
     logFailure("listPartyMembers", party.error);
@@ -106,6 +119,14 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   if (tokens.error) {
     logFailure("listCampaignTokenTemplates", tokens.error);
   }
+  if (tokenHealth.error)
+    logFailure("listTokenTemplateHealth", tokenHealth.error);
+
+  if (looks.error) {
+    logFailure("listMemberLooks", looks.error);
+  }
+
+  const described = looks.error ? [] : looks.data;
 
   const shelf = containers.error ? [] : containers.data;
   const roster = party.error ? [] : party.data;
@@ -135,15 +156,26 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   // notes tab that could not load is no reason to replace it with an error.
   return {
     campaign,
-    members: party.error ? [] : party.data,
+    members: roster.map((member) => ({
+      ...member,
+      look: described.find((one) => one.character_id === member.id) ?? null,
+    })),
     notes: notes.error ? [] : notes.data,
-    maps: maps.error ? [] : maps.data,
+    // Painted scenes belong to the table's shelf; the sheet would drop them.
+    maps: maps.error ? [] : maps.data.filter((map) => !map.is_scene),
     items: items.error ? [] : items.data,
     spells: spells.error ? [] : spells.data,
     containers: shelf,
     containerItems: held.error ? [] : held.data,
     features: features.error ? [] : features.data,
-    tokens: tokens.error ? [] : tokens.data,
+    tokens: tokens.error
+      ? []
+      : tokens.data.map((token) => ({
+          ...token,
+          max_hp:
+            tokenHealth.data?.find((row) => row.template_id === token.id)
+              ?.max_hp ?? null,
+        })),
     error: null,
   };
 });

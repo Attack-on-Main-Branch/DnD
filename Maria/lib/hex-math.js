@@ -129,3 +129,102 @@ export function gridStroke(luminance) {
 function round(value) {
   return Math.round(value * 100) / 100;
 }
+
+/** Axial steps to the six neighbours, walked in order round a ring. */
+const NEIGHBOURS = [
+  { q: 1, r: 0 },
+  { q: 1, r: -1 },
+  { q: 0, r: -1 },
+  { q: -1, r: 0 },
+  { q: -1, r: 1 },
+  { q: 0, r: 1 },
+];
+
+/** Past this a board is too crowded to be worth searching further. */
+const FURTHEST_RING = 12;
+
+/**
+ * Pieces put onto the lattice: each to the centre of the cell it stands in,
+ * preserving pieces that share a cell. Only cells
+ * whose centre is on the picture are offered, or the point would be clamped
+ * to the edge and stand off its own cell.
+ *
+ * `pieces` are `{ id, x, y }` in picture pixels; the answer maps each id to
+ * `{ x, y, q, r }` in the same units.
+ */
+export function alignToLattice(pieces, size, { width, height }) {
+  const inside = ({ q, r }) => {
+    const { x, y } = hexToPixel(q, r, size);
+
+    return x >= 0 && y >= 0 && x <= width && y <= height;
+  };
+
+  const queue = pieces
+    .map((piece) => {
+      const cell = pixelToHex(piece.x, piece.y, size);
+      const centre = hexToPixel(cell.q, cell.r, size);
+
+      return {
+        piece,
+        cell,
+        slack: Math.hypot(centre.x - piece.x, centre.y - piece.y),
+      };
+    })
+    .sort((one, two) => one.slack - two.slack);
+
+  const answers = new Map();
+
+  for (const { piece, cell } of queue) {
+    const home = nearestFree(piece, cell, size, (one) => {
+      return inside(one);
+    });
+
+    if (!home) {
+      continue;
+    }
+
+    answers.set(piece.id, { ...hexToPixel(home.q, home.r, size), ...home });
+  }
+
+  return answers;
+}
+
+function nearestFree(piece, cell, size, free) {
+  if (free(cell)) {
+    return cell;
+  }
+
+  for (let ring = 1; ring <= FURTHEST_RING; ring++) {
+    const open = hexRing(cell, ring).filter(free);
+
+    if (open.length > 0) {
+      return open
+        .map((one) => {
+          const { x, y } = hexToPixel(one.q, one.r, size);
+
+          return { one, away: Math.hypot(x - piece.x, y - piece.y) };
+        })
+        .sort((a, b) => a.away - b.away)[0].one;
+    }
+  }
+
+  return null;
+}
+
+/** The cells exactly `radius` steps from `centre`. */
+function hexRing(centre, radius) {
+  const cells = [];
+  let at = {
+    q: centre.q + NEIGHBOURS[4].q * radius,
+    r: centre.r + NEIGHBOURS[4].r * radius,
+  };
+
+  for (const step of NEIGHBOURS) {
+    for (let walked = 0; walked < radius; walked++) {
+      cells.push(at);
+      at = { q: at.q + step.q, r: at.r + step.r };
+    }
+  }
+
+  return cells;
+}

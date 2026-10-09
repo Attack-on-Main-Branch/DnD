@@ -134,3 +134,24 @@ export function readDiceResult(id, count, value) {
 
   return total;
 }
+
+/** The two criticals a die can show. */
+export const CRITICAL_SUCCESS = "nat20";
+export const CRITICAL_FAILURE = "nat1";
+
+/**
+ * Whether ONE die's face is a critical: a natural 20 or a natural 1, and only
+ * ever on a d20 — a 1 on a d6 of damage is just a poor roll. Read per die and
+ * never off a total, so two d20s showing 10 and 10 are not a natural 20.
+ */
+export function criticalFace(sides, face) {
+  if (sides !== dieSides("d20") || !Number.isInteger(face)) {
+    return null;
+  }
+
+  if (face === sides) {
+    return CRITICAL_SUCCESS;
+  }
+
+  return face === 1 ? CRITICAL_FAILURE : null;
+}

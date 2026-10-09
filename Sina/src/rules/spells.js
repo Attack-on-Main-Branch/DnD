@@ -62,6 +62,57 @@ export const SPELL_SCHOOLS = [
   "Pneumancy",
 ];
 
+/** The SRD's thirteen, in its own order and spelling. */
+export const DAMAGE_TYPES = [
+  "Acid",
+  "Bludgeoning",
+  "Cold",
+  "Fire",
+  "Force",
+  "Lightning",
+  "Necrotic",
+  "Piercing",
+  "Poison",
+  "Psychic",
+  "Radiant",
+  "Slashing",
+  "Thunder",
+];
+
+/**
+ * What a cast looks like at the table: the damage type it throws, healing, or
+ * plain magic for a spell that does neither.
+ */
+export const SPELL_FLARES = [
+  ...DAMAGE_TYPES.map((type) => type.toLowerCase()),
+  "healing",
+  "arcane",
+];
+
+const NAMED_DAMAGE = new RegExp(`\\b(${DAMAGE_TYPES.join("|")})\\b`, "i");
+
+/**
+ * The first type the damage line names — Chromatic Orb's "Acid, Cold, Fire…"
+ * is the caster's choice, and acid stands in for it.
+ */
+export function spellFlare(spell) {
+  const damage = String(spell?.damage ?? "");
+  const named = damage.match(NAMED_DAMAGE);
+
+  if (named) {
+    return named[1].toLowerCase();
+  }
+
+  const heals =
+    /heal/i.test(damage) || Object.keys(spell?.healByLevel ?? {}).length > 0;
+
+  return heals ? "healing" : "arcane";
+}
+
+export function readSpellFlare(value) {
+  return SPELL_FLARES.includes(value) ? value : null;
+}
+
 /** Refused rather than clamped: a spell on the wrong shelf is a wrong spell. */
 export function parseSpellLevel(value) {
   const typed = String(value ?? "").trim();

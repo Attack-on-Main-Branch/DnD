@@ -81,7 +81,9 @@ export async function applyMapShelf(
   { campaignId, userId, shelf, existing = [] },
 ) {
   const kept = new Map(shelf.kept.map((slot) => [slot.id, slot.name]));
-  const shelved = existing.filter((map) => !map.is_world_map);
+  // Painted scenes never reach the sheet, so its silence about them is not a
+  // removal.
+  const shelved = existing.filter((map) => !map.is_world_map && !map.is_scene);
 
   for (const map of shelved) {
     if (kept.has(map.id)) {

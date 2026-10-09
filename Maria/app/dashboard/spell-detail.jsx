@@ -30,10 +30,8 @@ export default function SpellDetail({ spell, children }) {
       className={surfaceClasses({
         variant: "solid",
         glow: true,
-        // Bounded and scrolling inside itself: this hangs under a panel that is
-        // already 42vh tall, and Wish runs to two thousand characters.
-        // `glass-unfiltered` for the reason the box above carries one — a
-        // filtered surface goes on filtering at `opacity: 0`.
+        // Long descriptions scroll inside the detail panel.
+        // `glass-unfiltered`: a filtered surface keeps filtering at opacity 0.
         className:
           "scroll-gold max-h-[min(20rem,34vh)] overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered",
       })}
@@ -117,7 +115,7 @@ export default function SpellDetail({ spell, children }) {
 
       {/* Last, because it answers a question nobody asks mid-turn. */}
       {spell.classes && (
-        <p className="mt-3 text-[11px] text-ink/40">
+        <p className="mt-3 text-[0.6875rem] text-ink/40">
           <Label>Classes</Label> {spell.classes}
         </p>
       )}
@@ -137,7 +135,7 @@ export default function SpellDetail({ spell, children }) {
 function Cell({ label, value }) {
   return (
     <div className="min-w-0">
-      <dt className="font-mono text-[10px] tracking-[0.14em] text-ink/40 uppercase">
+      <dt className="font-mono text-[0.625rem] tracking-[0.14em] text-ink/40 uppercase">
         {label}
       </dt>
       <dd className="truncate text-xs text-ink/80" title={value || undefined}>
@@ -149,7 +147,7 @@ function Cell({ label, value }) {
 
 function Label({ children }) {
   return (
-    <span className="font-mono text-[10px] tracking-[0.14em] text-gold/70 uppercase">
+    <span className="font-mono text-[0.625rem] tracking-[0.14em] text-gold/70 uppercase">
       {children}
     </span>
   );

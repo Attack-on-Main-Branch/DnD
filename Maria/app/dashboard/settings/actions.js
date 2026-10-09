@@ -18,7 +18,7 @@ import {
 
 import { logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
-import { createClient, getCurrentUser } from "@/lib/supabase";
+import { createClient, getAccount, getCurrentUser } from "@/lib/supabase";
 
 function success(message) {
   return { kind: "success", message };
@@ -111,7 +111,7 @@ export async function updateEmail(_prevState, formData) {
   }
 
   const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
+  const { user, error: authError } = await getAccount(supabase);
 
   if (authError || !user) {
     return sessionRejection("updateEmail", authError);
@@ -158,7 +158,7 @@ export async function updatePassword(_prevState, formData) {
   }
 
   const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
+  const { user, error: authError } = await getAccount(supabase);
 
   if (authError || !user) {
     return sessionRejection("updatePassword", authError);

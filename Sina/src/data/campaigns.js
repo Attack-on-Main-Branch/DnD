@@ -13,7 +13,7 @@ const SUBJECT = "map";
 
 /** `user_id` is deliberately absent: it must not travel to the client. */
 const COLUMNS =
-  "id, title, world_description, map_url, active_map_id, created_at";
+  "id, title, world_description, map_url, active_map_id, dice_color, dice_skin, created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const CHECK_VIOLATION = "23514";
@@ -111,6 +111,22 @@ export async function getCampaign(supabase, { id, userId }) {
     .maybeSingle();
 
   return error ? failure(error) : { data, error: null };
+}
+
+export async function setCampaignDice(supabase, { id, diceColor, diceSkin }) {
+  const { data, error } = await supabase.rpc("set_campaign_dice", {
+    target_campaign: id,
+    new_dice_color: diceColor,
+    new_dice_skin: diceSkin,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data: true, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
 }
 
 /**
@@ -213,7 +229,7 @@ export async function removeCampaignMap(supabase, path) {
 /** `campaign_id` stays out: every read is already scoped to one campaign. */
 const MAP_COLUMNS =
   "id, name, url, is_world_map, sort_order, grid_enabled, grid_size, " +
-  "grid_luminance, fog_enabled, fog_mask_url, created_at";
+  "grid_luminance, fog_enabled, fog_mask_url, is_scene, created_at";
 
 /**
  * Every map this campaign keeps, world map first.

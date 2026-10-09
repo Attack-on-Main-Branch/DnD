@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useTransition } from "react";
+import { use, useEffect, useRef, useState, useTransition } from "react";
 
 import {
   startNavigationProgress,
@@ -34,10 +34,17 @@ import { markRouteChange } from "@/app/components/view-nav";
  * the bar itself. `useTransition` rather than the bar's own watch on the
  * pathname: `?new` opens and closes the creation sheet without the pathname
  * ever moving, and the bar would be left crawling until its safety timeout.
+ *
+ * THE REQUEST LEAVES ON THE PRESS, NOT AFTER THE CLOSING. Pushing once the
+ * closing had finished put its whole length in front of the server's, on every
+ * hop. The push now goes at once, and `Curtain` suspends the same transition
+ * until the closing is done — Next dispatches its router update synchronously
+ * inside it — so the new page commits after whichever of the two is slower.
  */
 export default function NavTransition({ className, children }) {
   const router = useRouter();
   const [navigating, startNavigating] = useTransition();
+  const [curtain, setCurtain] = useState(null);
   const rootRef = useRef(null);
   const leaving = useRef(false);
   const wasNavigating = useRef(false);
@@ -94,22 +101,37 @@ export default function NavTransition({ className, children }) {
 
     const leavingRoute = target.pathname !== window.location.pathname;
 
-    // Released here rather than on arrival: `?new` leaves and lands on the same
-    // pathname, so anything watching the route would never see it move.
-    window.setTimeout(
-      () => {
-        startNavigating(() => router.push(href));
+    // The anchor, not the event's target: the star is a drawing inside one,
+    // and what leaves differently is the whole control.
+    const closing = closeOut(root, { leavingRoute, pressed: link });
+
+    // Released when the closing ends rather than on arrival: `?new` leaves and
+    // lands on the same pathname, so anything watching the route would never
+    // see it move.
+    const closed = new Promise((resolve) => {
+      window.setTimeout(() => {
         leaving.current = false;
-      },
-      // The anchor, not the event's target: the star is a drawing inside one,
-      // and what leaves differently is the whole control.
-      closeOut(root, { leavingRoute, pressed: link }),
-    );
+        resolve();
+      }, closing);
+    });
+
+    startNavigating(() => {
+      setCurtain(closed);
+      router.push(href);
+    });
   }
 
   return (
     <div ref={rootRef} className={className} onClickCapture={onClick}>
+      {curtain && <Curtain until={curtain} />}
       {children}
     </div>
   );
+}
+
+/** Holds a navigation's commit until the closing it started has finished. */
+function Curtain({ until }) {
+  use(until);
+
+  return null;
 }

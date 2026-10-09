@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isDiceColor } from "sina/rules/character";
+import { isDiceColor, isDiceSkin } from "sina/rules/character";
 import { isDie, parseDiceCount, readDiceResult } from "sina/rules/dice";
 
 import { realtime } from "@/app/components/realtime";
@@ -10,8 +10,8 @@ import { realtime } from "@/app/components/realtime";
  * Everybody's dice, on one socket.
  *
  * What travels is the ROLL and not a picture of it: the die, how many of it,
- * the colour the thrower's dice are cast in, and the seed its physics is thrown
- * by. Every chair runs that throw itself and reads its own number off its own
+ * the colour and style the thrower's dice are cast in, and the seed its physics
+ * is thrown by. Every chair runs that throw itself and reads its own number off its own
  * board — see dice-engine.js for what makes the two the same throw. A number is
  * sent at the end all the same, for the chair that could not throw at all; such
  * a chair sends no seed when it rolls either.
@@ -21,7 +21,7 @@ import { realtime } from "@/app/components/realtime";
  * STANDS is announced too, so the boards change colour before the roll.
  *
  * Nothing off the wire is trusted beyond its shape: the die is checked against
- * the catalogue, the colour against the twelve, the count against the rail's own
+ * the catalogue, the colour and style against theirs, the count against the rail's own
  * ceiling and any total against the two together, and the roller's key only
  * ever matches a card the rail already has from the server. Who may speak at
  * all is 20260822090000_table_rolls.sql's to decide.
@@ -196,8 +196,12 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
         // own to put under it.
         if (die && Number.isInteger(payload.seed)) {
           /* A chair a release behind, and the head of the table, name no colour
-             and are throwing the house's own dice. */
-          const cast = isDiceColor(payload.color) ? payload.color : null;
+             and are throwing the house's own dice. One a release behind on the
+             style alone throws the classic die in its colour. */
+          const cast = {
+            color: isDiceColor(payload.color) ? payload.color : null,
+            skin: isDiceSkin(payload.skin) ? payload.skin : null,
+          };
 
           onMirror(die, count, payload.seed, cast, (value) => {
             if (value !== null) {
@@ -276,12 +280,21 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
 
   /** This browser's roll, on its own board and on everybody else's. */
   const start = useCallback(
-    (key, { die, count, secret, seed, color }) => {
+    (key, { die, count, secret, seed, color, skin }) => {
       begin(key, secret, die, count);
       share.current?.(
         secret
           ? { phase: "start", key, secret: true }
-          : { phase: "start", key, secret: false, die, count, seed, color },
+          : {
+              phase: "start",
+              key,
+              secret: false,
+              die,
+              count,
+              seed,
+              color,
+              skin,
+            },
       );
     },
     [begin],

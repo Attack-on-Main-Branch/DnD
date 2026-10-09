@@ -31,6 +31,15 @@
     radial-gradient(140% 110% at 50% 50%, #060402 0%, #030201 40%, #000 70%);
 }
 
+/* Definitions only. Out of the flow, so it takes no slot in the body's flex
+   column either. */
+.paths__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .paths__layer {
   position: absolute;
   inset: 0;

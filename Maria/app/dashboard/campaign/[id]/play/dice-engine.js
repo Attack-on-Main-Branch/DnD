@@ -3,6 +3,15 @@
 import { DICE_CORNERS, diceCorner } from "sina/rules/dice";
 
 import {
+  isPhysicsSource,
+  loadDiceBox,
+  queueDiceBuild,
+  RESTED_MESSAGE,
+  SEED_MESSAGE,
+  SEEDED_MESSAGE,
+  tearDownDiceBox,
+} from "@/lib/dice-box";
+import {
   DICE_ASSET_PATH,
   DICE_BODY_THEME,
   DICE_LIGHTING,
@@ -13,13 +22,14 @@ import {
  * The 3D roller's whole lifecycle, kept out of React.
  *
  * `@3d-dice/dice-box` is a megabyte of BabylonJS and ammo.js, so it is
- * `import()`ed rather than shipped with the table. It has no `dispose()`, so
- * one instance exists at a time and `releaseDice` takes it down by hand.
+ * `import()`ed rather than shipped with the table — through lib/dice-box.js,
+ * which seeds its physics worker. It has no `dispose()`, so `releaseDice`
+ * takes each world down by hand.
  *
- * Which is why `window.Worker`, `window.Blob` and `URL.createObjectURL` are
- * stood on for the length of a build: the workers are private fields and
- * `terminate()` is the only way to stop the simulation loop, and the Blob is
- * where the physics worker's source can be reached before it becomes a thread.
+ * Which is why `window.Worker` and `URL.createObjectURL` are stood on for the
+ * length of a build: the workers are private fields and `terminate()` is the
+ * only way to stop the simulation loop, and the URL is where the physics
+ * worker can be told from the renderer.
  *
  * Not reclaimed: the `resize` listener `resizeWorld()` adds inside an async
  * `init()`, which the library keeps no reference to.
@@ -106,11 +116,12 @@ const CONFIG = {
  * tumble anywhere. Three inputs are not identical by default:
  *
  *   1. THE THROW. `Math.random` in the physics worker decides a body's opening
- *      orientation, velocity and spin — eight draws each. `PRELUDE` seeds it,
+ *      orientation, velocity and spin — eight draws each. The prelude in
+ *      lib/dice-box.js seeds it,
  *      and the roller puts the seed on the wire.
  *
  *   2. THE STEP. The worker hands `stepSimulation` real elapsed milliseconds,
- *      so two machines take differently sized steps. `PRELUDE` gives it whole
+ *      so two machines take differently sized steps. The prelude gives it whole
  *      ticks of the physics' own 1/90s step — Bullet keeps the remainder of a
  *      step it could not use BETWEEN rolls, so a tick that did not divide the
  *      fixed step would let one roll decide where the next one starts.
@@ -121,142 +132,6 @@ const CONFIG = {
  * A fourth is not an input: the FIRST roll in a new world differs from every
  * roll after it, Bullet's broadphase being cold. See `warmWorld`.
  */
-
-/** A string only the physics worker's own source contains. */
-const PHYSICS_MARK = "btDiscreteDynamicsWorld";
-
-const SEED = "__seed";
-const SEEDED = "__seeded";
-
-/**
- * Prepended to the physics worker's source, where it runs before anything else
- * in that thread.
- *
- * `Math.random` becomes mulberry32; `Date` becomes the tick clock above.
- * `Date.now` is left alone — emscripten's `gettimeofday` uses it, and it never
- * reaches the simulation.
- *
- * The clock also stands still until every body of the roll is in the world. A
- * percentile roll is two dice to dice-box, added one after the other across an
- * await, so on one machine the simulation takes a step between them and on
- * another it does not — which showed as d100 agreeing about half the time while
- * every other die always did. The dice arrive on the render worker's port,
- * whose handler is wrapped as it is set.
- */
-const PRELUDE = `(function () {
-  var seed = 1;
-
-  Math.random = function () {
-    seed |= 0;
-    seed = (seed + 0x6D2B79F5) | 0;
-    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-
-  var TICK = 1000 / 90;
-  var RealDate = Date;
-  var since = RealDate.now();
-  var owed = 0;
-  var ticks = 0;
-
-  var expected = 1;
-  var seen = 0;
-  var waiting = RealDate.now();
-
-  // A body that never arrives would hold the clock for ever, and a rail that
-  // never reopens is worse than a roll one chair saw differently.
-  var PATIENCE = 2000;
-
-  function ready() {
-    return seen >= expected || RealDate.now() - waiting > PATIENCE;
-  }
-
-  function Clock() {
-    var now = RealDate.now();
-
-    owed += now - since;
-    since = now;
-
-    var whole = 0;
-
-    if (ready()) {
-      whole = Math.floor(owed / TICK);
-
-      if (whole > 2) whole = 2;
-
-      owed -= whole * TICK;
-    } else {
-      // Not banked: the wait is not time the dice have spent falling.
-      owed = 0;
-    }
-
-    ticks += whole;
-    this.at = ticks * TICK;
-  }
-
-  Clock.prototype.getTime = function () {
-    return this.at;
-  };
-
-  Clock.now = RealDate.now;
-  Clock.parse = RealDate.parse;
-  Clock.UTC = RealDate.UTC;
-
-  self.Date = Clock;
-
-  function count(port) {
-    var given = null;
-
-    Object.defineProperty(port, "onmessage", {
-      configurable: true,
-      get: function () {
-        return given;
-      },
-      set: function (handler) {
-        given = handler;
-
-        port.addEventListener("message", function (event) {
-          if (event.data && event.data.action === "addDie") {
-            seen += 1;
-          }
-
-          handler.call(port, event);
-        });
-
-        // Assigning onmessage would have started the port; a listener does not.
-        port.start();
-      },
-    });
-  }
-
-  // Registered before the library assigns self.onmessage, so it runs first and
-  // stopImmediatePropagation keeps our own message out of a switch that would
-  // only log that it had never heard of it.
-  self.addEventListener("message", function (event) {
-    var data = event.data;
-
-    if (!data) return;
-
-    if (data.action === "connect" && event.ports && event.ports[0]) {
-      count(event.ports[0]);
-      return;
-    }
-
-    if (data.action !== "${SEED}") return;
-
-    seed = data.seed | 0;
-    expected = data.bodies > 0 ? data.bodies : 1;
-    seen = 0;
-    waiting = RealDate.now();
-    owed = 0;
-    since = RealDate.now();
-
-    event.stopImmediatePropagation();
-    self.postMessage({ action: "${SEEDED}" });
-  });
-})();
-`;
 
 /**
  * One record per lane: the engine it is holding, the build that will become
@@ -274,20 +149,37 @@ const lanes = Array.from({ length: DICE_LANES }, () => ({
 }));
 
 /**
+ * The skins thrown at this table, beyond the house's own themes. Loaded into
+ * every world up front: a spectator still fetching a skin when a roll arrives
+ * would join the shared throw late and could see it land differently.
+ *
+ * THIS table's: emptied by `releaseDice` with the worlds that held them, or a
+ * visitor going from table to table loaded every party's skins they had ever
+ * sat with into each new world — three copies of each, in graphics memory.
+ */
+const tableThemes = new Set();
+
+export function preloadDiceThemes(themes) {
+  for (const theme of themes) {
+    if (tableThemes.has(theme)) {
+      continue;
+    }
+
+    tableThemes.add(theme);
+
+    for (const { live } of lanes) {
+      live?.box.loadThemeQueue.push(() => live.box.loadTheme(theme));
+    }
+  }
+}
+
+/**
  * The tray, in the map picture's own pixels — the one measurement every chair
  * agrees on, being a property of the picture rather than of the window it is
  * looked at through.
  */
 let tray = null;
 let awaitingTray = [];
-
-/**
- * The physics worker's source with the prelude in front of it, kept for the
- * life of the page. dice-box builds that Blob ONCE, at the top level of its own
- * module, so a second engine reuses the same object and would otherwise have no
- * way of recognising the worker it was about to be handed.
- */
-let seededBlob = null;
 
 /**
  * The board, announcing the picture it has been laid over.
@@ -363,7 +255,7 @@ function sow(worker, seed, count) {
     }, 4000);
 
     function answer(event) {
-      if (event.data?.action !== SEEDED) {
+      if (event.data?.action !== SEEDED_MESSAGE) {
         return;
       }
 
@@ -373,7 +265,7 @@ function sow(worker, seed, count) {
     }
 
     worker.addEventListener("message", answer);
-    worker.postMessage({ action: SEED, seed, bodies: count });
+    worker.postMessage({ action: SEED_MESSAGE, seed, bodies: count });
   });
 }
 
@@ -401,10 +293,72 @@ async function warmWorld(box, physics, start) {
   await box.updateConfig({ startPosition: start, settleTimeout: SETTLE_MS });
 }
 
-async function build(lane) {
-  const { width, height } = await theTray();
+/**
+ * Where the dice of one throw came to rest, by the physics worker's own ids —
+ * listened for from before the throw until it has been read. See
+ * `RESTED_MESSAGE` in lib/dice-box.js.
+ */
+function hearRest(physics) {
+  const rested = new Map();
 
-  const NativeBlob = window.Blob;
+  function hear(event) {
+    if (event.data?.action === RESTED_MESSAGE) {
+      rested.set(event.data.id, event.data.pose);
+    }
+  }
+
+  physics.addEventListener("message", hear);
+
+  return {
+    rested,
+    stop: () => physics.removeEventListener("message", hear),
+  };
+}
+
+/**
+ * The pose arrives from the physics worker and the face from the render
+ * worker, which reads it a step later — so the face can be first. A die still
+ * without a pose this long after is reported without one.
+ */
+const REST_GRACE_MS = 120;
+
+/**
+ * Each die of a throw: its sides, the face it shows and the pose it lies in. A
+ * die is found by `rollId` in the results and by its body's id in the physics,
+ * and `rollDiceData` is where dice-box keeps the one beside the other.
+ */
+function reportRest(box, group, hearing, onRest) {
+  const read = () =>
+    Object.values(group?.rolls ?? {}).map((roll) => ({
+      sides: roll.sides,
+      value: roll.value,
+      pose: hearing.rested.get(box.rollDiceData?.[roll.rollId]?.id) ?? null,
+    }));
+
+  const tell = (dice) => {
+    hearing.stop();
+
+    try {
+      onRest(dice);
+    } catch {
+      // A picture laid over the board never costs the roll its number.
+    }
+  };
+
+  const now = read();
+
+  if (now.every((die) => die.pose)) {
+    tell(now);
+    return;
+  }
+
+  setTimeout(() => tell(read()), REST_GRACE_MS);
+}
+
+/** One world, in a tray already announced — see `diceEngine`. */
+async function build(lane, { width, height }) {
+  const DiceBox = await loadDiceBox();
+
   const NativeWorker = window.Worker;
   const nativeObjectURL = window.URL.createObjectURL;
 
@@ -412,33 +366,10 @@ async function build(lane) {
   let seededUrl = null;
   let physics = null;
 
-  /* Caught on its way INTO a Blob rather than out of one: the parts are still
-     the plain string the library decoded, so the prelude can go in front of it
-     with no fetch to wait on. The render worker's source comes through here
-     too, and is left alone. */
-  window.Blob = class extends NativeBlob {
-    constructor(parts, options) {
-      const source =
-        Array.isArray(parts) &&
-        parts.length === 1 &&
-        typeof parts[0] === "string"
-          ? parts[0]
-          : null;
-
-      if (source?.includes(PHYSICS_MARK)) {
-        super([PRELUDE + source], options);
-        seededBlob = this;
-        return;
-      }
-
-      super(parts, options);
-    }
-  };
-
   window.URL.createObjectURL = function (object) {
     const url = nativeObjectURL.call(window.URL, object);
 
-    if (object === seededBlob) {
+    if (isPhysicsSource(object)) {
       seededUrl = url;
     }
 
@@ -473,9 +404,11 @@ async function build(lane) {
   };
 
   try {
-    const { default: DiceBox } = await import("@3d-dice/dice-box");
-
-    const box = new DiceBox({ ...CONFIG, container: `#${diceStageId(lane)}` });
+    const box = new DiceBox({
+      ...CONFIG,
+      preloadThemes: [...new Set([...CONFIG.preloadThemes, ...tableThemes])],
+      container: `#${diceStageId(lane)}`,
+    });
 
     await box.init();
 
@@ -499,30 +432,9 @@ async function build(lane) {
     // tray is what turns a corner into a place in the world.
     return { box, physics, workers, ratio };
   } finally {
-    window.Blob = NativeBlob;
     window.Worker = NativeWorker;
     window.URL.createObjectURL = nativeObjectURL;
   }
-}
-
-/**
- * One build at a time. `build` stands on three globals for its own length, so a
- * second starting inside the first would wrap the first's wrappers — and then
- * the first's `workers` would hold the SECOND's threads, and its teardown would
- * terminate an engine somebody is about to roll on. React runs an effect twice
- * on mount in development, which is exactly that shape.
- */
-let queue = Promise.resolve();
-
-function queued(step) {
-  const next = queue.then(step, step);
-
-  queue = next.then(
-    () => {},
-    () => {},
-  );
-
-  return next;
 }
 
 /**
@@ -545,6 +457,10 @@ function stranded(built, lane) {
  * number itself. The arena is checked INSIDE the queued step, so an engine that
  * has been overtaken is taken down before the next is started rather than
  * during it.
+ *
+ * The tray is waited for BEFORE joining the queue, which the preview roller
+ * shares: a table with no map never announces one, and a build waiting on it
+ * in the queue would hold every build behind it for ever.
  */
 export function diceEngine(lane = 0) {
   const held = lanes[lane];
@@ -560,26 +476,35 @@ export function diceEngine(lane = 0) {
 
   const mine = held.arena;
 
-  held.pending ??= queued(async () => {
-    const built = await build(lane);
+  held.pending ??= theTray()
+    .then((size) =>
+      queueDiceBuild(async () => {
+        // Released while it waited its turn: nothing to build for.
+        if (mine !== held.arena) {
+          throw new Error("The dice arena went away before it was built.");
+        }
 
-    if (mine !== held.arena) {
-      tearDown(built);
-      throw new Error("The dice arena went away while it was being built.");
-    }
+        const built = await build(lane, size);
 
-    held.live = built;
+        if (mine !== held.arena) {
+          tearDownDiceBox(built);
+          throw new Error("The dice arena went away while it was being built.");
+        }
 
-    return built;
-  }).catch((error) => {
-    // Only if nothing has moved on: a release has already cleared this, and
-    // whatever is being built now is not ours to throw away.
-    if (mine === held.arena) {
-      held.pending = null;
-    }
+        held.live = built;
 
-    throw error;
-  });
+        return built;
+      }),
+    )
+    .catch((error) => {
+      // Only if nothing has moved on: a release has already cleared this, and
+      // whatever is being built now is not ours to throw away.
+      if (mine === held.arena) {
+        held.pending = null;
+      }
+
+      throw error;
+    });
 
   return held.pending;
 }
@@ -593,6 +518,9 @@ export function diceEngine(lane = 0) {
  * to: that promise hands back the individual DICE, this hands back the GROUP,
  * already totalled — which is the whole answer for a d100, rolled the way a
  * table rolls percentile. Reading the first die alone would report the tens.
+ *
+ * `onRest` is handed each die's face and resting pose, for whatever is drawn
+ * over the board where it landed. Never awaited: the number goes back at once.
  */
 export async function throwDie({
   notation,
@@ -600,8 +528,13 @@ export async function throwDie({
   themeColor,
   seed,
   lane = 0,
+  onRest = null,
 }) {
   const { box, physics, ratio } = await diceEngine(lane);
+
+  /* dice-box reads a theme's dice list before loading it, so a skin nothing
+     preloaded would throw. Before the seed: the wait for bodies starts there. */
+  await box.loadThemeQueue.push(() => box.loadTheme(theme));
 
   /* Every throw and not once at build: the corner belongs to the ROLL, and a
      board must make the same calls for a seed whichever world is free. */
@@ -612,20 +545,40 @@ export async function throwDie({
 
   await sow(physics, seed, bodies(notation));
 
-  await box.roll(notation, {
-    theme,
-    /* The body, cast per throw rather than per theme: dice-box paints it from
+  const hearing = onRest ? hearRest(physics) : null;
+
+  try {
+    await box.roll(notation, {
+      theme,
+      /* The body, cast per throw rather than per theme: dice-box paints it from
        this string at runtime and takes the lettering from the theme's texture,
        so twelve player colours are twelve arguments to one theme instead of
        twelve theme folders to download. See dice-presentation.js, which is
        where the choice between a character's colour and the house's is made. */
-    themeColor,
-    newStartPoint: false,
-  });
+      themeColor,
+      newStartPoint: false,
+    });
+  } catch (error) {
+    hearing?.stop();
+    throw error;
+  }
 
   const [group] = box.getRollResults();
 
+  if (hearing) {
+    reportRest(box, group, hearing, onRest);
+  }
+
   return group?.value ?? null;
+}
+
+/**
+ * A world that has stopped answering — a GPU context lost, a worker gone quiet —
+ * taken down, so the next throw on this lane builds a fresh one instead of
+ * waiting on it forever.
+ */
+export function abandonDice(lane = 0) {
+  discardDice(lane);
 }
 
 /** One lane swept, with its engine left standing for the next roll. */
@@ -647,41 +600,17 @@ function discardDice(lane) {
   record.pending = null;
 
   if (held) {
-    tearDown(held);
+    tearDownDiceBox(held);
   }
 }
 
-/**
- * Everything down: the dice, both threads, the GPU context and the canvas.
- *
- * `getContext` is tried and allowed to fail — on the offscreen path the canvas
- * has already handed control to the render worker, which took the context with
- * it when it stopped, and asking a transferred canvas for one throws.
- */
-function tearDown({ box, workers }) {
-  box.clear();
-
-  for (const worker of workers) {
-    worker.terminate();
-  }
-
-  try {
-    const gl =
-      box.canvas.getContext("webgl2") ?? box.canvas.getContext("webgl");
-
-    gl?.getExtension("WEBGL_lose_context")?.loseContext();
-  } catch {
-    // Transferred to the worker that has just been terminated.
-  }
-
-  box.canvas.remove();
-}
-
-/** Every arena leaving, and everything they were holding — the tray too. */
+/** Every arena leaving, and everything they were holding — the tray and the
+    table's skins too. */
 export function releaseDice() {
   for (let lane = 0; lane < DICE_LANES; lane += 1) {
     discardDice(lane);
   }
 
   tray = null;
+  tableThemes.clear();
 }

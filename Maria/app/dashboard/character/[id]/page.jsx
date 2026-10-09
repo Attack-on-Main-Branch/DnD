@@ -7,13 +7,15 @@ import {
   listCampaignContainers,
   listContainerItems,
 } from "sina/data/containers";
+import { listDiceSkinUnlocks } from "sina/data/dice-pouch";
 import { listCharacterFeatures } from "sina/data/features";
 import { listCharacterInventory } from "sina/data/inventory";
 import { listCharacterSpells } from "sina/data/spells";
 import { characterHandle } from "sina/rules/character";
 import { canOpenContainer, readContainers } from "sina/rules/containers";
+import { unlockedDiceSkins } from "sina/rules/dice-pouch";
 
-import { diceColorClass } from "@/app/dashboard/character-presentation";
+import { diceColorHex } from "@/app/dashboard/character-presentation";
 
 import Avatar from "@/app/components/ui/avatar";
 import PlayButton from "@/app/components/ui/play-button";
@@ -23,6 +25,7 @@ import { campaignTablePath } from "@/lib/routes";
 import { createClient, currentUser } from "@/lib/supabase";
 
 import {
+  DicePanel,
   FeaturePanel,
   InventoryPanel,
   NotesPanel,
@@ -53,6 +56,8 @@ const SHEET_TABS = [
   { value: "spells", label: "Spells" },
   { value: "notes", label: "Notes" },
   { value: "feature", label: "Feature" },
+  // Holds its own controls, so no tab stop in front of them.
+  { value: "dice", label: "Dice", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -89,6 +94,7 @@ export default async function CharacterPage({ params }) {
     chestItems,
     spells,
     features,
+    diceSkins,
     error,
   } = await loadCharacter(id);
 
@@ -131,7 +137,7 @@ export default async function CharacterPage({ params }) {
         <div data-fade className="flex min-w-0 items-center gap-4">
           <Avatar
             src={character.avatar_url}
-            colorClass={diceColorClass(character.dice_color)}
+            color={diceColorHex(character.dice_color)}
             size="lg"
           />
 
@@ -250,6 +256,7 @@ export default async function CharacterPage({ params }) {
             feature: (
               <FeaturePanel characterId={character.id} features={features} />
             ),
+            dice: <DicePanel character={character} unlocked={diceSkins} />,
           }}
         />
       </div>
@@ -276,9 +283,23 @@ const loadCharacter = cache(async function loadCharacter(id) {
     redirect("/login");
   }
 
-  // Keep the error. Dropping it is what let a query that never ran read as a
-  // character that is not there.
-  const { data, error } = await getCharacter(supabase, { id, userId: user.id });
+  // Where this character plays, what its player wrote while playing, what it
+  // carries and what it knows — asked beside the character itself rather than
+  // after it. Each needs only the id, RLS answers it for whoever is asking, and
+  // on a miss all five are thrown away unread: one round trip's worth of
+  // waiting rather than two.
+  const [{ data, error }, campaigns, notes, items, spells, features, unlocks] =
+    await Promise.all([
+      // Keep the error. Dropping it is what let a query that never ran read as
+      // a character that is not there.
+      getCharacter(supabase, { id, userId: user.id }),
+      listCampaignsForCharacter(supabase, id),
+      listCharacterNotes(supabase, id),
+      listCharacterInventory(supabase, id),
+      listCharacterSpells(supabase, id),
+      listCharacterFeatures(supabase, id),
+      listDiceSkinUnlocks(supabase, [id]),
+    ]);
 
   // Not `bad_id` — a mistyped URL is not a fault worth a log line.
   if (error && error.reason !== "bad_id") {
@@ -295,23 +316,14 @@ const loadCharacter = cache(async function loadCharacter(id) {
       chestItems: {},
       spells: [],
       features: [],
+      diceSkins: [],
       error,
       user,
     };
   }
 
-  // Where this character plays, what its player wrote while playing, what it
-  // carries and what it knows: one round trip’s worth of waiting rather than
-  // four. All are logged rather than shown if they fail — the sheet is the
-  // page, and none of them is a reason to replace it with an error.
-  const [campaigns, notes, items, spells, features] = await Promise.all([
-    listCampaignsForCharacter(supabase, id),
-    listCharacterNotes(supabase, id),
-    listCharacterInventory(supabase, id),
-    listCharacterSpells(supabase, id),
-    listCharacterFeatures(supabase, id),
-  ]);
-
+  // Logged rather than shown if they fail — the sheet is the page, and none of
+  // them is a reason to replace it with an error.
   if (campaigns.error) {
     logFailure("listCampaignsForCharacter", campaigns.error);
   }
@@ -332,6 +344,10 @@ const loadCharacter = cache(async function loadCharacter(id) {
     logFailure("listCharacterFeatures", features.error);
   }
 
+  if (unlocks.error) {
+    logFailure("listDiceSkinUnlocks", unlocks.error);
+  }
+
   // A wave of its own, and it has to be: a container belongs to a campaign, so
   // there is nothing to ask for until the list above has landed. A character at
   // no table asks nothing at all.
@@ -350,6 +366,7 @@ const loadCharacter = cache(async function loadCharacter(id) {
     chestItems: shelf.chestItems,
     spells: spells.error ? [] : spells.data,
     features: features.error ? [] : features.data,
+    diceSkins: unlockedDiceSkins(unlocks.error ? [] : unlocks.data),
     error,
     user,
   };

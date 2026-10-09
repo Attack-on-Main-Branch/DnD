@@ -10,14 +10,16 @@ import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
 import ConditionsGrid from "./conditions-grid";
+import { giveDicePouches } from "./dice-pouch-actions";
+import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
 import { takeRest } from "./session-actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 import XpBar, { XpStepper } from "./xp-bar";
 
 /**
- * Session management: who the panel is aimed at, the two rests, and the
- * experience under them.
+ * Session management: who the panel is aimed at, the two rests, the
+ * experience under them, and the Dice Pouches the party unlocks dice with.
  *
  * ONE MENU AIMS BOTH HALVES, and it is the chest's own `MultiSelectMenu`: rows
  * toggle, the list stays open, and a subset is an ordinary answer — both writers
@@ -43,7 +45,7 @@ export default function SessionSettingsDrawer({
   const [chosen, setChosen] = useState(() => members.map((one) => one.id));
 
   const store = useTableStore();
-  const { run, send } = useTableDeed(campaignId);
+  const { run, resync, send } = useTableDeed(campaignId);
 
   /* Whoever is still in the party: it can change under an open panel, and the
      database would narrow a departed character away regardless. */
@@ -126,6 +128,34 @@ export default function SessionSettingsDrawer({
     });
   }
 
+  /* Painted into every pack aimed at; the server passes over anybody with every
+     set already found, and its list of who it reached corrects the paint. */
+  function givePouch() {
+    run({
+      paint: () => {
+        for (const id of aimed) {
+          store.movePack(id, DICE_POUCH_ITEM, 1, null);
+        }
+      },
+
+      work: () => giveDicePouches(campaignId, aimed),
+
+      tell: (result) => {
+        const given = result.given ?? [];
+
+        for (const id of given) {
+          send({ kind: "pack", characterId: id });
+        }
+
+        if (given.length < aimed.length) {
+          resync({ inventory: true, characterIds: aimed });
+        }
+      },
+
+      want: { inventory: true, activity: true, characterIds: aimed },
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <MultiSelectMenu
@@ -143,7 +173,7 @@ export default function SessionSettingsDrawer({
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
       <section aria-label="Rest">
-        <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
           Rest
         </h3>
 
@@ -188,7 +218,7 @@ export default function SessionSettingsDrawer({
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
       <section aria-label="Experience">
-        <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
+        <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
           Experience
         </h3>
 
@@ -206,6 +236,32 @@ export default function SessionSettingsDrawer({
             disabled={aimed.length === 0}
             onLevelled={onLevelled}
           />
+        </div>
+      </section>
+
+      <div aria-hidden="true" className={FADED_RULE_CLASSES} />
+
+      <section aria-label="Dice pouches">
+        <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
+          Dice pouch
+        </h3>
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <span className="group/note relative inline-flex">
+            <StepButton
+              wide
+              tone="gold"
+              onClick={givePouch}
+              disabled={aimed.length === 0}
+              label={`Give a dice pouch ${whom}`}
+            >
+              Give pouch
+            </StepButton>
+
+            <HoverNote className="top-full left-0 mt-1">
+              Holds one dice set they have not found yet
+            </HoverNote>
+          </span>
         </div>
       </section>
 
