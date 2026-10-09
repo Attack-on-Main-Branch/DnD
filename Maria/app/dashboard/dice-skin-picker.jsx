@@ -9,7 +9,11 @@ import { isDiceSkinUnlocked } from "sina/rules/dice-pouch";
 
 import SelectionDot from "@/app/components/ui/selection-dot";
 
-import { DICE_SKINS, diceSkinPictures } from "./character-presentation";
+import {
+  DICE_SKINS,
+  DICE_SKIN_GROUPS,
+  diceSkinPictures,
+} from "./character-presentation";
 import DicePicture from "./dice-picture";
 
 const LOCKED_NOTE = "Not found yet — open a Dice Pouch at the table";
@@ -27,99 +31,112 @@ export default function DiceSkinPicker({
   value,
   color,
   unlocked,
+  allUnlocked = false,
   onChange,
   disabled,
   invalid,
 }) {
   return (
     <fieldset disabled={disabled} className="min-w-0">
-      <legend className={LABEL_CLASSES}>Dice style</legend>
-
-      {unlocked && (
-        <p className="mt-0.5 text-xs text-ink/50">
-          {unlocked.length} of {DICE_SKINS.length} found. The rest are in Dice
-          Pouches, which your Dungeon Master hands out.
-        </p>
-      )}
+      <legend className="w-full">
+        <span className="flex items-baseline justify-between gap-3">
+          <span className={LABEL_CLASSES}>Dice style</span>
+          {!allUnlocked && unlocked && (
+            <span className="text-xs text-ink/50">
+              {unlocked.length} of {DICE_SKINS.length} found
+            </span>
+          )}
+        </span>
+      </legend>
 
       <div
-        className={`mt-1.5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 ${
+        className={`mt-3 space-y-5 ${
           invalid ? `rounded-lg ${INVALID_GROUP_CLASSES}` : ""
         }`}
       >
-        {DICE_SKINS.map((option) => {
-          const isSelected = value === option.value;
-          const locked = !isDiceSkinUnlocked(option.value, unlocked);
-
-          return (
-            <label
-              key={option.value}
-              title={locked ? LOCKED_NOTE : option.description}
-              className={`group relative isolate flex flex-col items-center gap-2 rounded-xl border px-3 pt-4 pb-3 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} ${
-                locked
-                  ? `cursor-not-allowed bg-surface/60 ${option.rarity.edge}`
-                  : isSelected
-                    ? `cursor-pointer bg-surface/75 ${option.rarity.edgeSelected}`
-                    : `cursor-pointer bg-surface/60 hover:bg-surface/50 ${option.rarity.edge} ${option.rarity.edgeHover}`
-              }`}
+        {DICE_SKIN_GROUPS.map((group) => (
+          <div key={group.value} role="group" aria-label={group.rarity.label}>
+            <p
+              aria-hidden="true"
+              className={`mb-2 flex items-center gap-3 font-mono text-xs tracking-wide uppercase ${group.rarity.text}`}
             >
-              <input
-                type="radio"
-                name="diceSkin"
-                value={option.value}
-                checked={isSelected}
-                disabled={locked}
-                onChange={() => onChange(option.value)}
-                className="sr-only"
-              />
+              {group.rarity.label}
+              <span className="h-px flex-1 bg-gold/10" />
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              {group.skins.map((option) => {
+                const isSelected = value === option.value;
+                const locked =
+                  !allUnlocked && !isDiceSkinUnlocked(option.value, unlocked);
 
-              {/* Behind the content, so the glow never washes over the name. */}
-              <span
-                aria-hidden="true"
-                className={`pointer-events-none absolute inset-0 -z-10 rounded-[inherit] transition-opacity duration-300 ${
-                  isSelected ? option.rarity.glowSelected : option.rarity.glow
-                }`}
-              />
+                return (
+                  <label
+                    key={option.value}
+                    title={locked ? LOCKED_NOTE : option.description}
+                    className={`group relative isolate flex flex-col items-center gap-1.5 rounded-xl border px-3 pt-3 pb-2.5 transition duration-300 select-none ${CHOICE_CARD_FOCUS_CLASSES} ${
+                      locked
+                        ? `cursor-not-allowed bg-surface/60 ${option.rarity.edge}`
+                        : isSelected
+                          ? `cursor-pointer bg-surface/75 ${option.rarity.edgeSelected}`
+                          : `cursor-pointer bg-surface/60 hover:bg-surface/50 ${option.rarity.edge} ${option.rarity.edgeHover}`
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="diceSkin"
+                      value={option.value}
+                      checked={isSelected}
+                      disabled={locked}
+                      onChange={() => onChange(option.value)}
+                      className="sr-only"
+                    />
 
-              {!locked && (
-                <span className="absolute top-2.5 right-2.5 flex">
-                  <SelectionDot selected={isSelected} />
-                </span>
-              )}
+                    {/* Behind the content, so the glow never washes over the name. */}
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none absolute inset-0 -z-10 rounded-[inherit] transition-opacity duration-300 ${
+                        isSelected
+                          ? option.rarity.glowSelected
+                          : option.rarity.glow
+                      }`}
+                    />
 
-              <DicePicture
-                picture={diceSkinPictures(option.value).tile}
-                color={color}
-                className={`aspect-square w-full max-w-28 drop-shadow-[0_10px_12px_rgba(0,0,0,0.55)] transition duration-300 ${
-                  locked
-                    ? "opacity-75 blur-xs brightness-75 grayscale"
-                    : "motion-safe:group-hover:scale-105"
-                }`}
-              />
+                    {!locked && (
+                      <span className="absolute top-2.5 right-2.5 flex">
+                        <SelectionDot selected={isSelected} />
+                      </span>
+                    )}
 
-              {locked ? (
-                <span className="text-center font-display text-sm font-semibold tracking-wide text-ink/45">
-                  <span aria-hidden="true">???</span>
-                  <span className="sr-only">Locked</span>
-                </span>
-              ) : (
-                <span
-                  className={`text-center font-display text-sm font-semibold tracking-wide transition-colors duration-300 ${
-                    isSelected ? "text-gold" : "text-ink/85"
-                  }`}
-                >
-                  {option.label}
-                </span>
-              )}
+                    <DicePicture
+                      picture={diceSkinPictures(option.value).tile}
+                      color={color}
+                      className={`aspect-square w-full max-w-28 drop-shadow-[0_10px_12px_rgba(0,0,0,0.55)] transition duration-300 ${
+                        locked
+                          ? "opacity-75 blur-xs brightness-75 grayscale"
+                          : "motion-safe:group-hover:scale-105"
+                      }`}
+                    />
 
-              <span
-                className={`-mt-1.5 font-mono text-[10px] tracking-[0.16em] uppercase ${option.rarity.text}`}
-              >
-                {option.rarity.label}
-              </span>
-            </label>
-          );
-        })}
+                    {locked ? (
+                      <span className="text-center font-display text-sm font-semibold tracking-wide text-ink/45">
+                        <span aria-hidden="true">???</span>
+                        <span className="sr-only">Locked</span>
+                      </span>
+                    ) : (
+                      <span
+                        className={`text-center font-display text-sm font-semibold tracking-wide transition-colors duration-300 ${
+                          isSelected ? "text-gold" : "text-ink/85"
+                        }`}
+                      >
+                        {option.label}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </fieldset>
   );

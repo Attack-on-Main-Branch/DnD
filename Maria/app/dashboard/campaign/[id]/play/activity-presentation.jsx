@@ -41,9 +41,7 @@ const ACCENTS = {
   secret_dice_roll: "border-l-arcane",
   hp_change: "border-l-orange-500",
   temp_hp_change: "border-l-temp-hp",
-  /* One step back from a hit point's own orange: what moved is the FRAME the
-     bar is drawn in, not anything that happened to the character inside it. */
-  max_hp_change: "border-l-orange-300",
+  armor_class_change: "border-l-sky-300",
   item_used: "border-l-emerald-400",
   item_dropped: "border-l-zinc-500",
   item_transferred: "border-l-sky-400",
@@ -342,7 +340,6 @@ function Coins({ amount, coin }) {
    about the person who did it. */
 const ABOUT_THE_TARGET = new Set([
   "level_change",
-  "max_hp_change",
   "instant_death",
   "death_save",
   "character_died",
@@ -476,15 +473,20 @@ function Body({ entry }) {
     );
   }
 
-  /* The frame the bar is drawn in, and the rung that decided it. No direction:
-     what it came TO is the fact, and the bar beside it already shows where that
-     left them. */
-  if (entry.action === "max_hp_change") {
+  if (entry.action === "armor_class_change") {
     return (
       <>
-        Max HP updated to{" "}
-        <span className={EMPHASIS_CLASSES}>{entry.maxHp}</span> (Lvl{" "}
-        {entry.level})
+        changed AC by{" "}
+        <span className="font-semibold text-sky-300 tabular-nums">
+          {entry.delta > 0 ? "+" : "−"}
+          {Math.abs(entry.delta)}
+        </span>
+        {entry.target && (
+          <>
+            {" for "}
+            <span className={NAME_CLASSES}>{entry.target}</span>
+          </>
+        )}
       </>
     );
   }

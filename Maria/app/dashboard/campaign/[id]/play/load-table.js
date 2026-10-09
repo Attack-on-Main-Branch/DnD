@@ -257,9 +257,8 @@ function seatsAt(campaign, members) {
         {
           id: DUNGEON_MASTER_SEAT,
           characterId: null,
-          // No colour: the head of the table rolls the house's own dice.
-          diceColor: null,
-          diceSkin: null,
+          diceColor: campaign.dice_color,
+          diceSkin: campaign.dice_skin,
           title: "Dungeon Master",
         },
       ]

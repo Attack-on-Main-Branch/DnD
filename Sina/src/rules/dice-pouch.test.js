@@ -72,14 +72,25 @@ describe("dicePouchChances", () => {
     assert.ok(Math.abs(legendary - DICE_POUCH_ODDS.legendary / 100) < 1e-9);
   });
 
-  it("makes a rarer set less likely than a commoner one", () => {
+  it("makes a rarer set less likely when each rarity has one set left", () => {
+    const remaining = [
+      "crystal",
+      "cracked",
+      "galaxy",
+      "wood",
+      "epoxy",
+      "asiimov",
+    ];
+    const unlocked = DICE_SKIN_VALUES.filter(
+      (skin) => !remaining.includes(skin),
+    );
     const chances = new Map(
-      dicePouchChances([]).map((one) => [one.skin, one.chance]),
+      dicePouchChances(unlocked).map((one) => [one.skin, one.chance]),
     );
 
-    assert.ok(chances.get("crystal") > chances.get("galaxy"));
-    assert.ok(chances.get("galaxy") > chances.get("wood"));
-    assert.ok(chances.get("wood") > chances.get("asiimov"));
+    for (let at = 1; at < remaining.length; at++) {
+      assert.ok(chances.get(remaining[at - 1]) > chances.get(remaining[at]));
+    }
   });
 
   it("shares a finished rarity's odds among the rest", () => {

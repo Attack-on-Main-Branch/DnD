@@ -1,6 +1,7 @@
 import {
   DEFAULT_DICE_COLOR,
   DEFAULT_DICE_SKIN,
+  DICE_SKIN_RARITIES,
   DICE_SKIN_VALUES,
   diceSkinRarity,
   isDiceColor,
@@ -124,6 +125,11 @@ const SKIN_COPY = {
   galaxy: {
     label: "Galaxy",
     description: "A spiral galaxy in your colour, copper numbers",
+  },
+  pearl: {
+    label: "Marble",
+    description:
+      "Flowing silk-like pearl in deep coloured resin, white numbers",
   },
   fade: {
     label: "Fade",
@@ -261,6 +267,12 @@ export const DICE_SKINS = DICE_SKIN_VALUES.map((value) => ({
   value,
   ...SKIN_COPY[value],
   rarity: RARITY_LOOK[diceSkinRarity(value)],
+}));
+
+export const DICE_SKIN_GROUPS = DICE_SKIN_RARITIES.map((value) => ({
+  value,
+  rarity: RARITY_LOOK[value],
+  skins: DICE_SKINS.filter((option) => diceSkinRarity(option.value) === value),
 }));
 
 /** One style's entry above. A row may predate the style. */

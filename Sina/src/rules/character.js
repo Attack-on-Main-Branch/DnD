@@ -316,11 +316,17 @@ export const DICE_SKIN_RARITIES = [
  */
 const DICE_SKINS_BY_RARITY = {
   common: ["classic", "crystal", "glass", "fade", "ornate"],
-  uncommon: ["metal-rimmed", "metal-inlaid", "metal-cornered", "cracked"],
-  rare: [
+  uncommon: [
     "brass-rimmed",
     "brass-inlaid",
     "brass-cornered",
+    "cracked",
+    "pearl",
+  ],
+  rare: [
+    "metal-rimmed",
+    "metal-inlaid",
+    "metal-cornered",
     "galaxy",
     "dragonscale",
   ],

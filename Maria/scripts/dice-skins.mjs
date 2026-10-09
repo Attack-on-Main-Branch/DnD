@@ -3989,6 +3989,114 @@ function dieAxes(faces, salt) {
   );
 }
 
+/** Smooth vortices fold pigment into long ribbons through the die. */
+function pearlFlow(u, v, w, flow) {
+  for (const { centre, radius, turns } of flow.vortices) {
+    const cx = centre[0] + Math.sin(w * 0.8) * 0.3;
+    const cy = centre[1] + Math.cos(w * 0.6) * 0.3;
+    const dx = u - cx;
+    const dy = v - cy;
+    const angle = turns * Math.exp(-(dx * dx + dy * dy) / (radius * radius));
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+
+    u = cx + dx * c - dy * s;
+    v = cy + dx * s + dy * c;
+  }
+
+  const warped =
+    u +
+    w * flow.drift +
+    (fbm3(u * 0.7, v * 0.7, w * 0.7, 2, 733) - 0.5) * flow.warp;
+  const phase = fbm3(
+    warped * flow.frequency * 1.8,
+    v * flow.frequency * 0.4,
+    w * flow.frequency * 0.7,
+    3,
+    757,
+  );
+
+  return { phase, u, v, w };
+}
+
+function paintPearl(recipe, base) {
+  const { ink, reference, owner, position, faces, dice } = base;
+  const { flow, ribbon, finish } = recipe;
+  const axes = dieAxes(faces, 739);
+  const glyphs = neighbourhood(ink, recipe.weight, true);
+  const relief = neighbourhood(glyphs, 1);
+  const numerals = hex(recipe.numerals);
+  const scale = flow.scale * reference;
+  const engrave = recipe.engrave * reference;
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const height = new Float32Array(SIZE * SIZE);
+  const lean = new Float32Array(SIZE * SIZE * 3);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    const face = owner[pixel];
+
+    if (face < 0) {
+      continue;
+    }
+
+    const point = position.subarray(pixel * 3, pixel * 3 + 3);
+    const { side, up, axis } = axes[dice[face]];
+    const qx = dot(point, side) / scale;
+    const qy = dot(point, up) / scale;
+    const qz = dot(point, axis) / scale;
+    const { phase, u, v, w } = pearlFlow(qx, qy, qz, flow);
+    const fold = smoothstep(0.25, 0.75, phase);
+    const pearl = smoothstep(0.1, 0.85, fold);
+    const shoulder =
+      Math.exp(-(((fold - 0.65) / 0.22) ** 2)) *
+      (0.6 + 0.4 * valueNoise3(u * 0.6, v * 0.6, w * 0.6, 743));
+    const silk = valueNoise3(phase * 40, v * 0.65, w * 0.65, 751);
+    const light =
+      pearl * ribbon.light +
+      shoulder * ribbon.sheen +
+      pearl * silk * ribbon.silk;
+    const paint = layers();
+
+    paint.over([0, 0, 0], ribbon.shadow * (1 - fold) ** 1.5);
+    paint.over([255, 255, 255], light);
+    paint.over(numerals, glyphs[pixel]);
+    paint.write(colour, pixel);
+
+    const roughness = finish.resin + (finish.pearl - finish.resin) * pearl;
+
+    writeSurface(surface, pixel, {
+      occlusion: 1,
+      roughness: roughness + (finish.numerals - roughness) * glyphs[pixel],
+      metalness: pearl * finish.metal * (1 - glyphs[pixel]),
+    });
+
+    height[pixel] = -engrave * relief[pixel];
+
+    const tilt = ribbon.tilt * (2 * fold - 1) * pearl * (1 - glyphs[pixel]);
+
+    for (let k = 0; k < 3; k++) {
+      lean[pixel * 3 + k] =
+        (side[k] * Math.cos(phase * Math.PI * 2) + up[k] * Math.sin(u)) * tilt;
+    }
+  }
+
+  bleed(
+    owner,
+    [
+      { data: colour, channels: 4 },
+      { data: surface, channels: 3 },
+    ],
+    recipe.bleed,
+  );
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: surfaceNormals({ height, ...leanToTilt(lean, base) }, base),
+  };
+}
+
 /**
  * Acrylic swirled from the PLAYER'S colour into a darker shade of it, the way
  * cheap pearlescent dice are poured, with gold-inked numerals.
@@ -5929,6 +6037,7 @@ const PAINTERS = {
   companion: paintCompanion,
   crystal: paintCrystal,
   fade: paintFade,
+  pearl: paintPearl,
   galaxy: paintGalaxy,
   ornate: paintOrnate,
   glass: paintGlass,

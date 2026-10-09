@@ -231,33 +231,36 @@ export default function InventoryPack({
   /* The pouch being opened, and the sets opened since the page was drawn: the
      seat's list is the route's, and the next reel must not offer them again. */
   const [opening, setOpening] = useState(null);
+  const openingBusy = useRef(false);
   const [found, setFound] = useState([]);
 
   const characterId = seat.characterId;
 
-  /* Asked for here, on the press, and handed to the reel as a promise — see
-     dice-pouch-opening.jsx. Painted as a pouch gone; a refusal puts it back. */
-  function openOne() {
-    if (opening || !characterId) {
+  async function openOne() {
+    if (openingBusy.current || !characterId) {
       return;
     }
 
-    const drawn = run({
+    openingBusy.current = true;
+    setOpening({ drawn: null });
+    const unlocked = [...(seat.diceSkins ?? []), ...found];
+
+    const result = await run({
       paint: () => store.movePack(characterId, DICE_POUCH_ITEM, -1, null),
       work: () => openPouch(campaignId, characterId),
       tell: () => send({ kind: "pack", characterId }),
       want: { inventory: true, characterIds: [characterId] },
-    }).then((result) => {
-      const skin = result?.skin ?? null;
-
-      if (skin) {
-        setFound((list) => [...list, skin]);
-      }
-
-      return skin;
     });
+    const skin = result?.skin;
 
-    setOpening({ drawn });
+    if (!skin) {
+      openingBusy.current = false;
+      setOpening(null);
+      return;
+    }
+
+    setFound((list) => [...list, skin]);
+    setOpening({ drawn: Promise.resolve(skin), unlocked });
   }
 
   const announce = useCallback(() => {
@@ -268,6 +271,7 @@ export default function InventoryPack({
   }, [campaignId, characterId, run]);
 
   const closeOpening = useCallback(() => {
+    openingBusy.current = false;
     setOpening(null);
   }, []);
 
@@ -308,11 +312,11 @@ export default function InventoryPack({
         )}
       </TablePopover>
 
-      {opening && (
+      {opening?.drawn && (
         <DicePouchOpening
           drawn={opening.drawn}
           color={seat.diceColor}
-          unlocked={[...(seat.diceSkins ?? []), ...found]}
+          unlocked={opening.unlocked}
           onAnnounce={announce}
           onClose={closeOpening}
         />

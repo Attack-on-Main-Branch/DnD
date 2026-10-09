@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 
-import { saveCharacterDice } from "@/app/actions/characters";
 import Button from "@/app/components/ui/button";
 import {
   NESTED_CARD_CLASSES,
@@ -22,7 +21,7 @@ import { PREVIEW_DIE, PREVIEW_SET } from "@/app/dashboard/preview-roller";
 import { DICE_TYPES } from "@/lib/dice-themes";
 
 /**
- * The Dice tab: what this character's dice are made of and the colour they come
+ * The Dice tab: what this sheet's dice are made of and the colour they come
  * in, tried on a real die before anything is written. The pickers fill the
  * page; the die stands beside them, any of the set thrown on demand.
  *
@@ -30,10 +29,11 @@ import { DICE_TYPES } from "@/lib/dice-themes";
  * is a hundred colours, and only the one it stops on is a decision.
  */
 export default function SheetDice({
-  characterId,
   diceColor,
   diceSkin,
   unlocked,
+  allUnlocked = false,
+  saveDice,
 }) {
   const stored = { color: diceColorHex(diceColor), skin: diceSkin };
 
@@ -67,7 +67,7 @@ export default function SheetDice({
     setNote(null);
 
     startSaving(async () => {
-      const result = await saveCharacterDice(characterId, {
+      const result = await saveDice({
         diceColor: color,
         diceSkin: skin,
       });
@@ -96,6 +96,7 @@ export default function SheetDice({
           value={skin}
           color={color}
           unlocked={unlocked}
+          allUnlocked={allUnlocked}
           onChange={edit(setSkin)}
           disabled={saving}
         />

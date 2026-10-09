@@ -33,7 +33,7 @@ export default function SessionStage({ campaignId, members }) {
     >
       {/* Short, and the box morphing down to it is the whole point of the
           shared panel. */}
-      <div className="px-5 pt-4 pb-5">
+      <div className="px-5 pt-4 pb-5 [mask-image:linear-gradient(to_right,transparent,black_1.25rem,black_calc(100%_-_1.25rem),transparent)]">
         <SessionSettingsDrawer
           campaignId={campaignId}
           members={members}

@@ -6,6 +6,7 @@ import { MAX_ARMOR_CLASS, parseArmorClass } from "sina/rules/death";
 import { setArmorClass } from "./actions";
 import { useArmorClass, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
+import { useTableWire } from "./table-wire";
 
 /**
  * The shield hanging off the foot of the level ring: how hard this character is
@@ -72,6 +73,7 @@ export default function ArmorBadge({ campaignId, characterId, name, canEdit }) {
 
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
+  const { seat, head } = useTableWire();
 
   if (armorClass === null) {
     return null;
@@ -87,17 +89,24 @@ export default function ArmorBadge({ campaignId, characterId, name, canEdit }) {
       return;
     }
 
-    store.setArmor(characterId, next);
-
     run({
-      work: () => setArmorClass(campaignId, characterId, next),
+      note: [
+        {
+          action: "armor_class_change",
+          actor: head ? "Dungeon Master" : name,
+          delta: next - armorClass,
+          target: characterId === seat ? null : name,
+        },
+      ],
+      paint: () => store.setArmor(characterId, next),
+      work: () => setArmorClass(campaignId, characterId, next, seat),
 
       tell: (result) => {
         store.setArmor(characterId, result.armorClass);
         send({ kind: "armor", characterId, armorClass: result.armorClass });
       },
 
-      want: { party: true },
+      want: { party: true, activity: true },
     });
   }
 

@@ -17,7 +17,7 @@
 export const CHANGELOG = [
   {
     version: "2.0.0",
-    date: "2026-10-07",
+    date: "2026-10-09",
     title: "A livelier table",
     changes: [
       "Party card glows and token markers show shared health states while exact HP stays private. Health turns orange at half and red below a quarter.",
@@ -44,6 +44,8 @@ export const CHANGELOG = [
       "New artwork for Changeling, Erina and Kipir.",
     ],
     fixes: [
+      "Armour class edits now appear in the activity log. Automatic maximum-HP changes no longer add log entries.",
+      "The Session menu’s experience glow fades softly at the panel edges without losing its breathing animation.",
       "Hidden dice-result glows no longer leave a stray line beneath the map’s shape controls.",
       "Knocked-out tokens turn gray without a death cross and show an orange Knocked label.",
       "The map and its controls centered together.",

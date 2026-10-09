@@ -304,7 +304,7 @@ export const DICE_SKIN_RECIPES = {
     grain: {
       along: [0.35, 1, 0.2],
       period: 0.75,
-      warp: 0.25,
+      warp: 1.1,
       bend: 2.8,
       fibre: 0.035,
       run: 1.2,
@@ -724,6 +724,28 @@ export const DICE_SKIN_RECIPES = {
       numerals: 0.65,
     },
     finish: { silver: 0.32, blood: 0.06, numerals: 0.25 },
+  },
+
+  pearl: {
+    kind: "pearl",
+    name: "Marble",
+    weight: 1,
+    engrave: 0.05,
+    bleed: 8,
+    numerals: "#f4f6f8",
+    flow: {
+      scale: 1.6,
+      frequency: 0.85,
+      warp: 0.25,
+      drift: 0.35,
+      vortices: [
+        { centre: [-0.7, 0.4], radius: 2.2, turns: 4.5 },
+        { centre: [1.1, -0.8], radius: 1.5, turns: -3.2 },
+      ],
+    },
+    ribbon: { shadow: 0.75, light: 0.08, sheen: 0.24, silk: 0.08, tilt: 0.18 },
+    finish: { resin: 0.12, pearl: 0.2, metal: 0.18, numerals: 0.4 },
+    coat: { intensity: 1, roughness: 0.025 },
   },
 
   /*

@@ -92,18 +92,41 @@ Set `VERTEX_PROJECT_ID=YOUR_PROJECT_ID` in `Maria/.env.local` and restart the de
 server. The app reads the login gcloud saved; when it expires, painting says so
 and the first command signs you in again.
 
-**On Vercel — no key either**, through Workload Identity Federation:
+**On Vercel — no key either**, through Workload Identity Federation. A local
+gcloud login does not travel with the deployment.
 
-1. **IAM & Admin → Workload Identity Federation → Create pool** (e.g. `vercel`),
-   with an **OpenID Connect** provider (e.g. `vercel`): issuer
-   `https://oidc.vercel.com/YOUR_TEAM_SLUG`, **Allowed audiences**
-   `https://vercel.com/YOUR_TEAM_SLUG`, and `google.subject` mapped to
-   `assertion.sub`.
-2. **IAM & Admin → Service accounts**: create one with the **Vertex AI User**
-   role, and no key.
-3. On that service account, grant **Workload Identity User** to
-   `principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:YOUR_TEAM_SLUG:project:YOUR_VERCEL_PROJECT:environment:production`.
-4. Set these in the Vercel project:
+1. In the [Google Cloud console](https://console.cloud.google.com), select the
+   project and confirm its **Billing** account is active. Under **APIs &
+   Services → Library**, enable **Vertex AI API**, **Identity and Access
+   Management (IAM) API**, **Cloud Resource Manager API**, **IAM Service Account
+   Credentials API**, and **Security Token Service API**. Note the **Project ID**
+   and **Project number** under **IAM & Admin → Settings**.
+2. In Vercel, note the team slug from the team's URL and the project name under
+   **Project → Settings → General**. Under **Settings → Security → Secure backend
+   access with OIDC federation**, enable OIDC and check its issuer mode: the
+   configuration below uses **Team**, with issuer
+   `https://oidc.vercel.com/YOUR_TEAM_SLUG`. A project using **Global** instead
+   needs issuer `https://oidc.vercel.com` in the next step.
+3. In Google Cloud, open **IAM & Admin → Workload Identity Federation → Create
+   pool**, with pool ID `vercel` and an **OpenID Connect** provider with ID
+   `vercel`. Enter the issuer from step 2, select **Allowed audiences** and enter
+   `https://vercel.com/YOUR_TEAM_SLUG`. Leave the JWK file empty and map
+   `google.subject` to `assertion.sub`. Use **Allowed audiences** for the current
+   code, which requests Vercel's standard audience.
+4. Under **IAM & Admin → Service accounts → Create service account**, create
+   `scene-painter` with the **Vertex AI User** role (`roles/aiplatform.user`)
+   on the project. Do not create a key. Open that service account's
+   **Permissions → Grant access** and grant **Workload Identity User**
+   (`roles/iam.workloadIdentityUser`) to this principal, replacing the three
+   placeholders with the project number, Vercel team slug and Vercel project name:
+
+   ```text
+   principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:YOUR_TEAM_SLUG:project:YOUR_VERCEL_PROJECT:environment:production
+   ```
+
+5. In **Vercel → Project → Settings → Environment Variables**, add these for the
+   **Production** environment. Use the app's `VERTEX_*` names below, rather than
+   the `GCP_*` names in Vercel's general examples:
 
 | Variable                       | Value                                       |
 | ------------------------------ | ------------------------------------------- |
@@ -112,6 +135,24 @@ and the first command signs you in again.
 | `VERTEX_WIF_POOL_ID`           | The pool's ID, e.g. `vercel`                |
 | `VERTEX_WIF_PROVIDER_ID`       | The provider's ID, e.g. `vercel`            |
 | `VERTEX_SERVICE_ACCOUNT_EMAIL` | The service account's email                 |
+
+6. Redeploy after saving the settings. `Maria/vercel.json` enables **Fluid
+   Compute** and the table page sets `maxDuration = 120`; Fluid Compute supports
+   this on Hobby too. Open a campaign as its
+   Dungeon Master, place a camera and paint a scene. Confirm the image appears
+   on the map shelf. If it fails, inspect the deployment's runtime logs for
+   `paintScene`: setup errors indicate credentials/API permissions, rejected
+   requests indicate the model/request, and timeouts indicate duration limits or
+   a slow upstream request.
+
+Preview deployments need their own environment variables and an additional
+service-account binding ending in `environment:preview`; the production binding
+does not authorise previews. If using a different pool/provider ID, substitute it
+in the principal and environment variables. Keep the existing Supabase variables
+pointing at the database where the scene migrations were applied.
+
+The console setup follows [Vercel's GCP federation guide](https://vercel.com/docs/oidc/gcp)
+and [Google's federation prerequisites](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers).
 
 **Or with a service account key**, where your organisation allows creating one:
 put the JSON key, base64-encoded, in `VERTEX_SERVICE_ACCOUNT_KEY`. It takes
@@ -365,8 +406,9 @@ view. If a build fails to resolve `sina`, that is the setting to check first.
 
 Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` under the
 project's Environment Variables, and the scene painter's Workload Identity
-Federation variables (see step 3 above). A
-painting can take over a minute, and the table page asks for a `maxDuration` of
-120 seconds; a plan that caps functions lower cuts a painting short. If email
-confirmation is on, add the
+Federation variables (see step 3 above). A painting can take over a minute, and
+the table page asks for a `maxDuration` of 120 seconds. `Maria/vercel.json` enables
+**Fluid Compute**; its duration limits support this on all plans, including Hobby.
+See [Vercel's duration documentation](https://vercel.com/docs/functions/configuring-functions/duration).
+If email confirmation is on, add the
 deployment's full `/auth/confirm` URL to Supabase's Redirect URLs as well.

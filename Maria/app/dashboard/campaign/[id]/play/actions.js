@@ -348,12 +348,12 @@ const HIT_DICE_COPY = {
   bad_id: "That character is no longer at this table.",
 };
 
-/**
- * The shield. No line in the log and nothing to reconcile beyond the number
- * itself: an armour class is a fact about a character rather than something
- * that happens at a table.
- */
-export async function setArmorClass(campaignId, characterId, value) {
+export async function setArmorClass(
+  campaignId,
+  characterId,
+  value,
+  seatCharacterId = null,
+) {
   const armorClass = parseArmorClass(value);
 
   if (armorClass === null) {
@@ -371,6 +371,7 @@ export async function setArmorClass(campaignId, characterId, value) {
     id: characterId,
     armorClass,
     campaignId,
+    seatCharacterId,
   });
 
   if (error) {
@@ -380,7 +381,11 @@ export async function setArmorClass(campaignId, characterId, value) {
     return rejected(copy ?? "Could not set that. Try again.");
   }
 
-  return { kind: "success", armorClass: data.armorClass };
+  return {
+    kind: "success",
+    armorClass: data.armorClass,
+    activity: await freshLog(supabase, campaignId),
+  };
 }
 
 /**

@@ -13,11 +13,36 @@ import {
   setCharacterDice,
   updateCharacter,
   updateCharacterHealth,
+  updateArmorClass,
 } from "./characters.js";
 
 const ARGS = { id: "6f1c3d2e-0000-4000-8000-000000000000", userId: "user-1" };
 const CAMPAIGN = "6f1c3d2e-0000-4000-8000-0000000000ca";
 const SEAT = "6f1c3d2e-0000-4000-8000-00000000005e";
+
+describe("armour class writes", () => {
+  for (const seatCharacterId of [SEAT, null]) {
+    it(`carries the ${seatCharacterId ? "player" : "DM"} seat to the log writer`, async () => {
+      const query = stubQuery({ data: 15, error: null });
+      const result = await updateArmorClass(query, {
+        id: ARGS.id,
+        armorClass: 15,
+        campaignId: CAMPAIGN,
+        seatCharacterId,
+      });
+      assert.deepEqual(query.lastRpc, {
+        name: "update_armor_class",
+        params: {
+          p_char_id: ARGS.id,
+          p_ac: 15,
+          p_campaign: CAMPAIGN,
+          p_seat: seatCharacterId,
+        },
+      });
+      assert.deepEqual(result, { data: { armorClass: 15 }, error: null });
+    });
+  }
+});
 
 describe("health writes return both bars together", () => {
   const answer = {

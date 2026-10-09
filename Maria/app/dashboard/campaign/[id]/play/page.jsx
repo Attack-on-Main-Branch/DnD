@@ -449,7 +449,10 @@ export default async function CampaignTablePage({ params, searchParams }) {
                     diceColor={seat?.diceColor ?? null}
                     diceSkin={seat?.diceSkin ?? null}
                     // Every style at the table, loaded before anybody throws one.
-                    skins={members.map((member) => member.dice_skin)}
+                    skins={[
+                      campaign.dice_skin,
+                      ...members.map((member) => member.dice_skin),
+                    ]}
                     // For the line shown while the entry is being written; the one
                     // the log keeps comes off a row. See write_table_log.
                     seatTitle={seat?.title ?? null}

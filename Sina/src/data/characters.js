@@ -582,12 +582,17 @@ export async function togglePartyCondition(
 
 export async function updateArmorClass(
   supabase,
-  { id, armorClass, campaignId },
+  { id, armorClass, campaignId, seatCharacterId = null },
 ) {
   return deed(
     supabase,
     "update_armor_class",
-    { p_char_id: id, p_ac: armorClass, p_campaign: campaignId },
+    {
+      p_char_id: id,
+      p_ac: armorClass,
+      p_campaign: campaignId,
+      p_seat: seatCharacterId,
+    },
     (landed) => ({ armorClass: landed }),
   );
 }

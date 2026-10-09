@@ -17,20 +17,21 @@
 import { DICE_SKIN_RARITIES, isDiceSkin } from "./character.js";
 import { isCoin, MAX_COINS } from "./currency.js";
 import { isCondition } from "./conditions.js";
-import { deathSaveOutcome } from "./death.js";
+import { deathSaveOutcome, MAX_ARMOR_CLASS } from "./death.js";
 import { isDie, parseDiceCount, readDiceResult } from "./dice.js";
-import { MAX_HP, MIN_MAX_HP } from "./hp.js";
+import { MAX_HP } from "./hp.js";
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
 import { isRestType } from "./rest.js";
 import { isSpellLevel } from "./spells.js";
 import { MAX_XP_AWARD } from "./xp.js";
 
-/** Mirrors the `action_type` CHECK. In the order the migration lists them. */
+/** Active and readable kinds; SQL also admits retired maximum-HP rows. */
 export const ACTION_TYPES = [
   "dice_roll",
   "secret_dice_roll",
   "hp_change",
   "temp_hp_change",
+  "armor_class_change",
   "level_change",
   "item_used",
   "item_dropped",
@@ -47,7 +48,6 @@ export const ACTION_TYPES = [
   "bag_transferred",
   "xp_change",
   "rest_taken",
-  "max_hp_change",
   "instant_death",
   "death_save",
   "character_died",
@@ -230,23 +230,12 @@ export function readActivity(row) {
       : { ...entry, delta, target: text(payload.targetName) };
   }
 
-  /**
-   * A frame that moved: where the maximum landed and the rung it landed on.
-   * Written by a trigger and never by a browser, so both numbers came off the
-   * row — and both are bounded here anyway, for a row a migration behind.
-   */
-  if (action === "max_hp_change") {
-    const maxHp = whole(payload.maxHp);
-    const level = whole(payload.level);
+  if (action === "armor_class_change") {
+    const delta = whole(payload.delta);
 
-    return maxHp === null ||
-      maxHp < MIN_MAX_HP ||
-      maxHp > MAX_HP ||
-      level === null ||
-      level < MIN_LEVEL ||
-      level > MAX_LEVEL
+    return delta === null || delta === 0 || Math.abs(delta) > MAX_ARMOR_CLASS
       ? null
-      : { ...entry, maxHp, level, target: text(payload.targetName) };
+      : { ...entry, delta, target: text(payload.targetName) };
   }
 
   /**

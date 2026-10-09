@@ -86,9 +86,8 @@ function fillReel(unlocked) {
  * The motion is CSS (`.pouch-*` in globals.css) and the beats are the site's
  * own panel beats; this only says which stage it is at.
  *
- * `drawn` is the opening itself, asked for on the press rather than from an
- * effect — an effect runs twice in development, and twice is two pouches. It
- * resolves to the set, or null for a refusal, which closes this at once.
+ * `drawn` resolves to the confirmed set. The parent waits for the server before
+ * mounting this, so a refusal never starts the animation.
  *
  * `onAnnounce` is the log line, sent once the reel has stopped so the log does
  * not give the result away first. Nothing closes this before then.
