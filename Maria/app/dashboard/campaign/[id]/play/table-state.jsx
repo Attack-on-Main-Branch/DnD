@@ -222,6 +222,7 @@ function readSeed({
     log: readLog(activity ?? [], new Map(), new Set()),
     /* One object: every chair reads all three together. */
     combat: readCombat(combat),
+    playerDicePaused: combat?.player_dice_paused === true,
     tokens: readTokens(tokens),
     /* The hand the pieces are drawn from. Held beside the board rather than
        derived from it: a placement names a template id and nothing else, so
@@ -1060,6 +1061,12 @@ function createTableStore(seed) {
      * column on that row, and re-reading it must not re-render every card
      * watching the turn.
      */
+    setPlayerDicePaused(paused) {
+      if (typeof paused === "boolean" && paused !== state.playerDicePaused) {
+        commit({ ...state, playerDicePaused: paused });
+      }
+    },
+
     setCombat(next) {
       const asked = readCombat(next);
       const standing = state.combat;
@@ -1445,6 +1452,10 @@ function createTableStore(seed) {
 
       /* Compared rather than assigned — see `setCombat`. */
       if (slices.combat) {
+        next = {
+          ...next,
+          playerDicePaused: slices.combat.player_dice_paused === true,
+        };
         const asked = readCombat(slices.combat);
 
         if (
@@ -1631,6 +1642,12 @@ export function useTableStore() {
 
   return store;
 }
+
+export function usePlayerDicePaused() {
+  return useTableValue(selectPlayerDicePaused);
+}
+
+const selectPlayerDicePaused = (state) => state.playerDicePaused;
 
 /**
  * One value out of the store, and a render only when that value changes.

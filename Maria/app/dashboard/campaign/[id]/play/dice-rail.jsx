@@ -32,7 +32,17 @@ const MARK_CLASSES =
   "disabled:cursor-not-allowed disabled:opacity-40";
 
 export default function DiceRail({ canKeepSecrets }) {
-  const { throwing, secret, setSecret, roll, warm } = useDiceTable();
+  const {
+    throwing,
+    secret,
+    setSecret,
+    roll,
+    warm,
+    rollingDisabled,
+    playerDicePaused,
+    pausePending,
+    setPlayerDicePaused,
+  } = useDiceTable();
 
   /* Held as what was TYPED, so the field can be emptied; one is what an empty
      field throws. */
@@ -47,7 +57,7 @@ export default function DiceRail({ canKeepSecrets }) {
   /* THIS chair's own throw, and nothing else. The rail used to grey out
      whenever the board was lit, which meant somebody else's roll took your
      dice out of your hand — see use-dice-roll.js. */
-  const busy = throwing;
+  const busy = throwing || rollingDisabled;
 
   /* A handful is for ONE throw: back to a single die as they leave the hand. */
   function throwDice(die) {
@@ -99,7 +109,26 @@ export default function DiceRail({ canKeepSecrets }) {
             className="my-2 h-px w-full bg-linear-to-r from-transparent via-(--cast-rule) to-transparent"
           />
 
-          <VeilSwitch on={secret} onChange={setSecret} disabled={busy} />
+          <RollSwitch
+            on={secret}
+            onChange={setSecret}
+            disabled={throwing}
+            label="Keep your rolls from the table"
+            onText="Secret"
+            offText="Open"
+          >
+            <EyeIcon crossedOut={secret} className="size-4.5" />
+          </RollSwitch>
+          <RollSwitch
+            on={playerDicePaused}
+            onChange={setPlayerDicePaused}
+            disabled={pausePending}
+            label="Pause player dice"
+            onText="Paused"
+            offText="Players"
+          >
+            <DieGlyph die="d20" className="size-5" />
+          </RollSwitch>
         </>
       )}
 
@@ -164,7 +193,15 @@ function Handful({ value, onChange, disabled }) {
  *
  * `translate` rather than `left`, so the slide is a compositor transform.
  */
-function VeilSwitch({ on, onChange, disabled }) {
+function RollSwitch({
+  on,
+  onChange,
+  disabled,
+  label,
+  onText,
+  offText,
+  children,
+}) {
   return (
     <div className="flex flex-col items-center gap-1">
       <button
@@ -173,7 +210,7 @@ function VeilSwitch({ on, onChange, disabled }) {
         aria-checked={on}
         disabled={disabled}
         onClick={() => onChange(!on)}
-        aria-label="Keep your rolls from the table"
+        aria-label={label}
         className={`relative h-8 w-15 cursor-pointer rounded-full border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
           on
             ? "border-(--cast-rim) bg-(--cast-line) shadow-[0_0_16px_-4px_var(--cast-bloom)]"
@@ -186,7 +223,7 @@ function VeilSwitch({ on, onChange, disabled }) {
             on ? "translate-x-6.5" : "translate-x-0"
           }`}
         >
-          <EyeIcon crossedOut={on} className="size-4.5" />
+          {children}
         </span>
       </button>
 
@@ -197,7 +234,7 @@ function VeilSwitch({ on, onChange, disabled }) {
         aria-hidden="true"
         className="font-mono text-[0.5625rem] tracking-[0.12em] text-ink/45 uppercase"
       >
-        {on ? "Secret" : "Open"}
+        {on ? onText : offText}
       </p>
     </div>
   );

@@ -50,6 +50,7 @@ export default function InspirationPips({
       work: () => moveInspiration(campaignId, characterId, delta),
 
       tell: (result) => {
+        send({ kind: "log" });
         /* Only while this press is still the last word: an older answer laid
            down here would light a mark somebody has since spent again. */
         if (
@@ -63,7 +64,7 @@ export default function InspirationPips({
         }
       },
 
-      want: { party: true },
+      want: { party: true, activity: true },
     });
   }
 

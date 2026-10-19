@@ -16,6 +16,29 @@
  */
 export const CHANGELOG = [
   {
+    version: "2.1.0",
+    date: "2026-10-19",
+    title: "A clearer view of the table",
+    changes: [
+      "Dungeon Masters can pause the party's dice while keeping their own rolls available.",
+      "Every die glows on a 1 or its maximum result, with shockwaves for natural 20s and 1s on d20s and results of 1 or 100 on percentile dice.",
+      "Fog forms drifting cloud banks and curling wisps, with softly moving edges.",
+    ],
+    fixes: [
+      "Giving and using inspiration appear in the activity log.",
+      "Long table sessions keep dice responsive: failed rollers recover, retired workers and listeners are released, and number effects reuse their graphics context.",
+      "Shared dice results stay consistent when another player's simulation finishes late or an older roll is still settling.",
+      "Glowing dice numbers stay anchored above the die instead of drifting toward the screen's center.",
+      "Fog brushes fully paint their radius, with a smooth fading edge outside it for players and a precise brush-sized boundary for Dungeon Masters.",
+      "Fog painting stays responsive, and the solid fog joins its fading edge without a visible seam.",
+      "Small fog brushes have a continuous fade, and committed painting and fog toggles fade smoothly for players.",
+      "Reveal strokes keep their fading edge inside the cleared area, and the fog's edge visibly sways while hidden areas stay covered.",
+      "Players can see their own token in fog, and Dungeon Masters can see every token.",
+      "Settled dice stay on the map for one extra second.",
+      "Left-dragging bare map pans it after tokens are placed; token controls and right-button drawing keep working.",
+    ],
+  },
+  {
     version: "2.0.0",
     date: "2026-10-09",
     title: "A livelier table",

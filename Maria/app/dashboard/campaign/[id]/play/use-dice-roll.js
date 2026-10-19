@@ -10,6 +10,7 @@ import {
   clearDice,
   DICE_LANES,
   diceEngine,
+  diceGeneration,
   releaseDice,
   throwDie,
 } from "./dice-engine";
@@ -57,7 +58,7 @@ import { diceMaterial, dieNotation } from "./dice-presentation";
  */
 
 /** How long a settled die is left standing before it is taken away. */
-const READ_MS = 900;
+const READ_MS = 1900;
 
 /** `.dice-stage` fading. */
 const DICE_OUT_MS = 300;
@@ -81,7 +82,13 @@ const THROW_WAIT_MS = 12000;
 const GAVE_UP = Symbol("gave up");
 
 function within(ms, promise) {
-  return Promise.race([promise, wait(ms).then(() => GAVE_UP)]);
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(GAVE_UP), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 /** What the physics is thrown by, not what the die reads. */
@@ -95,7 +102,13 @@ function newSeed() {
 
 const IDLE_LANES = Array.from({ length: DICE_LANES }, () => "idle");
 
-export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
+export function useDiceRoll({
+  enabled = true,
+  color = null,
+  skin = null,
+  onStart,
+  onFinish,
+}) {
   /** EACH LANE: "idle", "rolling", "settling". */
   const [stages, setStages] = useState(IDLE_LANES);
 
@@ -106,6 +119,12 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
 
   const own = useRef(false);
   const alive = useRef(true);
+  const allowed = useRef(enabled);
+  const controllers = useRef(new Set());
+
+  useEffect(() => {
+    allowed.current = enabled;
+  }, [enabled]);
 
   /* How many throws each lane owes, waiting or in flight. Counters and not
      booleans: a chain is written to before the work it schedules begins, so two
@@ -141,9 +160,12 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
      and dice-box offers no way to hand them back except this. */
   useEffect(() => {
     alive.current = true;
+    const active = controllers.current;
 
     return () => {
       alive.current = false;
+      for (const controller of active) controller.abort();
+      active.clear();
       releaseDice();
     };
   }, []);
@@ -190,8 +212,13 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
    */
   const turn = useCallback(
     async (lane, die, count, cast, seed, report) => {
+      if (!alive.current) return;
       // A flare is only for a throw this page watched from the start.
       const since = performance.now();
+      const controller = new AbortController();
+      const active = controllers.current;
+      active.add(controller);
+      let generation = diceGeneration(lane);
 
       try {
         setLaneStage(lane, "rolling");
@@ -206,17 +233,26 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
             ...diceMaterial(cast),
             seed,
             lane,
-            // Every chair watching this throw flares the same critical.
-            onRest: (dice) => alive.current && flareCriticals(dice, since),
+            signal: controller.signal,
+            onWorld: (ready) => {
+              generation = ready;
+            },
+            // Every chair watching this throw flares the same extreme.
+            onRest: (dice) =>
+              alive.current &&
+              !controller.signal.aborted &&
+              diceGeneration(lane) === generation &&
+              flareCriticals(dice, since),
           }),
         ).catch(() => GAVE_UP);
 
         if (thrown === GAVE_UP) {
-          abandonDice(lane);
+          controller.abort();
+          abandonDice(lane, generation);
           thrown = null;
         }
 
-        report(alive.current ? readDiceResult(die, count, thrown) : null);
+        if (alive.current) report(readDiceResult(die, count, thrown));
 
         if (!alive.current) {
           return;
@@ -234,7 +270,9 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
         setLaneStage(lane, "idle");
       } finally {
         // Whatever happened, the next throw starts on an empty lane.
-        clearDice(lane);
+        controller.abort();
+        active.delete(controller);
+        clearDice(lane, generation);
       }
     },
     [setLaneStage],
@@ -251,7 +289,7 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
    */
   const roll = useCallback(
     async (die, count, options) => {
-      if (own.current) {
+      if (own.current || !allowed.current) {
         return;
       }
 
@@ -267,7 +305,7 @@ export function useDiceRoll({ color = null, skin = null, onStart, onFinish }) {
               diceEngine().then(newSeed, () => null),
             ).then((drawn) => (drawn === GAVE_UP ? null : drawn));
 
-        if (!alive.current) {
+        if (!alive.current || !allowed.current) {
           return;
         }
 

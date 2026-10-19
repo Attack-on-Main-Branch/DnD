@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { FOG_MASK_WIDTH } from "sina/rules/fog";
+import { paintFogStroke } from "@/lib/fog-paint";
 
 /**
  * One offscreen canvas per board, holding where the light has been painted.
@@ -18,14 +19,9 @@ import { FOG_MASK_WIDTH } from "sina/rules/fog";
  * stroke just painted. `crossOrigin` before `src` is the only order that counts.
  */
 
-/** How much of the brush's edge is feathered rather than hard. */
-const FEATHER = 0.35;
-
-/** How far apart two stamps may fall before the gap between them shows. */
-const STAMP_STEP = 0.34;
-
 export function useFogMask({ mapId, maskUrl, natural, own = null }) {
   const maskRef = useRef(null);
+  const pixelsRef = useRef(null);
   const listeners = useRef(new Set());
   const loadedMap = useRef(null);
 
@@ -65,6 +61,9 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
     canvas.width = width;
     canvas.height = height;
     maskRef.current = canvas;
+    pixelsRef.current = canvas
+      .getContext("2d", { willReadFrequently: true })
+      .createImageData(width, height);
 
     return canvas;
   }, []);
@@ -90,7 +89,8 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
     loadedMap.current = mapId;
     if (switched || !maskUrl) {
       context.clearRect(0, 0, canvas.width, canvas.height);
-      announce({ immediate: true });
+      pixelsRef.current = context.createImageData(canvas.width, canvas.height);
+      announce({ immediate: switched, pixels: pixelsRef.current });
     }
 
     /* The painter does not fetch back their own stroke: those pixels are
@@ -112,7 +112,13 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
 
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      announce();
+      pixelsRef.current = context.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+      announce({ pixels: pixelsRef.current });
     };
 
     /* A mask that will not load leaves the darkness that is already there — the
@@ -130,11 +136,7 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
   }, [announce, ensure, mapId, maskUrl, natural]);
 
   /**
-   * One stroke, both points in fractions of the picture. Reveal paints and hide
-   * erases, so the two are one operation with the compositing swapped.
-   *
-   * The gradient is the soft edge; the loop fills the gap between two reported
-   * points, which a fast hand would otherwise leave dotted.
+   * One continuous stroke, both points in fractions of the picture.
    */
   const stroke = useCallback(
     (from, to, mode, brush) => {
@@ -144,44 +146,15 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
         return;
       }
 
-      const context = canvas.getContext("2d");
-      const radius = Math.max(2, (brush / 100) * canvas.width);
-
-      context.save();
-      context.globalCompositeOperation =
-        mode === "hide" ? "destination-out" : "source-over";
-
-      const start = from ?? to;
-      const across = (to.x - start.x) * canvas.width;
-      const down = (to.y - start.y) * canvas.height;
-      const span = Math.hypot(across, down);
-      const stamps = Math.max(1, Math.ceil(span / (radius * STAMP_STEP)));
-
-      for (let step = 0; step <= stamps; step += 1) {
-        const at = step / stamps;
-        const x = start.x * canvas.width + across * at;
-        const y = start.y * canvas.height + down * at;
-
-        const light = context.createRadialGradient(
-          x,
-          y,
-          radius * (1 - FEATHER),
-          x,
-          y,
-          radius,
-        );
-
-        light.addColorStop(0, "rgba(255,255,255,1)");
-        light.addColorStop(1, "rgba(255,255,255,0)");
-
-        context.fillStyle = light;
-        context.beginPath();
-        context.arc(x, y, radius, 0, Math.PI * 2);
-        context.fill();
-      }
-
-      context.restore();
-      announce();
+      const change = paintFogStroke(
+        canvas,
+        from,
+        to,
+        mode,
+        brush,
+        pixelsRef.current,
+      );
+      if (change) announce({ ...change, immediate: true });
     },
     [announce],
   );

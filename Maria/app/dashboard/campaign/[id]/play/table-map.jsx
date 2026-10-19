@@ -29,12 +29,13 @@ import { useSceneStaging } from "./scene-staging";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { MAP_MAX_HEIGHT_CLASS } from "./map-height";
 import { useMapTokens } from "./use-map-tokens";
+import { useVisibleMapTokens } from "./use-token-visibility";
 
 /**
  * The board, and the two hands over it.
  *
- * The wheel zooms. Players with a token draw with either button; only arrow
- * mode also moves pieces. Other chairs keep the left-button pan.
+ * The wheel zooms. Left-drag pans bare map; a token takes the press for moving
+ * or drawing. The right button measures from anywhere.
  *
  * The frame clips the zoom and shrink-wraps the picture, so the glass mat round
  * it stays the same rim at every size and the pieces lie over it on a plain
@@ -120,6 +121,12 @@ export default function TableMap({
   });
 
   const { send } = useTableWire();
+  const visibleTokens = useVisibleMapTokens(
+    tokens,
+    mask,
+    fog.enabled,
+    canSweep,
+  );
   const [shape, setShape] = useState(MAP_DRAWING_SHAPES[0]);
   const [angle, setAngle] = useState(DEFAULT_CONE_ANGLE);
   const canDraw = Boolean(
@@ -531,6 +538,18 @@ export default function TableMap({
       return undefined;
     }
 
+    let frame = null;
+    let pending = null;
+
+    function flush() {
+      frame = null;
+      if (!pending) return;
+      const at = latest.current;
+      at.paintFog(strokeAt.current, pending, at.brush, at.fogSize);
+      strokeAt.current = pending;
+      pending = null;
+    }
+
     function follow(event) {
       const at = latest.current;
       const point = at.pointAt(event);
@@ -539,11 +558,13 @@ export default function TableMap({
         return;
       }
 
-      at.paintFog(strokeAt.current, point, at.brush, at.fogSize);
-      strokeAt.current = point;
+      pending = point;
+      if (frame === null) frame = requestAnimationFrame(flush);
     }
 
     function release() {
+      if (frame !== null) cancelAnimationFrame(frame);
+      flush();
       strokeAt.current = null;
       setStroking(false);
     }
@@ -553,6 +574,7 @@ export default function TableMap({
     document.addEventListener("pointercancel", release);
 
     return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
       document.removeEventListener("pointermove", follow);
       document.removeEventListener("pointerup", release);
       document.removeEventListener("pointercancel", release);
@@ -673,6 +695,7 @@ export default function TableMap({
             ((event.button === 2 && (grid.enabled || canDraw)) ||
               (event.button === 0 &&
                 canDraw &&
+                event.target.closest("[data-map-token]") &&
                 !holding &&
                 !(staged && scene.armed)))
           ) {
@@ -717,7 +740,7 @@ export default function TableMap({
            so a cursor promising one was pointing at a control that is not
            there. Zoomed in it is a hand, because then it pans. */
         className={`group relative w-fit touch-none overflow-hidden rounded-xl select-none ${
-          (staged && scene.armed) || canDraw
+          (staged && scene.armed) || brush
             ? "cursor-crosshair"
             : zoomed
               ? "cursor-grab active:cursor-grabbing"
@@ -795,7 +818,7 @@ export default function TableMap({
         <MapTokens
           campaignId={campaignId}
           canSweep={canSweep}
-          tokens={tokens}
+          tokens={visibleTokens}
           scale={scale}
           layerStyle={imageStyle}
           /* Deaf while a brush is held, or the first piece the stroke crosses
@@ -808,6 +831,7 @@ export default function TableMap({
              board telling you the world had resized. Null only until the
              picture has reported how big it is. */
           cell={natural ? (TOKEN_OF_A_CELL * grid.size) / natural.width : null}
+          drawing={canDraw && shape !== MAP_DRAWING_SHAPES[0]}
           /* Where the press began travels with it: a press that goes nowhere
              is not a drag, and now does nothing at all. */
           onGrab={
@@ -824,9 +848,7 @@ export default function TableMap({
           onMark={mark ? (token, patch) => mark(token, patch) : null}
           onLift={lift ? (token) => lift(token.id) : null}
         />
-        {/* AND THE DISTANCES OVER THEM. A move of one cell puts the midpoint
-            of the arrow on the piece that is moving, so the figure was drawn
-            behind a face; nothing but tree order lifts it clear. */}
+        {/* Distances sit above the pieces, including those visible in fog. */}
         {beams.map((beam) => (
           <DrawingDistance
             key={beam.key}
@@ -836,12 +858,11 @@ export default function TableMap({
             to={beam.to}
             shape={beam.shape}
             size={grid.size}
-            layerStyle={imageStyle}
+            layerStyle={{ ...imageStyle, zIndex: 1 }}
           />
         ))}
 
-        {/* LAST, AND OVER EVERYTHING: a piece standing in a room nobody has
-            opened is part of what the darkness is hiding. */}
+        {/* Each chair's own token and the DM's pieces sit above this layer. */}
         <FogOverlay
           key={activeId}
           maskRef={mask.maskRef}
@@ -887,7 +908,7 @@ export default function TableMap({
         )}
         <div className="relative">{cast}</div>
       </div>
-      <TokenRoll tokens={tokens} />
+      <TokenRoll tokens={visibleTokens} />
     </>
   );
 }

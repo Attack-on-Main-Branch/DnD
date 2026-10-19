@@ -42,6 +42,7 @@ const ACCENTS = {
   hp_change: "border-l-orange-500",
   temp_hp_change: "border-l-temp-hp",
   armor_class_change: "border-l-sky-300",
+  inspiration_change: "border-l-gold",
   item_used: "border-l-emerald-400",
   item_dropped: "border-l-zinc-500",
   item_transferred: "border-l-sky-400",
@@ -362,6 +363,21 @@ export default function ActivityLine({ entry }) {
 }
 
 function Body({ entry }) {
+  if (entry.action === "inspiration_change") {
+    return (
+      <>
+        {entry.delta > 0 ? "gave" : entry.head ? "removed" : "used"}{" "}
+        <span className={EMPHASIS_CLASSES}>
+          {Math.abs(entry.delta)} inspiration
+        </span>
+        <Addressed
+          into={entry.delta > 0 ? "to" : "from"}
+          target={entry.target}
+        />
+      </>
+    );
+  }
+
   if (entry.action === "secret_dice_roll") {
     return (
       <>

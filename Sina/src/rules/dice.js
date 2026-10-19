@@ -22,6 +22,7 @@ export const DICE = [
 ];
 
 const BY_ID = new Map(DICE.map((die) => [die.id, die]));
+const SIDES = new Set(DICE.map((die) => die.sides));
 
 export function isDie(id) {
   return BY_ID.has(id);
@@ -139,19 +140,35 @@ export function readDiceResult(id, count, value) {
 export const CRITICAL_SUCCESS = "nat20";
 export const CRITICAL_FAILURE = "nat1";
 
+export const MAXIMUM_FACE = "maximum";
+export const MINIMUM_FACE = "minimum";
+
+export function extremeFace(sides, face) {
+  if (!SIDES.has(sides) || !Number.isInteger(face)) {
+    return null;
+  }
+
+  if (face === sides) {
+    return MAXIMUM_FACE;
+  }
+
+  return face === 1 ? MINIMUM_FACE : null;
+}
+
 /**
  * Whether ONE die's face is a critical: a natural 20 or a natural 1, and only
  * ever on a d20 — a 1 on a d6 of damage is just a poor roll. Read per die and
  * never off a total, so two d20s showing 10 and 10 are not a natural 20.
  */
 export function criticalFace(sides, face) {
-  if (sides !== dieSides("d20") || !Number.isInteger(face)) {
+  if (sides !== dieSides("d20")) {
     return null;
   }
 
-  if (face === sides) {
-    return CRITICAL_SUCCESS;
-  }
-
-  return face === 1 ? CRITICAL_FAILURE : null;
+  const extreme = extremeFace(sides, face);
+  return extreme === MAXIMUM_FACE
+    ? CRITICAL_SUCCESS
+    : extreme === MINIMUM_FACE
+      ? CRITICAL_FAILURE
+      : null;
 }

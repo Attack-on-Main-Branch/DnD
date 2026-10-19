@@ -2,7 +2,11 @@
 
 import { useEffect } from "react";
 
-import { CRIT_LAYER_ID, prepareCritFlare } from "./crit-flare";
+import {
+  CRIT_LAYER_ID,
+  prepareCritFlare,
+  releaseCritFlare,
+} from "./crit-flare";
 import { DICE_LANES, diceStageId } from "./dice-engine";
 import { useBoardCast, useDiceTable } from "./dice-table";
 
@@ -38,7 +42,10 @@ export default function DiceBoard() {
     const cancel = window.cancelIdleCallback ?? clearTimeout;
     const asked = ask(() => prepareCritFlare().catch(() => {}));
 
-    return () => cancel(asked);
+    return () => {
+      cancel(asked);
+      releaseCritFlare();
+    };
   }, []);
 
   return (

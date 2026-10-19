@@ -20,7 +20,7 @@ Run these from the repository root; each delegates to the right workspace.
 | ----------------------------- | --------------------------------------------------- |
 | `npm run dev`                 | Next dev server on :3000                            |
 | `npm run build` / `npm start` | Production build / serve one                        |
-| `npm test`                    | Sina's suite, on `node --test`                      |
+| `npm test`                    | Sina and Maria's suites, on `node --test`           |
 | `npm run lint`                | ESLint over both workspaces                         |
 | `npm run format` / `:check`   | Prettier, writing / reporting                       |
 | `npm run db:push`             | Apply pending migrations to the linked project      |
@@ -39,7 +39,8 @@ npm test --workspace sina -- --test-name-pattern="handle"
 Tests sit beside the code they cover in `Sina/src/**/*.test.js` and run against
 `Sina/src/supabase-stub.js` — they never reach a database, so nothing here
 verifies SQL, and `npm run db:list` is the only thing that catches a migration
-committed but never pushed. Maria has no test suite.
+committed but never pushed. Maria's dice lifecycle and shared-result tests are
+in `Maria/lib/*.test.mjs`; they run under Node with browser and socket stubs.
 
 Running the app needs `Maria/.env.local` (`NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `VERTEX_PROJECT_ID` plus a Google sign-in

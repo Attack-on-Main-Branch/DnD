@@ -15,6 +15,7 @@ import { diceCast, rollSentence } from "./dice-presentation";
 import { useActivityLog } from "./use-activity";
 import { useDiceRoll } from "./use-dice-roll";
 import { useTableRolls } from "./use-table-rolls";
+import { usePlayerDice } from "./use-player-dice";
 
 /**
  * The table's dice, shared by the three places that show them: the rail they
@@ -40,6 +41,10 @@ const RESTING = {
   stages: [],
   throwing: false,
   secret: false,
+  rollingDisabled: true,
+  playerDicePaused: false,
+  pausePending: false,
+  setPlayerDicePaused: () => {},
   setSecret: () => {},
   roll: () => {},
   warm: () => {},
@@ -82,6 +87,8 @@ export default function DiceTable({
   children,
 }) {
   const mine = characterId ?? HEAD_OF_TABLE;
+  const playerDice = usePlayerDice(campaignId, canKeepSecrets);
+  const rollingDisabled = !seatId || (!canKeepSecrets && playerDice.paused);
 
   /* The roller, reached from the socket's side of the loop. Filled by the
      effect below rather than during render, and read at the moment a roll
@@ -171,6 +178,7 @@ export default function DiceTable({
   /* The chair's own colour, null at the head of the table — which is what
      `diceMaterial` reads as "throw the house's dice". */
   const local = useDiceRoll({
+    enabled: !rollingDisabled,
     color: diceColor,
     skin: diceSkin,
     onStart,
@@ -217,6 +225,10 @@ export default function DiceTable({
     <DiceTableContext.Provider
       value={{
         ...local,
+        rollingDisabled,
+        playerDicePaused: playerDice.paused,
+        pausePending: playerDice.pending,
+        setPlayerDicePaused: playerDice.setPaused,
         board: table.board,
         veiled: table.veiled,
         flying: table.flying,

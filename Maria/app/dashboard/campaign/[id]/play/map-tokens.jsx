@@ -36,6 +36,7 @@ export default function MapTokens({
   muted = false,
   campaignId,
   canSweep = false,
+  drawing = false,
 }) {
   const sectors = cell ? tokenSectors(tokens) : new Map();
   const { health, refresh } = useTokenHealth(
@@ -46,26 +47,34 @@ export default function MapTokens({
   return (
     // Announced by TokenRoll instead: nothing inside a `role="button"` is read
     // out, and the map is one.
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0"
-      style={layerStyle}
-    >
-      {tokens.map((token) => (
-        <MapToken
-          key={token.id}
-          token={{ ...token, health: health[token.id] }}
-          sector={sectors.get(token.id)}
-          onHealthChange={refresh}
-          scale={scale}
-          cell={cell}
-          muted={muted}
-          onGrab={onGrab}
-          onMark={onMark}
-          onLift={onLift}
-        />
+    <>
+      {[false, true].map((aboveFog) => (
+        <div
+          key={String(aboveFog)}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ ...layerStyle, zIndex: aboveFog ? 1 : undefined }}
+        >
+          {tokens
+            .filter((token) => (canSweep || token.mine) === aboveFog)
+            .map((token) => (
+              <MapToken
+                key={token.id}
+                token={{ ...token, health: health[token.id] }}
+                sector={sectors.get(token.id)}
+                onHealthChange={refresh}
+                scale={scale}
+                cell={cell}
+                muted={muted}
+                drawing={drawing}
+                onGrab={onGrab}
+                onMark={onMark}
+                onLift={onLift}
+              />
+            ))}
+        </div>
       ))}
-    </div>
+    </>
   );
 }
 

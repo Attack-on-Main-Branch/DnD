@@ -129,6 +129,21 @@ export async function setCampaignDice(supabase, { id, diceColor, diceSkin }) {
     : { data: null, error: { reason: "not_found", detail: null } };
 }
 
+export async function setPlayerDicePaused(supabase, { id, paused }) {
+  const { data, error } = await supabase.rpc("set_player_dice_paused", {
+    target_campaign: id,
+    paused,
+  });
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data: true, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
+}
+
 /**
  * The id comes from the caller, not the database, so the map can be uploaded to
  * its final path before the row exists. Insert-then-update would need an UPDATE
