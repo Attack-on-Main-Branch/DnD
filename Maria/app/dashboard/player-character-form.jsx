@@ -338,7 +338,7 @@ export default function PlayerCharacterForm({
 
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
-      <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
+      <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5 max-sm:flex-col-reverse max-sm:gap-2 max-sm:[&>*]:w-full">
         {/*
           Cancel, not Back. Inside the modal it is a button, because there is a
           sheet to shut and nowhere to go; on the page it is a link, because

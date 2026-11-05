@@ -7,7 +7,7 @@ import {
   readTokenHealthStates,
 } from "@/app/actions/table-adjustments";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
-import { useWireMessage } from "./table-wire";
+import { useTableWire, useWireMessage } from "./table-wire";
 import { useIsDying } from "./table-state";
 
 export function useIsTokenKnocked(token) {
@@ -20,18 +20,25 @@ export function useIsTokenKnocked(token) {
 }
 
 export function useTokenHealth(campaignId, canEdit, tokenIds) {
+  const { display } = useTableWire();
   const [health, setHealth] = useState({});
   const revision = useRef(0);
   const refresh = useCallback(async () => {
     const run = ++revision.current;
-    const read = canEdit ? readTokenHealth : readTokenHealthStates;
-    const result = await read(campaignId).catch(() => null);
+    const result = await (
+      canEdit
+        ? readTokenHealth(campaignId)
+        : readTokenHealthStates(
+            campaignId,
+            display ? tokenIds.split(",").filter(Boolean) : undefined,
+          )
+    ).catch(() => null);
     if (run === revision.current && result?.kind === "success") {
       setHealth(
         Object.fromEntries(result.data.map((row) => [row.token_id, row])),
       );
     }
-  }, [campaignId, canEdit]);
+  }, [campaignId, canEdit, display, tokenIds]);
 
   useEffect(() => {
     refresh();

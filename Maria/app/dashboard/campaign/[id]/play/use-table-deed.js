@@ -41,12 +41,14 @@ import { useTableWire } from "./table-wire";
 /** One gatherer per table, however many pieces of it ask. */
 const readers = new WeakMap();
 
-function readerFor(store, campaignId) {
+function readerFor(store, campaignId, display) {
   let reader = readers.get(store);
 
   if (!reader) {
-    reader = gatherReads(campaignId, (slices, askedAt) =>
-      store.sync(slices, askedAt),
+    reader = gatherReads(
+      campaignId,
+      (slices, askedAt) => store.sync(slices, askedAt),
+      display,
     );
     readers.set(store, reader);
   }
@@ -56,7 +58,7 @@ function readerFor(store, campaignId) {
 
 export function useTableDeed(campaignId) {
   const store = useTableStore();
-  const { send, seat, head } = useTableWire();
+  const { send, seat, head, display } = useTableWire();
   const { show } = useToast();
 
   /**
@@ -65,8 +67,8 @@ export function useTableDeed(campaignId) {
    * where they are, and `useLiveRefresh`'s refocus backstop catches it after.
    */
   const resync = useCallback(
-    (want) => readerFor(store, campaignId)(want),
-    [campaignId, store],
+    (want) => readerFor(store, campaignId, display)(want),
+    [campaignId, display, store],
   );
 
   const run = useCallback(

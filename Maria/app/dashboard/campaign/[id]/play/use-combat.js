@@ -23,6 +23,7 @@ import {
 import { useTableDeed } from "./use-table-deed";
 import { piecesOnMap } from "./use-map-tokens";
 import { useWireMessage } from "./table-wire";
+import { useVisibleMapTokens } from "./use-token-visibility";
 
 /**
  * What keeps the fight current, on EVERY chair. Mounted once for the whole table
@@ -62,14 +63,14 @@ export function useCombatSync(campaignId) {
  * The pieces come from `piecesOnMap`, the same derivation the board draws from —
  * a second one would be a second answer about who is dead.
  */
-export function useCombat(campaignId, faces = []) {
+export function useCombat(campaignId, faces = [], display = false) {
   const combat = useCombatState();
   const placed = usePlacedTokens();
   const templates = useTokenTemplates();
   const dead = useAllDead();
   const suffering = useAllConditions();
 
-  const { activeId, isWorldMap } = useTableMaps();
+  const { activeId, isWorldMap, fog, mask } = useTableMaps();
   const store = useTableStore();
   const { run, resync, send } = useTableDeed(campaignId);
 
@@ -79,17 +80,27 @@ export function useCombat(campaignId, faces = []) {
    * order they were put down. Sorting an empty box among the numbers would mean
    * deciding it is worth less than the lowest, which is not what it means.
    */
-  const pieces = useMemo(() => {
-    const standing = piecesOnMap({
-      placed,
-      mapId: activeId,
-      isWorldMap,
-      faces,
-      templates,
-      dead,
-      conditions: suffering,
-    }).filter((token) => !token.isDead);
+  const onMap = useMemo(
+    () =>
+      piecesOnMap({
+        placed,
+        mapId: activeId,
+        isWorldMap,
+        faces,
+        templates,
+        dead,
+        conditions: suffering,
+      }).filter((token) => !token.isDead && (!display || !token.isHidden)),
+    [activeId, dead, display, faces, isWorldMap, placed, suffering, templates],
+  );
+  const standing = useVisibleMapTokens(
+    onMap,
+    mask,
+    display && fog.enabled,
+    false,
+  );
 
+  const pieces = useMemo(() => {
     const rolled = initiativeOrder(standing);
     const seated = new Set(rolled.map((token) => token.id));
 
@@ -102,7 +113,7 @@ export function useCombat(campaignId, faces = []) {
       );
 
     return [...rolled, ...waiting];
-  }, [activeId, dead, faces, isWorldMap, placed, suffering, templates]);
+  }, [standing]);
 
   /** The ladder the turn actually walks: the rolled ones, in order. */
   const order = useMemo(

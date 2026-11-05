@@ -113,11 +113,13 @@ function Description({ text }) {
 
   return (
     <div className="group/desc relative mt-2">
-      <p className="line-clamp-2 text-xs leading-relaxed text-ink/55">{text}</p>
+      <p className="line-clamp-2 text-xs leading-relaxed text-ink/55 max-sm:line-clamp-none max-sm:wrap-anywhere">
+        {text}
+      </p>
 
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-full left-0 z-30 mt-1 w-72 max-w-[min(18rem,80vw)] rounded-md border border-gold/25 bg-[var(--surface-96)] px-2 py-1.5 font-sans text-[0.7rem] leading-relaxed text-gold opacity-0 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.95)] transition-opacity duration-200 group-hover/desc:opacity-100"
+        className="pointer-events-none absolute top-full left-0 z-30 mt-1 w-72 max-w-[min(18rem,80vw)] rounded-md border border-gold/25 bg-[var(--surface-96)] px-2 py-1.5 font-sans text-[0.7rem] leading-relaxed text-gold opacity-0 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.95)] transition-opacity duration-200 group-hover/desc:opacity-100 max-sm:hidden"
       >
         {text}
       </span>

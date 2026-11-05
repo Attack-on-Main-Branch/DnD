@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   CRIT_LAYER_ID,
@@ -11,6 +11,7 @@ import { DICE_LANES, diceStageId } from "./dice-engine";
 import { useBoardCast, useDiceTable } from "./dice-table";
 
 const LANES = Array.from({ length: DICE_LANES }, (_, lane) => lane);
+const PHONE_DICE_DISPLAY_SCALE = 2;
 
 /**
  * The board the dice land on, which is the map itself.
@@ -31,9 +32,23 @@ const LANES = Array.from({ length: DICE_LANES }, (_, lane) => lane);
  * canvas, which the library appends in here and module state holds, painting
  * into a box no longer on the page: the dice rolled where nobody could see them.
  */
-export default function DiceBoard() {
+export default function DiceBoard({ phone = false, traySize }) {
   const { stages, board } = useDiceTable();
   const cast = useBoardCast();
+  const phoneLayers = useRef(null);
+
+  useEffect(() => {
+    const layer = phoneLayers.current;
+    if (!phone || !layer) return;
+    const setDensity = () =>
+      layer.style.setProperty(
+        "--dice-density",
+        String(Math.min(window.devicePixelRatio || 1, 2)),
+      );
+    setDensity();
+    window.addEventListener("resize", setDensity);
+    return () => window.removeEventListener("resize", setDensity);
+  }, [phone]);
 
   /* The flare's library, fetched while nobody is waiting on it rather than in
      the moment a 20 lands. */
@@ -48,14 +63,25 @@ export default function DiceBoard() {
     };
   }, []);
 
-  return (
-    <div aria-hidden="true" style={cast.style}>
-      <span
-        className={`rim-cast pointer-events-none absolute -inset-6 rounded-[2.25rem] motion-reduce:transition-none ${
-          board.lit ? "lit-cast" : ""
-        }`}
-      />
+  const trayPosition =
+    phone || traySize ? "top-1/2 left-1/2 -translate-1/2" : "inset-0";
+  const fittedWidth = traySize?.width ?? "100%";
+  const aspectRatio = traySize?.aspectRatio ?? 1;
+  const flareSize = phone
+    ? {
+        width: `calc(${fittedWidth} * ${PHONE_DICE_DISPLAY_SCALE})`,
+        aspectRatio,
+      }
+    : traySize;
+  const diceSize = phone
+    ? {
+        width: `calc(${fittedWidth} * ${PHONE_DICE_DISPLAY_SCALE} * var(--dice-density, 1))`,
+        aspectRatio,
+      }
+    : traySize;
 
+  const layers = (
+    <>
       {/* One box per lane, laid over each other on the same picture. They fade
           separately because they finish separately: a throw that has come to
           rest should be taken away on its own beat, not held on the board until
@@ -68,7 +94,9 @@ export default function DiceBoard() {
         <div
           key={lane}
           id={diceStageId(lane)}
-          className={`dice-stage pointer-events-none absolute inset-0 overflow-hidden rounded-xl ${
+          data-dice-display-scale={phone ? PHONE_DICE_DISPLAY_SCALE : undefined}
+          style={diceSize}
+          className={`dice-stage pointer-events-none absolute ${trayPosition} ${phone ? "[&>canvas]:[scale:calc(1/var(--dice-density,1))]" : "overflow-hidden rounded-xl"} ${
             stages[lane] === "rolling" ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -78,8 +106,29 @@ export default function DiceBoard() {
           which fades on its lane's own beat. See crit-flare.js. */}
       <div
         id={CRIT_LAYER_ID}
-        className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
+        style={flareSize}
+        className={`pointer-events-none absolute ${trayPosition} ${phone ? "" : "overflow-hidden rounded-xl"}`}
       />
+    </>
+  );
+
+  return (
+    <div aria-hidden="true" style={cast.style}>
+      <span
+        className={`rim-cast pointer-events-none absolute motion-reduce:transition-none ${
+          phone ? "-inset-1.5 rounded-[1.125rem]" : "-inset-6 rounded-[2.25rem]"
+        } ${board.lit ? "lit-cast" : ""}`}
+      />
+      {phone ? (
+        <div
+          ref={phoneLayers}
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
+        >
+          {layers}
+        </div>
+      ) : (
+        layers
+      )}
     </div>
   );
 }

@@ -8,12 +8,17 @@ import {
   isDrawingPoint,
   readMapDrawing,
 } from "sina/rules/map-drawing";
+import { FEET_PER_HEX } from "sina/rules/grid";
 
-import { hexToPixel, pixelToHex } from "@/lib/hex-math";
+import Button from "@/app/components/ui/button";
+import { hexDistance, hexToPixel, pixelToHex } from "@/lib/hex-math";
+import { mapDestination } from "@/lib/token-movement.mjs";
 
 import { useMapZoom } from "../use-map-zoom";
 
 import { holdTray } from "./dice-engine";
+import DiceBoard from "./dice-board";
+import MapRim from "./map-rim";
 import MapDrawing, { DrawingDistance } from "./map-drawing";
 import MapDrawingTools, { MapControlTray } from "./map-drawing-tools";
 import MapTools from "./map-tools";
@@ -66,6 +71,7 @@ export default function TableMap({
   heightClass = MAP_MAX_HEIGHT_CLASS,
   className = "",
   style,
+  phone = false,
 }) {
   const frameRef = useRef(null);
   const imageRef = useRef(null);
@@ -120,7 +126,7 @@ export default function TableMap({
     canSweep,
   });
 
-  const { send } = useTableWire();
+  const { send, display } = useTableWire();
   const visibleTokens = useVisibleMapTokens(
     tokens,
     mask,
@@ -130,8 +136,25 @@ export default function TableMap({
   const [shape, setShape] = useState(MAP_DRAWING_SHAPES[0]);
   const [angle, setAngle] = useState(DEFAULT_CONE_ANGLE);
   const canDraw = Boolean(
-    activeId && !isScene && (canSweep || (seat?.characterId && ownToken)),
+    activeId &&
+    !isScene &&
+    (canSweep || (seat?.characterId && (phone || ownToken))),
   );
+  const canTapMove = shape === MAP_DRAWING_SHAPES[0];
+  const [tapAim, setTapAim] = useState(null);
+  const [moving, setMoving] = useState(false);
+  const aim =
+    canDraw &&
+    tapAim &&
+    tapAim.size === grid.size &&
+    tapAim.ruled === grid.enabled &&
+    (!tapAim.token ||
+      (canTapMove &&
+        tapAim.token.id === ownToken?.id &&
+        tapAim.token.x === ownToken.x &&
+        tapAim.token.y === ownToken.y))
+      ? tapAim
+      : null;
 
   const scene = useSceneStaging();
   const staged = Boolean(
@@ -264,6 +287,23 @@ export default function TableMap({
     [move, place],
   );
 
+  const startPhoneAim = useCallback(
+    (point, target) => {
+      if (!point || !canDraw || moving) return null;
+      const token =
+        canTapMove &&
+        ownToken &&
+        target?.closest("[data-map-token]")?.dataset.mapToken === ownToken.id
+          ? ownToken
+          : null;
+      const from = mapDestination(token ?? point, natural, grid);
+      return (
+        from && { from, to: null, token, size: grid.size, ruled: grid.enabled }
+      );
+    },
+    [canDraw, canTapMove, grid, moving, natural, ownToken],
+  );
+
   /**
    * A left click on bare map. A piece in the hand goes down there; otherwise a
    * chair with nothing on the board puts its own out. A chair that already has
@@ -271,9 +311,27 @@ export default function TableMap({
    * click would teleport it.
    */
   const onTap = useCallback(
-    (point) => {
+    (point, target) => {
       if (!point) {
         return false;
+      }
+
+      if (phone) {
+        if (aim?.to && !aim.token) {
+          setTapAim(null);
+          return true;
+        }
+        const started = startPhoneAim(point, target);
+        if (!started) return true;
+
+        if (started.token && aim?.token) {
+          setTapAim(null);
+        } else if (aim) {
+          setTapAim({ ...aim, to: started.from });
+        } else {
+          setTapAim(started);
+        }
+        return true;
       }
 
       if (staged && scene.armed) {
@@ -309,25 +367,59 @@ export default function TableMap({
     },
     [
       activeId,
+      aim,
       carrying,
       hold,
       holding,
       ownPiece,
       ownToken,
       place,
+      phone,
       put,
       scene,
       snap,
       staged,
+      startPhoneAim,
       tokens,
     ],
   );
+
+  const latest = useRef(null);
+
+  function onHold(point, target) {
+    const started = startPhoneAim(point, target);
+    if (!started) return null;
+    const base = {
+      ...(!started.token && aim && !aim.to ? aim : started),
+      held: true,
+    };
+    setTapAim(base);
+
+    function destination(point) {
+      const to = mapDestination(point, natural, grid);
+      if (!to || (to.x === base.from.x && to.y === base.from.y)) return null;
+      return { ...base, to };
+    }
+
+    return {
+      move: (point) => setTapAim(destination(point) ?? base),
+      end: (point) => {
+        const finished = destination(point);
+        if (finished?.token) {
+          latest.current?.confirmMove(finished);
+        } else {
+          setTapAim(finished && { ...finished, held: false });
+        }
+      },
+      cancel: () => setTapAim(null),
+    };
+  }
 
   const { zoomed, frameProps, imageStyle, scale, pointAt } = useMapZoom({
     frameRef,
     imageRef,
     // Turn to zoom, about whatever is under the pointer.
-    wheel: true,
+    wheel: !display,
     // And not on a click: that press is a piece's.
     pointerZoom: false,
     /* NOT A KEYBOARD CONTROL. The board answered Space, Enter and the four
@@ -335,7 +427,9 @@ export default function TableMap({
        pointer lands — and being a `role="button"` to do it hid every piece on
        it from a screen reader. The modal on the campaign sheet keeps both. */
     keyboard: false,
+    pinch: phone,
     onTap,
+    onHold: phone ? onHold : undefined,
   });
 
   /**
@@ -363,7 +457,7 @@ export default function TableMap({
 
       const now = Date.now();
 
-      if (next && !ruled && now - spoke.current < AIM_QUIET_MS) {
+      if (!phone && next && !ruled && now - spoke.current < AIM_QUIET_MS) {
         return;
       }
 
@@ -380,13 +474,39 @@ export default function TableMap({
         to: to && named(to),
       });
     },
-    [activeId, seat, send],
+    [activeId, phone, seat, send],
   );
+
+  const tapShape = aim?.token ? MAP_DRAWING_SHAPES[0] : shape;
+  useEffect(() => {
+    if (phone) announce(aim?.from, aim?.to, tapShape, angle);
+  }, [aim, angle, announce, phone, tapShape]);
+
+  async function confirmMove(candidate) {
+    if (
+      !candidate?.token ||
+      !candidate.to ||
+      !move ||
+      moving ||
+      !canTapMove ||
+      candidate.size !== grid.size ||
+      candidate.ruled !== grid.enabled ||
+      candidate.token.id !== ownToken?.id ||
+      candidate.token.x !== ownToken.x ||
+      candidate.token.y !== ownToken.y
+    )
+      return;
+    setMoving(true);
+    setTapAim(null);
+    try {
+      await move(candidate.token.id, candidate.to);
+    } finally {
+      setMoving(false);
+    }
+  }
 
   /* Kept current without the effect below naming them: `pointAt` is rebuilt on
      every render, so it as a dependency would resubscribe on every move. */
-  const latest = useRef(null);
-
   useEffect(() => {
     latest.current = {
       pointAt,
@@ -396,10 +516,12 @@ export default function TableMap({
       paintFog,
       brush,
       fogSize,
+      confirmMove,
     };
   });
 
   useEffect(() => {
+    setTapAim(null);
     setMeasure(null);
     setLifted(null);
     setHover(null);
@@ -589,12 +711,16 @@ export default function TableMap({
     if (image?.complete && image.naturalWidth) {
       const size = { width: image.naturalWidth, height: image.naturalHeight };
 
-      holdTray(size.width, size.height);
+      if (!phone) holdTray(size.width, size.height);
       setNatural(size);
       // The mask is held in the provider and wants this picture's ratio.
       reportNatural(size);
     }
-  }, [reportNatural, url]);
+  }, [phone, reportNatural, url]);
+
+  useEffect(() => {
+    if (phone && natural) holdTray(natural.width, natural.height);
+  }, [phone, natural]);
 
   /**
    * EVERY ARROW ON THE BOARD, this chair's and the rest, worked out once so the
@@ -610,6 +736,17 @@ export default function TableMap({
     }
 
     const drawn = [];
+
+    if (aim?.to) {
+      drawn.push({
+        key: "phone",
+        from: aim.from,
+        to: aim.to,
+        color: seatColor(seat, faces),
+        shape: tapShape,
+        angle,
+      });
+    }
 
     // The ruler measures for whoever is holding it; a carried piece points from
     // where it stands. A stored point is already at a centre; `snap` names it.
@@ -648,6 +785,8 @@ export default function TableMap({
     return drawn;
   }, [
     aims,
+    aim,
+    angle,
     activeId,
     carrying,
     faces,
@@ -658,6 +797,7 @@ export default function TableMap({
     natural,
     seat,
     snap,
+    tapShape,
   ]);
 
   /** Right-button drawings suppress the browser's menu over the map. */
@@ -667,247 +807,335 @@ export default function TableMap({
     }
   }
 
-  return (
+  const layerStyle = phone ? undefined : imageStyle;
+  const ratio = natural && natural.width / natural.height;
+  const traySize =
+    (phone || display) && ratio
+      ? {
+          width: `min(100cqw, ${100 * ratio}cqh)`,
+          aspectRatio: ratio,
+        }
+      : undefined;
+
+  const mapLayers = (
     <>
-      <div
-        ref={frameRef}
-        {...frameProps}
-        onContextMenu={onContextMenu}
-        onPointerDown={(event) => {
-          /* THE BRUSH OUTRANKS EVERYTHING: it takes the press before the pan,
-             the pieces and the ruler have a chance at it. */
-          if (brush && event.button === 0 && event.isPrimary) {
-            const point = pointAt(event);
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={imageRef}
+        src={url}
+        alt={`Map of ${title}`}
+        fetchPriority="high"
+        // Without this the browser starts its own image drag on mousedown,
+        // which cancels the pan before it begins.
+        draggable={false}
+        className={
+          (phone || display) && natural
+            ? "block size-full"
+            : `block max-w-full ${heightClass}`
+        }
+        style={layerStyle}
+        onLoad={(event) => {
+          const size = {
+            width: event.target.naturalWidth,
+            height: event.target.naturalHeight,
+          };
 
-            if (point) {
-              event.preventDefault();
-
-              strokeAt.current = point;
-              paintFog(null, point, brush, fogSize);
-              setStroking(true);
-            }
-
-            return;
-          }
-
-          if (
-            event.isPrimary &&
-            ((event.button === 2 && (grid.enabled || canDraw)) ||
-              (event.button === 0 &&
-                canDraw &&
-                event.target.closest("[data-map-token]") &&
-                !holding &&
-                !(staged && scene.armed)))
-          ) {
-            const from = snap(pointAt(event));
-
-            if (from) {
-              event.preventDefault();
-              setMeasure({
-                from,
-                shape: canDraw ? shape : MAP_DRAWING_SHAPES[0],
-                angle,
-                pointerId: event.pointerId,
-              });
-
-              // The whole point, for the reason `aimAt` keeps it.
-              setHover(from);
-            }
-
-            return;
-          }
-
-          frameProps.onPointerDown?.(event);
+          if (!phone) holdTray(size.width, size.height);
+          setNatural(size);
+          reportNatural(size);
         }}
-        onPointerMove={(event) => {
-          frameProps.onPointerMove?.(event);
+      />
 
-          if (!holding) {
-            return;
-          }
-
-          aimAt(event);
-        }}
-        onPointerLeave={() => {
-          if (!carrying && !measure) {
-            setHover(null);
-          }
-        }}
-        style={style}
-        // `touch-none` so a drag on a touchscreen pans the map instead of
-        // scrolling the page out from under it.
-        /* NO MAGNIFIER. A click on the board does not zoom — the wheel does —
-           so a cursor promising one was pointing at a control that is not
-           there. Zoomed in it is a hand, because then it pans. */
-        className={`group relative w-fit touch-none overflow-hidden rounded-xl select-none ${
-          (staged && scene.armed) || brush
-            ? "cursor-crosshair"
-            : zoomed
-              ? "cursor-grab active:cursor-grabbing"
-              : "cursor-default"
-        } ${className}`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          ref={imageRef}
-          src={url}
-          alt={`Map of ${title}`}
-          fetchPriority="high"
-          // Without this the browser starts its own image drag on mousedown,
-          // which cancels the pan before it begins.
-          draggable={false}
-          className={`block max-w-full ${heightClass}`}
-          style={imageStyle}
-          onLoad={(event) => {
-            const size = {
-              width: event.target.naturalWidth,
-              height: event.target.naturalHeight,
-            };
-
-            holdTray(size.width, size.height);
-            setNatural(size);
-            reportNatural(size);
-          }}
-        />
-
-        {/* The one it replaced, pinned over the box the new one just sized and
+      {/* The one it replaced, pinned over the box the new one just sized and
             fading out of it. `object-cover` rather than `contain`: two maps are
             rarely the same shape, and a picture that letterboxes on its way out
             reads as the frame moving rather than the map changing. */}
-        {leaving && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={leaving}
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-            onAnimationEnd={() => setLeaving(null)}
-            className="map-leaving pointer-events-none absolute inset-0 size-full object-cover"
-          />
-        )}
+      {leaving && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={leaving}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          onAnimationEnd={() => setLeaving(null)}
+          className="map-leaving pointer-events-none absolute inset-0 size-full object-cover"
+        />
+      )}
 
-        {grid.enabled && natural && (
-          <HexGridOverlay
-            width={natural.width}
-            height={natural.height}
-            size={grid.size}
-            luminance={grid.luminance}
-            hover={hover}
-            layerStyle={imageStyle}
-          />
-        )}
+      {grid.enabled && natural && (
+        <HexGridOverlay
+          width={natural.width}
+          height={natural.height}
+          size={grid.size}
+          luminance={grid.luminance}
+          hover={aim ? (aim.to ?? aim.from) : hover}
+          layerStyle={layerStyle}
+        />
+      )}
 
-        {/* UNDER THE PIECES: an arrow across a crowded board runs behind the
+      {/* UNDER THE PIECES: an arrow across a crowded board runs behind the
             faces rather than over them. The figures go over — see below. */}
-        {beams.map((beam) => (
-          <MapDrawing
-            key={beam.key}
-            width={natural.width}
-            height={natural.height}
-            from={beam.from}
-            to={beam.to}
-            shape={beam.shape}
-            angle={beam.angle}
-            // The cell, ruled or not — the piece it points at is that size too.
-            size={grid.size}
-            color={beam.color}
-            layerStyle={imageStyle}
-          />
-        ))}
+      {beams.map((beam) => (
+        <MapDrawing
+          key={beam.key}
+          width={natural.width}
+          height={natural.height}
+          from={beam.from}
+          to={beam.to}
+          shape={beam.shape}
+          angle={beam.angle}
+          // The cell, ruled or not — the piece it points at is that size too.
+          size={grid.size}
+          color={beam.color}
+          layerStyle={layerStyle}
+        />
+      ))}
 
-        <MapTokens
-          campaignId={campaignId}
-          canSweep={canSweep}
-          tokens={visibleTokens}
-          scale={scale}
-          layerStyle={imageStyle}
-          /* Deaf while a brush is held, or the first piece the stroke crosses
+      <MapTokens
+        campaignId={campaignId}
+        canSweep={canSweep}
+        tokens={visibleTokens}
+        scale={scale}
+        layerStyle={layerStyle}
+        /* Deaf while a brush is held, or the first piece the stroke crosses
              swallows the press. */
-          muted={Boolean(brush)}
-          /* As a fraction of the layer, so it scales with the board.
+        muted={Boolean(brush)}
+        /* As a fraction of the layer, so it scales with the board.
              FROM `grid.size` WHETHER OR NOT THE GRID IS DRAWN. The ruling is a
              thing you can see; the scale it sets is a thing the map HAS, and a
              piece that changed size when the lines were switched off was the
              board telling you the world had resized. Null only until the
              picture has reported how big it is. */
-          cell={natural ? (TOKEN_OF_A_CELL * grid.size) / natural.width : null}
-          drawing={canDraw && shape !== MAP_DRAWING_SHAPES[0]}
-          /* Where the press began travels with it: a press that goes nowhere
+        cell={natural ? (TOKEN_OF_A_CELL * grid.size) / natural.width : null}
+        drawing={canDraw && shape !== MAP_DRAWING_SHAPES[0]}
+        selectedId={aim?.token?.id}
+        /* Where the press began travels with it: a press that goes nowhere
              is not a drag, and now does nothing at all. */
-          onGrab={
-            place && (!canDraw || shape === MAP_DRAWING_SHAPES[0])
-              ? (token, event) =>
-                  setLifted({
-                    piece: pieceOf(token),
-                    token,
-                    from: token,
-                    origin: { clientX: event.clientX, clientY: event.clientY },
-                  })
-              : null
-          }
-          onMark={mark ? (token, patch) => mark(token, patch) : null}
-          onLift={lift ? (token) => lift(token.id) : null}
+        onGrab={
+          !phone && place && (!canDraw || shape === MAP_DRAWING_SHAPES[0])
+            ? (token, event) =>
+                setLifted({
+                  piece: pieceOf(token),
+                  token,
+                  from: token,
+                  origin: { clientX: event.clientX, clientY: event.clientY },
+                })
+            : null
+        }
+        onMark={mark ? (token, patch) => mark(token, patch) : null}
+        onLift={!phone && lift ? (token) => lift(token.id) : null}
+      />
+      {/* Distances sit above the pieces, including those visible in fog. */}
+      {beams.map((beam) => (
+        <DrawingDistance
+          key={beam.key}
+          width={natural.width}
+          height={natural.height}
+          from={beam.from}
+          to={beam.to}
+          shape={beam.shape}
+          size={grid.size}
+          layerStyle={{ ...layerStyle, zIndex: 1 }}
         />
-        {/* Distances sit above the pieces, including those visible in fog. */}
-        {beams.map((beam) => (
-          <DrawingDistance
-            key={beam.key}
-            width={natural.width}
-            height={natural.height}
-            from={beam.from}
-            to={beam.to}
-            shape={beam.shape}
-            size={grid.size}
-            layerStyle={{ ...imageStyle, zIndex: 1 }}
-          />
-        ))}
+      ))}
 
-        {/* Each chair's own token and the DM's pieces sit above this layer. */}
-        <FogOverlay
-          key={activeId}
-          maskRef={mask.maskRef}
-          subscribe={mask.subscribe}
-          seeThrough={canSweep}
-          enabled={fog.enabled}
-          style={imageStyle}
-        />
-        <FogBrushPreview
-          size={fogSize}
+      {/* Each chair's own token and the DM's pieces sit above this layer. */}
+      <FogOverlay
+        key={activeId}
+        maskRef={mask.maskRef}
+        subscribe={mask.subscribe}
+        seeThrough={canSweep}
+        enabled={fog.enabled}
+        coverOnLoad={display}
+        frameRatio={phone ? ratio : undefined}
+        style={layerStyle}
+      />
+      <FogBrushPreview
+        size={fogSize}
+        scale={scale}
+        canSweep={canSweep}
+        brush={brush}
+        frameRef={frameRef}
+        pointAt={pointAt}
+      />
+
+      {/* Over the fog: the Dungeon Master sees through it anyway. */}
+      {camera && (
+        <SceneCamera
+          camera={camera}
+          natural={natural}
           scale={scale}
-          canSweep={canSweep}
-          brush={brush}
-          frameRef={frameRef}
+          layerStyle={layerStyle}
           pointAt={pointAt}
+          onPaint={(patch) => scene.paintCamera(activeId, patch)}
+          onCommit={(patch) => scene.commitCamera(activeId, patch)}
         />
+      )}
+    </>
+  );
 
-        {/* Over the fog: the Dungeon Master sees through it anyway. */}
-        {camera && (
-          <SceneCamera
-            camera={camera}
-            natural={natural}
-            scale={scale}
-            layerStyle={imageStyle}
-            pointAt={pointAt}
-            onPaint={(patch) => scene.paintCamera(activeId, patch)}
-            onCommit={(patch) => scene.commitCamera(activeId, patch)}
-          />
-        )}
-      </div>
+  const frame = (
+    <div
+      ref={frameRef}
+      {...frameProps}
+      onContextMenu={onContextMenu}
+      onPointerDown={(event) => {
+        /* THE BRUSH OUTRANKS EVERYTHING: it takes the press before the pan,
+             the pieces and the ruler have a chance at it. */
+        if (brush && event.button === 0 && event.isPrimary) {
+          const point = pointAt(event);
 
-      <div className="pointer-events-none absolute inset-x-0 top-full z-10">
-        {(canSweep || seat?.characterId) && (
-          <MapControlTray shown={canDraw}>
-            {canSweep && <MapTools />}
+          if (point) {
+            event.preventDefault();
+
+            strokeAt.current = point;
+            paintFog(null, point, brush, fogSize);
+            setStroking(true);
+          }
+
+          return;
+        }
+
+        if (
+          !phone &&
+          event.isPrimary &&
+          ((event.button === 2 && (grid.enabled || canDraw)) ||
+            (event.button === 0 &&
+              canDraw &&
+              event.target.closest("[data-map-token]") &&
+              !holding &&
+              !(staged && scene.armed)))
+        ) {
+          const from = snap(pointAt(event));
+
+          if (from) {
+            event.preventDefault();
+            setMeasure({
+              from,
+              shape: canDraw ? shape : MAP_DRAWING_SHAPES[0],
+              angle,
+              pointerId: event.pointerId,
+            });
+
+            // The whole point, for the reason `aimAt` keeps it.
+            setHover(from);
+          }
+
+          return;
+        }
+
+        frameProps.onPointerDown?.(event);
+      }}
+      onPointerMove={(event) => {
+        frameProps.onPointerMove?.(event);
+
+        if (!holding) {
+          return;
+        }
+
+        aimAt(event);
+      }}
+      onPointerLeave={() => {
+        if (!carrying && !measure) {
+          setHover(null);
+        }
+      }}
+      style={display ? { ...style, ...traySize } : style}
+      // `touch-none` so a drag on a touchscreen pans the map instead of
+      // scrolling the page out from under it.
+      /* NO MAGNIFIER. A click on the board does not zoom — the wheel does —
+           so a cursor promising one was pointing at a control that is not
+           there. Zoomed in it is a hand, because then it pans. */
+      className={`group relative touch-none overflow-hidden rounded-xl select-none ${
+        (staged && scene.armed) || brush
+          ? "cursor-crosshair"
+          : zoomed
+            ? "cursor-grab active:cursor-grabbing"
+            : "cursor-default"
+      } ${phone ? "size-full bg-surface [-webkit-touch-callout:none]" : "w-fit"} ${className}`}
+    >
+      {phone ? (
+        <div
+          className="absolute top-1/2 left-1/2 -translate-1/2"
+          style={{ ...traySize, ...imageStyle }}
+        >
+          {mapLayers}
+        </div>
+      ) : (
+        mapLayers
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {phone ? (
+        <div className="col-start-1 row-start-1 min-h-0 w-full p-1.5 [container-type:size]">
+          <div className="relative size-full">
+            <MapRim compact />
+            {frame}
+            <div className="pointer-events-none absolute inset-0 z-10">
+              <DiceBoard phone traySize={traySize} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        frame
+      )}
+      {phone ? (
+        canDraw && (
+          <div className="relative z-10 col-start-1 row-start-2 grid w-full justify-items-center gap-1">
             <MapDrawingTools
+              phone
               shape={shape}
               angle={angle}
               onShape={setShape}
               onAngle={setAngle}
             />
-          </MapControlTray>
-        )}
-        <div className="relative">{cast}</div>
-      </div>
+            <div className="flex min-h-10 w-full flex-wrap items-center justify-center gap-x-2 rounded-xl border border-gold/20 bg-surface/90 px-1 text-center text-xs text-ink/80">
+              <p role="status">
+                {phoneMapHint(aim, moving, canTapMove && Boolean(ownToken))}
+              </p>
+              {aim && !aim.held && (
+                <Button
+                  variant="ghost"
+                  className="max-sm:min-h-9 py-1 text-xs"
+                  onClick={() => setTapAim(null)}
+                >
+                  Cancel
+                </Button>
+              )}
+              {aim?.token && aim.to && !aim.held && (
+                <Button
+                  className="max-sm:min-h-9 px-3 py-1 text-xs"
+                  onClick={() => confirmMove(aim)}
+                  disabled={moving}
+                >
+                  {aim.ruled ? "Move to hex" : "Move here"}
+                </Button>
+              )}
+            </div>
+          </div>
+        )
+      ) : (
+        <div
+          data-map-controls
+          className="pointer-events-none absolute inset-x-0 top-full z-10"
+        >
+          {(canSweep || seat?.characterId) && (
+            <MapControlTray shown={canDraw}>
+              {canSweep && <MapTools />}
+              <MapDrawingTools
+                shape={shape}
+                angle={angle}
+                onShape={setShape}
+                onAngle={setAngle}
+              />
+            </MapControlTray>
+          )}
+          <div className="relative">{cast}</div>
+        </div>
+      )}
       <TokenRoll tokens={visibleTokens} />
     </>
   );
@@ -924,6 +1152,22 @@ const TOKEN_OF_A_CELL = 1.4;
 const AIM_QUIET_MS = 80;
 
 const TAP_SLOP_PX = 4;
+
+function phoneMapHint(aim, moving, canMove) {
+  if (moving) return "Moving…";
+  if (!aim) {
+    return canMove
+      ? "Tap your token to move, or tap two points to measure."
+      : "Tap two points to measure.";
+  }
+  if (!aim.to) {
+    if (aim.held) return aim.token ? "Drag to move" : "Drag to measure";
+    return aim.token ? "Tap a destination" : "Tap a second point";
+  }
+  if (!aim.ruled)
+    return aim.token ? "Destination selected" : "Measurement drawn";
+  return `${hexDistance(aim.from, aim.to) * FEET_PER_HEX} ft`;
+}
 
 /** A piece already on the board, described the way the palette describes one. */
 function pieceOf(token) {

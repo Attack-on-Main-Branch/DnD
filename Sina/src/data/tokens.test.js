@@ -146,6 +146,17 @@ describe("the board", () => {
     assert.deepEqual(chain.filters, [["map_id", [MAP, OTHER_MAP], "in"]]);
   });
 
+  it("excludes hidden pieces from a display read using the owner's session", async () => {
+    const chain = stubQuery({ data: [], error: null });
+
+    await listMapPlacedTokens(chain, [MAP], { visibleOnly: true });
+
+    assert.deepEqual(chain.filters, [
+      ["map_id", [MAP], "in"],
+      ["is_hidden", false],
+    ]);
+  });
+
   it("asks nothing at all when there are no maps", async () => {
     const chain = stubQuery(postgrestError("42P01"));
     const { data, error } = await listMapPlacedTokens(chain, []);

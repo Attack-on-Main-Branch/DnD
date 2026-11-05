@@ -186,7 +186,7 @@ export default function CampaignForm({
 
       <FormAlert id={FEEDBACK_ID}>{state?.message}</FormAlert>
 
-      <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5">
+      <div className="flex flex-wrap justify-end gap-3 border-t border-gold/15 pt-5 max-sm:flex-col-reverse max-sm:gap-2 max-sm:[&>*]:w-full">
         {/* Cancel rather than Back — see the note on the character sheet's
             copy of this row for why one is a button and the other a link. */}
         {onCancel ? (

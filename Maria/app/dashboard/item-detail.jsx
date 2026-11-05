@@ -9,6 +9,7 @@ import {
   STACK_TAG_CLASSES,
   stackLabel,
 } from "./inventory-presentation";
+import ItemDocument from "./item-document";
 
 /**
  * The item somebody pressed, read out in full — a panel of its own under the
@@ -98,13 +99,16 @@ export default function ItemDetail({ item, quantity, children }) {
       )}
 
       {rest.length > 0 && (
-        <dl className="mt-3 grid grid-cols-3 gap-2">
+        <dl className="mt-3 grid grid-cols-3 gap-2 max-sm:grid-cols-2">
           {rest.map((fact) => (
             <div key={fact.name} className="min-w-0">
               <dt className="font-mono text-[0.625rem] tracking-[0.14em] text-ink/40 uppercase">
                 {fact.label}
               </dt>
-              <dd className="truncate text-xs text-ink/80" title={fact.value}>
+              <dd
+                className="truncate text-xs text-ink/80 max-sm:whitespace-normal max-sm:wrap-anywhere"
+                title={fact.value}
+              >
                 {fact.value}
               </dd>
             </div>
@@ -118,10 +122,19 @@ export default function ItemDetail({ item, quantity, children }) {
         </p>
       )}
 
-      {children && (
+      {(children || item.facts?.documentId) && (
         <>
           <div aria-hidden="true" className={`mt-4 ${FADED_RULE_CLASSES}`} />
-          <div className="mt-3">{children}</div>
+          <div className="mt-3 flex flex-col gap-3">
+            {item.facts?.documentId && (
+              <ItemDocument
+                key={item.facts.documentId}
+                id={item.facts.documentId}
+                name={item.name}
+              />
+            )}
+            {children}
+          </div>
         </>
       )}
     </section>

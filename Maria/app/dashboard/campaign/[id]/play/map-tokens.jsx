@@ -37,6 +37,7 @@ export default function MapTokens({
   campaignId,
   canSweep = false,
   drawing = false,
+  selectedId,
 }) {
   const sectors = cell ? tokenSectors(tokens) : new Map();
   const { health, refresh } = useTokenHealth(
@@ -67,6 +68,7 @@ export default function MapTokens({
                 cell={cell}
                 muted={muted}
                 drawing={drawing}
+                selected={token.id === selectedId}
                 onGrab={onGrab}
                 onMark={onMark}
                 onLift={onLift}

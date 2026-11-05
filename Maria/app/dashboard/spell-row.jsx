@@ -12,13 +12,13 @@ export default function SpellRow({ spell, open = false, onOpen }) {
       onClick={onOpen}
       aria-pressed={open}
       aria-label={`${spell.name}, ${levelBadge(spell.level)}`}
-      className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left transition duration-300 ${
+      className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left transition duration-300 max-sm:min-h-11 max-sm:touch-manipulation ${
         open
           ? "border-gold/55 bg-gold/10 text-gold"
           : "border-gold/15 bg-surface/50 text-ink/85 hover:border-gold/45 hover:bg-surface/40 hover:text-gold"
       }`}
     >
-      <span className="min-w-0 flex-1 truncate font-display text-xs tracking-wide">
+      <span className="min-w-0 flex-1 truncate font-display text-xs tracking-wide max-sm:text-sm">
         {spell.name}
       </span>
 

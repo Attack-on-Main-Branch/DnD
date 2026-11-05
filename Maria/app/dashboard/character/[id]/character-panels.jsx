@@ -34,7 +34,7 @@ import SheetSpellbook from "./sheet-spellbook";
 export function OverviewPanel({ character, createdLabel }) {
   return (
     <div className="flex flex-col gap-6">
-      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <dl className="grid gap-4 max-sm:grid-cols-6 max-sm:gap-x-2 max-sm:[&>div]:col-span-2 max-sm:[&>div:nth-last-child(-n+2)]:col-span-3 sm:grid-cols-2 lg:grid-cols-5">
         <Fact label="Level" value={character.level} />
         <Fact label="Race" value={character.race} />
         {/* Null for the characters made before classes existed. */}
@@ -180,7 +180,7 @@ function Fact({ label, value }) {
   return (
     <div>
       <dt className="font-sans text-xs text-ink/60">{label}</dt>
-      <dd className="mt-1 text-sm font-medium">{value}</dd>
+      <dd className="mt-1 text-sm font-medium max-sm:wrap-anywhere">{value}</dd>
     </div>
   );
 }

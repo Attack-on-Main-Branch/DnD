@@ -65,10 +65,13 @@ export default function ConfirmDialog({
       className={surfaceClasses({
         variant: "solid",
         className:
-          "m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 text-ink backdrop:bg-black/70",
+          "m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 text-ink backdrop:bg-black/70 max-sm:max-h-[calc(100dvh-2rem)] max-sm:overflow-y-auto",
       })}
     >
-      <div className="p-6" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="p-6 max-sm:p-4"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 id={titleId} className="text-lg font-semibold tracking-tight">
           {title}
         </h2>
@@ -77,7 +80,7 @@ export default function ConfirmDialog({
           {description}
         </p>
 
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <div className="mt-6 flex flex-wrap justify-end gap-3 max-sm:flex-col-reverse max-sm:gap-2 max-sm:[&>button]:w-full">
           <Button variant="secondary" onClick={onCancel} disabled={pending}>
             {cancelLabel}
           </Button>

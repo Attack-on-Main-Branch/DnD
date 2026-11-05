@@ -13,6 +13,18 @@ import { SHEET_WIDTH_CLASS, surfaceClasses } from "./surface";
  */
 const CLOSE_MS = 340;
 
+const SIZES = {
+  sheet: {
+    dialog: `max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] ${SHEET_WIDTH_CLASS}`,
+    content: "p-6 max-sm:p-4 sm:p-8",
+  },
+  preview: {
+    dialog:
+      "[--preview-width:calc((100dvh-8rem)*16/9)] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[calc(var(--preview-width)+2.5rem+2px)] max-sm:h-[calc(100dvh-1rem)] max-sm:max-h-[calc(100dvh-1rem)] max-sm:w-[calc(100%-1rem)] max-sm:max-w-none max-sm:overflow-hidden",
+    content: "p-4 max-sm:h-full max-sm:p-2 sm:p-5",
+  },
+};
+
 /**
  * The sheet an edit is made on. A native <dialog>, so the focus trap, the top
  * layer, the inertness behind it and Escape all come free — the same reasoning
@@ -31,7 +43,7 @@ const CLOSE_MS = 340;
  * The heading is `sr-only` by design: a dialog needs an accessible name, and a
  * visible one would put a line above the form that the creation sheet has not.
  *
- * The width and the padding are the creation panel's own — SHEET_WIDTH_CLASS
+ * The default width and padding are the creation panel's — SHEET_WIDTH_CLASS
  * and PANEL_CLASSES in surface.js. The sheet is not meant to resemble the
  * creation sheet; it is meant to be it.
  */
@@ -39,11 +51,14 @@ export default function EditModal({
   open,
   title,
   busy = false,
+  size = "sheet",
   onClose,
+  onAfterClose,
   children,
 }) {
   const dialogRef = useRef(null);
   const titleId = useId();
+  const sizing = SIZES[size] ?? SIZES.sheet;
 
   const reduceMotion = useReducedMotion();
 
@@ -89,6 +104,7 @@ export default function EditModal({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
+      onClose={onAfterClose}
       // Escape and a press on the backdrop both route through the same handler
       // the Cancel button uses, so React state never drifts from the DOM state.
       // Prevented in both cases: the fold has to play before the close lands.
@@ -111,12 +127,15 @@ export default function EditModal({
         variant: "solid",
         glow: true,
         className:
-          `edit-dialog scroll-gold m-auto max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] ${SHEET_WIDTH_CLASS} ` +
+          `edit-dialog scroll-gold m-auto ${sizing.dialog} ` +
           "overflow-y-auto rounded-2xl p-0 text-ink backdrop:bg-black/50",
       })}
     >
       {/* One element child, which is what `.edit-dialog > *` animates in. */}
-      <div className="p-6 sm:p-8" onClick={(event) => event.stopPropagation()}>
+      <div
+        className={sizing.content}
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 id={titleId} className="sr-only">
           {title}
         </h2>

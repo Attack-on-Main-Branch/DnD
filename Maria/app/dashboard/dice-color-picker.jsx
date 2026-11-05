@@ -81,7 +81,7 @@ export default function DiceColorPicker({ value, onChange, disabled }) {
             x={hsv.h / 360}
             disabled={disabled}
             onMove={(x) => choose({ ...hsv, h: Math.min(x * 360, 359.9) })}
-            className="h-3.5 rounded-full"
+            className="h-3.5 rounded-full max-sm:h-8"
             style={{
               backgroundImage:
                 "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
@@ -91,7 +91,7 @@ export default function DiceColorPicker({ value, onChange, disabled }) {
         </div>
 
         <div className="flex flex-col justify-between gap-4 sm:w-44">
-          <div className="grid grid-cols-6 justify-items-center gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-6 justify-items-center gap-1.5 max-sm:grid-cols-5 sm:gap-2">
             {DICE_COLOR_PRESETS.map((preset) => (
               <button
                 key={preset.hex}
@@ -103,7 +103,7 @@ export default function DiceColorPicker({ value, onChange, disabled }) {
                   setDraft(null);
                   onChange(preset.hex);
                 }}
-                className={`size-6 cursor-pointer rounded-full transition duration-300 ${CHOICE_CARD_FOCUS_CLASSES} ${
+                className={`size-6 cursor-pointer rounded-full transition duration-300 max-sm:size-11 max-sm:touch-manipulation ${CHOICE_CARD_FOCUS_CLASSES} ${
                   value === preset.hex
                     ? "ring-2 ring-gold shadow-[0_0_8px_var(--gold-60)]"
                     : "ring-1 ring-white/15 hover:ring-gold/50"

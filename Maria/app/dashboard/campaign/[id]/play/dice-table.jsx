@@ -84,11 +84,13 @@ export default function DiceTable({
   skins = [],
   seatTitle,
   canKeepSecrets,
+  display = false,
   children,
 }) {
   const mine = characterId ?? HEAD_OF_TABLE;
   const playerDice = usePlayerDice(campaignId, canKeepSecrets);
   const rollingDisabled = !seatId || (!canKeepSecrets && playerDice.paused);
+  const listening = Boolean(seatId) || display;
 
   /* The roller, reached from the socket's side of the loop. Filled by the
      effect below rather than during render, and read at the moment a roll
@@ -102,7 +104,7 @@ export default function DiceTable({
 
   const table = useTableRolls({
     campaignId,
-    enabled: Boolean(seatId),
+    enabled: listening,
     keeper: Boolean(canKeepSecrets),
     onMirror,
   });
@@ -202,16 +204,16 @@ export default function DiceTable({
   const themes = [...new Set(skins.map(diceSkinTheme))].join(",");
 
   useEffect(() => {
-    if (seatId && themes) {
+    if (listening && themes) {
       preloadDiceThemes(themes.split(","));
     }
-  }, [seatId, themes]);
+  }, [listening, themes]);
 
   useEffect(() => {
-    if (seatId) {
+    if (listening) {
       warm();
     }
-  }, [seatId, warm]);
+  }, [listening, warm]);
 
   /* The veil is the table's business, not one screen's: the boards go violet
      for everybody the moment it closes, and only the results stay behind it. */

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { setImmediate as immediate } from "node:timers/promises";
+import { runInNewContext } from "node:vm";
 
 const source = await readFile(
   new URL("./dice-box.js", import.meta.url),
@@ -152,6 +153,68 @@ async function runtime(t, behaviour = "ready") {
     config: { assetPath: "/assets/dice/", tray: { width: 1000, height: 600 } },
   };
 }
+
+test("phone magnification changes the display pose without changing dice scale or sleep markers", async (t) => {
+  const { api, win, config } = await runtime(t);
+  const built = await api.buildDiceBox({
+    ...config,
+    scale: 7,
+    displayScale: 2,
+  });
+  t.after(() => built.release());
+  const [init] = built.physics.messages;
+  assert.equal(init.options.scale, 7);
+  assert.equal(built.renderer.messages[0].options.scale, 7);
+  assert.equal(init.displayScale, 2);
+
+  const blob = await win.physicsBlob.text();
+  let receive;
+  let displayed;
+  const rested = [];
+  const self = {
+    addEventListener(type, handler) {
+      if (type === "message") receive = handler;
+    },
+    postMessage: (message) => rested.push(message),
+  };
+  runInNewContext(blob.replace(/btDiscreteDynamicsWorld$/, ""), {
+    self,
+    Date,
+    Math: Object.create(Math),
+  });
+  receive({ data: init });
+  const port = {
+    postMessage: ({ diceBuffer }) => {
+      displayed = new Float32Array(diceBuffer);
+    },
+  };
+  receive({ data: { action: "connect" }, ports: [port] });
+  const up = [0, 0, 0, 1];
+  const frame = new Float32Array([
+    2,
+    5,
+    -1 / 0.42,
+    2,
+    100,
+    ...up,
+    6,
+    -1,
+    0,
+    0,
+    ...up,
+  ]);
+  port.postMessage({ action: "updates", diceBuffer: frame.buffer });
+  assert.notEqual(displayed[2], -1);
+  assert.ok(Math.abs(displayed[2] + 1) < 1e-6);
+  assert.equal(displayed[3], 2);
+  assert.ok(displayed[4] < 2);
+  assert.deepEqual(Array.from(displayed.slice(5, 9)), up);
+  assert.equal(displayed[10], -1);
+
+  const stopped = new Float32Array([1, 5, -1, 0, 0, ...up]);
+  port.postMessage({ action: "updates", diceBuffer: stopped.buffer });
+  assert.deepEqual(Array.from(rested[0].pose), Array.from(frame.slice(2, 9)));
+});
 
 test("dice teardown never captures or terminates a realtime heartbeat worker", async (t) => {
   const { api, win, workers, resize, canvases, config } = await runtime(t);

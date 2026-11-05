@@ -78,6 +78,7 @@ export default function MapToken({
   cell,
   muted = false,
   drawing = false,
+  selected = false,
   onGrab,
   onMark,
   onLift,
@@ -122,7 +123,7 @@ export default function MapToken({
 
   return (
     <span
-      data-map-token=""
+      data-map-token={token.id}
       /* Immovable pieces still expose tooltips and let drawing reach the map. */
       className={`absolute ${muted ? "" : "pointer-events-auto"} ${
         movable
@@ -262,6 +263,9 @@ export default function MapToken({
         )}
 
         {token.characterId && <SpellFlare characterId={token.characterId} />}
+        {selected && (
+          <span className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-gold ring-inset" />
+        )}
       </span>
 
       {note && !menu && <TokenNote token={token} at={note} knocked={knocked} />}

@@ -46,7 +46,7 @@ export function surfaceClasses({
  * The geometry of a top-level glass panel. Not a default on `surfaceClasses` —
  * the card, drawer, header bar and empty slot all want their own.
  */
-export const PANEL_CLASSES = "rounded-2xl p-6 sm:p-8";
+export const PANEL_CLASSES = "rounded-2xl p-6 max-sm:p-4 sm:p-8";
 
 /** How wide a sheet stands: the dashboard's `<main>`, where the creation panel
     is, and the edit modal that opens over it. Changing it moves both. */

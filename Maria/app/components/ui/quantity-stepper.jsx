@@ -44,7 +44,7 @@ export function StepButton({
          which stand among capsules and would be the only square thing there.
          Every half is written out for the scanner's sake. */
       className={
-        `grid shrink-0 cursor-pointer place-items-center border ` +
+        `grid shrink-0 cursor-pointer place-items-center border max-sm:min-h-11 max-sm:min-w-11 max-sm:touch-manipulation ` +
         `${pill ? "rounded-full" : "rounded-lg"} ` +
         `border-gold/20 bg-surface/30 leading-none text-ink/70 ` +
         `transition-colors duration-300 ` +

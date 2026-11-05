@@ -40,14 +40,14 @@ export default function SiteHeader({
           className: "border-x-0 border-t-0 border-b-0",
         })}
       >
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 max-sm:gap-2 max-sm:px-3 sm:px-6">
           <Link
             href="/dashboard"
             // Named here rather than by the wordmark, which is `display: none`
             // on a phone and so out of the accessibility tree — the link would
             // have had no name at all there.
             aria-label="Grimoire Tales"
-            className="group flex min-w-0 items-center gap-2.5 sm:gap-3"
+            className="group flex min-w-0 items-center gap-2.5 max-sm:min-h-11 max-sm:shrink-0 sm:gap-3"
           >
             {/*
               The mark carries the brand alone below `sm`. At 375px the bar
@@ -99,7 +99,7 @@ export default function SiteHeader({
               content line, which is what the notification panel measures its
               drop from. Nothing in here moves — the children are still
               centred. */}
-          <div className="flex items-center gap-2 self-stretch sm:gap-3">
+          <div className="flex items-center gap-2 self-stretch max-sm:gap-1 max-sm:[&>a]:px-3 max-sm:[&>form>button]:px-3 sm:gap-3">
             {/*
               The inbox, immediately to the left of the profile pill — and so
               still beside the person it belongs to below `lg`, where the pill

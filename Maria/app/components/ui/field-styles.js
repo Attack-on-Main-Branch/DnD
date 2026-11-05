@@ -15,6 +15,7 @@
 
 const BASE =
   "w-full rounded-lg border bg-surface/30 px-3 py-2 text-sm text-ink " +
+  "max-sm:min-h-11 max-sm:text-base " +
   "placeholder:text-ink/35 outline-none transition duration-300 " +
   "disabled:opacity-50";
 

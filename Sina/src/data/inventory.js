@@ -21,7 +21,8 @@ const COLUMNS =
 
 const CATALOGUE_COLUMNS =
   "id, item_slug, name, category, description, cost_quantity, cost_unit, " +
-  "weight, damage_dice, damage_type, armor_class, properties, created_at";
+  "weight, damage_dice, damage_type, armor_class, properties, document_id, " +
+  "document:item_documents(name), created_at";
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
@@ -109,16 +110,22 @@ export async function listCharacterInventory(supabase, characterId) {
  * syntax error, and a campaign with nobody in it is the ordinary state of a new
  * one.
  */
-export async function listPartyInventory(supabase, characterIds) {
+export async function listPartyInventory(supabase, characterIds, range = null) {
   if (!characterIds || characterIds.length === 0) {
     return { data: [], error: null };
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("character_inventory")
     .select(COLUMNS)
     .in("character_id", characterIds)
     .order("created_at", { ascending: true });
+
+  if (range) {
+    query = query.order("id", { ascending: true }).range(range.from, range.to);
+  }
+
+  const { data, error } = await query;
 
   return error ? failure(error) : { data: data ?? [], error: null };
 }
@@ -142,7 +149,40 @@ export async function listCampaignItems(supabase, campaignId) {
  * `.select()` makes the INSERT report the row, so an RLS refusal — which is no
  * row rather than a failure — is told apart from a write that landed.
  */
-export async function insertCampaignItem(supabase, { campaignId, item }) {
+async function saveCampaignItemDocument(
+  supabase,
+  { campaignId, id = null, item, document = null, removeDocument = false },
+) {
+  const { data, error } = await supabase
+    .rpc("save_campaign_item_document", {
+      p_campaign_id: campaignId,
+      p_item_id: id,
+      p_item: item,
+      p_document_name: document?.name ?? null,
+      p_document_html: document?.html ?? null,
+      p_document_path: document?.path ?? null,
+      p_remove_document: removeDocument,
+    })
+    .select(CATALOGUE_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    return failure(error);
+  }
+
+  return data
+    ? { data, error: null }
+    : { data: null, error: { reason: "not_found", detail: null } };
+}
+
+export async function insertCampaignItem(
+  supabase,
+  { campaignId, item, document = null },
+) {
+  if (document) {
+    return saveCampaignItemDocument(supabase, { campaignId, item, document });
+  }
+
   const { data, error } = await supabase
     .from("campaign_items")
     .insert({
@@ -227,7 +267,20 @@ export async function rewriteCampaignItemCopies(
  * back is a policy that matched nothing — somebody else's entry, or one struck
  * out meanwhile — and reads as `not_found`, as an insert's does.
  */
-export async function updateCampaignItem(supabase, { campaignId, id, item }) {
+export async function updateCampaignItem(
+  supabase,
+  { campaignId, id, item, document = null, removeDocument = false },
+) {
+  if (document || removeDocument) {
+    return saveCampaignItemDocument(supabase, {
+      campaignId,
+      id,
+      item,
+      document,
+      removeDocument,
+    });
+  }
+
   const { data, error } = await supabase
     .from("campaign_items")
     .update({
@@ -264,8 +317,7 @@ export async function updateCampaignItem(supabase, { campaignId, id, item }) {
  * nothing is not an error and RLS filters silently, so without it somebody
  * else's id looks exactly like a successful delete.
  *
- * Nothing follows it into the packs — what a character is already carrying is a
- * copy made when it was handed over. See the note atop 20260822160000.
+ * The delete trigger removes distributed copies in the same transaction.
  */
 export async function removeCampaignItem(supabase, { campaignId, id }) {
   const { data, error } = await supabase

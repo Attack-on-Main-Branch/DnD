@@ -48,6 +48,8 @@ export default function InventoryPack({
   seat,
   members,
   isDungeonMaster,
+  inline = false,
+  inlineOpen = true,
 }) {
   const packs = useAllPacks();
   const purses = useAllPurses();
@@ -278,6 +280,8 @@ export default function InventoryPack({
   return (
     <>
       <TablePopover
+        inline={inline}
+        inlineOpen={inlineOpen}
         icon={TravellingPack}
         label={
           carried > 0
@@ -302,6 +306,7 @@ export default function InventoryPack({
             characterId={seat.characterId}
             pack={mine}
             purse={myPurse}
+            compact={inline}
             party={others}
             /* The chair's own name, and only for the line shown while a write is
              in the air. `readSeat` calls the head of the table's chair "Dungeon

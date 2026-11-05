@@ -8,6 +8,8 @@ import { MAX_CAMPAIGN_SPELLS } from "sina/rules/spells";
 import { MAX_CAMPAIGN_TOKENS } from "sina/rules/tokens";
 
 import { EDITING_CARD_CLASSES } from "@/app/components/ui/field-styles";
+import Button from "@/app/components/ui/button";
+import ConfirmDialog from "@/app/components/ui/confirm-dialog";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 import {
@@ -36,7 +38,7 @@ import ContainerForm from "./container-form";
 import CampaignFeatureForm from "./feature-form";
 import { strikeCampaignContainer } from "./container-actions";
 import ItemForm from "./item-form";
-import { strikeCampaignItem } from "./item-actions";
+import { retryItemDocumentCleanup, strikeCampaignItem } from "./item-actions";
 import SpellForm from "./spell-form";
 import { strikeCampaignSpell } from "./spell-actions";
 import TokenForm from "./token-form";
@@ -90,6 +92,7 @@ export default function CreatePanel({
   campaignId,
   members,
   items,
+  cleanupPending = false,
   spells,
   containers,
   containerItems,
@@ -99,6 +102,8 @@ export default function CreatePanel({
   const [kind, setKind] = useState("item");
   const [error, setError] = useState(null);
   const [isPending, startTransition] = useTransition();
+  const [removingItem, setRemovingItem] = useState(null);
+  const [cleanupNeeded, setCleanupNeeded] = useState(false);
 
   /* What the form above is rewriting, by id, and what it said when it last
      saved — shown by the fresh form that replaces it. */
@@ -257,6 +262,10 @@ export default function CreatePanel({
       const result = await remove(campaignId, id);
 
       setError(result?.kind === "rejected" ? result.message : null);
+      if (typeof result?.cleanupPending === "boolean") {
+        setCleanupNeeded(result.cleanupPending);
+      }
+      if (remove === strikeCampaignItem) setRemovingItem(null);
     });
   }
 
@@ -283,7 +292,7 @@ export default function CreatePanel({
         <div
           role="group"
           aria-label="What to create"
-          className="mt-4 flex flex-wrap gap-2"
+          className="mt-4 flex flex-wrap gap-2 max-sm:grid max-sm:grid-cols-2"
         >
           {KINDS.map((one) => (
             <button
@@ -291,7 +300,7 @@ export default function CreatePanel({
               type="button"
               onClick={() => choose(one.value)}
               aria-pressed={kind === one.value}
-              className={`cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 ${
+              className={`cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 max-sm:min-h-11 max-sm:text-sm max-sm:touch-manipulation ${
                 kind === one.value
                   ? "border-gold/55 bg-gold/15 text-gold"
                   : "border-gold/20 bg-surface/40 text-ink/70 hover:border-gold/45 hover:text-gold"
@@ -424,7 +433,7 @@ export default function CreatePanel({
                       <StrikeButton
                         label={`Remove ${row.name}`}
                         disabled={isPending}
-                        onClick={() => strike(strikeCampaignItem, row.id)}
+                        onClick={() => setRemovingItem(row)}
                       />
                     </div>
                   </PackItemCard>
@@ -526,7 +535,39 @@ export default function CreatePanel({
             {error}
           </p>
         )}
+
+        {kind === "item" && (cleanupPending || cleanupNeeded) && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <p role="status" className="text-xs text-ink/60">
+              Some unused HTML files could not be deleted.
+            </p>
+            <Button
+              variant="secondary"
+              disabled={isPending}
+              onClick={() => {
+                startTransition(async () => {
+                  const result = await retryItemDocumentCleanup(campaignId);
+                  setError(result.kind === "rejected" ? result.message : null);
+                  setCleanupNeeded(result.kind === "rejected");
+                });
+              }}
+            >
+              {isPending ? "Cleaning up…" : "Retry file cleanup"}
+            </Button>
+          </div>
+        )}
       </section>
+      <ConfirmDialog
+        open={Boolean(removingItem)}
+        title={`Remove ${removingItem?.name ?? "item"} everywhere?`}
+        description="Removes this custom item from the catalogue, player inventories, bags and chests. Unused HTML attachments will also be deleted. This cannot be undone."
+        confirmLabel="Remove item"
+        pending={isPending}
+        onConfirm={() => {
+          if (removingItem) strike(strikeCampaignItem, removingItem.id);
+        }}
+        onCancel={() => setRemovingItem(null)}
+      />
     </div>
   );
 }
@@ -659,7 +700,7 @@ function ContainerEntry({
 function TokenEntry({ token, disabled, editing, onEdit, onStrike }) {
   return (
     <div
-      className={`flex h-full w-full items-center gap-3.5 rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES} ${
+      className={`flex h-full w-full items-center gap-3.5 rounded-xl border p-3.5 text-left transition duration-300 max-sm:flex-wrap ${NESTED_CARD_CLASSES} ${
         editing ? EDITING_CARD_CLASSES : ""
       }`}
     >
@@ -674,7 +715,7 @@ function TokenEntry({ token, disabled, editing, onEdit, onStrike }) {
         />
       </span>
 
-      <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
+      <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink max-sm:basis-[calc(100%-4rem)]">
         {token.name}
       </p>
 
@@ -718,7 +759,7 @@ function EditButton({ label, active, disabled, onClick }) {
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
-      className={`cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 ${
+      className={`cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 ${
         active ? "text-gold" : "text-ink/60"
       }`}
     >
@@ -735,7 +776,7 @@ function StrikeButton({ label, disabled, onClick }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
+      className="cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11"
     >
       Remove
     </button>

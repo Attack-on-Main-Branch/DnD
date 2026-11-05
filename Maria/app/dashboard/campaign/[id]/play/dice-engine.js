@@ -359,12 +359,17 @@ function reportRest(box, group, hearing, onRest) {
 
 /** One world, in a tray already announced — see `diceEngine`. */
 async function build(lane, { width, height }) {
+  const stage = diceStageId(lane);
+  const displayScale = Number(
+    document.getElementById(stage)?.dataset.diceDisplayScale,
+  );
   return buildDiceBox(
     {
       ...CONFIG,
       preloadThemes: [...new Set([...CONFIG.preloadThemes, ...tableThemes])],
-      container: `#${diceStageId(lane)}`,
+      container: `#${stage}`,
       tray: { width, height },
+      displayScale: displayScale > 1 ? displayScale : undefined,
     },
     async (built) => {
       if (!built.physics) {

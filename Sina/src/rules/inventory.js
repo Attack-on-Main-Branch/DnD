@@ -9,6 +9,8 @@
  * 20260822120000_character_inventory.sql. Changing one means changing both.
  */
 
+import { isItemDocumentId } from "./item-document.js";
+
 export const MAX_ITEM_NAME_LENGTH = 80;
 export const MAX_ITEM_CATEGORY_LENGTH = 40;
 export const MAX_ITEM_DESCRIPTION_LENGTH = 500;
@@ -94,6 +96,14 @@ export function readItemFacts(facts) {
 
   if (facts.attunement) {
     kept.attunement = true;
+  }
+
+  if (isItemDocumentId(facts.documentId)) {
+    kept.documentId = facts.documentId;
+  }
+
+  if (isItemDocumentId(facts.catalogueId)) {
+    kept.catalogueId = facts.catalogueId;
   }
 
   return kept;

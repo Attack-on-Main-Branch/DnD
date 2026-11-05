@@ -140,7 +140,7 @@ export default function DmMarks({ children }) {
         <div className="flex min-h-0 flex-1 flex-col">
           <div
             ref={stripRef}
-            className="relative flex shrink-0 items-center justify-around px-3 py-1.5"
+            className="relative flex shrink-0 items-center justify-around px-3 py-1.5 max-sm:px-0"
           >
             {children}
 

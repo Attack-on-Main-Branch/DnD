@@ -25,10 +25,13 @@ export const SEEDED_MESSAGE = "__seeded";
 
 /**
  * What the physics worker says as each die comes to rest: its id and the pose
- * it lies in, `[x, y, z, qx, qy, qz, qw]` in the world's own units. The same
- * pose on every chair, being the same seeded simulation.
+ * it is drawn in, `[x, y, z, qx, qy, qz, qw]` in the world's own units.
  */
 export const RESTED_MESSAGE = "__rested";
+
+// Matches the overhead camera in the render worker.
+export const DICE_CAMERA_HEIGHT = 36.5;
+export const DICE_CAMERA_FOV = 0.25;
 
 /**
  * Prepended to the physics worker's source, where it runs before anything else
@@ -48,8 +51,8 @@ export const RESTED_MESSAGE = "__rested";
  * The port's `postMessage` is wrapped too, to READ each step's buffer before it
  * is transferred away: the step a die is put to sleep writes -1 where its x
  * would be, so the pose it had on the step before is where it lies. That
- * is told to the main thread as `RESTED_MESSAGE`. Nothing is written, so the
- * simulation is the one it was.
+ * is told to the main thread as `RESTED_MESSAGE`. Only the outgoing display
+ * buffer is adjusted on phones. Ammo's bodies and seeded simulation stay intact.
  */
 const PRELUDE = `(function () {
   var seed = 1;
@@ -114,6 +117,24 @@ const PRELUDE = `(function () {
   self.Date = Clock;
 
   var poses = {};
+  var displayScale = 1;
+  var displayAspect = 1;
+
+  function framePositions(view) {
+    if (displayScale === 1) return;
+    // A wider-looking die needs more room around its centre at the rail.
+    var travel = 0.84 / displayScale;
+    for (var i = 0; i < view[0]; i += 1) {
+      var at = i * 8 + 1;
+      if (view[at + 1] === -1) continue;
+      var depth = Math.max(0, ${DICE_CAMERA_HEIGHT} - view[at + 2]);
+      var zLimit = depth * Math.tan(${DICE_CAMERA_FOV} / 2) * travel;
+      var xLimit = zLimit * displayAspect;
+      view[at + 1] = Math.max(-xLimit, Math.min(xLimit, view[at + 1] * travel));
+      view[at + 3] = Math.max(-zLimit, Math.min(zLimit, view[at + 3] * travel));
+      if (view[at + 1] === -1) view[at + 1] = -1 + 2 ** -24;
+    }
+  }
 
   function noteRest(view) {
     var awake = view[0];
@@ -143,7 +164,9 @@ const PRELUDE = `(function () {
 
     port.postMessage = function (message, transfer) {
       if (message && message.action === "updates" && message.diceBuffer) {
-        noteRest(new Float32Array(message.diceBuffer));
+        var view = new Float32Array(message.diceBuffer);
+        framePositions(view);
+        noteRest(view);
       }
 
       return send.call(port, message, transfer);
@@ -184,6 +207,11 @@ const PRELUDE = `(function () {
     var data = event.data;
 
     if (!data) return;
+
+    if (data.action === "init" && data.displayScale > 1) {
+      displayScale = data.displayScale;
+      displayAspect = data.width / data.height;
+    }
 
     if (data.action === "connect" && event.ports && event.ports[0]) {
       watch(event.ports[0]);
@@ -301,6 +329,7 @@ function createRoller(DiceBox, options) {
 }
 
 export async function buildDiceBox(config, initialise = async () => {}) {
+  const { tray, displayScale, ...options } = config;
   const DiceBox = await awaitDice(loadDiceBox());
   const NativeWorker = window.Worker;
   const createObjectURL = window.URL.createObjectURL;
@@ -371,8 +400,16 @@ export async function buildDiceBox(config, initialise = async () => {}) {
             built.physics = worker;
             worker.postMessage = (next, buffers) => {
               const sized = ["init", "resize"].includes(next?.action);
+              const dimensions = sized && tray ? tray : null;
+              const scale = next?.action === "init" && displayScale;
               return post(
-                sized && config.tray ? { ...next, ...config.tray } : next,
+                dimensions || scale
+                  ? {
+                      ...next,
+                      ...dimensions,
+                      ...(scale ? { displayScale: scale } : null),
+                    }
+                  : next,
                 buffers,
               );
             };
@@ -394,7 +431,6 @@ export async function buildDiceBox(config, initialise = async () => {}) {
   };
 
   try {
-    const { tray, ...options } = config;
     const box = createRoller(DiceBox, options);
     built.box = box;
     const resizeWorld = box.resizeWorld.bind(box);

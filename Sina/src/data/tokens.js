@@ -217,18 +217,27 @@ export async function removeTokenImage(supabase, path) {
  * switching pictures is a filter rather than a round trip, exactly as the marks
  * were held. An empty list is no query at all.
  */
-export async function listMapPlacedTokens(supabase, mapIds) {
+export async function listMapPlacedTokens(
+  supabase,
+  mapIds,
+  { visibleOnly = false } = {},
+) {
   const ids = (mapIds ?? []).filter(Boolean);
 
   if (ids.length === 0) {
     return { data: [], error: null };
   }
 
-  const { data, error } = await supabase
+  const query = supabase
     .from("map_placed_tokens")
     .select(PLACED_COLUMNS)
-    .in("map_id", ids)
-    .order("placed_at", { ascending: true });
+    .in("map_id", ids);
+
+  if (visibleOnly) {
+    query.eq("is_hidden", false);
+  }
+
+  const { data, error } = await query.order("placed_at", { ascending: true });
 
   return error ? failure(error) : { data: data ?? [], error: null };
 }

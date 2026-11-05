@@ -89,6 +89,7 @@ export default function PlayerPackDrawer({
   purse,
   party,
   onOpenPouch,
+  compact = false,
 }) {
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(null);
@@ -443,8 +444,11 @@ export default function PlayerPackDrawer({
       {/* Drawn whether or not anything is carried: an empty pack is not an
           empty purse, and neither belongs to a bag. */}
       <div className="flex flex-wrap items-start gap-3">
-        <div className={`max-w-full ${COIN_PANEL_CLASSES}`}>
+        <div
+          className={`max-w-full ${COIN_PANEL_CLASSES} ${compact ? "w-full px-1! py-1.5!" : ""}`}
+        >
           <PlayerPurse
+            compact={compact}
             campaignId={campaignId}
             characterId={characterId}
             actorName={actorName}
@@ -503,7 +507,7 @@ export default function PlayerPackDrawer({
               Nothing loose — it is all in the bags below.
             </p>
           ) : (
-            <ul className="mt-2.5 grid grid-cols-3 gap-2">
+            <ul className="mt-2.5 grid grid-cols-3 gap-2 max-sm:grid-cols-2">
               {carried.loose.map((held) => (
                 <li key={held.id} {...dragProps(held)} className="flex">
                   <ItemRow
@@ -552,7 +556,7 @@ export default function PlayerPackDrawer({
                 setOpenBag((standing) => (standing === bag.id ? null : bag.id))
               }
               aria-expanded={unfolded}
-              className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
+              className="flex w-full cursor-pointer items-center justify-between gap-3 text-left max-sm:min-h-11"
             >
               <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
                 {bag.name}
@@ -579,7 +583,7 @@ export default function PlayerPackDrawer({
                   /* Only what is in the pack itself can be taken in hand. */
                   <ul
                     inert={arming}
-                    className={`grid grid-cols-3 gap-2 transition-opacity duration-300 ${
+                    className={`grid grid-cols-3 gap-2 transition-opacity duration-300 max-sm:grid-cols-2 ${
                       arming ? "opacity-40" : ""
                     }`}
                   >
@@ -640,7 +644,7 @@ export default function PlayerPackDrawer({
       />
 
       {open && (
-        <PopoverAside>
+        <PopoverAside title={open.name} onClose={() => setReading(null)}>
           <ItemDetail item={open} quantity={row?.quantity}>
             {row ? (
               <>

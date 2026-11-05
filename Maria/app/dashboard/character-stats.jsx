@@ -62,7 +62,7 @@ function AbilityScores({ character, scoreField }) {
         Ability scores
       </h3>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 max-sm:grid-cols-2 max-sm:gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {scores.map((score) => {
           const modifier = abilityModifier(score.total);
 
@@ -121,20 +121,20 @@ function SkillList({ character }) {
         </p>
       </div>
 
-      <ul className="mt-3 grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-3 grid grid-cols-1 gap-x-6 max-sm:grid-cols-3 max-sm:gap-x-2 sm:grid-cols-2 lg:grid-cols-3">
         {SKILLS.map((skill) => {
           const state = skillState(skills, skill.id);
 
           return (
             <li
               key={skill.id}
-              className="flex items-baseline gap-2 border-b border-gold/10 py-1.5"
+              className="flex items-baseline gap-2 border-b border-gold/10 py-1.5 max-sm:grid max-sm:min-w-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-x-1 max-sm:gap-y-1"
             >
               {/* Shape as well as colour, the way the choosable cards mark a
                   selection: proficiency is the one fact this list adds. */}
               <span
                 aria-hidden="true"
-                className={`size-1.5 shrink-0 self-center rounded-full ${
+                className={`size-1.5 shrink-0 self-center rounded-full max-sm:hidden ${
                   state.proficient
                     ? "bg-gold shadow-[0_0_8px_-1px_rgba(255,223,156,0.9)]"
                     : "border border-ink/25"
@@ -142,7 +142,7 @@ function SkillList({ character }) {
               />
 
               <span
-                className={`truncate text-sm ${
+                className={`truncate text-sm max-sm:col-span-2 max-sm:self-start max-sm:overflow-visible max-sm:text-xs max-sm:whitespace-normal max-sm:wrap-anywhere ${
                   state.proficient ? "font-medium text-gold" : "text-ink/75"
                 }`}
               >
@@ -152,11 +152,11 @@ function SkillList({ character }) {
                 )}
               </span>
 
-              <span className="ml-auto shrink-0 font-mono text-[0.65rem] text-ink/45 uppercase">
+              <span className="ml-auto shrink-0 font-mono text-[0.65rem] text-ink/45 uppercase max-sm:ml-0">
                 {abbreviations[skill.ability]}
               </span>
 
-              <span className="w-8 shrink-0 text-right font-display text-sm font-semibold tabular-nums">
+              <span className="w-8 shrink-0 text-right font-display text-sm font-semibold tabular-nums max-sm:w-auto">
                 {formatModifier(
                   skillTotal({
                     modifier: abilityModifier(modifiers[skill.ability]),

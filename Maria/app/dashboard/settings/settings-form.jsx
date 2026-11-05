@@ -40,7 +40,7 @@ export default function SettingsForm({
         {state?.message}
       </FormAlert>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end max-sm:[&>button]:w-full">
         <Button type="submit" disabled={isPending}>
           {isPending ? "Saving…" : submitLabel}
         </Button>

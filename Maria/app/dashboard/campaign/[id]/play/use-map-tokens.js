@@ -267,7 +267,7 @@ export function useMapTokens({
 
       const silent = moved.isHidden;
 
-      run({
+      return run({
         paint: () => store.setToken(tokenId, moved),
         foretell: () => !silent && send({ kind: "token", token: moved }),
         work: () => moveMapPiece(tokenId, point),

@@ -73,6 +73,7 @@ export default function TableWire({
   campaignId,
   seatId,
   seatCharacterId,
+  display = false,
   children,
 }) {
   const [seated, setSeated] = useState(() => new Set());
@@ -122,8 +123,7 @@ export default function TableWire({
   }, []);
 
   useEffect(() => {
-    // No chair, nothing to announce and nothing to say.
-    if (!seatId) {
+    if (!seatId && !display) {
       return undefined;
     }
 
@@ -131,8 +131,19 @@ export default function TableWire({
     let cancelled = false;
 
     realtime()
-      .then(({ client, joinTable }) => {
+      .then(({ client, joinTable, watchBroadcast }) => {
         if (cancelled) {
+          return;
+        }
+
+        const channel = `table:${campaignId}`;
+
+        if (display) {
+          stop = watchBroadcast(client, {
+            channel,
+            event: EVENT,
+            onMessage: receive,
+          }).stop;
           return;
         }
 
@@ -141,7 +152,7 @@ export default function TableWire({
         let open;
 
         open = joinTable(client, {
-          channel: `table:${campaignId}`,
+          channel,
           key: seatId,
           meta: { characterId: seatCharacterId },
           event: EVENT,
@@ -169,7 +180,7 @@ export default function TableWire({
       stand.current = null;
       stop?.();
     };
-  }, [campaignId, chairs, receive, seatCharacterId, seatId]);
+  }, [campaignId, chairs, display, receive, seatCharacterId, seatId]);
 
   const send = useCallback((message) => {
     // Each recipient re-reads HP through its own permissions.
@@ -220,11 +231,12 @@ export default function TableWire({
       seated: here,
       seat: seatCharacterId ?? null,
       head: Boolean(seatId) && !seatCharacterId,
+      display,
       send,
       listen,
       leave,
     }),
-    [here, leave, listen, seatCharacterId, seatId, send],
+    [display, here, leave, listen, seatCharacterId, seatId, send],
   );
 
   return <WireContext.Provider value={wire}>{children}</WireContext.Provider>;

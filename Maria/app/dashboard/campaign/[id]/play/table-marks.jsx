@@ -189,7 +189,7 @@ export default function TableMarks({ children }) {
 
   return (
     <MarksContext.Provider value={{ body, under, open, hold, toggle, close }}>
-      <div ref={stripRef} className="relative flex gap-3">
+      <div ref={stripRef} className="relative flex gap-3 max-sm:gap-2">
         {children}
 
         {/* One positioned column, so the second panel is always the first's

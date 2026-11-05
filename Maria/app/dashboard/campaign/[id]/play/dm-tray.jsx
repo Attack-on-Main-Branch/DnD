@@ -67,7 +67,7 @@ export default function DmTray({
         aria-expanded={isOpen}
         aria-controls={panelId}
         aria-label={markLabel}
-        className={`grid size-13 shrink-0 cursor-pointer place-items-center rounded-full transition-colors duration-300 focus-visible:text-gold ${tone}`}
+        className={`grid size-13 shrink-0 cursor-pointer place-items-center rounded-full transition-colors duration-300 focus-visible:text-gold max-sm:size-11 max-sm:touch-manipulation ${tone}`}
       >
         {mark}
       </button>

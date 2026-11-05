@@ -1,5 +1,6 @@
 export const MAP_DRAWING_SHAPES = ["arrow", "circle", "cone"];
-export const CONE_ANGLES = [30, 60, 90];
+export const SEMICIRCLE_ANGLE = 180;
+export const CONE_ANGLES = [30, 60, 90, SEMICIRCLE_ANGLE];
 export const DEFAULT_CONE_ANGLE = 60;
 
 export function isMapDrawingShape(value) {

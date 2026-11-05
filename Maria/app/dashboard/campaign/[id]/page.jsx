@@ -77,6 +77,7 @@ export default async function CampaignPage({ params }) {
     notes,
     maps,
     items,
+    cleanupPending,
     spells,
     containers,
     containerItems,
@@ -94,11 +95,11 @@ export default async function CampaignPage({ params }) {
   }));
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 max-sm:gap-5 max-sm:py-5 sm:px-6 sm:py-14">
       <Link
         data-fade
         href="/dashboard"
-        className="float-in cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold"
+        className="float-in cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
       >
         ← Back to dashboard
       </Link>
@@ -106,9 +107,9 @@ export default async function CampaignPage({ params }) {
       {/* `data-fade` sits on the words rather than on the row: the star beside
           them leaves on its own, and a fading ancestor would take it with it
           however it was animating. */}
-      <header className="float-in flex flex-wrap items-center justify-between gap-6">
-        <div data-fade className="min-w-0">
-          <h1 className="truncate font-display text-3xl font-semibold tracking-wide text-ink">
+      <header className="float-in flex flex-wrap items-center justify-between gap-6 max-sm:flex-nowrap max-sm:gap-3">
+        <div data-fade className="min-w-0 max-sm:flex-1">
+          <h1 className="truncate font-display text-3xl font-semibold tracking-wide text-ink max-sm:text-2xl">
             {campaign.title}
           </h1>
           <p className="font-mono text-sm text-gold/70">
@@ -132,7 +133,8 @@ export default async function CampaignPage({ params }) {
         data-fold
         className={surfaceClasses({
           glow: true,
-          className: "panel-in rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
+          className:
+            "panel-in rounded-2xl px-5 pt-2 pb-6 max-sm:px-4 max-sm:pb-4 sm:px-8 sm:pb-8",
         })}
       >
         {/*
@@ -174,6 +176,7 @@ export default async function CampaignPage({ params }) {
                 // carries it or who may see it.
                 members={roster}
                 items={items}
+                cleanupPending={cleanupPending}
                 spells={spells}
                 containers={containers}
                 containerItems={containerItems}

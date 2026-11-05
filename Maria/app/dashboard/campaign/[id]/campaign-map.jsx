@@ -422,7 +422,7 @@ export default function CampaignMap({ url, title, mark = null }) {
         onPointerEnter={prepare}
         onFocus={prepare}
         aria-label={`View the full map of ${title}`}
-        className="group relative mx-auto block aspect-video w-[40rem] max-w-full cursor-pointer overflow-hidden rounded-2xl border border-gold/15 bg-surface/60 transition duration-300 hover:border-gold/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70"
+        className="group relative mx-auto block aspect-video w-[40rem] max-w-full cursor-pointer overflow-hidden rounded-2xl border border-gold/15 bg-surface/60 transition duration-300 hover:border-gold/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 max-sm:w-full max-sm:min-w-0"
       >
         {/* `cover`: a letterboxed thumbnail spent a third of its box on black. */}
         <Image

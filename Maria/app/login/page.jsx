@@ -52,14 +52,14 @@ export default function LoginPage() {
     // the space the panels actually have. The insets stay plain viewport
     // classes — a query that changed its own container's padding is circular.
     <main
-      className={`@container/page flex w-full flex-1 items-center overflow-x-clip px-5 py-14 sm:px-8 lg:py-20 ${LEFT_INSET} ${RIGHT_INSET}`}
+      className={`@container/page flex w-full flex-1 items-center overflow-x-clip px-5 py-14 max-sm:px-4 max-sm:py-6 sm:px-8 lg:py-20 ${LEFT_INSET} ${RIGHT_INSET}`}
     >
       {/*
         A fixed 28rem card track rather than a second `1fr`: every extra pixel
         lands in the lore track, which is capped at 2xl, so it becomes distance.
         `gap-24` is therefore only a floor at the threshold, not the spacing.
       */}
-      <div className="grid w-full items-center gap-14 side-by-side:grid-cols-[minmax(0,1fr)_28rem] side-by-side:gap-24">
+      <div className="grid w-full items-center gap-14 max-sm:gap-8 side-by-side:grid-cols-[minmax(0,1fr)_28rem] side-by-side:gap-24">
         <LorePanel />
 
         <div className="w-full max-w-md justify-self-center side-by-side:justify-self-end">

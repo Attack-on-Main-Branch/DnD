@@ -20,11 +20,18 @@ export const CHANGELOG = [
     date: "2026-10-19",
     title: "A clearer view of the table",
     changes: [
+      "Cast to TV opens a read-only display with a larger map, live initiative and activity, and the table’s shared dice and arrows.",
+      "The phone table shows the campaign title and larger, sharper animated dice over a full-height map. Fog of war continues into the frame padding, and zooming in reveals the map there. The rim and backdrop turn red during combat. Sheet, Spells and Pack slide up from the bottom.",
+      "Dungeon Masters can download the party's character builds, health, combat stats, equipment, spells and features as JSON from the Party tab, without conditions, inspiration, hit dice, coins or attachment details.",
+      "Dungeon Masters can attach an HTML file up to 25 MB to an item. Check item opens it from the inventory in a large animated window with a close button in the corner. HTML renders at 1920×1080 and scales to fit the preview, keeping its desktop layout on smaller screens.",
       "Dungeon Masters can pause the party's dice while keeping their own rolls available.",
       "Every die glows on a 1 or its maximum result, with shockwaves for natural 20s and 1s on d20s and results of 1 or 100 on percentile dice.",
       "Fog forms drifting cloud banks and curling wisps, with softly moving edges.",
     ],
     fixes: [
+      "Phone layouts have larger touch controls and roomier forms. Dice fit in one row above the map, map tools have their own space, tabs use two rows, and map previews and inspiration stay inside their panels. Inventory and ability scores use two columns, skills use three, and character details fit into two rows. Desktop layouts stay the same.",
+      "HTML item previews support mouse-wheel and pinch zoom, dragging to pan and tapping to use their controls while preserving the original layout.",
+      "Removing a custom item also removes its distributed copies from inventories, bags and chests. Unused HTML attachments are deleted, with a retry control if file cleanup fails.",
       "Giving and using inspiration appear in the activity log.",
       "Long table sessions keep dice responsive: failed rollers recover, retired workers and listeners are released, and number effects reuse their graphics context.",
       "Shared dice results stay consistent when another player's simulation finishes late or an older roll is still settling.",

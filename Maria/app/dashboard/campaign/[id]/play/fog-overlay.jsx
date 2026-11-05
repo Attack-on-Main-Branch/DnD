@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createFogRenderer, FOG_TRANSITION_MS } from "@/lib/fog-renderer";
+import {
+  createFogRenderer,
+  createFramedFogMask,
+  FOG_TRANSITION_MS,
+} from "@/lib/fog-renderer";
 
 const DM_OPACITY = 0.72;
 const FRAME_MS = 1000 / 30;
@@ -11,11 +15,14 @@ export default function FogOverlay({
   subscribe,
   seeThrough,
   enabled = true,
+  coverOnLoad = false,
   style,
+  frameRatio,
 }) {
   const hostRef = useRef(null);
   const enabledRef = useRef(enabled);
   const redrawRef = useRef(null);
+  const framed = frameRatio !== undefined;
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -24,16 +31,23 @@ export default function FogOverlay({
 
   useEffect(() => {
     const renderer = createFogRenderer(hostRef.current, seeThrough);
+    const host = hostRef.current;
+    const pad = framed ? createFramedFogMask() : null;
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = null;
     let lastFrame = 0;
     let dirty = false;
     let transitioning = false;
+    let covered = coverOnLoad;
 
     function tick(now) {
       frame = null;
       if (dirty || now - lastFrame >= FRAME_MS) {
         transitioning = renderer.draw(motion.matches ? 0 : now / 1000, now);
+        if (covered && maskRef.current) {
+          host.removeAttribute("data-fog-pending");
+          covered = false;
+        }
         lastFrame = now;
         dirty = false;
       }
@@ -44,17 +58,28 @@ export default function FogOverlay({
       if (
         frame === null &&
         !document.hidden &&
-        (dirty || (enabledRef.current && (transitioning || !motion.matches)))
+        (dirty ||
+          ((framed || enabledRef.current) &&
+            (transitioning || !motion.matches)))
       ) {
         frame = requestAnimationFrame(tick);
       }
     }
 
     function update(change) {
-      const mask = maskRef.current;
+      const source = maskRef.current;
+      const mask = pad
+        ? pad(
+            source,
+            host.clientWidth,
+            host.clientHeight,
+            frameRatio,
+            enabledRef.current,
+          )
+        : source;
       if (!mask) return;
       renderer.update(mask, {
-        ...change,
+        ...(framed ? null : change),
         immediate: seeThrough || motion.matches || Boolean(change?.immediate),
       });
       dirty = true;
@@ -74,31 +99,41 @@ export default function FogOverlay({
     }
 
     update();
-    redrawRef.current = resume;
+    redrawRef.current = framed ? () => update() : resume;
     const unsubscribe = subscribe(update);
+    const observer = framed
+      ? new ResizeObserver(() => update({ immediate: true }))
+      : null;
+    observer?.observe(host);
     document.addEventListener("visibilitychange", resume);
     motion.addEventListener("change", changeMotion);
     return () => {
       unsubscribe();
+      observer?.disconnect();
       redrawRef.current = null;
       if (frame !== null) cancelAnimationFrame(frame);
       document.removeEventListener("visibilitychange", resume);
       motion.removeEventListener("change", changeMotion);
       renderer.dispose();
     };
-  }, [maskRef, seeThrough, subscribe]);
+  }, [coverOnLoad, framed, frameRatio, maskRef, seeThrough, subscribe]);
 
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
+      className={
+        framed
+          ? "pointer-events-none absolute top-1/2 left-1/2 h-[100cqh] w-[100cqw] -translate-1/2"
+          : "pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
+      }
       style={style}
     >
       <div
         ref={hostRef}
-        className="size-full transition-opacity ease-in-out motion-reduce:transition-none"
+        data-fog-pending={coverOnLoad ? "" : undefined}
+        className="size-full transition-opacity ease-in-out data-fog-pending:bg-surface motion-reduce:transition-none"
         style={{
-          opacity: enabled ? (seeThrough ? DM_OPACITY : 1) : 0,
+          opacity: framed || enabled ? (seeThrough ? DM_OPACITY : 1) : 0,
           transitionDuration: `${FOG_TRANSITION_MS}ms`,
         }}
       />

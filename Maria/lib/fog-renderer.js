@@ -1,7 +1,40 @@
+import { FOG_MASK_WIDTH } from "sina/rules/fog";
+
 import { createFogTexture, readFogColor } from "./fog-texture";
 import { FOG_EDGE_SWAY_PIXELS, isFogClearForDm } from "./fog-paint";
 
 export const FOG_TRANSITION_MS = 650;
+
+export function createFramedFogMask() {
+  const canvas = document.createElement("canvas");
+  const paint = canvas.getContext("2d");
+
+  return (mask, width, height, ratio, enabled) => {
+    if (!width || !height) return null;
+    const density = FOG_MASK_WIDTH / Math.max(width, height);
+    const columns = Math.max(1, Math.round(width * density));
+    const rows = Math.max(1, Math.round(height * density));
+    if (canvas.width !== columns) canvas.width = columns;
+    if (canvas.height !== rows) canvas.height = rows;
+    paint.clearRect(0, 0, columns, rows);
+
+    if (ratio) {
+      const fitWidth = Math.min(width, height * ratio);
+      const w = (fitWidth / width) * columns;
+      const h = (fitWidth / ratio / height) * rows;
+      const x = (columns - w) / 2;
+      const y = (rows - h) / 2;
+      if (!enabled) {
+        paint.fillStyle = "white";
+        paint.fillRect(x, y, w, h);
+      } else if (mask) {
+        paint.imageSmoothingEnabled = false;
+        paint.drawImage(mask, x, y, w, h);
+      }
+    }
+    return canvas;
+  };
+}
 
 function transitionProgress(start, now) {
   if (start === null) return 1;

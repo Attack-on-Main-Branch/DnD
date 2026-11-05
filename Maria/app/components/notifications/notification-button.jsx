@@ -172,7 +172,7 @@ export default function NotificationButton({
      * 40px where it does not, so the gap under a 40px button changes with the
      * breakpoint.
      */
-    <div className="relative flex items-center self-stretch">
+    <div className="relative flex items-center self-stretch max-sm:static">
       <button
         ref={triggerRef}
         type="button"
@@ -189,7 +189,7 @@ export default function NotificationButton({
         // Race, Class, Alignment, Level. The same grey, so the envelope sits at
         // the weight of a label rather than of a heading. `glow-mark` owns the
         // glow and the ink's transition, so no `transition-*` utility here.
-        className="glow-mark relative grid size-10 place-items-center rounded-full text-ink/60 hover:text-gold focus-visible:text-gold"
+        className="glow-mark relative grid size-10 place-items-center rounded-full text-ink/60 hover:text-gold focus-visible:text-gold max-sm:size-11 max-sm:touch-manipulation"
       >
         {/* 36px, the avatar circle's size in the profile pill. `--mark-size`
             is `.glow-mark`'s, which shapes the glow from the same number. */}

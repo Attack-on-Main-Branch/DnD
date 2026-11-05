@@ -106,6 +106,14 @@ export function itemFactList(facts) {
 export function catalogueFacts(row) {
   const facts = {};
 
+  if (row.id) {
+    facts.catalogueId = row.id;
+  }
+
+  if (row.document_id) {
+    facts.documentId = row.document_id;
+  }
+
   if (row.damage_dice) {
     facts.damage = `${row.damage_dice} ${row.damage_type ?? ""}`.trim();
   }

@@ -3,6 +3,7 @@
 import { criticalFace, DICE, extremeFace, MAXIMUM_FACE } from "sina/rules/dice";
 
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
+import { DICE_CAMERA_FOV, DICE_CAMERA_HEIGHT } from "@/lib/dice-box";
 
 /**
  * A minimum or maximum, flaring where the die came to rest: a flash on the
@@ -29,11 +30,6 @@ import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 
 export const CRIT_LAYER_ID = "dice-crit-layer";
 const PERCENTILE_SIDES = DICE.find((die) => die.id === "d100").sides;
-
-/** dice-box's camera, from its render worker: straight down from this height
-    on a perspective lens of this vertical field. */
-const CAMERA_HEIGHT = 36.5;
-const CAMERA_FOV = 0.25;
 
 /** The physics floor's top face: a box centred at -0.5 with a half-height of 1. */
 const FLOOR_Y = 0.5;
@@ -167,12 +163,12 @@ function buildFlare(THREE, layer) {
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
-    THREE.MathUtils.radToDeg(CAMERA_FOV),
+    THREE.MathUtils.radToDeg(DICE_CAMERA_FOV),
     1,
     1,
-    CAMERA_HEIGHT + 1,
+    DICE_CAMERA_HEIGHT + 1,
   );
-  camera.position.set(0, CAMERA_HEIGHT, 0);
+  camera.position.set(0, DICE_CAMERA_HEIGHT, 0);
   camera.up.set(0, 0, 1);
   camera.lookAt(0, 0, 0);
   const batches = new Set();

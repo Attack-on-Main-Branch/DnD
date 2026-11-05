@@ -71,13 +71,14 @@ export default function TableMaps({
   campaignId,
   maps: served,
   activeId: servedActive,
-  worldUrl,
+  worldUrl: servedWorld,
   children,
 }) {
   const [maps, setMaps] = useState(served);
   const [activeId, setActiveId] = useState(servedActive ?? null);
+  const [displayUrl, setDisplayUrl] = useState(servedWorld);
 
-  const { send } = useTableWire();
+  const { send, display } = useTableWire();
   const { show } = useToast();
 
   /**
@@ -113,16 +114,24 @@ export default function TableMaps({
       switch rings both doorbells below at once. */
   const reread = useMemo(
     () =>
-      gatherReads(campaignId, (slices) => {
-        if (slices.maps) {
-          setMaps(slices.maps);
-        }
+      gatherReads(
+        campaignId,
+        (slices) => {
+          if (slices.maps) {
+            setMaps(slices.maps);
+          }
 
-        if (slices.activeMapId !== undefined) {
-          setActiveId(slices.activeMapId);
-        }
-      }),
-    [campaignId],
+          if (slices.activeMapId !== undefined) {
+            setActiveId(slices.activeMapId);
+          }
+
+          if (slices.worldUrl !== undefined) {
+            setDisplayUrl(slices.worldUrl);
+          }
+        },
+        display,
+      ),
+    [campaignId, display],
   );
 
   const resync = useCallback(() => {
@@ -163,7 +172,10 @@ export default function TableMaps({
       (message) => {
         const asked = typeof message.mapId === "string" ? message.mapId : null;
 
-        if (asked === null || maps.some((map) => map.id === asked)) {
+        if (
+          !display &&
+          (asked === null || maps.some((map) => map.id === asked))
+        ) {
           setActiveId(asked);
           return;
         }
@@ -171,7 +183,7 @@ export default function TableMaps({
         // A map added since this page rendered: the shelf is what is stale.
         resync();
       },
-      [maps, resync],
+      [display, maps, resync],
     ),
   );
 
@@ -449,7 +461,7 @@ export default function TableMaps({
         maps,
         activeId: active?.id ?? null,
         // `campaign_table` resolves the same fallback on the server.
-        activeUrl: active?.url ?? worldUrl ?? null,
+        activeUrl: active?.url ?? (display ? displayUrl : servedWorld) ?? null,
         /* WHICH KIND OF BOARD THIS IS, which is the whole of what may be put
            down on it: the world map takes the party's marker alone and every
            other map takes the faces and the invented pieces. A table with no

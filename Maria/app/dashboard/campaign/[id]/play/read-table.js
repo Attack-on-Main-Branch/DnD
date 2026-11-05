@@ -4,10 +4,11 @@ import { asksAnything, mergeWants, tableSliceQuery } from "@/lib/table-slices";
  * The table's slices off api/campaigns/[id]/table — see the head of that route
  * for why it is a route. Null when nothing could be read.
  */
-async function readTableSlice(campaignId, want) {
+async function readTableSlice(campaignId, want, display) {
   try {
+    const query = tableSliceQuery(want);
     const response = await fetch(
-      `/api/campaigns/${encodeURIComponent(campaignId)}/table?${tableSliceQuery(want)}`,
+      `/api/campaigns/${encodeURIComponent(campaignId)}/table?${query}${display ? "&display=1" : ""}`,
       { cache: "no-store", headers: { accept: "application/json" } },
     );
 
@@ -34,7 +35,7 @@ const GATHER_MS = 40;
  * store tell an answer that predates a change from one that has seen it. Each
  * promise resolves to whether its answer arrived at all.
  */
-export function gatherReads(campaignId, land) {
+export function gatherReads(campaignId, land, display = false) {
   let wanted = null;
   let waiting = [];
   let timer = null;
@@ -65,7 +66,7 @@ export function gatherReads(campaignId, land) {
 
     const askedAt = Date.now();
 
-    readTableSlice(campaignId, want)
+    readTableSlice(campaignId, want, display)
       .then((slices) => {
         if (!slices) {
           return false;

@@ -138,7 +138,10 @@ function Cell({ label, value }) {
       <dt className="font-mono text-[0.625rem] tracking-[0.14em] text-ink/40 uppercase">
         {label}
       </dt>
-      <dd className="truncate text-xs text-ink/80" title={value || undefined}>
+      <dd
+        className="truncate text-xs text-ink/80 max-sm:whitespace-normal max-sm:wrap-anywhere"
+        title={value || undefined}
+      >
         {value || "—"}
       </dd>
     </div>

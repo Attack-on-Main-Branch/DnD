@@ -83,7 +83,7 @@ export default function FeatureCard({
             (editing ? EDITING_CARD_CLASSES : ""),
         })}
       >
-        <p className="min-w-0 flex-1 truncate font-display text-xs tracking-wide text-ink/85">
+        <p className="min-w-0 flex-1 truncate font-display text-xs tracking-wide text-ink/85 max-sm:text-sm">
           {feature.name}
         </p>
 
@@ -94,7 +94,7 @@ export default function FeatureCard({
             disabled={disabled}
             aria-pressed={editing}
             aria-label={`Edit ${feature.name}`}
-            className={`shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 ${
+            className={`shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 ${
               editing ? "text-gold" : "text-ink/50"
             }`}
           >
@@ -110,7 +110,7 @@ export default function FeatureCard({
             onClick={onRemove}
             disabled={disabled}
             aria-label={`Remove ${feature.name}`}
-            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide text-ink/50 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
+            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide text-ink/50 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11"
           >
             Remove
           </button>
@@ -130,6 +130,7 @@ export default function FeatureCard({
             "font-sans text-[0.7rem] leading-relaxed text-ink/80 opacity-0 " +
             "shadow-[0_18px_40px_-20px_rgba(0,0,0,0.95)] " +
             "transition duration-150 glass-unfiltered " +
+            "max-sm:static max-sm:mt-2 max-sm:block max-sm:w-full max-sm:max-w-full max-sm:scale-100 max-sm:opacity-100 max-sm:shadow-none " +
             "group-hover/feature:scale-100 group-hover/feature:opacity-100 " +
             "group-focus-within/feature:scale-100 group-focus-within/feature:opacity-100 " +
             (above ? "bottom-full mb-1.5" : "top-full mt-1.5"),

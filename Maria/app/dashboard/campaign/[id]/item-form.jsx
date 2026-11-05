@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import {
   COST_UNITS,
   MAX_CAMPAIGN_ITEMS,
@@ -14,15 +14,30 @@ import {
   MAX_ITEM_PROPERTIES_LENGTH,
   MAX_ITEM_WEIGHT,
 } from "sina/rules/inventory";
+import {
+  ITEM_DOCUMENT_MIME_TYPE,
+  itemDocumentFileError,
+  validateItemDocument,
+} from "sina/rules/item-document";
 
 import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
+import Button from "@/app/components/ui/button";
 import FormActions from "@/app/components/ui/form-actions";
 import FormAlert from "@/app/components/ui/form-alert";
 import SelectMenu from "@/app/components/ui/select-menu";
 import TextAreaField from "@/app/components/ui/textarea-field";
 import TextField from "@/app/components/ui/text-field";
+import {
+  ITEM_DOCUMENT_COPY,
+  ITEM_DOCUMENT_SIZE_LABEL,
+} from "@/app/dashboard/item-document-copy";
 
-import { editCampaignItem, writeCampaignItem } from "./item-actions";
+import {
+  beginItemDocumentUpload,
+  discardItemDocumentUpload,
+  editCampaignItem,
+  writeCampaignItem,
+} from "./item-actions";
 
 /**
  * An item written down in full: the fields the SRD's own entries arrive with,
@@ -86,6 +101,9 @@ export default function ItemForm({
   const [error, setError] = useState(null);
   const [note, setNote] = useState(notice);
   const [isPending, startTransition] = useTransition();
+  const fileRef = useRef(null);
+  const [document, setDocument] = useState(null);
+  const [removeDocument, setRemoveDocument] = useState(false);
 
   const full = !editing && written >= MAX_CAMPAIGN_ITEMS;
   const blocked = isPending || full;
@@ -102,27 +120,86 @@ export default function ItemForm({
     }
 
     startTransition(async () => {
-      const result = editing
-        ? await editCampaignItem(campaignId, editing.id, values)
-        : await writeCampaignItem(campaignId, values);
+      let uploaded = null;
+      let saved = false;
 
-      // A submit arms the loading bar, and nothing here navigates.
-      stopNavigationProgress();
+      try {
+        if (document) {
+          const checked = validateItemDocument({
+            name: document.name,
+            html: await document.text(),
+          });
+          if (checked.error) {
+            setError(ITEM_DOCUMENT_COPY[checked.error]);
+            setNote(null);
+            return;
+          }
 
-      if (result?.kind === "rejected") {
-        setError(result.message);
+          const ticket = await beginItemDocumentUpload(campaignId, {
+            name: document.name,
+            size: document.size,
+          });
+          if (ticket.kind === "rejected") {
+            setError(ticket.message);
+            setNote(null);
+            return;
+          }
+
+          uploaded = { name: document.name, path: ticket.path };
+          const response = await fetch(ticket.url, {
+            method: "PUT",
+            headers: {
+              "Content-Type": ITEM_DOCUMENT_MIME_TYPE,
+              "Cache-Control": "max-age=0",
+            },
+            body: document,
+            credentials: "omit",
+          });
+          if (!response.ok) throw new Error("Upload failed");
+        }
+
+        const result = editing
+          ? await editCampaignItem(
+              campaignId,
+              editing.id,
+              { ...values, removeDocument },
+              uploaded,
+            )
+          : await writeCampaignItem(campaignId, values, uploaded);
+
+        if (result?.kind === "rejected") {
+          setError(result.message);
+          setNote(null);
+          return;
+        }
+
+        saved = true;
+        if (editing) {
+          onDone(`${result.name} is saved.`);
+          return;
+        }
+
+        setValues(EMPTY);
+        setDocument(null);
+        setRemoveDocument(false);
+        if (fileRef.current) fileRef.current.value = "";
+        setError(null);
+        setNote(`${result.name} is written down.`);
+      } catch {
+        setError(
+          document
+            ? ITEM_DOCUMENT_COPY.document_upload_failed
+            : "Could not save that item. Try again.",
+        );
         setNote(null);
-        return;
+      } finally {
+        stopNavigationProgress();
+        if (uploaded && !saved) {
+          await discardItemDocumentUpload(campaignId, uploaded.path).catch(
+            () => {},
+          );
+        }
       }
-
-      if (editing) {
-        onDone(`${result.name} is saved.`);
-        return;
-      }
-
-      setValues(EMPTY);
-      setError(null);
-      setNote(`${result.name} is written down.`);
     });
   }
 
@@ -236,6 +313,74 @@ export default function ItemForm({
         disabled={blocked}
       />
 
+      <section className="rounded-xl border border-gold/20 bg-surface/30 p-4">
+        <h3 className="font-display text-sm font-semibold tracking-wide text-gold">
+          Checkable item
+        </h3>
+        <p className="mt-1 text-xs leading-relaxed text-ink/55">
+          Attach a self-contained HTML file, up to {ITEM_DOCUMENT_SIZE_LABEL}.
+          Players can check it from their inventory. Include styles, scripts and
+          pictures in the file.
+        </p>
+        <div className="mt-3">
+          <TextField
+            label={editing?.document_id ? "Replace HTML file" : "HTML file"}
+            type="file"
+            accept=".html,.htm,text/html"
+            inputRef={fileRef}
+            disabled={blocked}
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              const error = file ? itemDocumentFileError(file) : null;
+
+              if (error) {
+                setError(ITEM_DOCUMENT_COPY[error]);
+                event.target.value = "";
+                setDocument(null);
+                return;
+              }
+
+              setError(null);
+              setDocument(file);
+              if (file) setRemoveDocument(false);
+            }}
+          />
+        </div>
+        {(document || (editing?.document_id && !removeDocument)) && (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 truncate text-xs text-ink/65">
+              Attached:{" "}
+              {document?.name ?? editing.document?.name ?? "HTML file"}
+            </p>
+            <Button
+              variant="ghost"
+              disabled={blocked}
+              onClick={() => {
+                setDocument(null);
+                setRemoveDocument(Boolean(editing?.document_id));
+                fileRef.current.value = "";
+              }}
+            >
+              Remove file
+            </Button>
+          </div>
+        )}
+        {removeDocument && (
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-xs text-ink/55">
+              The file will be removed when saved.
+            </p>
+            <Button
+              variant="ghost"
+              disabled={blocked}
+              onClick={() => setRemoveDocument(false)}
+            >
+              Undo
+            </Button>
+          </div>
+        )}
+      </section>
+
       <FormAlert id={FEEDBACK_ID}>{error}</FormAlert>
       <FormAlert tone="success">{note}</FormAlert>
 
@@ -244,7 +389,7 @@ export default function ItemForm({
         pending={isPending}
         disabled={blocked || values.name.trim().length === 0}
         label="Write it down"
-        pendingLabel="Writing…"
+        pendingLabel={document ? "Uploading…" : "Writing…"}
         onCancel={() => onDone(null)}
       />
     </form>

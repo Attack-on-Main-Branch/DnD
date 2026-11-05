@@ -45,12 +45,22 @@ export default function PlayerPurse({
   actorName,
   purse,
   party,
+  compact = false,
 }) {
   const [open, setOpen] = useState(null);
 
   return (
     <section aria-label="Your purse">
-      <ul className={COIN_ROW_CLASSES}>
+      <ul
+        className={compact ? "grid gap-1" : COIN_ROW_CLASSES}
+        style={
+          compact
+            ? {
+                gridTemplateColumns: `repeat(${COIN_TYPES.length}, minmax(0, 1fr))`,
+              }
+            : undefined
+        }
+      >
         {COIN_TYPES.map((coin) => (
           <li key={coin}>
             <button
@@ -63,12 +73,27 @@ export default function PlayerPurse({
                 open: open === coin,
                 pressable: true,
                 disabled: purse[coin] < 1,
+                compact,
               })}
             >
-              <span aria-hidden="true" className={COIN_NAME_CLASSES}>
-                {coinName(coin)}:
+              <span
+                aria-hidden="true"
+                className={
+                  compact
+                    ? "font-display text-xs font-semibold uppercase"
+                    : COIN_NAME_CLASSES
+                }
+              >
+                {compact ? coin : `${coinName(coin)}:`}
               </span>
-              <span aria-hidden="true" className={COIN_AMOUNT_CLASSES}>
+              <span
+                aria-hidden="true"
+                className={
+                  compact
+                    ? "font-mono text-[0.625rem] font-semibold tabular-nums"
+                    : COIN_AMOUNT_CLASSES
+                }
+              >
                 {purse[coin]}
               </span>
             </button>
