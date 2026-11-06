@@ -18,6 +18,7 @@
 
 const BASE_CLASSES =
   "inline-flex items-center justify-center gap-2 text-sm font-medium " +
+  "max-sm:min-h-11 max-sm:touch-manipulation " +
   "transition select-none disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Padding lives in the variant: `link` and `ghost` are text, not slabs. */

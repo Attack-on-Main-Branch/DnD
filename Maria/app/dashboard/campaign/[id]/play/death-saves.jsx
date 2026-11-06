@@ -53,7 +53,7 @@ export default function DeathSaves({
 
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
-  const { roll, throwing } = useDiceTable();
+  const { roll, throwing, rollingDisabled } = useDiceTable();
 
   /** The head of the table finishing somebody already down. */
   function finish() {
@@ -88,7 +88,7 @@ export default function DeathSaves({
   }
 
   function throwOne() {
-    if (busy || throwing) {
+    if (busy || throwing || rollingDisabled) {
       return;
     }
 
@@ -179,7 +179,7 @@ export default function DeathSaves({
         <button
           type="button"
           onClick={throwOne}
-          disabled={busy || throwing}
+          disabled={busy || throwing || rollingDisabled}
           aria-label={`Roll a death save for ${name}`}
           className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-display text-[0.6875rem] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:opacity-40"
         >

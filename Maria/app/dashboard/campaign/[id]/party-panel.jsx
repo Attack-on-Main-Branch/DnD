@@ -21,6 +21,7 @@ import {
 } from "../../actions";
 
 import MemberLookForm from "./member-look-form";
+import PartyExportButton from "./party-export-button";
 
 /**
  * The party: who is in it, and how to ask somebody to join.
@@ -248,7 +249,7 @@ export default function PartyPanel({ campaignId, members }) {
                   }
                   disabled={busy}
                   aria-label={`Remove ${member.name}#${member.discriminator} from the party`}
-                  className="ml-auto cursor-pointer font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
+                  className="ml-auto cursor-pointer font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:px-3"
                 >
                   Remove
                 </button>
@@ -280,6 +281,13 @@ export default function PartyPanel({ campaignId, members }) {
           }
         />
       )}
+
+      <div className="flex justify-end max-sm:[&>div]:w-full max-sm:[&_button]:w-full">
+        <PartyExportButton
+          campaignId={campaignId}
+          disabled={busy || members.length === 0}
+        />
+      </div>
     </div>
   );
 }
@@ -291,7 +299,7 @@ function MemberLook({ member, onEdit }) {
   const look = member.look;
 
   return (
-    <div className="flex w-full items-center gap-3 border-t border-gold/10 pt-3">
+    <div className="flex w-full items-center gap-3 border-t border-gold/10 pt-3 max-sm:flex-wrap">
       {look?.image_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -346,7 +354,7 @@ function MemberIdentity({ character }) {
         <p className="truncate font-display text-base font-semibold tracking-wide text-ink">
           {character.name}
         </p>
-        <p className="font-mono text-xs text-gold/70">
+        <p className="font-mono text-xs text-gold/70 max-sm:break-all">
           {character.name}#{character.discriminator}
         </p>
         <p className="mt-0.5 font-display text-[10px] tracking-[0.15em] text-ink/50 uppercase">

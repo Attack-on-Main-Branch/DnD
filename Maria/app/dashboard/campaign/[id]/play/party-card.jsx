@@ -41,6 +41,7 @@ function PartyCard({
   isDungeonMaster,
   seatCharacterId,
   actorName,
+  phone = false,
 }) {
   const tier = useHealthTier(member.id);
   const dead = useIsDead(member.id);
@@ -54,6 +55,17 @@ function PartyCard({
   const rim = here
     ? `lit-health ${healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))}`
     : "";
+  const Name = phone ? "h2" : "p";
+  const inspiration = showsInspiration && (
+    <InspirationPips
+      inline={phone}
+      campaignId={campaignId}
+      characterId={member.id}
+      name={member.name}
+      head={isDungeonMaster}
+      own={member.id === seatCharacterId}
+    />
+  );
 
   return (
     <li
@@ -61,29 +73,21 @@ function PartyCard({
         className:
           // A column now rather than a row: the bar goes under the name it
           // belongs to, and the row above it is unchanged.
-          "relative flex flex-col rounded-xl p-4 " +
+          `relative flex flex-col rounded-xl ${phone ? "p-2" : "p-4"} ` +
           // On the card rather than in `.lit-*`, so the rim fades out when
           // that class is taken away as well as in.
           "transition-[border-color,box-shadow] duration-300 " +
-          `${rim} ${CARD_CLASSES}`,
+          `${rim} ${phone ? "" : CARD_CLASSES}`,
       })}
-      {...cardEntrance(index, count)}
+      {...(!phone && cardEntrance(index, count))}
     >
       {/* Out of flow, so it answers to the card rather than to a row inside. */}
-      <DiceCapsule characterId={member.id} />
+      {!phone && <DiceCapsule characterId={member.id} />}
 
       {/* Three marks in the gutter beside the card — see inspiration-pips.jsx.
           A roll's pill comes out into the same strip and passes over them, which
           is what the layers say. */}
-      {showsInspiration && (
-        <InspirationPips
-          campaignId={campaignId}
-          characterId={member.id}
-          name={member.name}
-          head={isDungeonMaster}
-          own={member.id === seatCharacterId}
-        />
-      )}
+      {!phone && inspiration}
 
       {/* Everything BUT the way back is dimmed for a dead character: the Revive
           button underneath has to stay legible, and greying out the one control
@@ -94,6 +98,7 @@ function PartyCard({
         }`}
       >
         <div className="flex items-center gap-3">
+          {phone && inspiration}
           {/* The wrapper's and not the portrait's: `Avatar` clips its picture
               with `overflow-hidden`, so a shadow on it is drawn inside. */}
           <span
@@ -109,9 +114,9 @@ function PartyCard({
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg font-semibold tracking-wide text-ink">
+            <Name className="truncate font-display text-lg font-semibold tracking-wide text-ink">
               {member.name}
-            </p>
+            </Name>
             <p className="font-mono text-xs text-gold/70">
               #{member.discriminator}
             </p>

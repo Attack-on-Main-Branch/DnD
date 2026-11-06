@@ -25,10 +25,13 @@ export const SEEDED_MESSAGE = "__seeded";
 
 /**
  * What the physics worker says as each die comes to rest: its id and the pose
- * it lies in, `[x, y, z, qx, qy, qz, qw]` in the world's own units. The same
- * pose on every chair, being the same seeded simulation.
+ * it is drawn in, `[x, y, z, qx, qy, qz, qw]` in the world's own units.
  */
 export const RESTED_MESSAGE = "__rested";
+
+// Matches the overhead camera in the render worker.
+export const DICE_CAMERA_HEIGHT = 36.5;
+export const DICE_CAMERA_FOV = 0.25;
 
 /**
  * Prepended to the physics worker's source, where it runs before anything else
@@ -48,8 +51,8 @@ export const RESTED_MESSAGE = "__rested";
  * The port's `postMessage` is wrapped too, to READ each step's buffer before it
  * is transferred away: the step a die is put to sleep writes -1 where its x
  * would be, so the pose it had on the step before is where it lies. That
- * is told to the main thread as `RESTED_MESSAGE`. Nothing is written, so the
- * simulation is the one it was.
+ * is told to the main thread as `RESTED_MESSAGE`. Only the outgoing display
+ * buffer is adjusted on phones. Ammo's bodies and seeded simulation stay intact.
  */
 const PRELUDE = `(function () {
   var seed = 1;
@@ -114,6 +117,24 @@ const PRELUDE = `(function () {
   self.Date = Clock;
 
   var poses = {};
+  var displayScale = 1;
+  var displayAspect = 1;
+
+  function framePositions(view) {
+    if (displayScale === 1) return;
+    // A wider-looking die needs more room around its centre at the rail.
+    var travel = 0.84 / displayScale;
+    for (var i = 0; i < view[0]; i += 1) {
+      var at = i * 8 + 1;
+      if (view[at + 1] === -1) continue;
+      var depth = Math.max(0, ${DICE_CAMERA_HEIGHT} - view[at + 2]);
+      var zLimit = depth * Math.tan(${DICE_CAMERA_FOV} / 2) * travel;
+      var xLimit = zLimit * displayAspect;
+      view[at + 1] = Math.max(-xLimit, Math.min(xLimit, view[at + 1] * travel));
+      view[at + 3] = Math.max(-zLimit, Math.min(zLimit, view[at + 3] * travel));
+      if (view[at + 1] === -1) view[at + 1] = -1 + 2 ** -24;
+    }
+  }
 
   function noteRest(view) {
     var awake = view[0];
@@ -143,7 +164,9 @@ const PRELUDE = `(function () {
 
     port.postMessage = function (message, transfer) {
       if (message && message.action === "updates" && message.diceBuffer) {
-        noteRest(new Float32Array(message.diceBuffer));
+        var view = new Float32Array(message.diceBuffer);
+        framePositions(view);
+        noteRest(view);
       }
 
       return send.call(port, message, transfer);
@@ -184,6 +207,11 @@ const PRELUDE = `(function () {
     var data = event.data;
 
     if (!data) return;
+
+    if (data.action === "init" && data.displayScale > 1) {
+      displayScale = data.displayScale;
+      displayAspect = data.width / data.height;
+    }
 
     if (data.action === "connect" && event.ports && event.ports[0]) {
       watch(event.ports[0]);
@@ -258,6 +286,212 @@ export function isPhysicsSource(object) {
 
 let queue = Promise.resolve();
 
+const BUILD_WAIT_MS = 15000;
+// Ammo removes bodies without freeing their native allocations.
+export const DICE_WORLD_ROLL_LIMIT = 64;
+export const DICE_WORLD_BODY_LIMIT = 256;
+
+export function awaitDice(promise, ms = BUILD_WAIT_MS) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error("The dice operation timed out.")),
+        ms,
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function createRoller(DiceBox, options) {
+  const createElement = document.createElement;
+  const canvases = [];
+  let box;
+  document.createElement = function (tag, ...args) {
+    const element = createElement.call(document, tag, ...args);
+    if (tag === "canvas") canvases.push(element);
+    return element;
+  };
+  try {
+    box = new DiceBox(options);
+    return box;
+  } finally {
+    document.createElement = createElement;
+    for (const canvas of canvases) {
+      if (canvas === box?.canvas) continue;
+      const gl =
+        canvas.getContext("webgl") ?? canvas.getContext("experimental-webgl");
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      canvas.remove();
+    }
+  }
+}
+
+export async function buildDiceBox(config, initialise = async () => {}) {
+  const { tray, displayScale, ...options } = config;
+  const DiceBox = await awaitDice(loadDiceBox());
+  const NativeWorker = window.Worker;
+  const createObjectURL = window.URL.createObjectURL;
+  const physicsUrls = new Set();
+  const removals = [];
+  let disposed = false;
+  let rejectWorker;
+
+  const failed = new Promise((_, reject) => {
+    rejectWorker = reject;
+  });
+  const built = {
+    box: null,
+    workers: [],
+    physics: null,
+    renderer: null,
+    fault: failed,
+    rolls: 0,
+    bodies: 0,
+    failed: false,
+    busy: false,
+    release() {
+      disposed = true;
+      built.failed = true;
+      rejectWorker(new Error("The dice roller was released."));
+      for (const remove of removals) {
+        try {
+          remove();
+        } catch {
+          continue;
+        }
+      }
+      removals.length = 0;
+    },
+  };
+
+  const fail = () => {
+    built.failed = true;
+    rejectWorker(new Error("The dice worker stopped answering."));
+  };
+  const listen = (target, event, handler) => {
+    target.addEventListener(event, handler);
+    removals.push(() => target.removeEventListener(event, handler));
+  };
+  const check = () => {
+    if (disposed) throw new Error("The dice build was released.");
+  };
+
+  window.URL.createObjectURL = function (object) {
+    const url = createObjectURL.call(window.URL, object);
+    if (isPhysicsSource(object)) physicsUrls.add(url);
+    return url;
+  };
+  window.Worker = class {
+    constructor(url, options) {
+      const worker = new NativeWorker(url, options);
+      const post = worker.postMessage.bind(worker);
+      worker.postMessage = (message, transfer) => {
+        worker.postMessage = post;
+        if (
+          message?.action === "init" &&
+          message.options === built.box?.config
+        ) {
+          built.workers.push(worker);
+          listen(worker, "error", fail);
+          listen(worker, "messageerror", fail);
+          if (physicsUrls.has(url)) {
+            built.physics = worker;
+            worker.postMessage = (next, buffers) => {
+              const sized = ["init", "resize"].includes(next?.action);
+              const dimensions = sized && tray ? tray : null;
+              const scale = next?.action === "init" && displayScale;
+              return post(
+                dimensions || scale
+                  ? {
+                      ...next,
+                      ...dimensions,
+                      ...(scale ? { displayScale: scale } : null),
+                    }
+                  : next,
+                buffers,
+              );
+            };
+          } else if (message.canvas) {
+            built.renderer = worker;
+          }
+          if (typeof url === "string" && url.startsWith("blob:")) {
+            window.URL.revokeObjectURL(url);
+          }
+          if (disposed) {
+            worker.terminate();
+            return;
+          }
+        }
+        return worker.postMessage(message, transfer);
+      };
+      return worker;
+    }
+  };
+
+  try {
+    const box = createRoller(DiceBox, options);
+    built.box = box;
+    const resizeWorld = box.resizeWorld.bind(box);
+    let resized = false;
+    box.resizeWorld = () => {
+      if (disposed || resized) return;
+      resized = true;
+      const add = window.addEventListener;
+      window.addEventListener = function (event, handler, options) {
+        if (event === "resize") {
+          removals.push(() =>
+            window.removeEventListener(event, handler, options),
+          );
+        }
+        return add.call(window, event, handler, options);
+      };
+      try {
+        resizeWorld();
+      } finally {
+        window.addEventListener = add;
+      }
+    };
+    listen(box.canvas, "webglcontextlost", fail);
+    if (
+      box.config.offscreen === false ||
+      typeof OffscreenCanvas === "undefined" ||
+      !box.canvas.transferControlToOffscreen
+    ) {
+      const { E: Engine } = await awaitDice(
+        import("@3d-dice/dice-box/dist/Dice.js"),
+      );
+      removals.push(() => {
+        for (const engine of [...Engine.Instances]) {
+          if (engine.getRenderingCanvas() === box.canvas) engine.dispose();
+        }
+      });
+    }
+
+    await awaitDice(
+      Promise.race([
+        (async () => {
+          await box.init();
+          check();
+          await box.loadThemeQueue.flush();
+          check();
+          await initialise(built, tray);
+          check();
+        })(),
+        failed,
+      ]),
+    );
+    return built;
+  } catch (error) {
+    tearDownDiceBox(built);
+    throw error;
+  } finally {
+    window.Worker = NativeWorker;
+    window.URL.createObjectURL = createObjectURL;
+  }
+}
+
 /** `step`, once every build queued before it has finished. */
 export function queueDiceBuild(step) {
   const next = queue.then(step, step);
@@ -278,8 +512,14 @@ export function queueDiceBuild(step) {
  * has already handed control to the render worker, which took the context with
  * it when it stopped, and asking a transferred canvas for one throws.
  */
-export function tearDownDiceBox({ box, workers }) {
-  box.clear();
+export function tearDownDiceBox({ box, workers, release }) {
+  box?.canvas?.remove();
+  release?.();
+  try {
+    box?.clear();
+  } catch {
+    // The worker may already have failed.
+  }
 
   for (const worker of workers) {
     worker.terminate();
@@ -287,12 +527,10 @@ export function tearDownDiceBox({ box, workers }) {
 
   try {
     const gl =
-      box.canvas.getContext("webgl2") ?? box.canvas.getContext("webgl");
+      box?.canvas?.getContext("webgl2") ?? box?.canvas?.getContext("webgl");
 
     gl?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch {
     // Transferred to the worker that has just been terminated.
   }
-
-  box.canvas.remove();
 }

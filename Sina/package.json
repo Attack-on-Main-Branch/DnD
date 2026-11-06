@@ -1,10 +1,14 @@
 {
   "name": "sina",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
   "exports": {
+    "./data/party-export": "./src/data/party-export.js",
+    "./rules/party-export": "./src/rules/party-export.js",
+    "./rules/item-document": "./src/rules/item-document.js",
+    "./data/item-documents": "./src/data/item-documents.js",
     "./supabase/server": "./src/supabase/server.js",
     "./supabase/session": "./src/supabase/session.js",
     "./supabase/realtime": "./src/supabase/realtime.js",

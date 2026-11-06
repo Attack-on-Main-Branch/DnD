@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MAX_INITIATIVE,
   MIN_INITIATIVE,
@@ -28,6 +28,7 @@ export default function CombatTracker({
   campaignId,
   faces,
   canManage = false,
+  display = false,
 }) {
   const {
     inCombat,
@@ -39,7 +40,7 @@ export default function CombatTracker({
     conclude,
     setInitiative,
     nextTurn,
-  } = useCombat(campaignId, faces);
+  } = useCombat(campaignId, faces, display);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -88,27 +89,34 @@ export default function CombatTracker({
 
       {pieces.length === 0 ? (
         <p className="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink/50 italic">
-          No pieces are standing on this battlefield.
+          {display && !inCombat
+            ? "No active combat."
+            : "No pieces are standing on this battlefield."}
         </p>
       ) : (
-        <div className="scroll-gold min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-2">
+        <div
+          className={`scroll-gold min-h-0 flex-1 overflow-x-hidden px-3 py-2 ${display ? "overflow-y-hidden" : "overflow-y-auto"}`}
+        >
           {/* THE SPINE. The list is its own positioning context and not the
               scroller: an absolute child of a scrolling box is sized by what is
               VISIBLE, so the line would stop at the fold and slide with it. */}
-          <ol className="relative flex flex-col">
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gold/15"
-            />
+          <ol className={`relative flex flex-col ${display ? "gap-1.5" : ""}`}>
+            {!display && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gold/15"
+              />
+            )}
 
             {pieces.map((piece, at) => (
               <Rung
                 key={piece.id}
                 piece={piece}
                 active={inCombat && piece.id === activeTokenId}
-                offset={stepAbove(pieces, at)}
-                ruled={hasBelow(pieces, at)}
+                offset={display ? 0 : stepAbove(pieces, at)}
+                ruled={!display && hasBelow(pieces, at)}
                 onWrite={canManage ? setInitiative : undefined}
+                display={display}
               />
             ))}
           </ol>
@@ -168,11 +176,19 @@ function hasBelow(pieces, at) {
  * capsule that gives way. `flex-row-reverse` rather than a second block of
  * markup, so the two sides cannot drift apart.
  */
-function Rung({ piece, active, offset, ruled, onWrite }) {
-  const enemy = Boolean(piece.templateId);
+function Rung({ piece, active, offset, ruled, onWrite, display }) {
+  const enemy = !display && Boolean(piece.templateId);
+  const current = useRef(null);
+
+  useEffect(() => {
+    if (display && active) {
+      current.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [active, display]);
 
   return (
     <li
+      ref={current}
       style={{ marginTop: `${offset}rem` }}
       className={`relative flex ${enemy ? "justify-end" : "justify-start"}`}
     >
@@ -187,9 +203,9 @@ function Rung({ piece, active, offset, ruled, onWrite }) {
       )}
 
       <div
-        className={`inline-flex max-w-[calc(50%_-_0.5rem)] items-center gap-1.5 rounded-full border transition-[border-color,box-shadow,background-color] duration-300 ${
-          enemy ? "flex-row-reverse pr-0 pl-1.5" : "pr-1.5 pl-0"
-        } ${
+        className={`inline-flex items-center gap-1.5 rounded-full border transition-[border-color,box-shadow,background-color] duration-300 ${
+          display ? "w-full" : "max-w-[calc(50%_-_0.5rem)]"
+        } ${enemy ? "flex-row-reverse pr-0 pl-1.5" : "pr-1.5 pl-0"} ${
           active
             ? "border-amber-300 bg-amber-400/15 shadow-[0_0_12px_rgba(251,191,36,0.9)]"
             : "border-gold/20 bg-surface/40"
@@ -198,9 +214,9 @@ function Rung({ piece, active, offset, ruled, onWrite }) {
         <Face piece={piece} edge={enemy ? "-my-px -mr-px" : "-my-px -ml-px"} />
 
         <span
-          className={`min-w-0 truncate font-display text-xs tracking-wide ${
+          className={`min-w-0 font-display text-xs tracking-wide ${
             enemy ? "text-right" : ""
-          } ${active ? "text-amber-100" : "text-ink/75"}`}
+          } ${active ? "text-amber-100" : "text-ink/75"} ${display ? "flex-1 wrap-anywhere py-1 leading-tight" : "truncate"}`}
         >
           {piece.label}
         </span>

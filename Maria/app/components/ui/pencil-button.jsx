@@ -31,7 +31,7 @@ export default function PencilButton({
       aria-label={label}
       title={label}
       className={
-        "grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg " +
+        "grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg max-sm:size-11 max-sm:touch-manipulation " +
         "text-ink/70 transition duration-300 " +
         "hover:text-gold hover:drop-shadow-[0_0_8px_rgba(255,223,156,0.35)] " +
         "focus-visible:text-gold " +

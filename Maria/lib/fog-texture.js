@@ -1,13 +1,20 @@
 const TEXTURE_SIZE = 128;
 const OCTAVES = [4, 8, 16, 32];
 
+export function readFogColor(color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 1;
+  const context = canvas.getContext("2d");
+  context.fillStyle = color;
+  context.fillRect(0, 0, 1, 1);
+  return context.getImageData(0, 0, 1, 1).data;
+}
+
 export function createFogTexture(color) {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = TEXTURE_SIZE;
   const context = canvas.getContext("2d");
-  context.fillStyle = color;
-  context.fillRect(0, 0, 1, 1);
-  const tint = context.getImageData(0, 0, 1, 1).data;
+  const tint = readFogColor(color);
   const pixels = context.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
   const fields = OCTAVES.map((size) =>
     Array.from({ length: size * size }, (_, index) => {
@@ -40,7 +47,11 @@ export function createFogTexture(color) {
       pixels.data[index] = tint[0];
       pixels.data[index + 1] = tint[1];
       pixels.data[index + 2] = tint[2];
-      pixels.data[index + 3] = Math.round((cloud / weight) ** 1.7 * 180);
+      const density = Math.max(
+        0,
+        Math.min(1, (cloud / weight - 0.5) * 2.1 + 0.5),
+      );
+      pixels.data[index + 3] = Math.round(density ** 1.2 * 255);
     }
   }
   context.putImageData(pixels, 0, 0);

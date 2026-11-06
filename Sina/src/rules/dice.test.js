@@ -8,8 +8,11 @@ import {
   DICE,
   DICE_CORNERS,
   diceCorner,
+  extremeFace,
   isDie,
   MAX_DICE_COUNT,
+  MAXIMUM_FACE,
+  MINIMUM_FACE,
   parseDiceCount,
   readDiceResult,
   rollDice,
@@ -179,6 +182,32 @@ describe("reading a result back", () => {
     assert.equal(readDiceResult("d7", 1, 3), null);
     assert.equal(readDiceResult("d20", 0, 3), null);
     assert.equal(readDiceResult("d20", null, 3), null);
+  });
+});
+
+describe("extremeFace", () => {
+  it("recognizes only the minimum and maximum of every supported die", () => {
+    for (const { sides } of DICE) {
+      assert.equal(extremeFace(sides, 1), MINIMUM_FACE);
+      assert.equal(extremeFace(sides, sides), MAXIMUM_FACE);
+
+      for (let face = 2; face < sides; face += 1) {
+        assert.equal(extremeFace(sides, face), null);
+      }
+
+      assert.equal(extremeFace(sides, 0), null);
+      assert.equal(extremeFace(sides, sides + 1), null);
+    }
+  });
+
+  it("refuses unsupported dice and nonnumeric or fractional faces", () => {
+    for (const sides of [0, 1, 7, "20", null, undefined]) {
+      assert.equal(extremeFace(sides, 1), null);
+    }
+
+    for (const face of ["20", null, undefined, 20.5, NaN]) {
+      assert.equal(extremeFace(20, face), null);
+    }
   });
 });
 

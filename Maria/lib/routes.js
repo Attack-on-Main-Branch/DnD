@@ -34,6 +34,10 @@ export function campaignTablePath(campaignId, seat) {
   return seat ? `${table}?seat=${encodeURIComponent(seat)}` : table;
 }
 
+export function campaignDisplayPath(campaignId) {
+  return `/table-display/${campaignId}`;
+}
+
 const TABLE_PATH = /^\/dashboard\/campaign\/[^/]+\/play\/?$/;
 
 export function isCampaignTablePath(pathname) {

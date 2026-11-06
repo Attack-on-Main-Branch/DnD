@@ -7,6 +7,7 @@ import {
   listCampaignNotes,
   updateCampaignNote,
   updateMapGridSettings,
+  setPlayerDicePaused,
 } from "sina/data/campaigns";
 import {
   applyDamage,
@@ -466,8 +467,7 @@ const INSPIRATION_COPY = {
  * and `move_character_inspiration` decides who may send which: the head of the
  * table both ways for anybody, a player only downwards and only their own.
  *
- * Nothing is revalidated and no line is written: the pips are held in
- * table-state.jsx, and a mark is not one of the ten things the log keeps.
+ * The database writes the log in the same transaction as the mark.
  */
 export async function moveInspiration(campaignId, characterId, delta) {
   if (!Number.isInteger(delta) || delta === 0) {
@@ -494,7 +494,37 @@ export async function moveInspiration(campaignId, characterId, delta) {
     return rejected(copy ?? "Could not move that. Try again.");
   }
 
-  return { kind: "success", inspiration: data.inspiration };
+  return {
+    kind: "success",
+    inspiration: data.inspiration,
+    activity: await freshLog(supabase, campaignId),
+  };
+}
+
+export async function pausePlayerDice(campaignId, paused) {
+  if (typeof paused !== "boolean") {
+    return rejected("Choose whether the party may roll dice.");
+  }
+
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+
+  if (!user) {
+    return sessionRejection("pausePlayerDice", authError);
+  }
+
+  const { error } = await setPlayerDicePaused(supabase, {
+    id: campaignId,
+    paused,
+  });
+
+  if (error) {
+    const copy = TABLE_COPY[error.reason];
+    logUncovered("pausePlayerDice", error, copy);
+    return rejected(copy ?? "Could not change the party's dice. Try again.");
+  }
+
+  return { kind: "success" };
 }
 
 /**

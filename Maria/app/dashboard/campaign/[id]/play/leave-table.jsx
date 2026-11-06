@@ -12,12 +12,18 @@ import { useTableWire } from "./table-wire";
  * of a card still lit for somebody already gone. Standing up costs one message
  * and happens on the press; the socket is tidied on unmount as before.
  */
-export default function LeaveTable({ href, className }) {
+export default function LeaveTable({ href, className, compact = false }) {
   const { leave } = useTableWire();
 
   return (
-    <Link data-fade href={href} onClick={leave} className={className}>
-      ← Leave the table
+    <Link
+      data-fade
+      href={href}
+      onClick={leave}
+      className={className}
+      aria-label={compact ? "Leave the table" : undefined}
+    >
+      {compact ? "← Leave" : "← Leave the table"}
     </Link>
   );
 }

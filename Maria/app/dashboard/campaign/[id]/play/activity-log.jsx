@@ -58,6 +58,7 @@ export default function ActivityLog({
   campaignId,
   faces = [],
   className = "",
+  display = false,
 }) {
   const entries = useActivityEntries();
   const { resync } = useTableDeed(campaignId);
@@ -125,7 +126,7 @@ export default function ActivityLog({
              behaves the same. */
           <ol
             aria-live="polite"
-            className="scroll-gold flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-3 py-3"
+            className={`scroll-gold flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden px-3 py-3 ${display ? "overflow-y-hidden" : "overflow-y-auto"}`}
           >
             {entries.map((entry) => (
               <li

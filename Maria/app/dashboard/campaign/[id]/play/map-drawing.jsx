@@ -25,12 +25,10 @@ import { conePath, drawingGeometry } from "@/lib/map-drawing";
  */
 
 /** A shade off black, so a light colour reads over parchment, forest and water. */
-const OUTLINE = "rgba(12, 9, 5, 0.85)";
+const OUTLINE = "var(--color-surface)";
 
 /**
- * EVERY PART OF THIS ARROW IS MEASURED IN CELLS. The head always was — the shaft
- * was a fixed three screen pixels through `non-scaling-stroke`, so turning the
- * size up grew the head and left the line behind it a thread.
+ * Every part of this arrow is measured in cells.
  *
  * THE DARK RIM IS ONE NUMBER for both. A stroke straddles the path it is on, so
  * a shaft drawn dark-then-colour shows `(dark - colour) / 2` of rim on each

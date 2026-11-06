@@ -9,17 +9,26 @@ import { TITLE_CLASSES } from "./entrance";
  * as not, which is invisible once the tracking has closed. The halves would be
  * two nonsense words announced, so the name is read from the `sr-only` copy.
  */
-export default function TableTitle({ title }) {
+export default function TableTitle({ title, compact = false }) {
   const glyphs = [...title];
   const seam = Math.ceil(glyphs.length / 2);
 
   return (
-    <h1 className="text-center font-display text-3xl font-semibold tracking-wide text-ink sm:text-4xl">
+    <h1
+      className={`text-center font-display font-semibold tracking-wide text-ink ${compact ? "text-xl leading-tight" : "text-3xl max-sm:text-2xl sm:text-4xl"}`}
+    >
       <span className="sr-only">{title}</span>
 
       {/* `whitespace-pre` so a space that falls on the seam is kept rather than
           collapsed away, which would close the join by a word space. */}
-      <span aria-hidden="true" className="flex justify-center whitespace-pre">
+      <span
+        aria-hidden="true"
+        className={
+          compact
+            ? "line-clamp-2 wrap-anywhere"
+            : "flex justify-center whitespace-pre max-sm:block max-sm:whitespace-normal max-sm:wrap-anywhere"
+        }
+      >
         <span className={TITLE_CLASSES.left}>
           {glyphs.slice(0, seam).join("")}
         </span>

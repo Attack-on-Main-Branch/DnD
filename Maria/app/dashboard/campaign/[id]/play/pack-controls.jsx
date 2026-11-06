@@ -41,7 +41,7 @@ export function Action({ onClick, disabled, label, pressed, tone, children }) {
       disabled={disabled}
       aria-label={label}
       aria-pressed={pressed}
-      className={`shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 disabled:cursor-not-allowed disabled:text-ink/25 ${
+      className={`shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 max-sm:touch-manipulation ${
         pressed ? "bg-gold/15 text-gold" : colour
       }`}
     >
@@ -56,7 +56,9 @@ export function Confirm({ question, children }) {
     <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2">
       <p className="text-xs text-ink/70">{question}</p>
 
-      <div className="flex items-center gap-2">{children}</div>
+      <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end max-sm:flex-wrap">
+        {children}
+      </div>
     </div>
   );
 }
@@ -98,7 +100,7 @@ export function StowChoice({
               type="button"
               onClick={() => onChoose(place.id)}
               aria-pressed={chosen === place.id}
-              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-300 ${
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-300 max-sm:min-h-11 max-sm:text-sm ${
                 chosen === place.id
                   ? "bg-gold/15 text-gold"
                   : "text-ink/70 hover:bg-gold/10 hover:text-gold"
@@ -147,7 +149,7 @@ export function PartyChoice({
               type="button"
               onClick={() => onChoose(member.id)}
               aria-pressed={receiver === member.id}
-              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-300 ${
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-300 max-sm:min-h-11 max-sm:text-sm ${
                 receiver === member.id
                   ? "bg-gold/15 text-gold"
                   : "text-ink/70 hover:bg-gold/10 hover:text-gold"
@@ -205,14 +207,17 @@ export function QuantityField({
   return (
     <div className={`flex shrink-0 items-center gap-2 ${className}`}>
       {/* Stretched to the field's height, whatever the field's padding. */}
-      <div className="flex shrink-0 flex-col self-stretch overflow-hidden rounded-md border border-gold/20 bg-surface/30">
+      <div className="flex shrink-0 flex-col self-stretch overflow-hidden rounded-md border border-gold/20 bg-surface/30 max-sm:flex-row">
         <Nudge
           up
           onClick={() => step(1)}
           disabled={current >= ceiling}
           label={`One more ${name}`}
         />
-        <span aria-hidden="true" className="h-px bg-gold/20" />
+        <span
+          aria-hidden="true"
+          className="h-px bg-gold/20 max-sm:h-auto max-sm:w-px"
+        />
         <Nudge
           onClick={() => step(-1)}
           disabled={current <= 1}
@@ -256,7 +261,7 @@ function Nudge({ up = false, onClick, disabled, label }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="grid w-6 flex-1 cursor-pointer place-items-center text-ink/60 transition-colors duration-300 hover:bg-gold/10 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/20 disabled:hover:bg-transparent"
+      className="grid w-6 flex-1 cursor-pointer place-items-center text-ink/60 transition-colors duration-300 hover:bg-gold/10 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/20 disabled:hover:bg-transparent max-sm:min-h-11 max-sm:w-11 max-sm:touch-manipulation"
     >
       <svg
         viewBox="0 0 12 12"

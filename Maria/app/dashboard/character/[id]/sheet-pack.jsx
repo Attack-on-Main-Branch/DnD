@@ -145,7 +145,7 @@ export default function SheetPack({ items, containers, chestItems }) {
                 )
               }
               aria-expanded={unfolded}
-              className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
+              className="flex w-full cursor-pointer items-center justify-between gap-3 text-left max-sm:min-h-11"
             >
               <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
                 {container.name}

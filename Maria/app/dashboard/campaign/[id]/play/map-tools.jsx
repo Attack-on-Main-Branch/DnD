@@ -32,7 +32,7 @@ export default function MapTools() {
       aria-label="Grid and fog tools"
       className={surfaceClasses({
         className:
-          "flex min-h-[calc(3.25rem_+_2px)] min-w-min flex-1 flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-xl px-3 py-2",
+          "flex min-h-[calc(3.25rem_+_2px)] min-w-min flex-1 flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-xl px-3 py-2 max-sm:w-full max-sm:min-w-0 max-sm:basis-full max-sm:[&_input]:min-h-11",
       })}
     >
       <GridTools />
@@ -52,10 +52,11 @@ export function useMapToolsShown(canRule) {
 /** One half: its own line, never broken, whose sliders are what give way.
     The buttons are `whitespace-nowrap` for the same reason — a label that
     could wrap tells the bar this half is narrower than it can ever be. */
-const GROUP_CLASSES = "flex items-center gap-2";
+const GROUP_CLASSES =
+  "flex items-center gap-2 max-sm:min-w-0 max-sm:basis-full max-sm:flex-wrap";
 
 function toggleClasses(on) {
-  return `shrink-0 cursor-pointer rounded-lg border px-2.5 py-1 font-display whitespace-nowrap text-[0.6875rem] font-semibold tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+  return `shrink-0 cursor-pointer rounded-lg border px-2.5 py-1 font-display whitespace-nowrap text-[0.6875rem] font-semibold tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold max-sm:min-h-11 ${
     on
       ? "border-gold bg-gold/20 text-gold shadow-[0_0_10px_var(--gold-40)]"
       : "border-gold/25 text-ink/60 hover:border-gold/50 hover:text-gold"
@@ -250,7 +251,7 @@ function BrushButton({ held, tone, onHold, children }) {
       type="button"
       onClick={onHold}
       aria-pressed={held}
-      className={`shrink-0 cursor-pointer rounded-lg border px-2 py-1 font-mono whitespace-nowrap text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+      className={`shrink-0 cursor-pointer rounded-lg border px-2 py-1 font-mono whitespace-nowrap text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold max-sm:min-h-11 ${
         held
           ? lit
           : "border-gold/25 text-ink/60 hover:border-gold/50 hover:text-gold"

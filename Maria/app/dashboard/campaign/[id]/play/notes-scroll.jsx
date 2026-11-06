@@ -38,7 +38,7 @@ import TablePopover, { POPOVER_BODY_CLASSES } from "./table-popover";
  * striking out — a ledger with three half-edited notes in it is a ledger nobody
  * can read.
  */
-export default function NotesScroll({ campaignId, seat }) {
+export default function NotesScroll({ campaignId, seat, inline = false }) {
   const { characterId, title } = seat;
   const { show } = useToast();
 
@@ -175,6 +175,7 @@ export default function NotesScroll({ campaignId, seat }) {
 
   return (
     <TablePopover
+      inline={inline}
       icon={ParchmentScroll}
       label={
         notes.length > 0
@@ -199,7 +200,10 @@ export default function NotesScroll({ campaignId, seat }) {
       }}
     >
       {/* The composer keeps its size, the ledger takes what is left. */}
-      <div className={`flex flex-col ${POPOVER_BODY_CLASSES}`}>
+      <div
+        data-popover-body
+        className={`flex flex-col ${POPOVER_BODY_CLASSES}`}
+      >
         <div className="shrink-0 px-5 pt-4 pb-3">
           {/* The box is `rows` tall; its width is the panel's, in
             table-popover.jsx. */}

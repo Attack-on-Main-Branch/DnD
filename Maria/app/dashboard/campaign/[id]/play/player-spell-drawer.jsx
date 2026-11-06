@@ -55,6 +55,7 @@ export default function PlayerSpellDrawer({
   actorName,
   book,
   caster,
+  compact = false,
 }) {
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(false);
@@ -63,7 +64,7 @@ export default function PlayerSpellDrawer({
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
   const record = useActivityLog(campaignId);
-  const { close } = useTableMarks();
+  const marks = useTableMarks();
   const flare = useCastFlare();
 
   const shelves = spellsByShelf(book);
@@ -144,7 +145,8 @@ export default function PlayerSpellDrawer({
       }
     }
 
-    close();
+    marks?.close();
+    setReading(null);
     flare(characterId, spellFlare(spell));
 
     // A cantrip scales with its caster and a levelled spell with its slot.
@@ -200,6 +202,7 @@ export default function PlayerSpellDrawer({
           the shelves would push the bar off the foot of the panel. */}
       <div className="scroll-gold min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5">
         <SpellSearch
+          compact={compact}
           campaignId={campaignId}
           openSlug={open?.slug ?? null}
           onOpen={show}
@@ -217,6 +220,7 @@ export default function PlayerSpellDrawer({
 
             {shelves.map((shelf) => (
               <Shelf
+                compact={compact}
                 key={shelf.level}
                 label={shelf.label}
                 count={shelf.spells.length}
@@ -252,7 +256,7 @@ export default function PlayerSpellDrawer({
       />
 
       {open && (
-        <PopoverAside>
+        <PopoverAside title={open.name} onClose={() => setReading(null)}>
           <SpellDetail spell={open}>
             {known.has(open.slug) ? (
               <>

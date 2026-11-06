@@ -27,12 +27,22 @@ import { RAIL_CLASSES, railEntrance } from "./entrance";
  */
 
 const MARK_CLASSES =
-  "grid size-15 place-items-center rounded-full transition-colors duration-300 " +
+  "grid size-15 place-items-center rounded-full transition-colors duration-300 max-sm:h-11 max-sm:w-full max-sm:touch-manipulation " +
   "text-(--cast-rest) hover:text-(--cast-ink) focus-visible:text-(--cast-ink) " +
   "disabled:cursor-not-allowed disabled:opacity-40";
 
-export default function DiceRail({ canKeepSecrets }) {
-  const { throwing, secret, setSecret, roll, warm } = useDiceTable();
+export default function DiceRail({ canKeepSecrets, phone = false }) {
+  const {
+    throwing,
+    secret,
+    setSecret,
+    roll,
+    warm,
+    rollingDisabled,
+    playerDicePaused,
+    pausePending,
+    setPlayerDicePaused,
+  } = useDiceTable();
 
   /* Held as what was TYPED, so the field can be emptied; one is what an empty
      field throws. */
@@ -47,7 +57,7 @@ export default function DiceRail({ canKeepSecrets }) {
   /* THIS chair's own throw, and nothing else. The rail used to grey out
      whenever the board was lit, which meant somebody else's roll took your
      dice out of your hand — see use-dice-roll.js. */
-  const busy = throwing;
+  const busy = throwing || rollingDisabled;
 
   /* A handful is for ONE throw: back to a single die as they leave the hand. */
   function throwDice(die) {
@@ -64,14 +74,38 @@ export default function DiceRail({ canKeepSecrets }) {
       onPointerEnter={warm}
       onFocusCapture={warm}
       data-tuck="left"
-      style={{ ...cast.style, ...railEntrance() }}
-      className={`flex w-14 shrink-0 flex-col items-center gap-1 ${RAIL_CLASSES}`}
+      style={{ ...cast.style, ...railEntrance(), "--dice-count": DICE.length }}
+      className={
+        phone
+          ? "flex flex-col items-center"
+          : `flex w-14 shrink-0 flex-col items-center gap-1 max-sm:order-first max-sm:w-full max-sm:flex-row max-sm:flex-wrap max-sm:justify-center max-sm:gap-3 ${RAIL_CLASSES}`
+      }
     >
-      <Handful value={handful} onChange={setHandful} disabled={busy} />
+      {phone ? (
+        <div className="flex min-h-8 items-center justify-center gap-2 pb-0.5">
+          <Handful
+            phone
+            value={handful}
+            onChange={setHandful}
+            disabled={busy}
+          />
+          {playerDicePaused && (
+            <p className="text-xs text-ink/65">Player dice are paused.</p>
+          )}
+        </div>
+      ) : (
+        <Handful value={handful} onChange={setHandful} disabled={busy} />
+      )}
 
-      <ul className="flex flex-col items-center gap-1">
+      <ul
+        className={
+          phone
+            ? "order-first grid w-full grid-cols-[repeat(var(--dice-count),minmax(0,1fr))]"
+            : "flex flex-col items-center gap-1 max-sm:order-first max-sm:grid max-sm:w-full max-sm:grid-cols-[repeat(var(--dice-count),minmax(0,1fr))] max-sm:gap-0"
+        }
+      >
         {DICE.map((die) => (
-          <li key={die.id}>
+          <li key={die.id} className="max-sm:min-w-0">
             <button
               type="button"
               onClick={() => throwDice(die.id)}
@@ -81,9 +115,16 @@ export default function DiceRail({ canKeepSecrets }) {
                   ? `Roll ${diceName(die.id, count)} in secret`
                   : `Roll ${diceName(die.id, count)}`
               }
-              className={MARK_CLASSES}
+              className={`${MARK_CLASSES} ${phone ? "h-11 w-full" : ""}`}
             >
-              <DieGlyph die={die.id} className="size-13" />
+              <DieGlyph
+                die={die.id}
+                className={
+                  phone
+                    ? "size-10 max-w-full"
+                    : "size-13 max-sm:h-10 max-sm:w-full max-sm:max-w-10"
+                }
+              />
             </button>
           </li>
         ))}
@@ -96,10 +137,29 @@ export default function DiceRail({ canKeepSecrets }) {
               one sits under the switch that decides the colour. */}
           <div
             aria-hidden="true"
-            className="my-2 h-px w-full bg-linear-to-r from-transparent via-(--cast-rule) to-transparent"
+            className="my-2 h-px w-full bg-linear-to-r from-transparent via-(--cast-rule) to-transparent max-sm:hidden"
           />
 
-          <VeilSwitch on={secret} onChange={setSecret} disabled={busy} />
+          <RollSwitch
+            on={secret}
+            onChange={setSecret}
+            disabled={throwing}
+            label="Keep your rolls from the table"
+            onText="Secret"
+            offText="Open"
+          >
+            <EyeIcon crossedOut={secret} className="size-4.5" />
+          </RollSwitch>
+          <RollSwitch
+            on={playerDicePaused}
+            onChange={setPlayerDicePaused}
+            disabled={pausePending}
+            label="Pause player dice"
+            onText="Paused"
+            offText="Players"
+          >
+            <DieGlyph die="d20" className="size-5" />
+          </RollSwitch>
         </>
       )}
 
@@ -115,7 +175,7 @@ export default function DiceRail({ canKeepSecrets }) {
  * threw twenty, which is a field disagreeing with itself. Emptying it is left
  * alone — a field that refills itself cannot be retyped in.
  */
-function Handful({ value, onChange, disabled }) {
+function Handful({ value, onChange, disabled, phone = false }) {
   function set(typed) {
     const asked = Number(typed);
 
@@ -138,16 +198,20 @@ function Handful({ value, onChange, disabled }) {
         onChange={(event) => set(event.target.value)}
         aria-label="How many dice the next roll throws"
         className={controlClasses({
-          className: "no-spin px-1 py-1 text-center tabular-nums",
+          className: phone
+            ? "no-spin h-8 w-12 px-1 py-0 text-center tabular-nums"
+            : "no-spin px-1 py-1 text-center tabular-nums max-sm:w-14",
         })}
       />
 
       {/* The field is not one of the marks below it, and must not read as the
           top of the stack. */}
-      <div
-        aria-hidden="true"
-        className="mt-1 mb-2 h-px w-full bg-linear-to-r from-transparent via-(--cast-rule) to-transparent"
-      />
+      {!phone && (
+        <div
+          aria-hidden="true"
+          className="mt-1 mb-2 h-px w-full bg-linear-to-r from-transparent via-(--cast-rule) to-transparent max-sm:hidden"
+        />
+      )}
     </>
   );
 }
@@ -164,7 +228,15 @@ function Handful({ value, onChange, disabled }) {
  *
  * `translate` rather than `left`, so the slide is a compositor transform.
  */
-function VeilSwitch({ on, onChange, disabled }) {
+function RollSwitch({
+  on,
+  onChange,
+  disabled,
+  label,
+  onText,
+  offText,
+  children,
+}) {
   return (
     <div className="flex flex-col items-center gap-1">
       <button
@@ -173,8 +245,8 @@ function VeilSwitch({ on, onChange, disabled }) {
         aria-checked={on}
         disabled={disabled}
         onClick={() => onChange(!on)}
-        aria-label="Keep your rolls from the table"
-        className={`relative h-8 w-15 cursor-pointer rounded-full border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+        aria-label={label}
+        className={`relative h-8 w-15 cursor-pointer rounded-full border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-40 max-sm:h-11 max-sm:touch-manipulation ${
           on
             ? "border-(--cast-rim) bg-(--cast-line) shadow-[0_0_16px_-4px_var(--cast-bloom)]"
             : "border-(--cast-line) bg-surface/80"
@@ -186,7 +258,7 @@ function VeilSwitch({ on, onChange, disabled }) {
             on ? "translate-x-6.5" : "translate-x-0"
           }`}
         >
-          <EyeIcon crossedOut={on} className="size-4.5" />
+          {children}
         </span>
       </button>
 
@@ -197,7 +269,7 @@ function VeilSwitch({ on, onChange, disabled }) {
         aria-hidden="true"
         className="font-mono text-[0.5625rem] tracking-[0.12em] text-ink/45 uppercase"
       >
-        {on ? "Secret" : "Open"}
+        {on ? onText : offText}
       </p>
     </div>
   );

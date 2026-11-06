@@ -1,6 +1,12 @@
 "use client";
 
-import { loadDiceBox, queueDiceBuild, tearDownDiceBox } from "@/lib/dice-box";
+import {
+  awaitDice,
+  buildDiceBox,
+  DICE_WORLD_ROLL_LIMIT,
+  queueDiceBuild,
+  tearDownDiceBox,
+} from "@/lib/dice-box";
 import {
   DICE_ASSET_PATH,
   DICE_BODY_THEME,
@@ -103,49 +109,16 @@ let generation = 0;
  * no such worker, and its die simply does not turn.
  */
 async function build() {
-  const DiceBox = await loadDiceBox();
-
-  const NativeWorker = window.Worker;
-  const workers = [];
-  let renderer = null;
-
-  window.Worker = class extends NativeWorker {
-    constructor(url, options) {
-      super(url, options);
-      workers.push(this);
-
-      const post = this.postMessage.bind(this);
-
-      this.postMessage = (message, transfer) => {
-        if (message?.action === "init" && message.canvas) {
-          renderer = this;
-        }
-
-        return post(message, transfer);
-      };
-    }
-  };
-
-  try {
-    const box = new DiceBox({
-      ...CONFIG,
-      container: `#${PREVIEW_STAGE_ID}`,
-    });
-
-    await box.init();
-
-    // `init()` does not wait for its textures, and a throw into a half-loaded
-    // mesh finds a renderer with nothing to draw.
-    await box.loadThemeQueue.flush();
-
-    return { box, workers, renderer };
-  } finally {
-    window.Worker = NativeWorker;
-  }
+  return buildDiceBox({ ...CONFIG, container: `#${PREVIEW_STAGE_ID}` });
 }
 
 /** The roller, built into the stage on demand and reused after that. */
 function roller() {
+  if (live && (live.failed || live.rolls >= DICE_WORLD_ROLL_LIMIT)) {
+    tearDownDiceBox(live);
+    live = null;
+    pending = null;
+  }
   if (live) {
     return Promise.resolve(live);
   }
@@ -225,40 +198,53 @@ function throwPreview(request) {
 
         wanted = null;
 
-        const { box } = await roller();
+        const built = await roller();
+        const { box } = built;
 
         if (mine !== generation) {
           return;
         }
 
         // dice-box reads a theme's dice list before it would load the theme.
-        await box.loadThemeQueue.push(() => box.loadTheme(now.theme));
+        await awaitDice(
+          Promise.race([
+            (async () => {
+              await box.loadThemeQueue.push(() => box.loadTheme(now.theme));
 
-        const bearing = Math.random() * 2 * Math.PI;
+              const bearing = Math.random() * 2 * Math.PI;
 
-        await box.updateConfig({
-          scale: now.scale,
-          startPosition: [
-            now.reach * Math.cos(bearing),
-            CONFIG.startingHeight,
-            now.reach * Math.sin(bearing),
-          ],
-        });
-        await box.roll(
-          now.dice.map((die) => `1${die}`),
-          {
-            themeColor: now.themeColor,
-            theme: now.theme,
-            // `startPosition` above is read only when the library is told not
-            // to pick a starting point of its own.
-            newStartPoint: false,
-          },
+              await box.updateConfig({
+                scale: now.scale,
+                startPosition: [
+                  now.reach * Math.cos(bearing),
+                  CONFIG.startingHeight,
+                  now.reach * Math.sin(bearing),
+                ],
+              });
+              await box.roll(
+                now.dice.map((die) => `1${die}`),
+                {
+                  themeColor: now.themeColor,
+                  theme: now.theme,
+                  // `startPosition` above is read only when the library is told not
+                  // to pick a starting point of its own.
+                  newStartPoint: false,
+                },
+              );
+              built.rolls += 1;
+            })(),
+            built.fault,
+          ]),
+          8000,
         );
       }
     } catch {
       // No WebGL, or the library never arrived. The swatches still answer.
       if (mine === generation) {
         wanted = null;
+        if (live) tearDownDiceBox(live);
+        live = null;
+        pending = null;
       }
     } finally {
       if (mine === generation) {

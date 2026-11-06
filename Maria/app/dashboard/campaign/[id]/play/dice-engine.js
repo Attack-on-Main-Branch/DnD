@@ -3,8 +3,9 @@
 import { DICE_CORNERS, diceCorner } from "sina/rules/dice";
 
 import {
-  isPhysicsSource,
-  loadDiceBox,
+  buildDiceBox,
+  DICE_WORLD_BODY_LIMIT,
+  DICE_WORLD_ROLL_LIMIT,
   queueDiceBuild,
   RESTED_MESSAGE,
   SEED_MESSAGE,
@@ -31,8 +32,7 @@ import {
  * only way to stop the simulation loop, and the URL is where the physics
  * worker can be told from the renderer.
  *
- * Not reclaimed: the `resize` listener `resizeWorld()` adds inside an async
- * `init()`, which the library keeps no reference to.
+ * Builds and teardown share the resource owner in lib/dice-box.js.
  */
 
 /**
@@ -160,13 +160,13 @@ const lanes = Array.from({ length: DICE_LANES }, () => ({
 const tableThemes = new Set();
 
 export function preloadDiceThemes(themes) {
+  const added = themes.filter((theme) => !tableThemes.has(theme));
+  tableThemes.clear();
   for (const theme of themes) {
-    if (tableThemes.has(theme)) {
-      continue;
-    }
-
     tableThemes.add(theme);
+  }
 
+  for (const theme of added) {
     for (const { live } of lanes) {
       live?.box.loadThemeQueue.push(() => live.box.loadTheme(theme));
     }
@@ -205,15 +205,17 @@ export function holdTray(width, height) {
 
   awaitingTray = [];
 
-  for (const resolve of held) {
-    resolve(tray);
+  for (const waiting of held) {
+    waiting.resolve(tray);
   }
 }
 
-function theTray() {
+function theTray(lane) {
   return tray
     ? Promise.resolve(tray)
-    : new Promise((resolve) => awaitingTray.push(resolve));
+    : new Promise((resolve, reject) =>
+        awaitingTray.push({ lane, resolve, reject }),
+      );
 }
 
 /**
@@ -357,84 +359,28 @@ function reportRest(box, group, hearing, onRest) {
 
 /** One world, in a tray already announced — see `diceEngine`. */
 async function build(lane, { width, height }) {
-  const DiceBox = await loadDiceBox();
-
-  const NativeWorker = window.Worker;
-  const nativeObjectURL = window.URL.createObjectURL;
-
-  const workers = [];
-  let seededUrl = null;
-  let physics = null;
-
-  window.URL.createObjectURL = function (object) {
-    const url = nativeObjectURL.call(window.URL, object);
-
-    if (isPhysicsSource(object)) {
-      seededUrl = url;
-    }
-
-    return url;
-  };
-
-  window.Worker = class extends NativeWorker {
-    constructor(url, options) {
-      super(url, options);
-      workers.push(this);
-
-      if (typeof url !== "string" || url !== seededUrl) {
-        return;
-      }
-
-      physics = this;
-
-      /* The tray, in place of the window. `resize` goes through here too: the
-         walls are rebuilt from it, and a table whose walls move when somebody
-         drags their window is rolling something nobody else is. */
-      const post = this.postMessage.bind(this);
-
-      this.postMessage = (message, transfer) => {
-        if (message?.action === "init" || message?.action === "resize") {
-          post({ ...message, width, height }, transfer);
-          return;
-        }
-
-        post(message, transfer);
-      };
-    }
-  };
-
-  try {
-    const box = new DiceBox({
+  const stage = diceStageId(lane);
+  const displayScale = Number(
+    document.getElementById(stage)?.dataset.diceDisplayScale,
+  );
+  return buildDiceBox(
+    {
       ...CONFIG,
       preloadThemes: [...new Set([...CONFIG.preloadThemes, ...tableThemes])],
-      container: `#${diceStageId(lane)}`,
-    });
-
-    await box.init();
-
-    /* No worker, no seed; no seed, and this browser would be showing a roll of
-       its own invention beside somebody else's number. Better no picture than
-       the wrong one. */
-    if (!physics) {
-      throw new Error("The dice could not be pinned to the table's own roll.");
-    }
-
-    /* `init()` kicks `preloadThemes` off and does not wait for it, and a throw
-       that lands in the middle of a mesh being registered finds a renderer with
-       nothing to draw — a white board. */
-    await box.loadThemeQueue.flush();
-
-    const ratio = width / height;
-
-    await warmWorld(box, physics, startCorner(ratio, 0));
-
-    // The ratio outlives the build: every throw sets its own corner, and the
-    // tray is what turns a corner into a place in the world.
-    return { box, physics, workers, ratio };
-  } finally {
-    window.Worker = NativeWorker;
-    window.URL.createObjectURL = nativeObjectURL;
-  }
+      container: `#${stage}`,
+      tray: { width, height },
+      displayScale: displayScale > 1 ? displayScale : undefined,
+    },
+    async (built) => {
+      if (!built.physics) {
+        throw new Error(
+          "The dice could not be pinned to the table's own roll.",
+        );
+      }
+      built.ratio = width / height;
+      await warmWorld(built.box, built.physics, startCorner(built.ratio, 0));
+    },
+  );
 }
 
 /**
@@ -466,7 +412,13 @@ export function diceEngine(lane = 0) {
   const held = lanes[lane];
 
   if (held.live) {
-    if (!stranded(held.live, lane)) {
+    if (
+      !held.live.failed &&
+      !stranded(held.live, lane) &&
+      (held.live.busy ||
+        (held.live.rolls < DICE_WORLD_ROLL_LIMIT &&
+          held.live.bodies < DICE_WORLD_BODY_LIMIT))
+    ) {
       return Promise.resolve(held.live);
     }
 
@@ -476,7 +428,7 @@ export function diceEngine(lane = 0) {
 
   const mine = held.arena;
 
-  held.pending ??= theTray()
+  held.pending ??= theTray(lane)
     .then((size) =>
       queueDiceBuild(async () => {
         // Released while it waited its turn: nothing to build for.
@@ -492,6 +444,7 @@ export function diceEngine(lane = 0) {
         }
 
         held.live = built;
+        built.generation = mine;
 
         return built;
       }),
@@ -529,37 +482,44 @@ export async function throwDie({
   seed,
   lane = 0,
   onRest = null,
+  onWorld = null,
+  signal = null,
 }) {
-  const { box, physics, ratio } = await diceEngine(lane);
+  const built = await diceEngine(lane);
+  const { box, physics, ratio } = built;
 
-  /* dice-box reads a theme's dice list before loading it, so a skin nothing
-     preloaded would throw. Before the seed: the wait for bodies starts there. */
-  await box.loadThemeQueue.push(() => box.loadTheme(theme));
-
-  /* Every throw and not once at build: the corner belongs to the ROLL, and a
-     board must make the same calls for a seed whichever world is free. */
-  await box.updateConfig({
-    startPosition: startCorner(ratio, diceCorner(seed)),
-    settleTimeout: SETTLE_MS,
-  });
-
-  await sow(physics, seed, bodies(notation));
-
-  const hearing = onRest ? hearRest(physics) : null;
-
+  let hearing = null;
+  const check = () => {
+    if (signal?.aborted || lanes[lane].live !== built || built.failed) {
+      throw new Error("The dice world was replaced during the throw.");
+    }
+  };
+  check();
+  onWorld?.(built.generation);
+  built.busy = true;
   try {
-    await box.roll(notation, {
-      theme,
-      /* The body, cast per throw rather than per theme: dice-box paints it from
-       this string at runtime and takes the lettering from the theme's texture,
-       so twelve player colours are twelve arguments to one theme instead of
-       twelve theme folders to download. See dice-presentation.js, which is
-       where the choice between a character's colour and the house's is made. */
-      themeColor,
-      newStartPoint: false,
-    });
+    await Promise.race([
+      (async () => {
+        await box.loadThemeQueue.push(() => box.loadTheme(theme));
+        check();
+        await box.updateConfig({
+          startPosition: startCorner(ratio, diceCorner(seed)),
+          settleTimeout: SETTLE_MS,
+        });
+        check();
+        await sow(physics, seed, bodies(notation));
+        check();
+        built.rolls += 1;
+        built.bodies += bodies(notation);
+        hearing = onRest ? hearRest(physics) : null;
+        await box.roll(notation, { theme, themeColor, newStartPoint: false });
+        check();
+      })(),
+      built.fault,
+    ]);
   } catch (error) {
     hearing?.stop();
+    if (lanes[lane].live === built) built.busy = false;
     throw error;
   }
 
@@ -577,13 +537,21 @@ export async function throwDie({
  * taken down, so the next throw on this lane builds a fresh one instead of
  * waiting on it forever.
  */
-export function abandonDice(lane = 0) {
-  discardDice(lane);
+export function diceGeneration(lane = 0) {
+  return lanes[lane].arena;
+}
+
+export function abandonDice(lane = 0, generation = diceGeneration(lane)) {
+  if (diceGeneration(lane) === generation) discardDice(lane);
 }
 
 /** One lane swept, with its engine left standing for the next roll. */
-export function clearDice(lane = 0) {
-  lanes[lane].live?.box.clear();
+export function clearDice(lane = 0, generation = diceGeneration(lane)) {
+  const built = lanes[lane].live;
+  if (diceGeneration(lane) === generation && built) {
+    built.busy = false;
+    built.box.clear();
+  }
 }
 
 /**
@@ -598,6 +566,11 @@ function discardDice(lane) {
   record.arena += 1;
   record.live = null;
   record.pending = null;
+  awaitingTray = awaitingTray.filter((waiting) => {
+    if (waiting.lane !== lane) return true;
+    waiting.reject(new Error("The dice arena went away before a map arrived."));
+    return false;
+  });
 
   if (held) {
     tearDownDiceBox(held);

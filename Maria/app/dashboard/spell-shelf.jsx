@@ -6,7 +6,7 @@
  * Spells tab on a character sheet; the rows arrive as children, since what can
  * be done to a spell differs and where it sits does not.
  */
-export default function Shelf({ label, count, children }) {
+export default function Shelf({ label, count, children, compact = false }) {
   return (
     <section aria-label={label} className="mt-4">
       <div className="flex items-baseline gap-2">
@@ -25,7 +25,11 @@ export default function Shelf({ label, count, children }) {
       </div>
 
       {/* Three across, so a full book is a page to scan and not a column. */}
-      <ul className="mt-2.5 grid grid-cols-3 gap-2">{children}</ul>
+      <ul
+        className={`mt-2.5 grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-3 max-sm:grid-cols-1"}`}
+      >
+        {children}
+      </ul>
     </section>
   );
 }

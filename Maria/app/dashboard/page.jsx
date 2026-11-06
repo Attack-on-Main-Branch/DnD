@@ -75,7 +75,7 @@ export default async function DashboardPage({ searchParams }) {
   // and puts a second scroll container around the page.
   return (
     <main
-      className={`mx-auto w-full ${SHEET_WIDTH_CLASS} flex-1 overflow-x-clip px-4 py-10 sm:px-6 sm:py-14`}
+      className={`mx-auto w-full ${SHEET_WIDTH_CLASS} flex-1 overflow-x-clip px-4 py-10 max-sm:py-6 sm:px-6 sm:py-14`}
     >
       {/* `route`: `?new` swaps the panel below without changing the page
           around it, so this stays where it is. See panel-fold.js. */}
@@ -83,7 +83,7 @@ export default async function DashboardPage({ searchParams }) {
         data-fade="route"
         className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3"
       >
-        <h1 className="font-display text-3xl leading-tight font-semibold sm:text-4xl">
+        <h1 className="font-display text-3xl leading-tight font-semibold max-sm:text-2xl max-sm:wrap-anywhere sm:text-4xl">
           <TypingText
             segments={[
               { text: "Welcome back, ", className: "text-ink" },
@@ -99,7 +99,7 @@ export default async function DashboardPage({ searchParams }) {
         </h1>
       </div>
 
-      <div className="mt-10">
+      <div className="mt-10 max-sm:mt-6">
         {error ? (
           <FormAlert>
             Could not load your characters

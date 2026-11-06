@@ -38,6 +38,8 @@ export default function SpellBook({
   members,
   casters,
   isDungeonMaster,
+  inline = false,
+  inlineOpen = true,
 }) {
   const books = useAllBooks();
   const slots = useAllSlots();
@@ -155,6 +157,8 @@ export default function SpellBook({
 
   return (
     <TablePopover
+      inline={inline}
+      inlineOpen={inlineOpen}
       icon={SpellSigil}
       label={
         known > 0
@@ -182,6 +186,7 @@ export default function SpellBook({
           actorName={seat.title}
           book={mine}
           caster={seated ?? EMPTY_CASTER}
+          compact={inline}
         />
       )}
     </TablePopover>

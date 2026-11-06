@@ -54,6 +54,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
   const share = useRef(null);
   const timers = useRef(new Map());
   const rolls = useRef(0);
+  const flights = useRef(new Map());
 
   /* Which rolls this board has already answered off its own dice. A roll it
      watched needs nothing from the wire's closing message, and taking the
@@ -78,6 +79,8 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
 
   useEffect(() => {
     const pending = timers.current;
+    const activeFlights = flights.current;
+    const settled = answered.current;
 
     return () => {
       for (const timer of pending.values()) {
@@ -85,6 +88,8 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
       }
 
       pending.clear();
+      activeFlights.clear();
+      settled.clear();
     };
   }, []);
 
@@ -95,11 +100,16 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
    */
   const begin = useCallback(
     (key, secret, die, count) => {
+      const ticket = ++rolls.current;
+      flights.current.set(key, ticket);
       answered.current.delete(key);
       setFlying((current) => ({ ...current, [key]: { secret, die, count } }));
-      after(`flight:${key}`, STRANDED_MS, () =>
-        setFlying((current) => without(current, key)),
-      );
+      after(`flight:${key}`, STRANDED_MS, () => {
+        if (flights.current.get(key) !== ticket) return;
+        flights.current.delete(key);
+        setFlying((current) => without(current, key));
+      });
+      return ticket;
     },
     [after],
   );
@@ -107,6 +117,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
   /** It has come to rest. `entry` is null for a roll nobody else may read. */
   const land = useCallback(
     (key, entry) => {
+      flights.current.delete(key);
       clearTimeout(timers.current.get(`flight:${key}`));
       timers.current.delete(`flight:${key}`);
       setFlying((current) => without(current, key));
@@ -189,7 +200,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
       const count = parseDiceCount(payload.count ?? 1) ?? 1;
 
       if (payload.phase === "start") {
-        begin(key, Boolean(payload.secret), die, count);
+        const ticket = begin(key, Boolean(payload.secret), die, count);
 
         // No seed, no shared throw: whoever rolled could not run one either, so
         // this board waits for the number rather than inventing a roll of its
@@ -204,7 +215,7 @@ export function useTableRolls({ campaignId, enabled, keeper, onMirror }) {
           };
 
           onMirror(die, count, payload.seed, cast, (value) => {
-            if (value !== null) {
+            if (value !== null && flights.current.get(key) === ticket) {
               land(key, { die, count, value, secret: false });
             }
           });

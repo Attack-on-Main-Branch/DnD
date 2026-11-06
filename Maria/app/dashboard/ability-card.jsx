@@ -27,11 +27,11 @@ export default function AbilityCard({
   field = null,
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-gold/15 bg-surface/25 px-3.5 py-3">
+    <div className="flex items-center gap-3 rounded-lg border border-gold/15 bg-surface/25 px-3.5 py-3 max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-1 max-sm:px-2.5">
       <AbilityEmblem id={ability.id} />
 
-      <div className="min-w-0 flex-1">
-        <p className="font-display text-xs font-semibold tracking-wide text-ink/85 uppercase">
+      <div className="min-w-0 flex-1 max-sm:contents">
+        <p className="font-display text-xs font-semibold tracking-wide text-ink/85 uppercase max-sm:col-span-2 max-sm:text-[0.625rem] max-sm:tracking-normal">
           {ability.name}
         </p>
 
@@ -82,7 +82,7 @@ function AbilityEmblem({ id }) {
   return (
     <span
       aria-hidden="true"
-      className="grid size-10 shrink-0 place-items-center rounded-full border border-gold/15 bg-white/5"
+      className="grid size-10 shrink-0 place-items-center rounded-full border border-gold/15 bg-white/5 max-sm:hidden"
     >
       <span
         className="size-5"

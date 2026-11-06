@@ -114,11 +114,11 @@ export default async function CharacterPage({ params }) {
   const [table] = campaigns;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 max-sm:gap-5 max-sm:py-5 sm:px-6 sm:py-14">
       <Link
         data-fade
         href="/dashboard"
-        className="float-in cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold"
+        className="float-in cursor-pointer self-start font-sans text-sm text-ink/60 transition hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
       >
         ← Back to dashboard
       </Link>
@@ -126,7 +126,7 @@ export default async function CharacterPage({ params }) {
       {/* `data-fade` sits on the words rather than on the row: the star beside
           them leaves on its own, and a fading ancestor would take it with it
           however it was animating. */}
-      <header className="float-in flex flex-wrap items-center justify-between gap-6">
+      <header className="float-in flex flex-wrap items-center justify-between gap-6 max-sm:flex-nowrap max-sm:gap-3">
         {/*
           `min-w-0` here as well as on the column inside it. Truncation only
           happens if every flex item along the chain is allowed to shrink, and
@@ -134,7 +134,10 @@ export default async function CharacterPage({ params }) {
           its content width and the name runs off the right edge instead of
           ending in an ellipsis.
         */}
-        <div data-fade className="flex min-w-0 items-center gap-4">
+        <div
+          data-fade
+          className="flex min-w-0 items-center gap-4 max-sm:flex-1 max-sm:gap-3"
+        >
           <Avatar
             src={character.avatar_url}
             color={diceColorHex(character.dice_color)}
@@ -160,7 +163,7 @@ export default async function CharacterPage({ params }) {
               on each is what permits that, since a flex item's automatic
               minimum size is its content and neither would otherwise give way.
             */}
-            <div className="flex items-baseline gap-x-3">
+            <div className="flex items-baseline gap-x-3 max-sm:flex-col max-sm:items-start max-sm:gap-y-1">
               {/*
                 The name does not give way; the campaign does. `shrink-0` keeps
                 the heading at its content width so a narrow window truncates
@@ -169,7 +172,7 @@ export default async function CharacterPage({ params }) {
                 at which point it truncates and the campaign shrinks to nothing,
                 which is the right order to lose them in.
               */}
-              <h1 className="max-w-full shrink-0 truncate font-display text-3xl font-semibold tracking-wide text-ink">
+              <h1 className="max-w-full shrink-0 truncate font-display text-3xl font-semibold tracking-wide text-ink max-sm:text-2xl">
                 {character.name}
               </h1>
 
@@ -185,8 +188,10 @@ export default async function CharacterPage({ params }) {
                 well on its own.
               */}
               {campaigns.length > 0 && (
-                <p className="min-w-0 truncate font-display text-3xl font-semibold tracking-wide text-ink/55">
-                  <span aria-hidden="true">· </span>
+                <p className="min-w-0 truncate font-display text-3xl font-semibold tracking-wide text-ink/55 max-sm:max-w-full max-sm:text-sm">
+                  <span aria-hidden="true" className="max-sm:hidden">
+                    ·{" "}
+                  </span>
                   {campaigns.map((campaign) => campaign.title).join(" · ")}
                 </p>
               )}
@@ -220,7 +225,8 @@ export default async function CharacterPage({ params }) {
         data-fold
         className={surfaceClasses({
           glow: true,
-          className: "panel-in rounded-2xl px-5 pt-2 pb-6 sm:px-8 sm:pb-8",
+          className:
+            "panel-in rounded-2xl px-5 pt-2 pb-6 max-sm:px-4 max-sm:pb-4 sm:px-8 sm:pb-8",
         })}
       >
         {/*

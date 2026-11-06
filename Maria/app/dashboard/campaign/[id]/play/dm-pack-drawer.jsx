@@ -313,7 +313,7 @@ export default function DmPackDrawer({
                     Nothing loose — it is all in the bags below.
                   </p>
                 ) : (
-                  <ul className="mt-2.5 grid grid-cols-3 gap-2">
+                  <ul className="mt-2.5 grid grid-cols-3 gap-2 max-sm:grid-cols-2">
                     {pack.map((row) => (
                       <li key={row.id} className="flex">
                         <ItemRow

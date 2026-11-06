@@ -220,7 +220,7 @@ export default function SelectMenu({
                       commit(index);
                     }}
                     onPointerEnter={() => setActiveIndex(index)}
-                    className={`flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition ${
+                    className={`flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition max-sm:min-h-11 max-sm:text-base ${
                       isActive ? "bg-gold/10 text-gold" : "text-ink"
                     }`}
                   >

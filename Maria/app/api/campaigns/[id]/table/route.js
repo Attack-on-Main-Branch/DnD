@@ -20,6 +20,7 @@ import {
 } from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 
+import { loadTableDisplay } from "@/app/dashboard/campaign/[id]/play/load-table-display";
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 import { readTableSliceQuery } from "@/lib/table-slices";
@@ -57,6 +58,14 @@ export async function GET(request, { params }) {
 
   if (!user) {
     return Response.json(null, { status: 401, headers: UNCACHED });
+  }
+
+  if (request.nextUrl.searchParams.get("display") === "1") {
+    const display = await loadTableDisplay(supabase, campaignId, want);
+    return Response.json(display?.slices ?? null, {
+      status: display ? 200 : 404,
+      headers: UNCACHED,
+    });
   }
 
   const ids = (want.characterIds ?? []).filter(Boolean);

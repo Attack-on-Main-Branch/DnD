@@ -36,7 +36,7 @@ const FOCUSABLE =
 const ACTION_CLASSES = buttonClasses({ variant: "link" });
 
 const QUIET_ACTION_BASE =
-  "inline-flex items-center rounded-sm text-sm font-medium text-ink/45 " +
+  "inline-flex items-center rounded-sm text-sm font-medium text-ink/45 max-sm:min-h-11 " +
   "underline underline-offset-4 transition-colors duration-300 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -171,7 +171,7 @@ export default function NotificationPopover({
           // for it: at 375px a 21rem panel centred on this control hangs off
           // the left edge, so it hooks to the trigger's right edge instead.
           "absolute top-full right-0 z-30 mt-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2",
-          "w-[min(21rem,calc(100vw-2rem))] rounded-2xl outline-none",
+          "w-[min(21rem,calc(100vw-2rem))] rounded-2xl outline-none max-sm:inset-x-3 max-sm:mt-2 max-sm:w-auto",
           // The unfold. `scale` is its own property in Tailwind v4, so it
           // composes with the `translate` above instead of overwriting it, and
           // `origin-top` is what makes it grow downwards out of the arrow and
@@ -201,7 +201,7 @@ export default function NotificationPopover({
       */}
       <span
         aria-hidden="true"
-        className="absolute -top-1.5 right-[0.9375rem] size-2.5 rotate-45 border-t border-l border-gold/25 bg-[var(--surface-96)] transition-colors duration-300 group-focus-within:border-gold/60 group-hover:border-gold/60 sm:right-auto sm:left-1/2 sm:-translate-x-1/2"
+        className="absolute -top-1.5 right-[0.9375rem] size-2.5 rotate-45 border-t border-l border-gold/25 bg-[var(--surface-96)] transition-colors duration-300 group-focus-within:border-gold/60 group-hover:border-gold/60 max-sm:hidden sm:right-auto sm:left-1/2 sm:-translate-x-1/2"
       />
 
       <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3">
@@ -221,7 +221,7 @@ export default function NotificationPopover({
           No sealed missives in your keeping.
         </p>
       ) : (
-        <ul className="scroll-gold max-h-80 overflow-y-auto">
+        <ul className="scroll-gold max-h-80 overflow-y-auto max-sm:max-h-[min(20rem,100dvh-12rem)]">
           {notifications.map((notification) => (
             <li
               key={notification.id}

@@ -27,6 +27,7 @@ export default function InspirationPips({
   name,
   head,
   own,
+  inline = false,
 }) {
   const held = useCharacterInspiration(characterId);
 
@@ -50,6 +51,7 @@ export default function InspirationPips({
       work: () => moveInspiration(campaignId, characterId, delta),
 
       tell: (result) => {
+        send({ kind: "log" });
         /* Only while this press is still the last word: an older answer laid
            down here would light a mark somebody has since spent again. */
         if (
@@ -63,7 +65,7 @@ export default function InspirationPips({
         }
       },
 
-      want: { party: true },
+      want: { party: true, activity: true },
     });
   }
 
@@ -73,7 +75,11 @@ export default function InspirationPips({
     <div
       role="group"
       aria-label={`${name}'s inspiration`}
-      className="absolute top-1/2 right-full z-0 mr-2.5 flex -translate-y-1/2 flex-col items-center gap-1.5"
+      className={
+        inline
+          ? "flex shrink-0 flex-col items-center justify-center gap-1"
+          : "absolute top-1/2 right-full z-0 mr-2.5 flex -translate-y-1/2 flex-col items-center gap-1.5 max-sm:static max-sm:mr-0 max-sm:mb-3 max-sm:translate-y-0 max-sm:flex-row max-sm:justify-end max-sm:gap-3"
+      }
     >
       {Array.from({ length: MAX_INSPIRATION }, (_, index) => {
         /* THE COLUMN FILLS FROM THE FLOOR: a mark given lights the lowest dark

@@ -1,9 +1,18 @@
 "use client";
 
-import { createContext, useContext, useEffect, useId, useRef } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
+import Button from "@/app/components/ui/button";
+import EditModal from "@/app/components/ui/edit-modal";
 
 import { useTableMarks } from "./table-marks";
 
@@ -29,10 +38,40 @@ const AsideContext = createContext({ node: null, open: false });
  * from, and the thing chosen. It draws its own surface, so a mark with nothing
  * open leaves no empty box behind.
  */
-export function PopoverAside({ children }) {
-  const { node, open } = useContext(AsideContext);
+export function PopoverAside({ children, title, onClose }) {
+  const { node, open, overlay } = useContext(AsideContext);
 
+  if (overlay && open && onClose) {
+    return (
+      <DetailOverlay title={title} onClose={onClose}>
+        {children}
+      </DetailOverlay>
+    );
+  }
   return node && open ? createPortal(children, node) : null;
+}
+
+function DetailOverlay({ children, title, onClose }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <EditModal
+      open={open}
+      title={title}
+      onClose={() => setOpen(false)}
+      onAfterClose={onClose}
+    >
+      <div className="mb-2 flex justify-end">
+        <Button
+          variant="ghost"
+          aria-label="Close details"
+          onClick={() => setOpen(false)}
+        >
+          ✕
+        </Button>
+      </div>
+      {children}
+    </EditModal>
+  );
 }
 
 /**
@@ -64,6 +103,40 @@ const FOCUSABLE =
  * to tuck it into and it came out as a smudge.
  */
 export default function TablePopover({
+  inline = false,
+  inlineOpen = true,
+  ...props
+}) {
+  return inline ? (
+    <InlineTablePanel {...props} open={inlineOpen} />
+  ) : (
+    <PopupTablePopover {...props} />
+  );
+}
+
+function InlineTablePanel({ title, count, meta, open, children }) {
+  return (
+    <section
+      aria-label={title}
+      className="min-w-0 [&_[data-popover-body]]:h-auto [&_[data-popover-body]]:overflow-visible [&_[data-popover-body]]:p-0 [&_[data-popover-body]>.scroll-gold]:overflow-visible [&_[data-popover-body]>.scroll-gold]:p-0"
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-sm font-semibold text-gold">
+          {title}
+        </h2>
+        {count !== undefined && (
+          <span className="font-mono text-xs text-ink/50">{count}</span>
+        )}
+        {meta}
+      </div>
+      <AsideContext.Provider value={{ overlay: true, open }}>
+        {children}
+      </AsideContext.Provider>
+    </section>
+  );
+}
+
+function PopupTablePopover({
   icon: Icon,
   label,
   title,
@@ -193,13 +266,13 @@ export default function TablePopover({
                     : ""
                 }`}
               >
-                <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3">
+                <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3 max-sm:items-center max-sm:gap-2 max-sm:px-4 max-sm:py-2">
                   <h2 className="min-w-0 truncate font-display text-sm font-semibold tracking-wide text-gold">
                     {title}
                   </h2>
 
                   {/* Whatever the panel wants beside its name, then the count. */}
-                  <div className="flex shrink-0 items-baseline gap-3">
+                  <div className="flex shrink-0 items-baseline gap-3 max-sm:items-center max-sm:gap-2">
                     {meta}
 
                     {count !== undefined && (

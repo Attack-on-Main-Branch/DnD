@@ -10,6 +10,7 @@ import {
 } from "sina/data/containers";
 import { listPartyFeatures } from "sina/data/features";
 import { listCampaignItems } from "sina/data/inventory";
+import { listPendingItemDocumentCleanup } from "sina/data/item-documents";
 import { listMemberLooks } from "sina/data/member-looks";
 import { listCampaignSpells } from "sina/data/spells";
 import { listCampaignTokenTemplates } from "sina/data/tokens";
@@ -55,6 +56,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     tokens,
     looks,
     tokenHealth,
+    cleanup,
   ] = await Promise.all([
     getCampaign(supabase, { id, userId: user.id }),
     listPartyMembers(supabase, id),
@@ -66,6 +68,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     listCampaignTokenTemplates(supabase, id),
     listMemberLooks(supabase, id),
     listTokenHealth(supabase, id, true),
+    listPendingItemDocumentCleanup(supabase, id),
   ]);
 
   // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
@@ -107,6 +110,9 @@ export const loadCampaign = cache(async function loadCampaign(id) {
   if (items.error) {
     logFailure("listCampaignItems", items.error);
   }
+
+  if (cleanup.error)
+    logFailure("listPendingItemDocumentCleanup", cleanup.error);
 
   if (spells.error) {
     logFailure("listCampaignSpells", spells.error);
@@ -164,6 +170,7 @@ export const loadCampaign = cache(async function loadCampaign(id) {
     // Painted scenes belong to the table's shelf; the sheet would drop them.
     maps: maps.error ? [] : maps.data.filter((map) => !map.is_scene),
     items: items.error ? [] : items.data,
+    cleanupPending: Boolean(cleanup.data?.length),
     spells: spells.error ? [] : spells.data,
     containers: shelf,
     containerItems: held.error ? [] : held.data,

@@ -1,14 +1,15 @@
 "use client";
 
-import { CRITICAL_SUCCESS, criticalFace } from "sina/rules/dice";
+import { criticalFace, DICE, extremeFace, MAXIMUM_FACE } from "sina/rules/dice";
 
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
+import { DICE_CAMERA_FOV, DICE_CAMERA_HEIGHT } from "@/lib/dice-box";
 
 /**
- * A natural 20 or a natural 1, flaring where the die came to rest: a shockwave
- * along the floor, a flash on the face, and the number lifting off it towards
- * the camera before it fades. Gold for the one; for the other, the blood red the
- * map's border wears in combat.
+ * A minimum or maximum, flaring where the die came to rest: a flash on the
+ * face and the number glowing above it before it fades. D20 criticals and
+ * extreme percentile rolls send a shockwave. Maximums glow gold; minimums
+ * use the blood red the map's border wears in combat.
  *
  * THE SAME ON EVERY SCREEN WITHOUT A WORD ON THE WIRE. Every chair runs the
  * same seeded simulation — see dice-engine.js — so each already knows where
@@ -22,18 +23,13 @@ import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
  * ring would cross the die it starts under, so it is cut away inside the die's
  * own footprint.
  *
- * Fired and forgotten: nothing waits on it, and every mesh, texture, material
- * and the GPU context are given back the moment it ends — the canvas off the
- * page FIRST. A canvas whose context is lost is drawn solid white, and
- * `plus-lighter` adds that to the whole map for a frame.
+ * The canvas and renderer are shared for this board; each flare gives its
+ * meshes, textures and materials back when it ends. The canvas leaves the
+ * page before its context is released, so additive light cannot flash white.
  */
 
 export const CRIT_LAYER_ID = "dice-crit-layer";
-
-/** dice-box's camera, from its render worker: straight down from this height
-    on a perspective lens of this vertical field. */
-const CAMERA_HEIGHT = 36.5;
-const CAMERA_FOV = 0.25;
+const PERCENTILE_SIDES = DICE.find((die) => die.id === "d100").sides;
 
 /** The physics floor's top face: a box centred at -0.5 with a half-height of 1. */
 const FLOOR_Y = 0.5;
@@ -95,7 +91,7 @@ function watched(since) {
 const LATE_FRAME_MS = 250;
 
 /**
- * Every die of one throw that rested on a critical, flared together. `dice`
+ * Every die of one throw that rested on an extreme, flared together. `dice`
  * is `throwDie`'s `onRest` answer; `since` is when the throw began, on
  * `performance.now()`'s clock.
  */
@@ -105,7 +101,7 @@ export function flareCriticals(dice, since) {
   }
 
   const crits = dice
-    .map((die) => ({ ...die, kind: criticalFace(die.sides, die.value) }))
+    .map((die) => ({ ...die, kind: extremeFace(die.sides, die.value) }))
     .filter((die) => die.kind && die.pose);
 
   const layer = document.getElementById(CRIT_LAYER_ID);
@@ -130,22 +126,27 @@ export function flareCriticals(dice, since) {
     .catch(() => {});
 }
 
+let active = null;
+
+export function releaseCritFlare() {
+  const held = active;
+  active = null;
+  held?.dispose();
+}
+
 function play(THREE, layer, crits) {
-  if (!layer.isConnected) {
-    return;
-  }
+  if (!layer.isConnected) return;
+  if (active?.layer !== layer) releaseCritFlare();
+  active ??= buildFlare(THREE, layer);
+  active?.add(crits);
+}
 
-  const width = layer.clientWidth;
-  const height = layer.clientHeight;
-
+function buildFlare(THREE, layer) {
   const canvas = document.createElement("canvas");
-
   canvas.className =
     "pointer-events-none absolute inset-0 size-full mix-blend-plus-lighter";
   layer.append(canvas);
-
   let renderer;
-
   try {
     renderer = new THREE.WebGLRenderer({
       canvas,
@@ -154,139 +155,123 @@ function play(THREE, layer, crits) {
       powerPreference: "low-power",
     });
   } catch {
-    // No WebGL to spare: the roll stands without its flourish.
     canvas.remove();
-    return;
+    return null;
   }
-
-  // Colours go through untouched: they are sRGB already, and additive light
-  // is judged by eye rather than measured.
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(width, height, false);
   renderer.setClearColor(0x000000, 0);
-
   const scene = new THREE.Scene();
-
-  /* dice-box's camera is left-handed, looking down with -x to the right and
-     -z up the screen. Three is right-handed, so the world is mirrored in z on
-     the way in and the camera hung with +z up. */
   const camera = new THREE.PerspectiveCamera(
-    THREE.MathUtils.radToDeg(CAMERA_FOV),
-    width / height,
+    THREE.MathUtils.radToDeg(DICE_CAMERA_FOV),
     1,
-    CAMERA_HEIGHT + 1,
+    1,
+    DICE_CAMERA_HEIGHT + 1,
   );
-
-  camera.position.set(0, CAMERA_HEIGHT, 0);
+  camera.position.set(0, DICE_CAMERA_HEIGHT, 0);
   camera.up.set(0, 0, 1);
   camera.lookAt(0, 0, 0);
-
-  const owned = [];
-  const effects = crits.map((crit) => stage(THREE, scene, owned, crit));
-
-  const start = performance.now();
+  const batches = new Set();
   let frame = 0;
-  let done = false;
+  let disposed = false;
+  let width = 0;
+  let height = 0;
+  canvas.addEventListener("webglcontextlost", releaseCritFlare);
 
-  function finish() {
-    if (done) {
-      return;
+  function finish(batch) {
+    if (!batches.delete(batch)) return;
+    clearTimeout(batch.timer);
+    scene.remove(batch.group);
+    for (const thing of batch.owned) thing.dispose();
+    if (batches.size === 0 && !disposed) {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      renderer.clear();
+      renderer.renderLists.dispose();
     }
-
-    done = true;
-    cancelAnimationFrame(frame);
-    clearTimeout(backstop);
-
-    // Off the page before the context goes, or the map flashes white.
-    canvas.remove();
-
-    for (const thing of owned) {
-      thing.dispose();
-    }
-
-    scene.clear();
-    renderer.renderLists.dispose();
-    renderer.dispose();
-
-    setTimeout(() => renderer.forceContextLoss(), RELEASE_MS);
   }
 
   function tick(now) {
-    // A frame's timestamp is when it began, which can be just before `start`.
-    const t = Math.max(0, (now - start) / 1000);
-
-    if (t >= LIFE_S) {
-      finish();
-      return;
+    frame = 0;
+    if (disposed) return;
+    try {
+      for (const batch of batches) {
+        const time = Math.max(0, (now - batch.start) / 1000);
+        if (time >= LIFE_S) finish(batch);
+        else for (const effect of batch.effects) effect(time);
+      }
+      if (batches.size > 0) {
+        renderer.render(scene, camera);
+        frame = requestAnimationFrame(tick);
+      }
+    } catch {
+      releaseCritFlare();
     }
-
-    for (const effect of effects) {
-      effect(t);
-    }
-
-    renderer.render(scene, camera);
-    frame = requestAnimationFrame(tick);
   }
 
-  // A hidden tab stops animation frames; the GPU context is let go regardless.
-  const backstop = setTimeout(finish, LIFE_S * 1000 + 250);
-
-  frame = requestAnimationFrame(tick);
+  return {
+    layer,
+    add(crits) {
+      if (disposed) return;
+      const batch = {
+        group: new THREE.Group(),
+        owned: [],
+        effects: [],
+        start: performance.now(),
+        timer: null,
+      };
+      batches.add(batch);
+      try {
+        if (width !== layer.clientWidth || height !== layer.clientHeight) {
+          width = layer.clientWidth;
+          height = layer.clientHeight;
+          renderer.setSize(width, height, false);
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+        }
+        batch.effects = crits.map((crit) =>
+          stage(THREE, batch.group, batch.owned, crit),
+        );
+        scene.add(batch.group);
+        batch.timer = setTimeout(() => finish(batch), LIFE_S * 1000 + 250);
+        if (!frame) frame = requestAnimationFrame(tick);
+      } catch {
+        finish(batch);
+      }
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      canvas.removeEventListener("webglcontextlost", releaseCritFlare);
+      canvas.remove();
+      cancelAnimationFrame(frame);
+      for (const batch of batches) finish(batch);
+      scene.clear();
+      renderer.renderLists.dispose();
+      renderer.dispose();
+      setTimeout(() => renderer.forceContextLoss(), RELEASE_MS);
+    },
+  };
 }
 
 /** One die's flare, built into the scene. Answers the per-frame update. */
 function stage(THREE, scene, owned, crit) {
   const [x, y, z] = crit.pose;
-  const failure = crit.kind !== CRITICAL_SUCCESS;
+  const failure = crit.kind !== MAXIMUM_FACE;
   const colors = palette(THREE, failure);
 
   const inradius = Math.max(MIN_INRADIUS, y - FLOOR_Y);
-  const reach = inradius * D20_SPAN * RIPPLE_REACH;
   const face = new THREE.Vector3(x, y + inradius + 0.02, -z);
-
-  /* The number drifts a little towards the middle of the board as it rises,
-     which keeps one off a die resting against a wall inside the frame. */
-  const inward = new THREE.Vector2(-face.x, -face.z);
-
-  if (inward.lengthSq() > 0) {
-    inward.normalize().multiplyScalar(inradius * 0.5);
-  }
 
   const keep = (thing) => {
     owned.push(thing);
     return thing;
   };
 
-  /* The shockwave, flat on the floor. */
-  const ripple = new THREE.Mesh(
-    keep(new THREE.PlaneGeometry(reach * 2.4, reach * 2.4)),
-    keep(
-      new THREE.ShaderMaterial({
-        uniforms: {
-          uCore: { value: colors.core },
-          uGlow: { value: colors.glow },
-          uRadius: { value: 0 },
-          uEcho: { value: 0 },
-          uWidth: { value: inradius * 0.3 },
-          uOpacity: { value: 1 },
-          uHole: { value: inradius * 1.2 },
-          // A 1 lays its ring on thicker, where a 20's gold already shines.
-          uGain: { value: failure ? 1.6 : 1 },
-        },
-        vertexShader: RIPPLE_VERTEX,
-        fragmentShader: RIPPLE_FRAGMENT,
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    ),
-  );
-
-  ripple.rotation.x = -Math.PI / 2;
-  ripple.position.set(face.x, FLOOR_Y + 0.01, face.z);
-  scene.add(ripple);
+  const ripple =
+    criticalFace(crit.sides, crit.value) || crit.sides === PERCENTILE_SIDES
+      ? stageRipple(THREE, scene, keep, { face, inradius, colors, failure })
+      : null;
 
   /* The flash on the face: a soft halo, a hot core and a four-point glint. */
   const glow = keep(radialTexture(THREE));
@@ -298,7 +283,7 @@ function stage(THREE, scene, owned, crit) {
 
   scene.add(halo, core, star);
 
-  /* The number, lifted off the face. */
+  /* The number, anchored above the face. */
   const lettering = keep(glyphTexture(THREE, String(crit.value), colors));
   const glyph = sprite(
     THREE,
@@ -315,15 +300,7 @@ function stage(THREE, scene, owned, crit) {
   return (t) => {
     const flicker = failure ? 0.9 + 0.1 * Math.sin(t * 47) : 1;
 
-    const wave = Math.min(1, t / RIPPLE_S);
-    const echo = Math.max(0, (t - 0.12) / RIPPLE_S);
-
-    ripple.material.uniforms.uRadius.value = reach * easeOutCubic(wave);
-    ripple.material.uniforms.uEcho.value =
-      reach * 0.78 * easeOutCubic(Math.min(1, echo));
-    ripple.material.uniforms.uWidth.value =
-      inradius * (0.2 + 0.3 * easeOutCubic(wave));
-    ripple.material.uniforms.uOpacity.value = Math.pow(1 - wave, 1.6);
+    ripple?.(t);
 
     const surge = t < 0.06 ? t / 0.06 : Math.exp(-(t - 0.06) * 6);
 
@@ -349,18 +326,55 @@ function stage(THREE, scene, owned, crit) {
     );
 
     const growth = 1 + (GLYPH_GROWTH - 1) * easeOutCubic(Math.min(1, t / 1));
-    const lift = easeOutCubic(Math.min(1, t / RIPPLE_S));
     const appear = Math.min(1, Math.max(0, (t - 0.04) / 0.1));
     const dissolve = 1 - easeInQuad(Math.min(1, Math.max(0, (t - 0.8) / 0.4)));
 
     // The flashes flicker; the number holds steady, so it can be read.
     glyph.material.opacity = appear * dissolve;
     glyph.scale.set(glyphWidth * growth, glyphHeight * growth, 1);
-    glyph.position.set(
-      face.x + inward.x * lift,
-      face.y + inradius * 1.5 * lift,
-      face.z + inward.y * lift,
-    );
+  };
+}
+
+function stageRipple(THREE, scene, keep, { face, inradius, colors, failure }) {
+  const reach = inradius * D20_SPAN * RIPPLE_REACH;
+  const ripple = new THREE.Mesh(
+    keep(new THREE.PlaneGeometry(reach * 2.4, reach * 2.4)),
+    keep(
+      new THREE.ShaderMaterial({
+        uniforms: {
+          uCore: { value: colors.core },
+          uGlow: { value: colors.glow },
+          uRadius: { value: 0 },
+          uEcho: { value: 0 },
+          uWidth: { value: inradius * 0.3 },
+          uOpacity: { value: 1 },
+          uHole: { value: inradius * 1.2 },
+          uGain: { value: failure ? 1.6 : 1 },
+        },
+        vertexShader: RIPPLE_VERTEX,
+        fragmentShader: RIPPLE_FRAGMENT,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    ),
+  );
+
+  ripple.rotation.x = -Math.PI / 2;
+  ripple.position.set(face.x, FLOOR_Y + 0.01, face.z);
+  scene.add(ripple);
+
+  return (t) => {
+    const wave = Math.min(1, t / RIPPLE_S);
+    const echo = Math.max(0, (t - 0.12) / RIPPLE_S);
+
+    ripple.material.uniforms.uRadius.value = reach * easeOutCubic(wave);
+    ripple.material.uniforms.uEcho.value =
+      reach * 0.78 * easeOutCubic(Math.min(1, echo));
+    ripple.material.uniforms.uWidth.value =
+      inradius * (0.2 + 0.3 * easeOutCubic(wave));
+    ripple.material.uniforms.uOpacity.value = Math.pow(1 - wave, 1.6);
   };
 }
 

@@ -18,7 +18,7 @@ export default function FormActions({
   const busy = editing ? "Saving…" : pendingLabel;
 
   return (
-    <div className="flex justify-end gap-3">
+    <div className="flex justify-end gap-3 max-sm:flex-col-reverse max-sm:gap-2 max-sm:[&>button]:w-full">
       {editing && (
         <Button
           type="button"

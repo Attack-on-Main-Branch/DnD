@@ -112,15 +112,15 @@ export default function TabStrip({ tabs, label, panels, action = null }) {
         the tablist proper, holding nothing but tabs — the bar is a sibling, so
         the ARIA role stays honest.
       */}
-      <div className="flex items-stretch gap-2 border-b border-gold/15">
-        <div className="scroll-gold min-w-0 flex-1 overflow-x-auto">
-          <div className="relative w-max min-w-full">
+      <div className="flex items-stretch gap-2 border-b border-gold/15 max-sm:relative">
+        <div className="scroll-gold min-w-0 flex-1 overflow-x-auto max-sm:overflow-visible">
+          <div className="relative w-max min-w-full max-sm:w-full">
             <div
               ref={stripRef}
               role="tablist"
               aria-label={label}
               onKeyDown={handleKeyDown}
-              className="flex gap-1"
+              className="flex gap-1 max-sm:grid max-sm:grid-cols-4 max-sm:gap-1"
             >
               {tabs.map((tab) => {
                 const isActive = tab.value === active;
@@ -138,8 +138,10 @@ export default function TabStrip({ tabs, label, panels, action = null }) {
                     aria-controls={`${baseId}-panel-${tab.value}`}
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => setActive(tab.value)}
-                    className={`shrink-0 px-4 py-3 font-display text-sm font-medium tracking-wide transition-colors duration-300 ${
-                      isActive ? "text-gold" : "text-ink/60 hover:text-ink"
+                    className={`shrink-0 px-4 py-3 font-display text-sm font-medium tracking-wide transition-colors duration-300 max-sm:min-h-11 max-sm:min-w-0 max-sm:rounded-lg max-sm:px-0.5 max-sm:text-[clamp(0.6875rem,3vw,0.875rem)] max-sm:tracking-normal max-sm:touch-manipulation ${
+                      isActive
+                        ? "text-gold max-sm:bg-gold/10 max-sm:ring-1 max-sm:ring-gold/30 max-sm:ring-inset"
+                        : "text-ink/60 hover:text-ink"
                     }`}
                   >
                     {tab.label}
@@ -151,7 +153,7 @@ export default function TabStrip({ tabs, label, panels, action = null }) {
             <span
               ref={indicatorRef}
               aria-hidden="true"
-              className="pointer-events-none absolute bottom-0 left-0 h-0.5 w-0 rounded-full bg-gold shadow-[0_0_12px] shadow-gold/70"
+              className="pointer-events-none absolute bottom-0 left-0 h-0.5 w-0 rounded-full bg-gold shadow-[0_0_12px] shadow-gold/70 max-sm:hidden"
             />
           </div>
         </div>
@@ -159,7 +161,9 @@ export default function TabStrip({ tabs, label, panels, action = null }) {
         {/* Centred against the tabs rather than stretched: a button as tall as
             the row would sit low. */}
         {action && (
-          <div className="flex shrink-0 items-center pb-1">{action}</div>
+          <div className="flex shrink-0 items-center pb-1 max-sm:absolute max-sm:right-0 max-sm:bottom-0 max-sm:w-1/4 max-sm:justify-center max-sm:pb-0">
+            {action}
+          </div>
         )}
       </div>
 

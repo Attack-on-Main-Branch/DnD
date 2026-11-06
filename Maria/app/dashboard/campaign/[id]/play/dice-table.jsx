@@ -15,6 +15,7 @@ import { diceCast, rollSentence } from "./dice-presentation";
 import { useActivityLog } from "./use-activity";
 import { useDiceRoll } from "./use-dice-roll";
 import { useTableRolls } from "./use-table-rolls";
+import { usePlayerDice } from "./use-player-dice";
 
 /**
  * The table's dice, shared by the three places that show them: the rail they
@@ -40,6 +41,10 @@ const RESTING = {
   stages: [],
   throwing: false,
   secret: false,
+  rollingDisabled: true,
+  playerDicePaused: false,
+  pausePending: false,
+  setPlayerDicePaused: () => {},
   setSecret: () => {},
   roll: () => {},
   warm: () => {},
@@ -79,9 +84,13 @@ export default function DiceTable({
   skins = [],
   seatTitle,
   canKeepSecrets,
+  display = false,
   children,
 }) {
   const mine = characterId ?? HEAD_OF_TABLE;
+  const playerDice = usePlayerDice(campaignId, canKeepSecrets);
+  const rollingDisabled = !seatId || (!canKeepSecrets && playerDice.paused);
+  const listening = Boolean(seatId) || display;
 
   /* The roller, reached from the socket's side of the loop. Filled by the
      effect below rather than during render, and read at the moment a roll
@@ -95,7 +104,7 @@ export default function DiceTable({
 
   const table = useTableRolls({
     campaignId,
-    enabled: Boolean(seatId),
+    enabled: listening,
     keeper: Boolean(canKeepSecrets),
     onMirror,
   });
@@ -171,6 +180,7 @@ export default function DiceTable({
   /* The chair's own colour, null at the head of the table — which is what
      `diceMaterial` reads as "throw the house's dice". */
   const local = useDiceRoll({
+    enabled: !rollingDisabled,
     color: diceColor,
     skin: diceSkin,
     onStart,
@@ -194,16 +204,16 @@ export default function DiceTable({
   const themes = [...new Set(skins.map(diceSkinTheme))].join(",");
 
   useEffect(() => {
-    if (seatId && themes) {
+    if (listening && themes) {
       preloadDiceThemes(themes.split(","));
     }
-  }, [seatId, themes]);
+  }, [listening, themes]);
 
   useEffect(() => {
-    if (seatId) {
+    if (listening) {
       warm();
     }
-  }, [seatId, warm]);
+  }, [listening, warm]);
 
   /* The veil is the table's business, not one screen's: the boards go violet
      for everybody the moment it closes, and only the results stay behind it. */
@@ -217,6 +227,10 @@ export default function DiceTable({
     <DiceTableContext.Provider
       value={{
         ...local,
+        rollingDisabled,
+        playerDicePaused: playerDice.paused,
+        pausePending: playerDice.pending,
+        setPlayerDicePaused: playerDice.setPaused,
         board: table.board,
         veiled: table.veiled,
         flying: table.flying,

@@ -50,7 +50,7 @@ export function coinName(coin) {
  * colon carries the separation the gap gives up.
  */
 const CAPSULE_BASE =
-  "inline-flex items-baseline gap-1 rounded-full border px-2.5 py-1.5 " +
+  "inline-flex rounded-full border max-sm:min-h-11 " +
   "shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] " +
   "transition-colors duration-300";
 
@@ -89,10 +89,13 @@ const CAPSULE_DISABLED = "cursor-not-allowed opacity-45";
 
 export function capsuleClasses(
   coin,
-  { open = false, pressable = false, disabled = false } = {},
+  { open = false, pressable = false, disabled = false, compact = false } = {},
 ) {
   return [
     CAPSULE_BASE,
+    compact
+      ? "min-h-11 w-full flex-col items-center justify-center gap-0.5 px-0.5 py-1"
+      : "items-baseline gap-1 px-2.5 py-1.5 max-sm:items-center",
     open ? CAPSULE_OPEN_TINTS[coin] : CAPSULE_TINTS[coin],
     // No hover promise on a capsule that cannot answer it.
     pressable && !open && !disabled ? CAPSULE_HOVER_TINTS[coin] : "",

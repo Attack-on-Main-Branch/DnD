@@ -107,7 +107,7 @@ export default function AbilityPicker({
           return (
             <div
               key={ability.id}
-              className={`flex items-center gap-2.5 rounded-lg border p-4 transition duration-300 ${NESTED_CARD_CLASSES}`}
+              className={`flex items-center gap-2.5 rounded-lg border p-4 transition duration-300 max-sm:flex-wrap max-sm:p-3 ${NESTED_CARD_CLASSES}`}
             >
               {/*
                 Sized to the card's content box rather than to the glyph in it,
@@ -123,7 +123,7 @@ export default function AbilityPicker({
               */}
               <span
                 aria-hidden="true"
-                className="grid aspect-square shrink-0 place-items-center self-stretch rounded-full border border-gold/15 bg-white/5"
+                className="grid aspect-square shrink-0 place-items-center self-stretch rounded-full border border-gold/15 bg-white/5 max-sm:size-11 max-sm:self-auto"
               >
                 <span
                   // Left at 20px as the disc grew. That is 42% of it, which is
@@ -187,7 +187,7 @@ export default function AbilityPicker({
 
               {/* `items-center`, so the price sits under the middle of the
                   stepper rather than under its right-hand edge. */}
-              <span className="flex shrink-0 flex-col items-center gap-1">
+              <span className="flex shrink-0 flex-col items-center gap-1 max-sm:w-full max-sm:flex-row max-sm:justify-between">
                 <span
                   role="group"
                   aria-label={ability.name}
@@ -287,7 +287,7 @@ function StepButton({ label, disabled, onClick, children }) {
       // one size on this screen above the four-step scale, and it is a symbol
       // rather than type: `+` and `−` have no descenders and no x-height to
       // match, so they read a size smaller than the number beside them.
-      className="grid size-7 cursor-pointer place-items-center rounded-md border border-gold/20 bg-surface/60 font-display text-xl leading-none text-ink/80 transition duration-200 hover:border-gold/50 hover:bg-surface/40 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:border-gold/10 disabled:bg-surface/30 disabled:text-ink/25 disabled:hover:border-gold/10 disabled:hover:text-ink/25"
+      className="grid size-7 cursor-pointer place-items-center rounded-md border border-gold/20 bg-surface/60 font-display text-xl leading-none text-ink/80 transition duration-200 hover:border-gold/50 hover:bg-surface/40 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:border-gold/10 disabled:bg-surface/30 disabled:text-ink/25 disabled:hover:border-gold/10 disabled:hover:text-ink/25 max-sm:size-11 max-sm:touch-manipulation"
     >
       {children}
     </button>

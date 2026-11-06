@@ -24,7 +24,7 @@ export default function FeatureGrid({
   }
 
   return (
-    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <ul className="grid grid-cols-2 gap-2 max-sm:grid-cols-1 sm:grid-cols-3">
       {features.map((feature) => (
         <li key={feature.id} className="flex flex-col">
           <FeatureCard

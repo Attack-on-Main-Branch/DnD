@@ -20,6 +20,7 @@ import { isCondition } from "./conditions.js";
 import { deathSaveOutcome, MAX_ARMOR_CLASS } from "./death.js";
 import { isDie, parseDiceCount, readDiceResult } from "./dice.js";
 import { MAX_HP } from "./hp.js";
+import { MAX_INSPIRATION } from "./inspiration.js";
 import { MAX_LEVEL, MIN_LEVEL } from "./level.js";
 import { isRestType } from "./rest.js";
 import { isSpellLevel } from "./spells.js";
@@ -32,6 +33,7 @@ export const ACTION_TYPES = [
   "hp_change",
   "temp_hp_change",
   "armor_class_change",
+  "inspiration_change",
   "level_change",
   "item_used",
   "item_dropped",
@@ -236,6 +238,18 @@ export function readActivity(row) {
     return delta === null || delta === 0 || Math.abs(delta) > MAX_ARMOR_CLASS
       ? null
       : { ...entry, delta, target: text(payload.targetName) };
+  }
+
+  if (action === "inspiration_change") {
+    const delta = whole(payload.delta);
+    const target = text(payload.targetName);
+
+    return delta === null ||
+      delta === 0 ||
+      Math.abs(delta) > MAX_INSPIRATION ||
+      (entry.head && !target)
+      ? null
+      : { ...entry, delta, target };
   }
 
   /**

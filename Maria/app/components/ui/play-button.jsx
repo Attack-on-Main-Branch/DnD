@@ -62,7 +62,7 @@ const SPIN_ORIGIN = { transformBox: "view-box", transformOrigin: "0 0" };
  * `box-shadow` does not accumulate.
  */
 const CONTROL_CLASSES =
-  "group relative grid size-20 place-items-center rounded-full " +
+  "group relative grid size-20 place-items-center rounded-full max-sm:size-16 max-sm:shrink-0 " +
   "focus-visible:shadow-[0_0_0_8px_rgba(10,8,6,0.9)] " +
   "focus-visible:outline-2 focus-visible:outline-offset-4 " +
   "focus-visible:outline-amber-500";

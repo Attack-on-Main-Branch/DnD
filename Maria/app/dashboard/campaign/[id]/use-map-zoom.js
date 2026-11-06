@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /** How far a press may drift before it counts as a drag rather than a click. */
 const DRAG_SLOP_PX = 4;
+const HOLD_MS = 360;
 
 /** The step a CLICK takes: surveyed, or read. The wheel walks instead. */
 const ZOOM = 2.5;
@@ -51,10 +52,14 @@ const ZOOM_HINT = {
 export function useMapZoom({
   frameRef,
   imageRef,
+  contentSize,
   wheel = false,
   pointerZoom = true,
   onTap,
+  onHold,
   keyboard = true,
+  pinch = false,
+  enabled = true,
 }) {
   /* The scale itself, because the wheel walks it rather than switching it: a
      click still only knows two values, and both live in here. */
@@ -68,6 +73,8 @@ export function useMapZoom({
 
   // In a ref rather than state: it changes on every pointer move.
   const drag = useRef(null);
+  const touches = useRef(new Map());
+  const zoomGesture = useRef(null);
 
   const zoomed = scale > 1;
 
@@ -79,18 +86,20 @@ export function useMapZoom({
    */
   const fitted = useCallback(() => {
     const frame = frameRef.current;
-    const image = imageRef.current;
+    const image = imageRef?.current;
+    const width = contentSize?.width ?? image?.naturalWidth;
+    const height = contentSize?.height ?? image?.naturalHeight;
 
-    if (!frame || !image?.naturalWidth) {
+    if (!frame || !width || !height) {
       return null;
     }
 
     const box = frame.getBoundingClientRect();
-    const ratio = image.naturalWidth / image.naturalHeight;
-    const width = Math.min(box.width, box.height * ratio);
+    const ratio = width / height;
+    const fittedWidth = Math.min(box.width, box.height * ratio);
 
-    return { box, width, height: width / ratio };
-  }, [frameRef, imageRef]);
+    return { box, width: fittedWidth, height: fittedWidth / ratio };
+  }, [contentSize, frameRef, imageRef]);
 
   /**
    * How far the image may move before its edge comes inside the frame. From the
@@ -159,7 +168,7 @@ export function useMapZoom({
   useEffect(() => {
     const frame = frameRef.current;
 
-    if (!zoomed || !frame) {
+    if (!enabled || !zoomed || !frame) {
       return undefined;
     }
 
@@ -170,7 +179,7 @@ export function useMapZoom({
     observer.observe(frame);
 
     return () => observer.disconnect();
-  }, [zoomed, scale, clamp, frameRef]);
+  }, [enabled, zoomed, scale, clamp, frameRef]);
 
   // Shared by the pointer and the keyboard so the two cannot drift apart.
   function toggleZoom() {
@@ -188,9 +197,8 @@ export function useMapZoom({
   }
 
   function onPointerDown(event) {
-    // `touch-none` suppresses the `pointercancel` that would reset the drag, so
-    // a second finger would overwrite the slot below and jump the map.
-    if (event.button !== 0 || !event.isPrimary) {
+    const touch = pinch && event.pointerType === "touch";
+    if (event.button !== 0 || (!event.isPrimary && !touch)) {
       return;
     }
 
@@ -198,25 +206,93 @@ export function useMapZoom({
     // `setPointerCapture` throws NotFoundError if the pointer is already gone —
     // an improvement, not a requirement, so it must not take the drag down.
     try {
-      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
     } catch {
       // Without capture the drag still works inside the frame.
     }
 
     setDragging(true);
-    drag.current = {
+    if (touch) {
+      touches.current.set(event.pointerId, touchPoint(event));
+      if (touches.current.size > 1) {
+        clearTimeout(drag.current?.timer);
+        drag.current?.hold?.cancel();
+        drag.current = null;
+        if (touches.current.size === 2) {
+          zoomGesture.current = {
+            ...pinchCenter(touches.current),
+            scale: scaleRef.current,
+            offset,
+          };
+        }
+        return;
+      }
+    }
+    const state = {
+      id: event.pointerId,
+      target: event.target,
       startX: event.clientX,
       startY: event.clientY,
       originX: offset.x,
       originY: offset.y,
       moved: false,
     };
+    drag.current = state;
+    if (onHold) {
+      const point = pointAt(event);
+      state.timer = setTimeout(() => {
+        if (drag.current === state && !state.moved) {
+          state.hold = onHold(point, state.target);
+        }
+      }, HOLD_MS);
+    }
   }
 
   function onPointerMove(event) {
+    if (touches.current.has(event.pointerId)) {
+      touches.current.set(event.pointerId, touchPoint(event));
+      const start = zoomGesture.current;
+      if (start && touches.current.size >= 2) {
+        const box = event.currentTarget.getBoundingClientRect();
+        const now = pinchCenter(touches.current);
+        const next = Math.min(
+          MAX_WHEEL_ZOOM,
+          Math.max(
+            MIN_WHEEL_ZOOM,
+            (start.scale * now.distance) / start.distance,
+          ),
+        );
+        const ratio = next / start.scale;
+        scaleRef.current = next;
+        setScale(next);
+        setOffset(
+          clamp(
+            {
+              x:
+                now.x -
+                box.left -
+                box.width / 2 -
+                (start.x - box.left - box.width / 2 - start.offset.x) * ratio,
+              y:
+                now.y -
+                box.top -
+                box.height / 2 -
+                (start.y - box.top - box.height / 2 - start.offset.y) * ratio,
+            },
+            next,
+          ),
+        );
+        return;
+      }
+    }
     const state = drag.current;
 
-    if (!state) {
+    if (state?.id !== event.pointerId) {
+      return;
+    }
+
+    if (state.hold) {
+      state.hold.move(pointAt(event));
       return;
     }
 
@@ -224,6 +300,7 @@ export function useMapZoom({
     const dy = event.clientY - state.startY;
 
     if (Math.hypot(dx, dy) > DRAG_SLOP_PX) {
+      clearTimeout(state.timer);
       state.moved = true;
     }
 
@@ -237,29 +314,27 @@ export function useMapZoom({
   }
 
   function onPointerUp(event) {
-    const state = drag.current;
-    drag.current = null;
-    setDragging(false);
-
-    if (!state) {
-      return;
-    }
+    const state = endPointer(event);
 
     try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
     } catch {
       // Never captured, or already released. Neither matters here.
     }
 
     // A press that went nowhere is a click; the slop stops a shaking hand from
     // being read as a drag and swallowing the toggle.
-    if (state.moved) {
+    if (state?.hold) {
+      state.hold.end(pointAt(event));
+      return;
+    }
+    if (!state || state.moved) {
       return;
     }
 
     // Somebody is holding a token over the board, and this click is where they
     // want it rather than a request to zoom.
-    if (onTap?.(pointAt(event))) {
+    if (onTap?.(pointAt(event), state.target)) {
       return;
     }
 
@@ -268,10 +343,30 @@ export function useMapZoom({
     }
   }
 
-  function onPointerCancel() {
-    drag.current = null;
-    setDragging(false);
+  function endPointer(event) {
+    const state = drag.current?.id === event.pointerId ? drag.current : null;
+    if (state) {
+      clearTimeout(state.timer);
+      drag.current = null;
+    }
+    if (touches.current.delete(event.pointerId)) zoomGesture.current = null;
+    if (!touches.current.size && !drag.current) setDragging(false);
+    return state;
   }
+
+  function onPointerCancel(event) {
+    endPointer(event)?.hold?.cancel();
+  }
+
+  useEffect(() => {
+    const tracked = touches.current;
+    return () => {
+      clearTimeout(drag.current?.timer);
+      drag.current = null;
+      zoomGesture.current = null;
+      tracked.clear();
+    };
+  }, [enabled]);
 
   /**
    * THE WHEEL ZOOMS ABOUT THE POINTER: the picture is drawn at
@@ -282,24 +377,15 @@ export function useMapZoom({
    * Bound by hand, because React attaches wheel listeners PASSIVELY and
    * `preventDefault` inside one does nothing.
    */
-  useEffect(() => {
-    const frame = frameRef.current;
-
-    if (!wheel || !frame) {
-      return undefined;
-    }
-
-    function onWheel(event) {
-      event.preventDefault();
-
+  const zoomAt = useCallback(
+    (clientX, clientY, deltaY) => {
+      const frame = frameRef.current;
+      if (!frame) return;
       const standing = scaleRef.current;
 
       const next = Math.min(
         MAX_WHEEL_ZOOM,
-        Math.max(
-          MIN_WHEEL_ZOOM,
-          standing * Math.exp(-event.deltaY * WHEEL_STEP),
-        ),
+        Math.max(MIN_WHEEL_ZOOM, standing * Math.exp(-deltaY * WHEEL_STEP)),
       );
 
       if (next === standing) {
@@ -311,8 +397,8 @@ export function useMapZoom({
       /* Where the pointer is, measured from the centre the transform turns
          about rather than from the frame's corner. */
       const at = {
-        x: event.clientX - (box.left + box.width / 2),
-        y: event.clientY - (box.top + box.height / 2),
+        x: clientX - (box.left + box.width / 2),
+        y: clientY - (box.top + box.height / 2),
       };
 
       const ratio = next / standing;
@@ -332,12 +418,23 @@ export function useMapZoom({
           next,
         ),
       );
+    },
+    [clamp, frameRef],
+  );
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!enabled || !wheel || !frame) return undefined;
+
+    function onWheel(event) {
+      event.preventDefault();
+      zoomAt(event.clientX, event.clientY, event.deltaY);
     }
 
     frame.addEventListener("wheel", onWheel, { passive: false });
 
     return () => frame.removeEventListener("wheel", onWheel);
-  }, [clamp, frameRef, wheel]);
+  }, [enabled, frameRef, wheel, zoomAt]);
 
   function onKeyDown(event) {
     const nudge = KEY_NUDGE[event.key];
@@ -363,6 +460,7 @@ export function useMapZoom({
     /** What the picture is multiplied by, for anything drawn on top of it. */
     scale,
     pointAt,
+    zoomAt,
 
     /**
      * Everything the frame needs to be a control. `aria-label` is deliberately
@@ -381,6 +479,7 @@ export function useMapZoom({
       onPointerMove,
       onPointerUp,
       onPointerCancel,
+      onLostPointerCapture: onPointerCancel,
     },
 
     imageStyle: {
@@ -389,5 +488,18 @@ export function useMapZoom({
       // behind the pointer, which reads as lag.
       transition: dragging ? "none" : "transform 250ms ease",
     },
+  };
+}
+
+function touchPoint(event) {
+  return { x: event.clientX, y: event.clientY };
+}
+
+function pinchCenter(touches) {
+  const [a, b] = touches.values();
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+    distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
   };
 }

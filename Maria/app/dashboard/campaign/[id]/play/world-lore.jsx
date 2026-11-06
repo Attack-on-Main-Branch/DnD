@@ -40,13 +40,20 @@ import { usePlacedTokens } from "./table-state";
  * on a picture that is already there, and opening it a second time costs
  * nothing. See `prepare` in campaign-map.jsx.
  */
-export default function WorldLore({ title, lore, mapId, mapUrl }) {
+export default function WorldLore({
+  title,
+  lore,
+  mapId,
+  mapUrl,
+  inline = false,
+}) {
   const placed = usePlacedTokens();
 
   const party = useMemo(() => standingOn(placed, mapId), [mapId, placed]);
 
   return (
     <TablePopover
+      inline={inline}
       icon={WorldGlobe}
       label={`World lore of ${title}`}
       title={`The world of ${title}`}
@@ -57,6 +64,7 @@ export default function WorldLore({ title, lore, mapId, mapUrl }) {
           a campaign with no map and no lore should not open onto a screenful
           of nothing. */}
       <div
+        data-popover-body
         className={`scroll-gold overflow-y-auto ${
           mapUrl ? POPOVER_BODY_CLASSES : "max-h-80"
         }`}

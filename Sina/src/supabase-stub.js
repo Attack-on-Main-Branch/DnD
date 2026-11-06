@@ -21,6 +21,7 @@ export function stubQuery(result) {
     lastSelect: null,
     lastRpc: null,
     lastLimit: null,
+    lastRange: null,
 
     from: () => chain,
     select: (columns) => {
@@ -66,6 +67,10 @@ export function stubQuery(result) {
     order: () => chain,
     limit: (count) => {
       chain.lastLimit = count;
+      return chain;
+    },
+    range: (from, to) => {
+      chain.lastRange = [from, to];
       return chain;
     },
     maybeSingle: () => chain,

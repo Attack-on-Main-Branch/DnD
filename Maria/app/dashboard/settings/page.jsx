@@ -32,11 +32,11 @@ export default async function SettingsPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-10 max-sm:gap-5 max-sm:py-5 sm:px-6 sm:py-14">
       <div data-fade className="float-in">
         <Link
           href="/dashboard"
-          className="cursor-pointer font-sans text-sm text-ink/60 transition hover:text-gold"
+          className="cursor-pointer font-sans text-sm text-ink/60 transition hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
         >
           ← Back to dashboard
         </Link>

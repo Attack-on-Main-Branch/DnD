@@ -92,10 +92,17 @@ export async function readTokenHealth(campaignId) {
   );
 }
 
-export async function readTokenHealthStates(campaignId) {
-  return perform("readTokenHealthStates", (client) =>
-    listTokenHealthStates(client, campaignId),
-  );
+export async function readTokenHealthStates(campaignId, tokenIds) {
+  return perform("readTokenHealthStates", async (client) => {
+    const result = await listTokenHealthStates(client, campaignId);
+    if (result.error || !Array.isArray(tokenIds)) return result;
+
+    const shown = new Set(tokenIds);
+    return {
+      ...result,
+      data: result.data.filter((row) => shown.has(row.token_id)),
+    };
+  });
 }
 
 export async function adjustTokenHealth(tokenId, delta) {

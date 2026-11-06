@@ -1,16 +1,16 @@
 "use client";
 
-import { surfaceClasses } from "@/app/components/ui/surface";
+import { useEffect, useRef } from "react";
 
-import { FRAME_CLASSES, FRAME_DELAY, MAP_CLASSES, MAP_DELAY } from "./entrance";
+import { MAP_CLASSES, MAP_DELAY } from "./entrance";
 import {
   MAP_HEIGHT_CLASS,
   MAP_MAX_HEIGHT_CLASS,
   MAP_MAX_HEIGHT_TOOLS_CLASS,
 } from "./map-height";
 import { useMapToolsShown } from "./map-tools";
+import MapRim from "./map-rim";
 import TableMap from "./table-map";
-import { useCombatState } from "./table-state";
 import { useTableMaps } from "./table-maps";
 
 /**
@@ -59,21 +59,38 @@ export default function MapStage({
   seat,
   canSweep,
   canRule = false,
+  display = false,
   cast = null,
   children,
 }) {
   const { activeUrl, isScene } = useTableMaps();
-  const { inCombat } = useCombatState();
   const ruled = useMapToolsShown(canRule);
 
   const url = activeUrl ?? served;
   const drawing = !canSweep && seat?.characterId && !isScene;
+  const stageRef = useRef(null);
+
+  // Reserve tool space without enlarging the map-sized dice arena.
+  useEffect(() => {
+    const stage = stageRef.current;
+    const controls = stage?.querySelector("[data-map-controls]");
+    if (!controls) return undefined;
+
+    const observer = new ResizeObserver(([entry]) => {
+      stage.style.setProperty(
+        "--map-controls-height",
+        `${entry.contentRect.height}px`,
+      );
+    });
+    observer.observe(controls);
+    return () => observer.disconnect();
+  }, [url]);
 
   if (!url) {
     return (
       <div
         data-shrink
-        className={`relative grid ${MAP_HEIGHT_CLASS} w-full max-w-xl place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${MAP_CLASSES}`}
+        className={`relative grid ${display ? "h-full" : MAP_HEIGHT_CLASS} w-full max-w-xl place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${MAP_CLASSES}`}
         style={MAP_DELAY}
       >
         <p className="font-display text-base font-medium tracking-wide text-ink/60">
@@ -98,24 +115,19 @@ export default function MapStage({
        THIS box, and a ceiling on either alone leaves the box wider than what is
        inside it — a mat standing proud of the map on one side. The column is
        the only width limit. See map-height.js. */
-    <div data-shrink className="relative w-fit min-w-0">
+    <div
+      ref={stageRef}
+      data-shrink
+      inert={display}
+      className="relative w-fit min-w-0 max-sm:mb-[var(--map-controls-height,0px)]"
+    >
       {/* No `glow`: the rim would light under the pointer, which promises a
           control where there is only a picture.
 
           THE MAT IS WHAT SAYS THE PARTY IS FIGHTING. Utilities rather than a
           `.lit-*` class — these have to OUTRANK `.glass`'s own border and
           shadow, which is the way round `.lit-cast` in globals.css warns of. */}
-      <span
-        aria-hidden="true"
-        className={surfaceClasses({
-          className: `pointer-events-none absolute -inset-6 rounded-[2.25rem] transition-[border-color,box-shadow] duration-300 ${FRAME_CLASSES} ${
-            inCombat
-              ? "border-2 border-rose-600 shadow-[0_0_20px_rgba(225,29,72,0.8),inset_0_0_15px_rgba(225,29,72,0.3)]"
-              : ""
-          }`,
-        })}
-        style={FRAME_DELAY}
-      />
+      <MapRim />
 
       {/* `relative` rather than a z-index: the frame is positioned and this is
           not, so without it the rim would paint over the map. */}
@@ -128,7 +140,11 @@ export default function MapStage({
         canSweep={canSweep}
         cast={cast}
         heightClass={
-          ruled || drawing ? MAP_MAX_HEIGHT_TOOLS_CLASS : MAP_MAX_HEIGHT_CLASS
+          display
+            ? "max-h-[100cqh]"
+            : ruled || drawing
+              ? MAP_MAX_HEIGHT_TOOLS_CLASS
+              : MAP_MAX_HEIGHT_CLASS
         }
         className={`relative ${MAP_CLASSES}`}
         style={MAP_DELAY}

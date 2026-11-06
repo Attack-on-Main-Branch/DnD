@@ -77,6 +77,8 @@ export default function MapToken({
   scale,
   cell,
   muted = false,
+  drawing = false,
+  selected = false,
   onGrab,
   onMark,
   onLift,
@@ -121,12 +123,14 @@ export default function MapToken({
 
   return (
     <span
-      /* Pointer events on EVERY piece, not only the ones that can be picked up:
-         the tooltip is for the whole table. A press on a piece nobody at this
-         chair may move is deliberately left to bubble, so the map underneath
-         still takes it as the start of a pan. */
+      data-map-token={token.id}
+      /* Immovable pieces still expose tooltips and let drawing reach the map. */
       className={`absolute ${muted ? "" : "pointer-events-auto"} ${
-        movable ? "cursor-grab active:cursor-grabbing" : ""
+        movable
+          ? "cursor-grab active:cursor-grabbing"
+          : drawing
+            ? "cursor-crosshair"
+            : ""
       }`}
       onPointerEnter={show}
       onPointerLeave={() => setNote(null)}
@@ -259,6 +263,9 @@ export default function MapToken({
         )}
 
         {token.characterId && <SpellFlare characterId={token.characterId} />}
+        {selected && (
+          <span className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-gold ring-inset" />
+        )}
       </span>
 
       {note && !menu && <TokenNote token={token} at={note} knocked={knocked} />}

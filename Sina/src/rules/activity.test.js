@@ -32,6 +32,7 @@ describe("the catalogue", () => {
       "hp_change",
       "temp_hp_change",
       "armor_class_change",
+      "inspiration_change",
       "level_change",
       "item_used",
       "item_dropped",
@@ -80,6 +81,62 @@ describe("temporary HP activity", () => {
       assert.equal(entry.target, "Frieren");
     });
   }
+});
+
+describe("inspiration activity", () => {
+  it("identifies the recipient of a DM grant", () => {
+    const entry = readActivity(
+      row({
+        actor_type: "dm",
+        actor_character: null,
+        actor_name: "Dungeon Master",
+        action_type: "inspiration_change",
+        payload: { delta: 1, targetName: "Fern" },
+      }),
+    );
+    assert.equal(entry.target, "Fern");
+    assert.equal(entry.delta, 1);
+    assert.equal(entry.head, true);
+  });
+
+  it("reads a player's use without repeating their name", () => {
+    const entry = readActivity(
+      row({
+        action_type: "inspiration_change",
+        payload: { delta: -1 },
+      }),
+    );
+    assert.equal(entry.actor, "Fern");
+    assert.equal(entry.delta, -1);
+    assert.equal(entry.target, null);
+  });
+
+  for (const delta of [0, 4, -4, 1.5, "invalid"]) {
+    it(`refuses an invalid inspiration change (${delta})`, () => {
+      assert.equal(
+        readActivity(
+          row({
+            action_type: "inspiration_change",
+            payload: { delta },
+          }),
+        ),
+        null,
+      );
+    });
+  }
+
+  it("refuses a DM grant with no recipient", () => {
+    assert.equal(
+      readActivity(
+        row({
+          actor_type: "dm",
+          action_type: "inspiration_change",
+          payload: { delta: 1 },
+        }),
+      ),
+      null,
+    );
+  });
 });
 
 describe("readActivity, on a fight", () => {
