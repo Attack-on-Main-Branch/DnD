@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MAX_NOTE_LENGTH } from "sina/rules/character";
 import { countCharacters } from "sina/rules/text";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { useToast } from "@/app/components/ui/toast";
 import { controlClasses } from "@/app/components/ui/field-styles";
 import ParchmentScroll from "@/app/components/ui/parchment-scroll";
@@ -233,9 +234,9 @@ export default function NotesScroll({ campaignId, seat, inline = false }) {
               type="button"
               onClick={save}
               disabled={empty || tooLong}
-              className="cursor-pointer font-display text-sm tracking-wide text-gold transition-colors duration-300 hover:text-ink disabled:cursor-not-allowed disabled:text-ink/30"
+              className="inline-flex items-center justify-center min-h-8 cursor-pointer font-display text-sm tracking-wide text-gold transition-colors duration-300 hover:text-ink disabled:cursor-not-allowed disabled:text-ink/30"
             >
-              Write it down
+              <ButtonContent>Write it down</ButtonContent>
             </button>
           </div>
         </div>

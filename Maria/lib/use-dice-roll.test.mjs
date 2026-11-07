@@ -77,6 +77,7 @@ async function roller(t, options = {}) {
 
 test("reduced-motion dice share numeric results without mirroring a 3D roll", async (t) => {
   const { state, starts, finishes, engines } = await roller(t);
+  state.warm();
   await state.mirror("d20", 1, 7, {}, () =>
     assert.fail("Numeric mode must wait for the shared result"),
   );

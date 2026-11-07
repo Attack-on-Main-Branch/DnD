@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { buttonClasses } from "./components/ui/button";
+import { ButtonContent, buttonClasses } from "./components/ui/button";
 
 export const metadata = {
   title: "Not found",
@@ -26,7 +26,7 @@ export default function NotFound() {
       </div>
 
       <Link href="/dashboard" className={buttonClasses()}>
-        Back to dashboard
+        <ButtonContent>Back to dashboard</ButtonContent>
       </Link>
     </main>
   );

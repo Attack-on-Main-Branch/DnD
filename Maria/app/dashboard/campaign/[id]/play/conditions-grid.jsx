@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ALL_PARTY, CONDITIONS, CONDITION_KEYS } from "sina/rules/conditions";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { conditionDress } from "@/app/dashboard/condition-presentation";
 
 import { toggleCondition } from "@/app/actions/characters";
@@ -137,13 +138,13 @@ export default function ConditionsGrid({
                    switch carried `opacity-45`, and opacity is whole-element: it
                    took the name down with the border, so twelve of the fifteen
                    were a colour you had to lean in to read. */
-                className={`w-full cursor-pointer rounded-lg border px-1.5 py-1.5 font-display text-[0.75rem] leading-tight tracking-wide transition duration-300 disabled:cursor-not-allowed ${dressed.color} ${
+                className={`inline-flex items-center justify-center min-h-8 w-full cursor-pointer rounded-lg border px-1.5 py-1.5 font-display text-[0.75rem] leading-tight tracking-wide transition duration-300 disabled:cursor-not-allowed ${dressed.color} ${
                   on
                     ? "border-gold/55 bg-gold/10"
                     : "border-gold/15 bg-surface/40 hover:border-gold/40"
                 }`}
               >
-                {CONDITIONS[key].name}
+                <ButtonContent>{CONDITIONS[key].name}</ButtonContent>
               </button>
             </li>
           );

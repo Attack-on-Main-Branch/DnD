@@ -7,6 +7,7 @@ import {
 } from "sina/rules/containers";
 import { MAX_ITEM_QUANTITY, parseQuantity } from "sina/rules/inventory";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { stopNavigationProgress } from "@/app/components/navigation-progress-control";
 import { controlClasses } from "@/app/components/ui/field-styles";
 import FormActions from "@/app/components/ui/form-actions";
@@ -176,13 +177,13 @@ export default function ContainerForm({
               role="radio"
               aria-checked={type === one.value}
               onClick={() => choose(one.value)}
-              className={`cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`inline-flex items-center justify-center min-h-8 cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
                 type === one.value
                   ? "border-gold/55 bg-gold/15 text-gold"
                   : "border-gold/20 bg-surface/40 text-ink/70 hover:border-gold/45 hover:text-gold"
               }`}
             >
-              {one.label}
+              <ButtonContent>{one.label}</ButtonContent>
             </button>
           ))}
         </div>
@@ -258,9 +259,9 @@ export default function ContainerForm({
                     onClick={() => drop(one.slug)}
                     disabled={blocked}
                     aria-label={`Take ${one.name} back out`}
-                    className="shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
+                    className="inline-flex items-center justify-center min-h-8 shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25"
                   >
-                    Remove
+                    <ButtonContent>Remove</ButtonContent>
                   </button>
                 </li>
               ))}

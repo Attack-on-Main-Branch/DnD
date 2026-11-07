@@ -19,6 +19,7 @@ import { GLOW_SPREAD, PATH_BRIGHTNESS, SPEED } from "./config.js";
 
 /** Retina is worth it, 3x on a phone is not. */
 const MAX_DPR = 2;
+const MAX_PIXELS = 1920 * 1080 * MAX_DPR ** 2;
 /**
  * Backing-store scale of the bloom mirror. Higher keeps fine twigs in the glow
  * instead of smearing them into a wash; the CSS blur is in layout pixels, so
@@ -129,7 +130,11 @@ export function createRenderer({
     if (disposed) return;
     const nextWidth = Math.max(1, host.clientWidth);
     const nextHeight = Math.max(1, host.clientHeight);
-    const nextDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    const nextDpr = Math.min(
+      window.devicePixelRatio || 1,
+      MAX_DPR,
+      Math.sqrt(MAX_PIXELS / (nextWidth * nextHeight)),
+    );
     if (nextWidth === width && nextHeight === height && nextDpr === dpr) return;
 
     const previous =
@@ -149,6 +154,8 @@ export function createRenderer({
         if (!previous[i]) return;
         l.ctx.globalCompositeOperation = "source-over";
         l.ctx.drawImage(previous[i], 0, 0, width, height);
+        previous[i].width = 0;
+        previous[i].height = 0;
       });
     }
 
@@ -376,6 +383,7 @@ export function createRenderer({
       steps++;
     }
     if (steps === MAX_CATCHUP) accumulator = 0;
+    if (steps === 0) return;
 
     paintTrail();
     paintDust();
@@ -396,6 +404,18 @@ export function createRenderer({
     paintBloom();
   }
 
+  function visibilityChanged() {
+    host.dataset.paused = String(document.hidden);
+    if (reducedMotion) return;
+    cancelAnimationFrame(raf);
+    raf = 0;
+    if (!document.hidden) {
+      last = performance.now();
+      accumulator = 0;
+      raf = requestAnimationFrame(tick);
+    }
+  }
+
   return {
     start() {
       // A second call would overwrite `raf` and strand the first loop running
@@ -406,6 +426,8 @@ export function createRenderer({
       applyResize();
       observer?.observe(host);
       window.addEventListener("resize", resize, { passive: true });
+      document.addEventListener("visibilitychange", visibilityChanged);
+      visibilityChanged();
 
       if (reducedMotion) {
         // Deferred off the critical path: simulate() runs its 8 seconds in one
@@ -419,9 +441,6 @@ export function createRenderer({
         }
         return;
       }
-
-      last = performance.now();
-      raf = requestAnimationFrame(tick);
     },
 
     destroy() {
@@ -436,6 +455,12 @@ export function createRenderer({
 
       observer?.disconnect();
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      delete host.dataset.paused;
+      for (const canvas of [bloom, dust, ...trails]) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
     },
   };
 }

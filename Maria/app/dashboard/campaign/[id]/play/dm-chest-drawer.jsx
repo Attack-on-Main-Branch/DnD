@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import MultiSelectMenu from "@/app/components/ui/multi-select-menu";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import SelectMenu from "@/app/components/ui/select-menu";
@@ -15,6 +16,7 @@ import {
   REVEALED_CLASSES,
 } from "@/app/dashboard/container-presentation";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
+import ItemDetail from "@/app/dashboard/item-detail";
 
 import {
   hideChestFrom,
@@ -57,6 +59,7 @@ export default function DmChestDrawer({
   const { run } = useTableDeed(campaignId);
 
   const [open, setOpen] = useState(null);
+  const [reading, setReading] = useState(null);
 
   /* Which kinds are unfolded. Both may be at once: a session can be filling a
      chest while it hands a bag over. */
@@ -203,6 +206,7 @@ export default function DmChestDrawer({
   function card(container) {
     const expanded = open === container.id;
     const contents = contentsOf(container);
+    const held = contents.find((row) => row.id === reading);
     const carrier = members.find(
       (member) => member.id === container.ownerCharacterId,
     );
@@ -259,9 +263,17 @@ export default function DmChestDrawer({
                     key={row.id}
                     className="flex items-center gap-2 rounded-lg border border-gold/15 bg-surface/50 px-2.5 py-1.5"
                   >
-                    <span className="min-w-0 flex-1 truncate font-display text-xs tracking-wide text-ink/85">
-                      {row.name}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReading((id) => (id === row.id ? null : row.id))
+                      }
+                      aria-expanded={reading === row.id}
+                      aria-label={`Inspect ${row.name}`}
+                      className="min-w-0 flex-1 truncate py-1 text-left font-display text-xs tracking-wide text-ink/85 hover:text-gold"
+                    >
+                      <ButtonContent>{row.name}</ButtonContent>
+                    </button>
 
                     <StepButton
                       onClick={() => step(container, rowItem(row), -1)}
@@ -284,6 +296,10 @@ export default function DmChestDrawer({
                   </li>
                 ))}
               </ul>
+            )}
+
+            {held && (
+              <ItemDetail item={rowItem(held)} quantity={held.quantity} />
             )}
 
             {/* Pressing a hit puts one in; pressing again puts another. */}
@@ -435,11 +451,11 @@ function RevealButton({ revealed, onClick, disabled, label, children }) {
       disabled={disabled}
       aria-pressed={Boolean(revealed)}
       aria-label={label}
-      className={`cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`inline-flex min-h-8 cursor-pointer items-center justify-center rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
         revealed ? REVEALED_CLASSES : HIDDEN_CLASSES
       }`}
     >
-      {children}
+      <ButtonContent>{children}</ButtonContent>
     </button>
   );
 }

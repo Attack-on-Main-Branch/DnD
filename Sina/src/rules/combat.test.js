@@ -135,6 +135,20 @@ describe("initiativeOrder", () => {
     );
   });
 
+  it("orders equal initiatives chronologically across timestamp formats", () => {
+    const order = initiativeOrder([
+      piece({ id: "a", placedAt: "2026-09-26T09:00:00.000001+00:00" }),
+      piece({ id: "b", placedAt: "2026-09-26T09:00:00+00:00" }),
+      piece({ id: "c", placedAt: "2026-09-26T09:00:00.000Z" }),
+      piece({ id: "d", placedAt: "2026-09-26T10:00:00.000002+01:00" }),
+    ]);
+
+    assert.deepEqual(
+      order.map((token) => token.id),
+      ["b", "c", "a", "d"],
+    );
+  });
+
   it("answers with nothing for anything that is not a list", () => {
     assert.deepEqual(initiativeOrder(null), []);
     assert.deepEqual(initiativeOrder(undefined), []);

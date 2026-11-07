@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { EDITING_CARD_CLASSES } from "@/app/components/ui/field-styles";
 import { surfaceClasses } from "@/app/components/ui/surface";
 
@@ -94,11 +95,11 @@ export default function FeatureCard({
             disabled={disabled}
             aria-pressed={editing}
             aria-label={`Edit ${feature.name}`}
-            className={`shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 ${
+            className={`inline-flex items-center justify-center shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 ${
               editing ? "text-gold" : "text-ink/50"
             }`}
           >
-            Edit
+            <ButtonContent>Edit</ButtonContent>
           </button>
         )}
 
@@ -110,9 +111,9 @@ export default function FeatureCard({
             onClick={onRemove}
             disabled={disabled}
             aria-label={`Remove ${feature.name}`}
-            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide text-ink/50 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11"
+            className="inline-flex items-center justify-center shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-display text-[0.75rem] tracking-wide text-ink/50 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11"
           >
-            Remove
+            <ButtonContent>Remove</ButtonContent>
           </button>
         )}
       </div>

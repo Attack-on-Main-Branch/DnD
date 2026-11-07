@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { Silhouette } from "@/app/components/ui/avatar";
 import { CHOICE_CARD_FOCUS_CLASSES } from "@/app/components/ui/field-styles";
 import { AVATAR_EDGE, compressAvatar } from "@/lib/image-compression";
@@ -219,7 +220,7 @@ export default function AvatarField({
             aria-label="Remove the portrait"
             className="absolute -top-0.5 -right-0.5 grid size-6 cursor-pointer place-items-center rounded-full border border-gold/30 bg-surface/90 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400"
           >
-            ×
+            <ButtonContent>×</ButtonContent>
           </button>
         )}
       </div>

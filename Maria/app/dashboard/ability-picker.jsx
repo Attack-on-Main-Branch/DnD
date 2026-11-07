@@ -14,6 +14,7 @@ import {
 } from "sina/rules/character";
 import { getSavingThrowBonus } from "sina/rules/saving-throws";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import {
   INVALID_GROUP_CLASSES,
   LABEL_CLASSES,
@@ -289,7 +290,7 @@ function StepButton({ label, disabled, onClick, children }) {
       // match, so they read a size smaller than the number beside them.
       className="grid size-7 cursor-pointer place-items-center rounded-md border border-gold/20 bg-surface/60 font-display text-xl leading-none text-ink/80 transition duration-200 hover:border-gold/50 hover:bg-surface/40 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:border-gold/10 disabled:bg-surface/30 disabled:text-ink/25 disabled:hover:border-gold/10 disabled:hover:text-ink/25 max-sm:size-11 max-sm:touch-manipulation"
     >
-      {children}
+      <ButtonContent>{children}</ButtonContent>
     </button>
   );
 }

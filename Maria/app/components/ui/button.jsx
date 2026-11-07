@@ -1,3 +1,5 @@
+import { Children } from "react";
+
 /**
  * Central button styling. `buttonClasses` is exported separately because
  * non-button elements — Next's <Link>, a plain <a> — need the same look, and a
@@ -17,7 +19,7 @@
  */
 
 const BASE_CLASSES =
-  "inline-flex items-center justify-center gap-2 text-sm font-medium " +
+  "inline-flex items-center justify-center gap-2 text-center text-sm font-medium " +
   "max-sm:min-h-11 max-sm:touch-manipulation " +
   "transition select-none disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -28,7 +30,7 @@ const VARIANT_CLASSES = {
      BASE_CLASSES, so the serif separates the primary action from the
      secondary and ghost controls beside it. */
   primary:
-    "rounded-full px-5 py-2.5 border border-gold/45 bg-gold/15 text-gold font-display tracking-wide " +
+    "min-h-11 rounded-full px-5 py-2.5 border border-gold/45 bg-gold/15 text-gold font-display tracking-wide " +
     "shadow-[inset_0_1px_0_rgba(255,223,156,0.18)] " +
     "hover:border-gold/80 hover:bg-gold/25 " +
     "hover:shadow-[inset_0_1px_0_rgba(255,223,156,0.28),0_0_24px_-4px_rgba(255,223,156,0.5)] " +
@@ -38,17 +40,18 @@ const VARIANT_CLASSES = {
     "hover:focus-visible:shadow-[inset_0_1px_0_rgba(255,223,156,0.28),0_0_24px_-4px_rgba(255,223,156,0.5),0_0_0_6px_rgba(10,8,6,0.9)]",
 
   secondary:
-    "rounded-full px-4 py-2 border border-gold/20 bg-surface/70 text-ink/90 " +
+    "min-h-10 rounded-full px-4 py-2 border border-gold/20 bg-surface/70 text-ink/90 " +
     "hover:border-gold/60 hover:text-gold " +
     "hover:shadow-[0_0_20px_-6px_rgba(255,223,156,0.45)] " +
     // Only the hovered state needs restating here: at rest this variant sets no
     // shadow at all, so the base rule's casing reaches it untouched.
     "hover:focus-visible:shadow-[0_0_20px_-6px_rgba(255,223,156,0.45),0_0_0_6px_rgba(10,8,6,0.9)]",
 
-  ghost: "rounded-full px-3 py-2 text-ink/60 hover:text-gold hover:bg-gold/10",
+  ghost:
+    "min-h-9 rounded-full px-3 py-2 text-ink/60 hover:text-gold hover:bg-gold/10",
 
   danger:
-    "rounded-full px-4 py-2 border border-red-400/40 bg-red-500/15 text-red-200 " +
+    "min-h-10 rounded-full px-4 py-2 border border-red-400/40 bg-red-500/15 text-red-200 " +
     "hover:border-red-400/70 hover:bg-red-500/25 hover:text-red-100",
 
   link: "rounded-sm text-gold underline underline-offset-4 hover:text-ink",
@@ -69,6 +72,16 @@ export function buttonClasses({
     .join(" ");
 }
 
+export function ButtonContent({ children }) {
+  return Children.map(children, (child) =>
+    typeof child === "string" || typeof child === "number" ? (
+      <span className="button-label">{child}</span>
+    ) : (
+      child
+    ),
+  );
+}
+
 /**
  * `type` defaults to "button" rather than the HTML default of "submit", so a
  * button dropped into a form cannot submit it by accident. Submit buttons opt
@@ -79,6 +92,7 @@ export default function Button({
   fullWidth = false,
   className = "",
   type = "button",
+  children,
   ...props
 }) {
   return (
@@ -86,6 +100,8 @@ export default function Button({
       type={type}
       className={buttonClasses({ variant, fullWidth, className })}
       {...props}
-    />
+    >
+      <ButtonContent>{children}</ButtonContent>
+    </button>
   );
 }

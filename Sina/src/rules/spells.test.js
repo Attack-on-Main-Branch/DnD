@@ -12,6 +12,7 @@ import {
   parseSpellLevel,
   readCatalogueSpell,
   readSpellFlare,
+  readSpellSlug,
   SPELL_FLARES,
   SPELL_SCHOOLS,
   spellDiceAt,
@@ -77,6 +78,27 @@ describe("parseSpellLevel", () => {
     assert.equal(isSpellLevel(9), true);
     assert.equal(isSpellLevel(10), false);
     assert.equal(isSpellLevel(null), false);
+  });
+});
+
+describe("readSpellSlug", () => {
+  it("keeps custom spell keys distinct from SRD keys", () => {
+    const spell = validateSpell({ name: "Frost Lash", level: 1 }).values;
+    assert.equal(readSpellSlug(spell.slug), "custom:frost-lash");
+    assert.equal(readSpellSlug("frost-lash"), "frost-lash");
+  });
+
+  it("keeps Unicode and the namespace at the length limit", () => {
+    for (const name of ["Огненный шар", "A".repeat(MAX_SPELL_NAME_LENGTH)]) {
+      const spell = validateSpell({ name, level: 1 }).values;
+      assert.equal(readSpellSlug(spell.slug), spell.slug);
+    }
+  });
+
+  it("refuses empty keys, including an empty custom namespace", () => {
+    for (const key of [null, undefined, "", "custom:", "custom:!!!"]) {
+      assert.equal(readSpellSlug(key), null);
+    }
   });
 });
 

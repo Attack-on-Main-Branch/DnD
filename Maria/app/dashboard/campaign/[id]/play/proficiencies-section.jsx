@@ -5,6 +5,8 @@ import {
   MAX_PROFICIENCY_LENGTH,
   readProficiencyName,
 } from "sina/rules/character-stats";
+
+import { ButtonContent } from "@/app/components/ui/button";
 import {
   changeProficiency,
   readProficiencies,
@@ -133,7 +135,7 @@ export default function ProficienciesSection({
                       onClick={() => change(key, one, true)}
                       className="grid size-5 cursor-pointer place-items-center rounded-full text-base leading-none text-ink/50 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-35"
                     >
-                      ×
+                      <ButtonContent>×</ButtonContent>
                     </button>
                   )}
                 </li>

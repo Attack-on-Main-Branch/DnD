@@ -99,12 +99,21 @@ const REFUSED = { data: null, error: { reason: "not_found", detail: null } };
  * Every container the caller may see — RLS decides which. Oldest first, so a
  * card keeps its place as its contents move.
  */
-export async function listCampaignContainers(supabase, campaignId) {
-  const { data, error } = await supabase
-    .from("containers")
-    .select(COLUMNS)
-    .eq("campaign_id", campaignId)
-    .order("created_at", { ascending: true });
+export function listCampaignContainers(supabase, campaignId) {
+  return listContainersForCampaigns(supabase, [campaignId]);
+}
+
+export async function listContainersForCampaigns(supabase, campaignIds) {
+  if (!campaignIds?.length) {
+    return { data: [], error: null };
+  }
+
+  const query = supabase.from("containers").select(COLUMNS);
+  const scoped =
+    campaignIds.length === 1
+      ? query.eq("campaign_id", campaignIds[0])
+      : query.in("campaign_id", campaignIds);
+  const { data, error } = await scoped.order("created_at", { ascending: true });
 
   return error ? failure(error) : { data: data ?? [], error: null };
 }

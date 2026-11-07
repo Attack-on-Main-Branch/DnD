@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import PartyMark from "@/app/components/ui/party-mark";
 import {
   MAP_VIGNETTE_SCALED_STYLE,
@@ -518,9 +519,9 @@ export default function CampaignMap({ url, title, mark = null }) {
                 <button
                   type="button"
                   onClick={close}
-                  className="shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-gold"
+                  className="inline-flex items-center justify-center min-h-8 shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-gold"
                 >
-                  Close
+                  <ButtonContent>Close</ButtonContent>
                 </button>
               </div>
 

@@ -1,5 +1,7 @@
 import { asksAnything, mergeWants, tableSliceQuery } from "@/lib/table-slices";
 
+const READ_TIMEOUT_MS = 15_000;
+
 /**
  * The table's slices off api/campaigns/[id]/table — see the head of that route
  * for why it is a route. Null when nothing could be read.
@@ -9,7 +11,11 @@ async function readTableSlice(campaignId, want, display) {
     const query = tableSliceQuery(want);
     const response = await fetch(
       `/api/campaigns/${encodeURIComponent(campaignId)}/table?${query}${display ? "&display=1" : ""}`,
-      { cache: "no-store", headers: { accept: "application/json" } },
+      {
+        cache: "no-store",
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+      },
     );
 
     return response.ok ? await response.json() : null;

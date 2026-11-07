@@ -364,8 +364,11 @@ async function simulatedManager(t) {
       const box = {
         clears: 0,
         throws: 0,
+        themes: [],
         loadThemeQueue: { push: async (load) => load() },
-        loadTheme: async () => {},
+        loadTheme: async (theme) => {
+          box.themes.push(theme);
+        },
         updateConfig: async () => {},
         roll: async () => {
           box.throws += 1;
@@ -431,4 +434,23 @@ test("an obsolete throw cannot start after its awaited theme arrives", async (t)
   finishTheme();
   await rejected;
   assert.equal(built.box.throws, 1);
+});
+
+test("a failed skin preload is contained and the next throw retries it", async (t) => {
+  const { engine } = await simulatedManager(t);
+  engine.holdTray(1000, 600);
+  const built = await engine.diceEngine(0);
+  const load = built.box.loadThemeQueue.push;
+  built.box.loadThemeQueue.push = async () => {
+    throw new Error("Texture unavailable");
+  };
+  engine.preloadDiceThemes(["bone"]);
+  await immediate();
+  built.box.loadThemeQueue.push = load;
+
+  assert.equal(
+    await engine.throwDie({ notation: "1d20", theme: "bone", seed: 7 }),
+    20,
+  );
+  assert.ok(built.box.themes.includes("bone"));
 });

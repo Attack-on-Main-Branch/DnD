@@ -9,6 +9,7 @@ import {
   TOKEN_ACCEPT_ATTRIBUTE,
 } from "sina/rules/tokens";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import {
   editCampaignToken,
   writeCampaignToken,
@@ -371,7 +372,7 @@ export function TokenImageField({
             aria-label="Remove the picture"
             className={`absolute ${shape.remove} grid size-6 cursor-pointer place-items-center rounded-full border border-gold/30 bg-surface/90 text-sm leading-none text-ink/60 transition duration-300 hover:border-red-400/60 hover:text-red-400`}
           >
-            ×
+            <ButtonContent>×</ButtonContent>
           </button>
         )}
       </div>

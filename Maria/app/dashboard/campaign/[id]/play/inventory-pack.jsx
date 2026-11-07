@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { canOpenContainer } from "sina/rules/containers";
@@ -9,7 +10,6 @@ import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh"
 import TravellingPack from "@/app/components/ui/travelling-pack";
 
 import { announcePouch, openPouch } from "./dice-pouch-actions";
-import DicePouchOpening from "./dice-pouch-opening";
 import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
 import DmPackDrawer from "./dm-pack-drawer";
 import PlayerPackDrawer from "./player-pack-drawer";
@@ -23,6 +23,8 @@ import {
 import { useContainerWire } from "./use-containers";
 import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
+
+const DicePouchOpening = dynamic(() => import("./dice-pouch-opening"));
 
 /**
  * The pack beside the scroll, and what is in it. One control, two drawers —

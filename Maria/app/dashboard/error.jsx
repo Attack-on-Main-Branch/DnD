@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 
-import Button, { buttonClasses } from "@/app/components/ui/button";
+import Button, {
+  ButtonContent,
+  buttonClasses,
+} from "@/app/components/ui/button";
 
 /**
  * The dashboard's own boundary, so the segment's shell stays up: the root one
@@ -41,7 +44,7 @@ export default function DashboardError({ error, retry }) {
           href="/dashboard"
           className={buttonClasses({ variant: "secondary" })}
         >
-          Back to dashboard
+          <ButtonContent>Back to dashboard</ButtonContent>
         </Link>
       </div>
     </main>

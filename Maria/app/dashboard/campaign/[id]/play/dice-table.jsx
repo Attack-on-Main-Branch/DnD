@@ -14,6 +14,7 @@ import { preloadDiceThemes } from "./dice-engine";
 import { diceCast, rollSentence } from "./dice-presentation";
 import { useActivityLog } from "./use-activity";
 import { useDiceRoll } from "./use-dice-roll";
+import { useDiceAppearance } from "./use-dice-appearance";
 import { useTableRolls } from "./use-table-rolls";
 import { usePlayerDice } from "./use-player-dice";
 
@@ -81,7 +82,6 @@ export default function DiceTable({
   characterId,
   diceColor = null,
   diceSkin = null,
-  skins = [],
   seatTitle,
   canKeepSecrets,
   display = false,
@@ -91,6 +91,12 @@ export default function DiceTable({
   const playerDice = usePlayerDice(campaignId, canKeepSecrets);
   const rollingDisabled = !seatId || (!canKeepSecrets && playerDice.paused);
   const listening = Boolean(seatId) || display;
+  const { appearance, skins } = useDiceAppearance({
+    campaignId,
+    characterId,
+    enabled: listening,
+    display,
+  });
 
   /* The roller, reached from the socket's side of the loop. Filled by the
      effect below rather than during render, and read at the moment a roll
@@ -181,8 +187,8 @@ export default function DiceTable({
      `diceMaterial` reads as "throw the house's dice". */
   const local = useDiceRoll({
     enabled: !rollingDisabled,
-    color: diceColor,
-    skin: diceSkin,
+    color: appearance?.color ?? diceColor,
+    skin: appearance?.skin ?? diceSkin,
     onStart,
     onFinish,
   });

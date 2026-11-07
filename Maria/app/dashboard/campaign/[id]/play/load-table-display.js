@@ -76,7 +76,13 @@ export async function loadTableDisplay(
       activeMapId: want.maps && maps ? (active?.id ?? null) : undefined,
       maps: want.maps && maps ? (active ? [active] : []) : undefined,
       worldUrl: want.maps && maps ? campaign.map_url : undefined,
-      combat: want.combat ? readCombat(campaign) : undefined,
+      combat: want.combat
+        ? {
+            ...readCombat(campaign),
+            dice_color: campaign.dice_color,
+            dice_skin: campaign.dice_skin,
+          }
+        : undefined,
       activity: log && readActivityLog(log),
       party: rows("listPartyMembers", party)?.map(
         ({

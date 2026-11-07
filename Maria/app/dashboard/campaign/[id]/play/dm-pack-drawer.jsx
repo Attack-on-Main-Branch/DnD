@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { canOpenContainer } from "sina/rules/containers";
 import { parseQuantity } from "sina/rules/inventory";
 
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
@@ -16,7 +17,8 @@ import { rowItem } from "@/app/dashboard/inventory-presentation";
 
 import DmPurse from "./dm-purse";
 import ItemSearch from "./item-search";
-import { Action, QuantityField } from "./pack-controls";
+import { Action, QuantityField, StowChoice } from "./pack-controls";
+import PlayerChestDrawer from "./player-chest-drawer";
 import { adjustPackItem, grantPackItems } from "./pack-actions";
 import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import {
@@ -24,17 +26,17 @@ import {
   POPOVER_BODY_CLASSES,
   usePopoverOpen,
 } from "./table-popover";
-import { useContainers, useTableStore } from "./table-state";
+import { useChestItems, useContainers, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
+import { usePackMove } from "./use-pack-move";
 
 /**
  * The Dungeon Master's side of the pack: what the party is carrying, and what
  * they are about to be carrying. Built the way the spellbook's drawer is — a
  * page of names, and the one pressed read out underneath.
  *
- * The pill bar aims both halves. "All party" is a TARGET and not a view — six
- * packs at once is more than this panel can show — so choosing it puts the
- * carried list away and leaves the giving.
+ * The selected character shows their pack, bags and revealed loot chests.
+ * "All party" aims grants at everybody without combining their inventories.
  *
  * Nothing is invented here: homebrew is written down on the campaign page and
  * found from the search, beside the SRD's own.
@@ -58,10 +60,14 @@ export default function DmPackDrawer({
   const [openBag, setOpenBag] = useState(null);
   const [typed, setTyped] = useState("");
   const [note, setNote] = useState(null);
+  const [stowing, setStowing] = useState(false);
+  const [stowTo, setStowTo] = useState(undefined);
 
   const store = useTableStore();
   const containers = useContainers();
+  const chests = useChestItems();
   const { run, send } = useTableDeed(campaignId);
+  const movePack = usePackMove(campaignId);
 
   const selected = members.find((member) => member.id === target) ?? null;
   const targets = selected ? [selected.id] : members.map((member) => member.id);
@@ -122,6 +128,8 @@ export default function DmPackDrawer({
   }
 
   function show(item, containerId = null) {
+    setStowing(false);
+    setStowTo(undefined);
     setTyped("1");
     setNote(null);
     setReading((standing) =>
@@ -130,6 +138,29 @@ export default function DmPackDrawer({
         ? null
         : { item, containerId },
     );
+  }
+
+  function chooseTarget(id) {
+    setTarget(id);
+    setReading(null);
+    setStowing(false);
+    setStowTo(undefined);
+  }
+
+  function stow() {
+    if (!held || !selected || stowTo === undefined) return;
+
+    void movePack(
+      selected.id,
+      open,
+      Math.min(count, held.quantity),
+      bagId,
+      stowTo,
+    );
+    setReading(null);
+    setTyped("");
+    setStowing(false);
+    setStowTo(undefined);
   }
 
   /** Every pack this deed reaches, told once the server has taken it. */
@@ -229,12 +260,12 @@ export default function DmPackDrawer({
       <PartyPills
         members={members}
         chosen={target}
-        onChoose={setTarget}
+        onChoose={chooseTarget}
         label="Who receives it"
       >
         <Pill
           active={target === EVERYONE}
-          onClick={() => setTarget(EVERYONE)}
+          onClick={() => chooseTarget(EVERYONE)}
           disabled={members.length === 0}
         >
           All party
@@ -345,6 +376,23 @@ export default function DmPackDrawer({
                 ))}
               </>
             ))}
+          {selected && (
+            <PlayerChestDrawer
+              key={selected.id}
+              campaignId={campaignId}
+              characterId={selected.id}
+              actorName={actorName}
+              chests={containers.filter(
+                (one) =>
+                  one.type === "chest" && canOpenContainer(one, selected.id),
+              )}
+              contents={chests}
+              onTold={() => {
+                send({ kind: "chest" });
+                send({ kind: "pack", characterId: selected.id });
+              }}
+            />
+          )}
         </>
       )}
 
@@ -370,6 +418,20 @@ export default function DmPackDrawer({
 
               {held && selected && (
                 <Action
+                  onClick={() => {
+                    setStowing((value) => !value);
+                    setStowTo(undefined);
+                  }}
+                  disabled={!usable || bags.length === 0}
+                  pressed={stowing}
+                  label={`Move ${count} ${open.name} between ${selected.name}’s pack and bags`}
+                >
+                  Move
+                </Action>
+              )}
+
+              {held && selected && (
+                <Action
                   onClick={take}
                   disabled={!usable}
                   tone="danger"
@@ -392,6 +454,22 @@ export default function DmPackDrawer({
                 {selected ? `Give to ${selected.name}` : "Give to everyone"}
               </Action>
             </div>
+            {stowing && held && selected && (
+              <StowChoice
+                places={[
+                  { id: null, name: "The pack itself" },
+                  ...bags.map((one) => ({ id: one.id, name: one.name })),
+                ].filter((place) => place.id !== bagId)}
+                chosen={stowTo}
+                onChoose={setStowTo}
+                onCancel={() => setStowing(false)}
+                onConfirm={stow}
+                disabled={!usable}
+                confirmLabel={`Move ${count} ${open.name}`}
+              >
+                Move it
+              </StowChoice>
+            )}
           </ItemDetail>
         </PopoverAside>
       )}

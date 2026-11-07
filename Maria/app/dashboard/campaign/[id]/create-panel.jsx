@@ -8,7 +8,7 @@ import { MAX_CAMPAIGN_SPELLS } from "sina/rules/spells";
 import { MAX_CAMPAIGN_TOKENS } from "sina/rules/tokens";
 
 import { EDITING_CARD_CLASSES } from "@/app/components/ui/field-styles";
-import Button from "@/app/components/ui/button";
+import Button, { ButtonContent } from "@/app/components/ui/button";
 import ConfirmDialog from "@/app/components/ui/confirm-dialog";
 import { NESTED_CARD_CLASSES } from "@/app/components/ui/surface";
 import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
@@ -300,13 +300,13 @@ export default function CreatePanel({
               type="button"
               onClick={() => choose(one.value)}
               aria-pressed={kind === one.value}
-              className={`cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 max-sm:min-h-11 max-sm:text-sm max-sm:touch-manipulation ${
+              className={`inline-flex items-center justify-center cursor-pointer rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 max-sm:min-h-11 max-sm:text-sm max-sm:touch-manipulation ${
                 kind === one.value
                   ? "border-gold/55 bg-gold/15 text-gold"
                   : "border-gold/20 bg-surface/40 text-ink/70 hover:border-gold/45 hover:text-gold"
               }`}
             >
-              {one.label}
+              <ButtonContent>{one.label}</ButtonContent>
             </button>
           ))}
         </div>
@@ -759,11 +759,11 @@ function EditButton({ label, active, disabled, onClick }) {
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
-      className={`cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 ${
+      className={`inline-flex items-center justify-center cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 hover:text-gold disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 ${
         active ? "text-gold" : "text-ink/60"
       }`}
     >
-      Edit
+      <ButtonContent>Edit</ButtonContent>
     </button>
   );
 }
@@ -776,9 +776,9 @@ function StrikeButton({ label, disabled, onClick }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11"
+      className="inline-flex items-center justify-center cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11"
     >
-      Remove
+      <ButtonContent>Remove</ButtonContent>
     </button>
   );
 }

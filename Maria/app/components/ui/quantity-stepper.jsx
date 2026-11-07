@@ -1,5 +1,7 @@
 "use client";
 
+import { ButtonContent } from "./button";
+
 /**
  * One half of a stepper. Written for the health band that used to run across the
  * foot of the board; the band is gone and its bars are inside the party cards
@@ -55,7 +57,7 @@ export function StepButton({
           : "size-9 text-lg")
       }
     >
-      {children}
+      <ButtonContent>{children}</ButtonContent>
     </button>
   );
 }

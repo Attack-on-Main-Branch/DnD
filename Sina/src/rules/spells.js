@@ -157,6 +157,15 @@ function customSpellSlug(name) {
     : null;
 }
 
+/** A stored key keeps the namespace that separates homebrew from SRD spells. */
+export function readSpellSlug(value) {
+  const key = String(value ?? "");
+
+  return key.startsWith(CUSTOM_SLUG_PREFIX)
+    ? customSpellSlug(key.slice(CUSTOM_SLUG_PREFIX.length))
+    : spellSlug(key);
+}
+
 /** One line, whitespace collapsed: everything but the two prose fields. */
 function line(value, limit) {
   return String(value ?? "")

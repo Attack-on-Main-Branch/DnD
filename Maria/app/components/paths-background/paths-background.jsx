@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createRenderer } from "./animation/renderer.js";
 import { createTint } from "./animation/tint.js";
 import { registerTint } from "./tint-control";
 import "./paths-background.css";
@@ -28,8 +27,11 @@ export default function PathsBackground() {
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
     let renderer = null;
+    let createRenderer = null;
+    let cancelled = false;
 
     const boot = () => {
+      if (!createRenderer) return;
       renderer?.destroy();
       renderer = createRenderer({
         host: hostRef.current,
@@ -41,10 +43,24 @@ export default function PathsBackground() {
       renderer.start();
     };
 
-    boot();
+    const load = () => {
+      import("./animation/renderer.js")
+        .then((module) => {
+          if (cancelled) return;
+          createRenderer = module.createRenderer;
+          boot();
+        })
+        .catch(() => {});
+    };
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(load, { timeout: 1000 })
+      : window.setTimeout(load, 0);
     query.addEventListener("change", boot);
 
     return () => {
+      cancelled = true;
+      if (window.requestIdleCallback) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
       query.removeEventListener("change", boot);
       renderer?.destroy();
     };

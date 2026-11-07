@@ -10,7 +10,7 @@ import {
 import { readSpellcasting } from "sina/rules/spellcasting";
 import { classLabel } from "sina/rules/character";
 
-import { buttonClasses } from "@/app/components/ui/button";
+import { ButtonContent, buttonClasses } from "@/app/components/ui/button";
 import ToastProvider from "@/app/components/ui/toast";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { CharacterStats } from "@/app/dashboard/character-stats";
@@ -370,7 +370,6 @@ export default async function CampaignTablePage({ params, searchParams }) {
     characterId: seat?.characterId ?? null,
     diceColor: seat?.diceColor ?? null,
     diceSkin: seat?.diceSkin ?? null,
-    skins: [campaign.dice_skin, ...members.map((member) => member.dice_skin)],
     seatTitle: seat?.title ?? null,
     canKeepSecrets: isDungeonMaster,
   };
@@ -500,7 +499,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
                             "justify-self-end max-sm:justify-self-start",
                         })}
                       >
-                        Cast to TV
+                        <ButtonContent>Cast to TV</ButtonContent>
                       </Link>
                     )}
                   </div>

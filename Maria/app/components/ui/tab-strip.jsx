@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { useReducedMotion } from "@/app/components/use-reduced-motion";
 
 const SLIDE_MS = 320;
@@ -138,13 +139,13 @@ export default function TabStrip({ tabs, label, panels, action = null }) {
                     aria-controls={`${baseId}-panel-${tab.value}`}
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => setActive(tab.value)}
-                    className={`shrink-0 px-4 py-3 font-display text-sm font-medium tracking-wide transition-colors duration-300 max-sm:min-h-11 max-sm:min-w-0 max-sm:rounded-lg max-sm:px-0.5 max-sm:text-[clamp(0.6875rem,3vw,0.875rem)] max-sm:tracking-normal max-sm:touch-manipulation ${
+                    className={`inline-flex items-center justify-center shrink-0 px-4 py-3 font-display text-sm font-medium tracking-wide transition-colors duration-300 max-sm:min-h-11 max-sm:min-w-0 max-sm:rounded-lg max-sm:px-0.5 max-sm:text-[clamp(0.6875rem,3vw,0.875rem)] max-sm:tracking-normal max-sm:touch-manipulation ${
                       isActive
                         ? "text-gold max-sm:bg-gold/10 max-sm:ring-1 max-sm:ring-gold/30 max-sm:ring-inset"
                         : "text-ink/60 hover:text-ink"
                     }`}
                   >
-                    {tab.label}
+                    <ButtonContent>{tab.label}</ButtonContent>
                   </button>
                 );
               })}

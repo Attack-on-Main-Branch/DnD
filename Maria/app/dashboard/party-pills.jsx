@@ -1,5 +1,6 @@
 "use client";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import Avatar from "@/app/components/ui/avatar";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 
@@ -46,7 +47,7 @@ export default function PartyPills({
             />
           }
         >
-          <span className="max-w-32 truncate">{member.name}</span>
+          <span className="button-label max-w-32 truncate">{member.name}</span>
         </Pill>
       ))}
     </div>
@@ -70,7 +71,7 @@ export function Pill({ active, onClick, disabled, label, face, children }) {
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
-      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-full border font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
         face ? "py-0 pr-3.5 pl-0" : "px-3 py-1.5"
       } ${
         active
@@ -79,7 +80,7 @@ export function Pill({ active, onClick, disabled, label, face, children }) {
       }`}
     >
       {face}
-      {children}
+      <ButtonContent>{children}</ButtonContent>
     </button>
   );
 }

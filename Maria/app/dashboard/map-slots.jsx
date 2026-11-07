@@ -169,6 +169,8 @@ export default function MapSlots({
               <img
                 src={slot.url}
                 alt=""
+                loading="lazy"
+                decoding="async"
                 className="h-20 w-28 shrink-0 rounded-md border border-gold/15 object-cover"
               />
 

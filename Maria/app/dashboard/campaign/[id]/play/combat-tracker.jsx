@@ -7,6 +7,7 @@ import {
   parseInitiative,
 } from "sina/rules/combat";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import Avatar from "@/app/components/ui/avatar";
 import PartyMark from "@/app/components/ui/party-mark";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
@@ -63,13 +64,15 @@ export default function CombatTracker({
           <button
             type="button"
             onClick={inCombat ? conclude : begin}
-            className={`flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+            className={`inline-flex items-center justify-center min-h-8 flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
               inCombat
                 ? "border-rose-500 bg-rose-950/60 text-rose-300 shadow-[0_0_12px_rgba(225,29,72,0.6)] motion-safe:animate-pulse"
                 : "border-gold/30 text-gold hover:bg-gold/10"
             }`}
           >
-            {inCombat ? "End combat" : "Start combat"}
+            <ButtonContent>
+              {inCombat ? "End combat" : "Start combat"}
+            </ButtonContent>
           </button>
 
           {/* Nothing to hand on when nobody has rolled. */}
@@ -77,9 +80,9 @@ export default function CombatTracker({
             <button
               type="button"
               onClick={nextTurn}
-              className="flex-1 cursor-pointer rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] text-amber-200 uppercase transition duration-300 hover:bg-amber-400/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="inline-flex items-center justify-center min-h-8 flex-1 cursor-pointer rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] text-amber-200 uppercase transition duration-300 hover:bg-amber-400/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
-              Next turn
+              <ButtonContent>Next turn</ButtonContent>
             </button>
           )}
         </div>
