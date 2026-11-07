@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import {
   latestAnnouncedVersion,
   listNotifications,
@@ -33,10 +34,7 @@ import NavTransition from "./nav-transition";
  * navigation, which is exactly right for a list kept current by `router.refresh`
  * and `revalidatePath` instead.
  */
-export default async function DashboardLayout({ children }) {
-  const { user } = await currentUser();
-  const inbox = await readInbox(user);
-
+export default function DashboardLayout({ children }) {
   return (
     <>
       {/*
@@ -52,18 +50,31 @@ export default async function DashboardLayout({ children }) {
           inside the bar among them. */}
       <NavTransition className="flex flex-1 flex-col">
         <HeaderFold>
-          <SiteHeader
-            displayName={user?.user_metadata?.display_name ?? null}
-            email={user?.email}
-            userId={user?.id ?? null}
-            notifications={inbox.notifications}
-            announce={inbox.announce}
-          />
+          <Suspense
+            fallback={<div aria-hidden="true" className="h-17 lg:h-19" />}
+          >
+            <DashboardHeader />
+          </Suspense>
         </HeaderFold>
 
         {children}
       </NavTransition>
     </>
+  );
+}
+
+async function DashboardHeader() {
+  const { user } = await currentUser();
+  const inbox = await readInbox(user);
+
+  return (
+    <SiteHeader
+      displayName={user?.user_metadata?.display_name ?? null}
+      email={user?.email}
+      userId={user?.id ?? null}
+      notifications={inbox.notifications}
+      announce={inbox.announce}
+    />
   );
 }
 

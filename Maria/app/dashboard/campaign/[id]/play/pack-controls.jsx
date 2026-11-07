@@ -2,6 +2,7 @@
 
 import { MAX_ITEM_QUANTITY, parseQuantity } from "sina/rules/inventory";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import Avatar from "@/app/components/ui/avatar";
 import { controlClasses } from "@/app/components/ui/field-styles";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
@@ -41,11 +42,11 @@ export function Action({ onClick, disabled, label, pressed, tone, children }) {
       disabled={disabled}
       aria-label={label}
       aria-pressed={pressed}
-      className={`shrink-0 cursor-pointer rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 max-sm:touch-manipulation ${
+      className={`inline-flex min-h-7 shrink-0 cursor-pointer items-center justify-center rounded-md px-2 py-1 font-display text-xs tracking-wide transition-colors duration-300 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:min-w-11 max-sm:touch-manipulation ${
         pressed ? "bg-gold/15 text-gold" : colour
       }`}
     >
-      {children}
+      <ButtonContent>{children}</ButtonContent>
     </button>
   );
 }

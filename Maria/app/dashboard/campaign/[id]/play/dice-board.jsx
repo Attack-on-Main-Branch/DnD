@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { prefersReducedMotion } from "@/app/components/use-reduced-motion";
 
 import {
   CRIT_LAYER_ID,
@@ -53,6 +54,7 @@ export default function DiceBoard({ phone = false, traySize }) {
   /* The flare's library, fetched while nobody is waiting on it rather than in
      the moment a 20 lands. */
   useEffect(() => {
+    if (prefersReducedMotion()) return;
     const ask = window.requestIdleCallback ?? ((then) => setTimeout(then, 1));
     const cancel = window.cancelIdleCallback ?? clearTimeout;
     const asked = ask(() => prepareCritFlare().catch(() => {}));
@@ -113,7 +115,11 @@ export default function DiceBoard({ phone = false, traySize }) {
   );
 
   return (
-    <div aria-hidden="true" style={cast.style}>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10"
+      style={cast.style}
+    >
       <span
         className={`rim-cast pointer-events-none absolute motion-reduce:transition-none ${
           phone ? "-inset-1.5 rounded-[1.125rem]" : "-inset-6 rounded-[2.25rem]"

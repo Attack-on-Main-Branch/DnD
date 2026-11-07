@@ -168,7 +168,9 @@ export function preloadDiceThemes(themes) {
 
   for (const theme of added) {
     for (const { live } of lanes) {
-      live?.box.loadThemeQueue.push(() => live.box.loadTheme(theme));
+      live?.box.loadThemeQueue
+        .push(() => live.box.loadTheme(theme))
+        .catch(() => {});
     }
   }
 }

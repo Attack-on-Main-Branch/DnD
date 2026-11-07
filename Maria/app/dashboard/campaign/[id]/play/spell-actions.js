@@ -11,7 +11,7 @@ import { SLOT_LEVELS } from "sina/rules/spellcasting";
 import {
   MAX_CHARACTER_SPELLS,
   readCatalogueSpell,
-  spellSlug,
+  readSpellSlug,
   validateSpell,
 } from "sina/rules/spells";
 
@@ -131,7 +131,7 @@ export async function teachSpell(campaignId, characterIds, spell) {
 
 /** Struck out of the book. There is no half of a spell to leave behind. */
 export async function unlearnSpell(campaignId, characterId, slug) {
-  const key = spellSlug(slug);
+  const key = readSpellSlug(slug);
 
   if (!characterId || !key) {
     return rejected("That is not a spell this book can hold.");

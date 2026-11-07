@@ -6,7 +6,7 @@ import { MAX_PARTY, parseCharacterQuery } from "sina/rules/campaign";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import { useRouteRefresh } from "@/app/components/use-route-refresh";
 import Avatar from "@/app/components/ui/avatar";
-import Button from "@/app/components/ui/button";
+import Button, { ButtonContent } from "@/app/components/ui/button";
 import PencilButton from "@/app/components/ui/pencil-button";
 import {
   controlClasses,
@@ -249,9 +249,9 @@ export default function PartyPanel({ campaignId, members }) {
                   }
                   disabled={busy}
                   aria-label={`Remove ${member.name}#${member.discriminator} from the party`}
-                  className="ml-auto cursor-pointer font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:px-3"
+                  className="inline-flex items-center justify-center ml-auto cursor-pointer font-display text-sm tracking-wide text-ink/60 transition-colors duration-300 hover:text-red-500 disabled:cursor-not-allowed disabled:text-ink/25 max-sm:min-h-11 max-sm:px-3"
                 >
-                  Remove
+                  <ButtonContent>Remove</ButtonContent>
                 </button>
 
                 <MemberLook

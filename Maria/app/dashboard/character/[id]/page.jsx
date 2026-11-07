@@ -4,7 +4,7 @@ import { cache } from "react";
 import { listCampaignsForCharacter } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
 import {
-  listCampaignContainers,
+  listContainersForCampaigns,
   listContainerItems,
 } from "sina/data/containers";
 import { listDiceSkinUnlocks } from "sina/data/dice-pouch";
@@ -400,23 +400,17 @@ async function loadShelf(supabase, characterId, campaigns) {
     return { containers: [], chestItems: {} };
   }
 
-  const shelves = await Promise.all(
-    campaigns.map((campaign) => listCampaignContainers(supabase, campaign.id)),
+  const shelf = await listContainersForCampaigns(
+    supabase,
+    campaigns.map((campaign) => campaign.id),
   );
 
-  const rows = [];
-
-  for (const shelf of shelves) {
-    if (shelf.error) {
-      logFailure("listCampaignContainers", shelf.error);
-      continue;
-    }
-
-    rows.push(...shelf.data);
+  if (shelf.error) {
+    logFailure("listContainersForCampaigns", shelf.error);
   }
 
-  const reachable = readContainers(rows).filter((one) =>
-    canOpenContainer(one, characterId),
+  const reachable = readContainers(shelf.error ? [] : shelf.data).filter(
+    (one) => canOpenContainer(one, characterId),
   );
 
   const contents = await listContainerItems(

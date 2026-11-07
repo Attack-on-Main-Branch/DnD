@@ -2,6 +2,7 @@ import { listCampaignItems } from "sina/data/inventory";
 import { MAX_ITEM_DESCRIPTION_LENGTH } from "sina/rules/inventory";
 
 import { catalogueFacts } from "@/app/dashboard/inventory-presentation";
+import { memoizeAsync } from "@/lib/async-cache.mjs";
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
@@ -56,8 +57,6 @@ const DETAIL_DEADLINE_MS = 2500;
  */
 let index = { at: 0, entries: [] };
 let loading = null;
-
-const details = new Map();
 
 /**
  * The ten weapon properties and what each one MEANS, by name.
@@ -356,32 +355,28 @@ function outline(entry) {
   };
 }
 
-/** Cached by slug: re-fetching is the latency this route exists to remove. */
-async function detail(entry) {
-  const held = details.get(entry.slug);
+const detail = memoizeAsync(
+  async function detail(entry) {
+    const [item, known] = await Promise.all([
+      upstream(entry.path),
+      propertyRules(),
+    ]);
 
-  if (held) {
-    return held;
-  }
+    const card = {
+      slug: entry.slug,
+      name: item?.name ?? entry.name,
+      category:
+        shelfOf(categoriesOf(item))?.name ??
+        item?.rarity?.name ??
+        entry.fallback,
+      description: describe(item) || propertyText(item, known),
+      facts: factsOf(item),
+    };
 
-  const [item, known] = await Promise.all([
-    upstream(entry.path),
-    propertyRules(),
-  ]);
-
-  const card = {
-    slug: entry.slug,
-    name: item?.name ?? entry.name,
-    category:
-      shelfOf(categoriesOf(item))?.name ?? item?.rarity?.name ?? entry.fallback,
-    description: describe(item) || propertyText(item, known),
-    facts: factsOf(item),
-  };
-
-  details.set(entry.slug, card);
-
-  return card;
-}
+    return card;
+  },
+  (entry) => entry.slug,
+);
 
 /**
  * The detail if it is quick, the outline if not. The timer is cleared either

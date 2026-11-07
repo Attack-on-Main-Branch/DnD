@@ -1,7 +1,9 @@
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Cinzel, Geist, Geist_Mono } from "next/font/google";
 
 import PathsBackground from "./components/paths-background/paths-background";
 import NavigationProgress from "./components/ui/navigation-progress";
+import PageLoadingIndicator from "./components/ui/page-loading-indicator";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -62,6 +64,7 @@ export default function RootLayout({ children }) {
           so the bar is still mounted when the page it announced arrives.
         */}
         <NavigationProgress />
+        <PageLoadingIndicator />
 
         {/*
           Lifts every page above the background, which sits at z-index 0.
@@ -77,6 +80,7 @@ export default function RootLayout({ children }) {
           and cost the login page its vertical centering.
         */}
         <div className="relative z-10 flex flex-1 flex-col">{children}</div>
+        {process.env.SPEED_INSIGHTS_ENABLED === "true" && <SpeedInsights />}
       </body>
     </html>
   );

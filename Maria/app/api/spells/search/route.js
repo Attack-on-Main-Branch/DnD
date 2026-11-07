@@ -7,6 +7,7 @@ import {
   MAX_SPELL_LEVEL,
 } from "sina/rules/spells";
 
+import { memoizeAsync } from "@/lib/async-cache.mjs";
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
@@ -49,8 +50,6 @@ const DETAIL_DEADLINE_MS = 2500;
  */
 let index = { at: 0, entries: [] };
 let loading = null;
-
-const details = new Map();
 
 async function upstream(path) {
   const response = await fetch(`${API}/${path}`, {
@@ -330,54 +329,48 @@ function outline(entry) {
   };
 }
 
-/** Cached by slug: re-fetching is the latency this route exists to remove. */
-async function detail(entry) {
-  const held = details.get(entry.slug);
+const detail = memoizeAsync(
+  async function detail(entry) {
+    const spell = await upstream(entry.path);
 
-  if (held) {
-    return held;
-  }
+    const level = Number.isInteger(spell?.level) ? spell.level : entry.level;
+    const { rule, upgrade } = ruleAndUpgrade(spell);
+    const { castingTime, trigger } = castingOf(spell);
+    const damage = baseDamage(spell, rule);
 
-  const spell = await upstream(entry.path);
+    const card = {
+      slug: entry.slug,
+      name: spell?.name ?? entry.name,
+      level,
+      school: spell?.school?.name ?? "",
+      castingTime,
+      range: rangeOf(spell),
+      components: (spell?.components ?? []).join(", "),
+      material: spell?.material ?? "",
+      duration: durationOf(spell),
+      concentration: Boolean(spell?.concentration),
+      ritual: Boolean(spell?.ritual),
+      attackSave: attackSaveLine(spell, rule),
+      damage: damage ? `${damage.dice} ${damage.type}`.trim() : "",
+      description: clip([trigger, rule].filter(Boolean).join("\n\n")),
+      higherLevel: clip(upgrade, MAX_SPELL_HIGHER_LEVEL_LENGTH),
+      classes: (spell?.classes ?? [])
+        .map((one) => one?.name)
+        .filter(Boolean)
+        .join(", "),
+      // Keyed on character level for a cantrip and on slot level otherwise;
+      // `spellDiceAt` is what knows which.
+      damageByLevel:
+        level === CANTRIP_LEVEL
+          ? cantripTable(damage?.dice, upgrade)
+          : slotTable(damage?.dice, upgrade, level),
+      healByLevel: slotTable(baseHealing(rule), upgrade, level),
+    };
 
-  const level = Number.isInteger(spell?.level) ? spell.level : entry.level;
-  const { rule, upgrade } = ruleAndUpgrade(spell);
-  const { castingTime, trigger } = castingOf(spell);
-  const damage = baseDamage(spell, rule);
-
-  const card = {
-    slug: entry.slug,
-    name: spell?.name ?? entry.name,
-    level,
-    school: spell?.school?.name ?? "",
-    castingTime,
-    range: rangeOf(spell),
-    components: (spell?.components ?? []).join(", "),
-    material: spell?.material ?? "",
-    duration: durationOf(spell),
-    concentration: Boolean(spell?.concentration),
-    ritual: Boolean(spell?.ritual),
-    attackSave: attackSaveLine(spell, rule),
-    damage: damage ? `${damage.dice} ${damage.type}`.trim() : "",
-    description: clip([trigger, rule].filter(Boolean).join("\n\n")),
-    higherLevel: clip(upgrade, MAX_SPELL_HIGHER_LEVEL_LENGTH),
-    classes: (spell?.classes ?? [])
-      .map((one) => one?.name)
-      .filter(Boolean)
-      .join(", "),
-    // Keyed on character level for a cantrip and on slot level otherwise;
-    // `spellDiceAt` is what knows which.
-    damageByLevel:
-      level === CANTRIP_LEVEL
-        ? cantripTable(damage?.dice, upgrade)
-        : slotTable(damage?.dice, upgrade, level),
-    healByLevel: slotTable(baseHealing(rule), upgrade, level),
-  };
-
-  details.set(entry.slug, card);
-
-  return card;
-}
+    return card;
+  },
+  (entry) => entry.slug,
+);
 
 /**
  * The detail if it is quick, the outline if not. The timer is cleared either

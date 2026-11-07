@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import Button, { buttonClasses } from "./components/ui/button";
+import Button, { ButtonContent, buttonClasses } from "./components/ui/button";
 
 /**
  * Route-level error boundary. Must be a Client Component. `global-error.jsx` is
@@ -53,7 +53,7 @@ export default function Error({ error, retry }) {
           href="/dashboard"
           className={buttonClasses({ variant: "secondary" })}
         >
-          Back to dashboard
+          <ButtonContent>Back to dashboard</ButtonContent>
         </Link>
       </div>
     </main>

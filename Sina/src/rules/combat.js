@@ -63,12 +63,24 @@ export function initiativeOrder(tokens) {
   return (Array.isArray(tokens) ? tokens : [])
     .filter(inFight)
     .slice()
-    .sort(
-      (a, b) =>
-        b.initiative - a.initiative ||
-        String(a.placedAt ?? "").localeCompare(String(b.placedAt ?? "")) ||
-        String(a.id).localeCompare(String(b.id)),
-    );
+    .sort((a, b) => b.initiative - a.initiative || compareTokenPlacement(a, b));
+}
+
+export function compareTokenPlacement(a, b) {
+  return (
+    placementTime(a.placedAt) - placementTime(b.placedAt) ||
+    String(a.id).localeCompare(String(b.id))
+  );
+}
+
+function placementTime(value) {
+  const stamp = String(value ?? "");
+  const milliseconds = Date.parse(stamp);
+  if (!Number.isFinite(milliseconds)) return 0;
+
+  // PostgreSQL keeps microseconds, which Date.parse truncates.
+  const fraction = stamp.match(/\.(\d+)/)?.[1] ?? "";
+  return milliseconds * 1000 + Number(fraction.padEnd(6, "0").slice(3, 6));
 }
 
 function inFight(token) {

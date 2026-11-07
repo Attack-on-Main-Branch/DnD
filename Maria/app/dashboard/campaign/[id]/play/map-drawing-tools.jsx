@@ -7,6 +7,7 @@ import {
   SEMICIRCLE_ANGLE,
 } from "sina/rules/map-drawing";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { surfaceClasses } from "@/app/components/ui/surface";
 import { TABLE_CONTROLS_AT } from "./entrance";
 
@@ -111,7 +112,7 @@ export default function MapDrawingTools({
                 onClick={() => onAngle(value)}
                 className={controlClasses(angle === value, phone)}
               >
-                {value}°
+                <ButtonContent>{`${value}°`}</ButtonContent>
               </button>
             ))}
           </div>

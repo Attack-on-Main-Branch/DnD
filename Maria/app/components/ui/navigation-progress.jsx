@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 
 import {
   registerNavigationProgress,
+  setNavigationProgressVisible,
   stopNavigationProgress,
 } from "../navigation-progress-control";
 import { prefersReducedMotion } from "../use-reduced-motion";
@@ -61,6 +62,7 @@ export default function NavigationProgress() {
       }
 
       state.running = true;
+      setNavigationProgressVisible(true);
 
       state.finish?.cancel();
       state.finish = null;
@@ -115,6 +117,7 @@ export default function NavigationProgress() {
 
         bar.style.opacity = "0";
         bar.style.transform = "scaleX(0)";
+        setNavigationProgressVisible(false);
         return;
       }
 
@@ -162,6 +165,7 @@ export default function NavigationProgress() {
           bar.style.opacity = "0";
           finish.cancel();
           state.finish = null;
+          setNavigationProgressVisible(false);
         })
         .catch(() => {
           // Cancelled because another navigation started. Nothing to tidy up.
@@ -239,6 +243,7 @@ export default function NavigationProgress() {
       clearSafety();
       state.crawl?.cancel();
       state.finish?.cancel();
+      setNavigationProgressVisible(false);
     };
   }, []);
 

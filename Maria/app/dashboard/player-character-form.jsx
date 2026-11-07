@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 
-import Button, { buttonClasses } from "@/app/components/ui/button";
+import Button, {
+  ButtonContent,
+  buttonClasses,
+} from "@/app/components/ui/button";
 import {
   CHOICE_CARD_FOCUS_CLASSES,
   INVALID_GROUP_CLASSES,
@@ -361,7 +364,7 @@ export default function PlayerCharacterForm({
             prefetch={false}
             className={buttonClasses({ variant: "secondary" })}
           >
-            Cancel
+            <ButtonContent>Cancel</ButtonContent>
           </Link>
         )}
         <Button type="submit" disabled={isPending || avatarBusy}>

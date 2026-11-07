@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { setImmediate as immediate } from "node:timers/promises";
+import { DEFAULT_DICE_COLOR, DICE_SKIN_VALUES } from "sina/rules/character";
 
 const source = await readFile(
   new URL(
@@ -19,6 +20,7 @@ async function table(t) {
   const scheduled = [];
   const cleanups = [];
   const mirrors = [];
+  const casts = [];
   let cursor = 0;
   let mounting = true;
   let receive;
@@ -82,7 +84,10 @@ async function table(t) {
       campaignId: "campaign",
       enabled: true,
       keeper: false,
-      onMirror: (die, count, seed, cast, land) => mirrors.push(land),
+      onMirror: (die, count, seed, cast, land) => {
+        mirrors.push(land);
+        casts.push(cast);
+      },
     });
     for (const effect of scheduled.splice(0)) cleanups.push(effect());
     mounting = false;
@@ -93,6 +98,7 @@ async function table(t) {
   return {
     render,
     mirrors,
+    casts,
     receive: (message) =>
       receive({ key: "chair", die: "d20", count: 1, ...message }),
   };
@@ -104,6 +110,25 @@ test("a late mirror cannot overwrite the result already delivered by the roller"
   board.receive({ phase: "done", value: 20 });
   board.mirrors[0](1);
   assert.equal(board.render().results.chair.value, 20);
+});
+
+test("the next shared throw carries a changed skin without reconnecting", async (t) => {
+  const board = await table(t);
+  board.receive({
+    phase: "start",
+    seed: 7,
+    color: DEFAULT_DICE_COLOR,
+    skin: DICE_SKIN_VALUES[0],
+  });
+  board.receive({ phase: "done", value: 20 });
+  board.receive({
+    phase: "start",
+    seed: 8,
+    color: DEFAULT_DICE_COLOR,
+    skin: DICE_SKIN_VALUES[1],
+  });
+  assert.equal(board.casts[1].skin, DICE_SKIN_VALUES[1]);
+  assert.equal(board.casts[1].color, DEFAULT_DICE_COLOR);
 });
 
 test("a mirror from an older roll cannot finish a newer roll", async (t) => {

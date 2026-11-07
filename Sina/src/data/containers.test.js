@@ -6,6 +6,7 @@ import {
   hideChest,
   insertContainer,
   listCampaignContainers,
+  listContainersForCampaigns,
   listContainerItems,
   removeContainer,
   revealChest,
@@ -110,6 +111,34 @@ describe("listCampaignContainers", () => {
 
     assert.deepEqual(data, []);
     assert.equal(error, null);
+  });
+});
+
+describe("listContainersForCampaigns", () => {
+  it("reads multiple campaigns with one scoped query", async () => {
+    const query = stubQuery({ data: [{ id: CONTAINER }], error: null });
+    const from = query.from;
+    let calls = 0;
+    query.from = (...args) => {
+      calls++;
+      return from(...args);
+    };
+
+    const result = await listContainersForCampaigns(query, [CAMPAIGN, OTHER]);
+
+    assert.equal(calls, 1);
+    assert.deepEqual(query.filters, [["campaign_id", [CAMPAIGN, OTHER], "in"]]);
+    assert.deepEqual(result, { data: [{ id: CONTAINER }], error: null });
+    assert.ok(!query.lastSelect.includes("user_id"));
+  });
+
+  it("does not query when the character has no campaigns", async () => {
+    const supabase = { from: () => assert.fail("unexpected query") };
+
+    assert.deepEqual(await listContainersForCampaigns(supabase, []), {
+      data: [],
+      error: null,
+    });
   });
 });
 

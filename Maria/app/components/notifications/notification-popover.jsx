@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { inviteDetails, isAnswerable } from "sina/rules/notifications";
 
 import { openChangelog } from "@/app/components/changelog-control";
-import { buttonClasses } from "@/app/components/ui/button";
+import { ButtonContent, buttonClasses } from "@/app/components/ui/button";
 import {
   FADED_RULE_CLASSES,
   surfaceClasses,
@@ -340,7 +340,7 @@ function NotificationItem({
           aria-label={`Clear ${notification.title}`}
           className={QUIET_ACTION_CLASSES}
         >
-          Clear
+          <ButtonContent>Clear</ButtonContent>
         </button>
 
         <div className="ml-auto flex items-center gap-5">
@@ -352,7 +352,7 @@ function NotificationItem({
                 disabled={busy}
                 className={DECLINE_ACTION_CLASSES}
               >
-                Decline
+                <ButtonContent>Decline</ButtonContent>
               </button>
 
               <button
@@ -361,7 +361,7 @@ function NotificationItem({
                 disabled={busy}
                 className={ACTION_CLASSES}
               >
-                Accept
+                <ButtonContent>Accept</ButtonContent>
               </button>
             </>
           )}
@@ -378,7 +378,7 @@ function NotificationItem({
               onClick={onOpenChangelog}
               className={ACTION_CLASSES}
             >
-              Read the grimoire
+              <ButtonContent>Read the grimoire</ButtonContent>
             </button>
           )}
         </div>

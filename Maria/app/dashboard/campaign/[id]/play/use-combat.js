@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { initiativeOrder, MIN_COMBAT_ROUND } from "sina/rules/combat";
+import {
+  compareTokenPlacement,
+  initiativeOrder,
+  MIN_COMBAT_ROUND,
+} from "sina/rules/combat";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 
@@ -106,11 +110,7 @@ export function useCombat(campaignId, faces = [], display = false) {
 
     const waiting = standing
       .filter((token) => !seated.has(token.id))
-      .sort(
-        (a, b) =>
-          String(a.placedAt ?? "").localeCompare(String(b.placedAt ?? "")) ||
-          String(a.id).localeCompare(String(b.id)),
-      );
+      .sort(compareTokenPlacement);
 
     return [...rolled, ...waiting];
   }, [standing]);

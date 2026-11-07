@@ -1046,7 +1046,7 @@ export default function TableMap({
       /* NO MAGNIFIER. A click on the board does not zoom — the wheel does —
            so a cursor promising one was pointing at a control that is not
            there. Zoomed in it is a hand, because then it pans. */
-      className={`group relative touch-none overflow-hidden rounded-xl select-none ${
+      className={`group relative isolate touch-none overflow-hidden rounded-xl select-none ${
         (staged && scene.armed) || brush
           ? "cursor-crosshair"
           : zoomed

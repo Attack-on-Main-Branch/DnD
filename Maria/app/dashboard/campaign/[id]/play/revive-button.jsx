@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import { reviveDownedCharacter } from "./actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
@@ -71,9 +72,9 @@ export default function ReviveButton({ campaignId, characterId, name }) {
         onClick={revive}
         disabled={busy}
         aria-label={`Revive ${name} at one hit point`}
-        className="w-full cursor-pointer rounded-lg border border-emerald-400 bg-emerald-500/20 px-3 py-1.5 font-display text-[0.6875rem] font-semibold tracking-[0.16em] text-emerald-300 uppercase transition duration-300 hover:bg-emerald-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400/70 disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex items-center justify-center min-h-8 w-full cursor-pointer rounded-lg border border-emerald-400 bg-emerald-500/20 px-3 py-1.5 font-display text-[0.6875rem] font-semibold tracking-[0.16em] text-emerald-300 uppercase transition duration-300 hover:bg-emerald-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400/70 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Revive
+        <ButtonContent>Revive</ButtonContent>
       </button>
     </div>
   );

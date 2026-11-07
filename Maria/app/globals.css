@@ -256,6 +256,16 @@ body {
 }
 
 @layer components {
+  /* Text needs its own box: font trimming cannot reach anonymous flex items. */
+  .button-label {
+    display: inline-block;
+  }
+
+  .button-label,
+  :where(button, [role="button"]) > :where(span, p):not(:has(*)):not([aria-hidden]) {
+    text-box: trim-both cap alphabetic;
+  }
+
   /*
    * Liquid glass. A class rather than a utility stack: the media queries at the
    * bottom need somewhere to hook onto.

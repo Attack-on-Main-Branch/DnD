@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
+import { isDiceColor, isDiceSkin } from "sina/rules/character";
 import { readCombat } from "sina/rules/combat";
 import { readContainers } from "sina/rules/containers";
 import { COIN_TYPES, readPurse } from "sina/rules/currency";
@@ -139,6 +140,16 @@ function readHealth(member) {
  * The seed, as the store holds it. Levels and health are separate slices so that
  * an award does not re-render everything watching a hit point.
  */
+function readDiceLook(row, standing = null) {
+  if (!isDiceColor(row?.dice_color) || !isDiceSkin(row?.dice_skin)) {
+    return standing;
+  }
+  if (standing?.color === row.dice_color && standing?.skin === row.dice_skin) {
+    return standing;
+  }
+  return { color: row.dice_color, skin: row.dice_skin };
+}
+
 function readSeed({
   members,
   activity,
@@ -162,12 +173,14 @@ function readSeed({
   const saves = {};
   const gone = {};
   const dice = {};
+  const diceLooks = {};
   const suffering = {};
   const wallets = {};
   const slots = {};
 
   for (const member of members) {
     levels[member.id] = member.level;
+    diceLooks[member.id] = readDiceLook(member);
     experience[member.id] = member.xp ?? 0;
     /* Null where this viewer may not read them — `campaign_party` answers with
        one for anybody but their own, so the card draws no pips at all. */
@@ -209,6 +222,8 @@ function readSeed({
     saves,
     dead: gone,
     hitDice: dice,
+    diceLooks,
+    headDiceLook: readDiceLook(combat),
     conditions: suffering,
     /* One list per character the viewer was handed a sheet for. Read through
        the rules layer, which drops anything that does not hold together. */
@@ -1455,6 +1470,7 @@ function createTableStore(seed) {
         next = {
           ...next,
           playerDicePaused: slices.combat.player_dice_paused === true,
+          headDiceLook: readDiceLook(slices.combat, next.headDiceLook),
         };
         const asked = readCombat(slices.combat);
 
@@ -1481,6 +1497,7 @@ function createTableStore(seed) {
       }
 
       if (slices.party) {
+        let diceLooks = next.diceLooks;
         const levels = { ...next.levels };
         const experience = { ...next.xp };
         const marked = { ...next.inspiration };
@@ -1492,6 +1509,11 @@ function createTableStore(seed) {
 
         for (const member of slices.party) {
           if (member.id in levels) {
+            const look = readDiceLook(member, diceLooks[member.id]);
+            if (look !== diceLooks[member.id]) {
+              if (diceLooks === next.diceLooks) diceLooks = { ...diceLooks };
+              diceLooks[member.id] = look;
+            }
             levels[member.id] = member.level;
             experience[member.id] = member.xp ?? 0;
             marked[member.id] = parseInspiration(member.inspiration);
@@ -1505,6 +1527,7 @@ function createTableStore(seed) {
 
         next = {
           ...next,
+          diceLooks,
           levels,
           xp: experience,
           inspiration: marked,
@@ -1646,6 +1669,17 @@ export function useTableStore() {
 export function usePlayerDicePaused() {
   return useTableValue(selectPlayerDicePaused);
 }
+
+export function useDiceLooks() {
+  return useTableValue(selectDiceLooks);
+}
+
+export function useHeadDiceLook() {
+  return useTableValue(selectHeadDiceLook);
+}
+
+const selectDiceLooks = (state) => state.diceLooks;
+const selectHeadDiceLook = (state) => state.headDiceLook;
 
 const selectPlayerDicePaused = (state) => state.playerDicePaused;
 

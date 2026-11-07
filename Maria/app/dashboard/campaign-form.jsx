@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { updateCampaign } from "@/app/actions/campaigns";
-import Button, { buttonClasses } from "@/app/components/ui/button";
+import Button, {
+  ButtonContent,
+  buttonClasses,
+} from "@/app/components/ui/button";
 import {
   CHOICE_CARD_FOCUS_CLASSES,
   PROSE_FIELD_HEIGHT_CLASS,
@@ -199,7 +202,7 @@ export default function CampaignForm({
             prefetch={false}
             className={buttonClasses({ variant: "secondary" })}
           >
-            Cancel
+            <ButtonContent>Cancel</ButtonContent>
           </Link>
         )}
         <Button type="submit" disabled={isPending || mapBusy || slotsBusy}>

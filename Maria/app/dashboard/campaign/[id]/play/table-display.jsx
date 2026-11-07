@@ -40,11 +40,7 @@ export default function TableDisplay({ campaignId, title, diceSkin, slices }) {
               <CombatSync campaignId={campaignId} />
               <TableDisplayPartySync campaignId={campaignId} faces={faces} />
               <TableTitle title={title} compact />
-              <DiceTable
-                campaignId={campaignId}
-                skins={[diceSkin, ...members.map((member) => member.dice_skin)]}
-                display
-              >
+              <DiceTable campaignId={campaignId} diceSkin={diceSkin} display>
                 <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)_minmax(0,30dvh)] gap-3 lg:grid-cols-[clamp(11rem,15vw,20rem)_minmax(0,1fr)_clamp(11rem,15vw,20rem)] lg:grid-rows-[minmax(0,1fr)]">
                   <section
                     aria-label="Map"

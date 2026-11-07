@@ -4,7 +4,7 @@ import Link from "next/link";
 import grimoireLogo from "./brand/grimoire.webp";
 import NotificationButton from "./notifications/notification-button";
 import SignOutButton from "./sign-out-button";
-import { buttonClasses } from "./ui/button";
+import { ButtonContent, buttonClasses } from "./ui/button";
 import { FADED_RULE_CLASSES, surfaceClasses } from "./ui/surface";
 
 /**
@@ -156,7 +156,7 @@ export default function SiteHeader({
               href="/dashboard/settings"
               className={buttonClasses({ variant: "secondary" })}
             >
-              Settings
+              <ButtonContent>Settings</ButtonContent>
             </Link>
 
             <SignOutButton />

@@ -176,6 +176,7 @@ export function useDiceRoll({
    * warms it with and nobody should be watching.
    */
   const warm = useCallback(() => {
+    if (prefersReducedMotion()) return;
     // The first lane on its own, and the rest behind it: a chair that rolls on
     // arrival should wait for one world rather than for three.
     diceEngine(0)

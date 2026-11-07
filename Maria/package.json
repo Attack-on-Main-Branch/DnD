@@ -1,6 +1,6 @@
 {
   "name": "maria",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "Frontend: the Next.js application.",
   "scripts": {
@@ -16,6 +16,8 @@
   "dependencies": {
     "@3d-dice/dice-box": "file:vendor/dice-box",
     "@vercel/oidc": "^4.0.0",
+    "@vercel/otel": "2.3.0",
+    "@vercel/speed-insights": "2.1.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

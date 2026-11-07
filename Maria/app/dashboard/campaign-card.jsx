@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import ConfirmDialog from "@/app/components/ui/confirm-dialog";
 import {
   MAP_VIGNETTE_STYLE,
@@ -137,9 +138,9 @@ export default function CampaignCard({ campaign }) {
             // there, so a destructive control is not shouting from every card
             // on the page. The red arrives under the pointer, at the moment it
             // is a warning about what the click does.
-            className="pointer-events-auto cursor-pointer text-ink/60 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] transition-colors duration-300 hover:text-red-500"
+            className="inline-flex items-center justify-center min-h-8 pointer-events-auto cursor-pointer text-ink/60 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] transition-colors duration-300 hover:text-red-500"
           >
-            Delete
+            <ButtonContent>Delete</ButtonContent>
           </button>
         </div>
 

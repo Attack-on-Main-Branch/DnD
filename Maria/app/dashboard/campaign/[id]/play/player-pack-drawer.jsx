@@ -35,7 +35,6 @@ import {
   dropPackItem,
   handPackItem,
   holdPackItem,
-  stowPackItem,
 } from "./pack-actions";
 import PlayerChestDrawer from "./player-chest-drawer";
 import PlayerPurse from "./player-purse";
@@ -46,6 +45,7 @@ import {
 } from "./table-popover";
 import { useChestItems, useContainers, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
+import { usePackMove } from "./use-pack-move";
 
 /** What a dragged tile carries: its row id. */
 const PACK_DRAG_TYPE = "application/x-grimoire-pack-row";
@@ -118,6 +118,7 @@ export default function PlayerPackDrawer({
   const containers = useContainers();
   const chests = useChestItems();
   const { run, send } = useTableDeed(campaignId);
+  const movePack = usePackMove(campaignId);
 
   /** Every bag this character is carrying, oldest first, as the shelf came. */
   const bags = useMemo(
@@ -365,16 +366,7 @@ export default function PlayerPackDrawer({
     setReading(null);
     setStowTo(undefined);
 
-    run({
-      paint: () => {
-        store.movePack(characterId, item, -quantity, from);
-        store.movePack(characterId, item, quantity, to);
-      },
-
-      work: () => stowPackItem(characterId, item, quantity, from, to),
-      tell: () => send({ kind: "pack", characterId }),
-      want: { inventory: true, characterIds: [characterId] },
-    });
+    void movePack(characterId, item, quantity, from, to);
   }
 
   /** The whole bag, and everything in it, into somebody else's hands. */

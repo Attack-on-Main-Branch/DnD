@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CONDITIONS, CONDITION_KEYS } from "sina/rules/conditions";
 
+import { ButtonContent } from "@/app/components/ui/button";
 import EyeIcon from "@/app/components/ui/eye-icon";
 import {
   FADED_RULE_CLASSES,
@@ -256,13 +257,13 @@ export default function TokenMenu({
                       role="menuitemcheckbox"
                       aria-checked={on}
                       onClick={() => onMark({ condition: key })}
-                      className={`w-full cursor-pointer rounded-md border px-1 py-1 text-center font-display text-[0.75rem] leading-tight tracking-tight transition duration-300 ${dressed.color} ${
+                      className={`inline-flex items-center justify-center min-h-8 w-full cursor-pointer rounded-md border px-1 py-1 text-center font-display text-[0.75rem] leading-tight tracking-tight transition duration-300 ${dressed.color} ${
                         on
                           ? "border-gold/55 bg-gold/10"
                           : "border-gold/15 bg-surface/40 hover:border-gold/40"
                       }`}
                     >
-                      {CONDITIONS[key].name}
+                      <ButtonContent>{CONDITIONS[key].name}</ButtonContent>
                     </button>
                   </li>
                 );
