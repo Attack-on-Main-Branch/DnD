@@ -1,0 +1,5 @@
+The storm-cloud plate was generated with the built-in image generation tool and optimized as [background.webp](background.webp). Lightning geometry and rain are rendered and animated in code.
+
+Prompt:
+
+Use case: illustration-story. Asset type: background plate for a legendary Lightning banner skin in a dark fantasy RPG app. Wide horizontal cinematic storm sky, aspect ratio about 1200:486. Deep blue-black and charcoal thunderclouds, softly layered rolling cloud banks with a very subtle cool blue light from the upper right, wisps of distant fog below, atmospheric realistic detail, almost-black lower left and left-center kept quiet and low contrast for readable light interface text. The right side has a little more cloud texture and depth. Sophisticated restrained slightly blueish palette, ominous rainy night, no horizon or landscape. The actual animated lightning bolts and rain will be composited in code, so do not put any lightning bolts, rain streaks, bright flares, stars, moon, text, watermark, border or objects in this background. This is a seamless-feeling photographic cloud atmosphere, not an abstract gradient.

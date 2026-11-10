@@ -15,7 +15,8 @@ import { spellsByShelf } from "@/app/dashboard/spell-presentation";
 import SpellSlotBar from "@/app/dashboard/spell-slot-bar";
 import XpMeter from "@/app/dashboard/xp-meter";
 
-import SheetDice from "@/app/dashboard/sheet-dice";
+import SheetSkins from "@/app/dashboard/sheet-skins";
+import { saveBannerSkin } from "@/app/actions/skins";
 import { saveCharacterDice } from "@/app/actions/characters";
 import SheetFeatures from "./sheet-features";
 import SheetPack from "./sheet-pack";
@@ -154,10 +155,27 @@ export function FeaturePanel({ characterId, features }) {
 }
 
 /** The dice this character throws. Its own client component — see sheet-dice.jsx. */
-export function DicePanel({ character, unlocked }) {
+export function SkinsPanel({ character, unlocked, bannerUnlocked }) {
   return (
-    <SheetDice
+    <SheetSkins
       saveDice={saveCharacterDice.bind(null, character.id)}
+      saveBanner={saveBannerSkin.bind(null, character.id)}
+      bannerSkin={character.banner_skin}
+      bannerUnlocked={bannerUnlocked}
+      character={{
+        name: character.name,
+        discriminator: character.discriminator,
+        race: character.race,
+        avatar_url: character.avatar_url,
+        dice_color: character.dice_color,
+        level: character.level,
+        current_hp: character.current_hp,
+        max_hp: character.max_hp,
+        temp_hp: character.temp_hp,
+        temp_hp_max: character.temp_hp_max,
+        armor_class: character.armor_class,
+        pathLabel: classLabel(character.class_id),
+      }}
       diceColor={character.dice_color}
       diceSkin={character.dice_skin}
       unlocked={unlocked}

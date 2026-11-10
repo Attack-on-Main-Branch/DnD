@@ -1,0 +1,36 @@
+.surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--color-surface);
+}
+
+.still {
+  object-fit: fill;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--color-platinum);
+  opacity: 0;
+}
+
+.canvas[data-flag-ready] {
+  opacity: 1;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-surface) 42%, transparent),
+    transparent 65%
+  );
+  box-shadow: inset 0 0 18px
+    color-mix(in srgb, var(--color-surface) 25%, transparent);
+}

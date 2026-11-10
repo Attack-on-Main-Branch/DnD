@@ -91,6 +91,7 @@ export async function loadTableDisplay(
           avatar_url,
           dice_color,
           dice_skin,
+          banner_skin,
           is_dead,
           conditions,
         }) => ({
@@ -99,6 +100,7 @@ export async function loadTableDisplay(
           avatar_url,
           dice_color,
           dice_skin,
+          banner_skin,
           is_dead,
           conditions,
         }),

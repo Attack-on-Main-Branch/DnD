@@ -82,6 +82,11 @@
   --color-gold: #ffdf9c;
   --color-temp-hp: var(--color-sky-200);
   --color-surface: #0f0c08;
+  --color-level: color-mix(
+    in srgb,
+    var(--color-gold) 15%,
+    var(--color-surface)
+  );
 
   /*
    * Sealing wax: the blob on the notification envelope and the pip that says
@@ -147,6 +152,7 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-cinzel);
+  --aspect-banner: 1200 / 486;
 
   /*
    * `tray` opens the class picker's path list and the changelog drawer;
@@ -161,6 +167,92 @@
   /* The dashboard's tiles arriving: most of the distance in the first third,
      then a long brake. */
   --ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme static {
+  --color-printstream-paper: #f1f2f4;
+  --color-printstream-ink: #17181e;
+  --color-pearl-cyan: #a2eee8;
+  --color-pearl-pink: #efb7e7;
+  --color-pearl-blue: #accdf2;
+  --color-pearl-violet: #bcb9ed;
+  --color-pearl-green: #ccebb2;
+  --color-pearl-champagne: #f3e4b3;
+  --color-lily-night: #000000;
+  --color-sakura-blush: #f5d9de;
+  --color-sakura-petal: #e8a8b7;
+  --color-sakura-rose: #b95b79;
+  --color-sakura-ink: #49323a;
+  --color-sakura-leaf: #829170;
+  --color-sakura-sky: #e9f0ed;
+}
+
+.banner-surface {
+  --banner-name-gap: 0px;
+  --banner-heading: var(--color-ink);
+  --banner-detail: color-mix(in srgb, var(--color-ink) 90%, transparent);
+  --banner-tag: var(--color-gold);
+  --banner-temp: var(--color-temp-hp);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  text-shadow:
+    0 1px 2px var(--color-surface),
+    0 0 6px var(--color-surface),
+    0 0 10px var(--color-surface);
+}
+
+.banner-printstream,
+.banner-sakura {
+  --banner-heading: var(--banner-contrast-ink);
+  --banner-detail: color-mix(
+    in srgb,
+    var(--banner-contrast-ink) 85%,
+    transparent
+  );
+  --banner-tag: var(--banner-contrast-ink);
+  --banner-temp: var(--color-sky-800);
+  text-shadow:
+    0 1px 2px var(--banner-contrast-paper),
+    0 0 4px var(--banner-contrast-paper);
+}
+
+.banner-printstream {
+  --banner-contrast-ink: var(--color-printstream-ink);
+  --banner-contrast-paper: var(--color-printstream-paper);
+}
+
+.banner-sakura {
+  --banner-contrast-ink: var(--color-sakura-ink);
+  --banner-contrast-paper: var(--color-ink);
+}
+
+.banner-wings-of-freedom {
+  --banner-name-gap: 23cqw;
+  container-type: inline-size;
+}
+
+.banner-splash,
+.banner-cyberpunk,
+.banner-pixel-night {
+  text-shadow:
+    -1px 0 var(--color-surface),
+    1px 0 var(--color-surface),
+    0 -1px var(--color-surface),
+    0 1px var(--color-surface),
+    0 1px 4px var(--color-surface);
+}
+
+.banner-surface::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: var(--aspect-banner);
+  pointer-events: none;
+}
+
+.banner-surface :where(button, input) {
+  text-shadow: inherit;
 }
 
 /*
@@ -262,7 +354,8 @@ body {
   }
 
   .button-label,
-  :where(button, [role="button"]) > :where(span, p):not(:has(*)):not([aria-hidden]) {
+  :where(button, [role="button"])
+    > :where(span, p):not(:has(*)):not([aria-hidden]) {
     text-box: trim-both cap alphabetic;
   }
 

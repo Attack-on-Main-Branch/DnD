@@ -140,7 +140,7 @@ function Cell({ label, value }) {
       </dt>
       <dd
         className="truncate text-xs text-ink/80 max-sm:whitespace-normal max-sm:wrap-anywhere"
-        title={value || undefined}
+        data-tooltip={value || undefined}
       >
         {value || "—"}
       </dd>

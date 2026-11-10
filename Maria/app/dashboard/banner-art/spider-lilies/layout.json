@@ -1,0 +1,68 @@
+{
+  "background": {
+    "left": 0,
+    "top": 0,
+    "width": 1200,
+    "height": 486
+  },
+  "meadow": {
+    "left": -146,
+    "top": 147,
+    "width": 1506,
+    "height": 510
+  },
+  "left": {
+    "left": -87,
+    "top": 119,
+    "width": 335,
+    "height": 501
+  },
+  "center": {
+    "left": 324,
+    "top": 25,
+    "width": 420,
+    "height": 617
+  },
+  "gap": {
+    "left": 674,
+    "top": 19,
+    "width": 331,
+    "height": 502
+  },
+  "right": {
+    "left": 902,
+    "top": 6,
+    "width": 453,
+    "height": 677
+  },
+  "front-left": {
+    "left": 17,
+    "top": 314,
+    "width": 324,
+    "height": 468
+  },
+  "front-center": {
+    "left": 277,
+    "top": 271,
+    "width": 331,
+    "height": 490
+  },
+  "front-gap": {
+    "left": 556,
+    "top": 232,
+    "width": 360,
+    "height": 554
+  },
+  "front-right": {
+    "left": 857,
+    "top": 297,
+    "width": 314,
+    "height": 479
+  },
+  "edge": {
+    "left": 1052,
+    "top": 287,
+    "width": 386,
+    "height": 562
+  }
+}

@@ -4,6 +4,7 @@ import { Cinzel, Geist, Geist_Mono } from "next/font/google";
 import PathsBackground from "./components/paths-background/paths-background";
 import NavigationProgress from "./components/ui/navigation-progress";
 import PageLoadingIndicator from "./components/ui/page-loading-indicator";
+import TooltipLayer from "./components/ui/tooltip-layer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -65,6 +66,7 @@ export default function RootLayout({ children }) {
         */}
         <NavigationProgress />
         <PageLoadingIndicator />
+        <TooltipLayer />
 
         {/*
           Lifts every page above the background, which sits at z-index 0.

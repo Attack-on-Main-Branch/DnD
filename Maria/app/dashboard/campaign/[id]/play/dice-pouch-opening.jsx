@@ -8,19 +8,19 @@ import {
   useRef,
   useState,
 } from "react";
-import { DICE_SKIN_VALUES, diceSkinRarity } from "sina/rules/character";
-import { dicePouchChances, drawDiceSkin } from "sina/rules/dice-pouch";
+import { pouchChances, drawPouchSkin } from "sina/rules/dice-pouch";
 
 import Button from "@/app/components/ui/button";
 import { surfaceClasses } from "@/app/components/ui/surface";
 import { useReducedMotion } from "@/app/components/use-reduced-motion";
 import {
   diceColorHex,
-  diceRarityLook,
   diceSkinDetails,
   diceSkinPictures,
   diceSkinTheme,
 } from "@/app/dashboard/character-presentation";
+import { bannerSkinDetails } from "@/app/dashboard/banner-presentation";
+import BannerSkinArt from "@/app/dashboard/banner-skin-art";
 import DicePicture from "@/app/dashboard/dice-picture";
 import {
   PREVIEW_SET,
@@ -64,21 +64,20 @@ const THROW_DELAY_MS = 700;
  * Filler drawn at a real pouch's odds from what this one could hold, so the
  * reel looks like what it is. The set it stops on is the database's.
  */
-function fillReel(unlocked) {
-  const chances = dicePouchChances(unlocked);
-  const odds =
-    chances.length > 0
-      ? chances
-      : DICE_SKIN_VALUES.map((skin) => ({
-          skin,
-          chance: 1 / DICE_SKIN_VALUES.length,
-        }));
+function skinDetails(reward) {
+  return reward.kind === "banner"
+    ? bannerSkinDetails(reward.skin)
+    : diceSkinDetails(reward.skin);
+}
 
-  return Array.from({ length: REEL_LENGTH }, () => drawDiceSkin(odds));
+function fillReel(unlocked) {
+  const chances = pouchChances(unlocked);
+  const odds = chances.length ? chances : pouchChances();
+  return Array.from({ length: REEL_LENGTH }, () => drawPouchSkin(odds));
 }
 
 /**
- * A Dice Pouch being opened: a lane drawing itself out of a dot, a reel of
+ * A Pouch being opened: a lane drawing itself out of a dot, a reel of
  * sets coming in from the right and braking under a marker onto the one the
  * pouch held, then the lane folding away for a window with that set thrown
  * into a stone tray — and the window folding shut when it is closed.
@@ -92,7 +91,7 @@ function fillReel(unlocked) {
  * `onAnnounce` is the log line, sent once the reel has stopped so the log does
  * not give the result away first. Nothing closes this before then.
  */
-export default function DicePouchOpening({
+export default function PouchOpening({
   drawn,
   color,
   unlocked,
@@ -256,7 +255,7 @@ export default function DicePouchOpening({
 
   const revealed = phase === "revealed";
   const stopped = phase === "landed" || phase === "folding";
-  const look = won ? diceRarityLook(diceSkinRarity(won)) : null;
+  const look = won ? skinDetails(won).rarity : null;
 
   return (
     /* No surface of its own: the lane is drawn straight onto the dimmed table,
@@ -297,7 +296,7 @@ export default function DicePouchOpening({
             id={titleId}
             className="pouch-words text-center font-display text-lg font-semibold tracking-wide text-gold"
           >
-            Dice Pouch
+            Pouch
           </h2>
 
           <p
@@ -388,7 +387,7 @@ export default function DicePouchOpening({
  * what was won is plain before the window opens on it.
  */
 function ReelCard({ skin, color, lit, dim }) {
-  const look = diceRarityLook(diceSkinRarity(skin));
+  const look = skinDetails(skin).rarity;
 
   return (
     <li
@@ -402,14 +401,25 @@ function ReelCard({ skin, color, lit, dim }) {
         }`}
       />
 
-      <DicePicture
-        picture={diceSkinPictures(skin).tile}
-        color={color}
-        className="size-20 drop-shadow-[0_8px_10px_rgba(0,0,0,0.6)]"
-      />
+      {skin.kind === "banner" ? (
+        <span className="relative isolate mx-2 block aspect-banner w-24 overflow-hidden rounded border border-gold/30">
+          <BannerSkinArt
+            skin={skin.skin}
+            diceColor={color}
+            animated={false}
+            sizes="96px"
+          />
+        </span>
+      ) : (
+        <DicePicture
+          picture={diceSkinPictures(skin.skin).tile}
+          color={color}
+          className="size-20 drop-shadow-lg"
+        />
+      )}
 
       <span className="max-w-full truncate px-1.5 font-display text-[0.6875rem] font-semibold tracking-wide text-ink/80">
-        {diceSkinDetails(skin).label}
+        {skinDetails(skin).label}
       </span>
 
       <span className={`absolute inset-x-0 bottom-0 h-1 ${look.bar}`} />
@@ -419,12 +429,12 @@ function ReelCard({ skin, color, lit, dim }) {
 
 /** The set the pouch held, named and thrown. */
 function Reveal({ titleId, skin, color, still, onClose }) {
-  const details = diceSkinDetails(skin);
+  const details = skinDetails(skin);
 
   return (
     <div className="flex flex-col items-center text-center">
       <p className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/50 uppercase">
-        A new dice set
+        {skin.kind === "banner" ? "A new banner" : "A new dice set"}
       </p>
 
       <h2
@@ -443,7 +453,20 @@ function Reveal({ titleId, skin, color, still, onClose }) {
 
       <p className="mt-1.5 text-xs text-ink/55">{details.description}</p>
 
-      <StoneTray skin={skin} color={color} still={still} />
+      {skin.kind === "banner" ? (
+        <div className="relative isolate mt-6 aspect-banner w-full max-w-lg overflow-hidden rounded-xl border border-gold/40">
+          <BannerSkinArt
+            skin={skin.skin}
+            diceColor={color}
+            sizes="(max-width: 640px) 100vw, 512px"
+          />
+        </div>
+      ) : (
+        <StoneTray skin={skin.skin} color={color} still={still} />
+      )}
+      <p className="mt-4 text-xs text-ink/55">
+        Choose it in Skins on your character sheet.
+      </p>
 
       <Button onClick={onClose} className="mt-7 min-w-32">
         Close

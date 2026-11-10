@@ -155,7 +155,7 @@ export default function AbilityPicker({
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span
                     className="truncate font-display text-base font-semibold tracking-wide text-ink uppercase"
-                    title={ability.name}
+                    data-tooltip={ability.name}
                   >
                     {ability.name}
                   </span>
@@ -168,7 +168,7 @@ export default function AbilityPicker({
                   {bonus > 0 && (
                     <span
                       className="shrink-0 rounded-full border border-gold/20 bg-gold/10 px-1.5 py-px font-mono text-xs leading-none text-gold/80"
-                      title={`${race} grants +${bonus} ${ability.name}`}
+                      data-tooltip={`${race} grants +${bonus} ${ability.name}`}
                     >
                       +{bonus}
                     </span>

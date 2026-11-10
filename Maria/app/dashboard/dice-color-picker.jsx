@@ -4,6 +4,7 @@ import { useState } from "react";
 import { readDiceColor } from "sina/rules/character";
 
 import {
+  APPEARANCE_PICKER_HEIGHT_CLASSES,
   CHOICE_CARD_FOCUS_CLASSES,
   controlClasses,
   LABEL_CLASSES,
@@ -54,7 +55,10 @@ export default function DiceColorPicker({ value, onChange, disabled }) {
   const hue = `hsl(${Math.round(hsv.h)} 100% 50%)`;
 
   return (
-    <fieldset disabled={disabled} className="min-w-0">
+    <fieldset
+      disabled={disabled}
+      className={`min-w-0 ${APPEARANCE_PICKER_HEIGHT_CLASSES}`}
+    >
       <legend className={LABEL_CLASSES}>Dice colour</legend>
 
       <div className="mt-1.5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -96,7 +100,7 @@ export default function DiceColorPicker({ value, onChange, disabled }) {
               <button
                 key={preset.hex}
                 type="button"
-                title={preset.label}
+                data-tooltip={preset.label}
                 aria-label={preset.label}
                 aria-pressed={value === preset.hex}
                 onClick={() => {

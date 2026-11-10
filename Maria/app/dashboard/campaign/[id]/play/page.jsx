@@ -458,6 +458,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
                               diceColor: seat.diceColor,
                               diceSkin: seat.diceSkin,
                               diceSkins: seat.diceSkins,
+                              bannerSkins: seat.bannerSkins,
                               notes: seat.notes,
                             }}
                             members={roster}
@@ -545,6 +546,7 @@ export default async function CampaignTablePage({ params, searchParams }) {
                                 title: seat.title,
                                 diceColor: seat.diceColor,
                                 diceSkins: seat.diceSkins,
+                                bannerSkins: seat.bannerSkins,
                               }}
                               members={carriers}
                               isDungeonMaster={isDungeonMaster}

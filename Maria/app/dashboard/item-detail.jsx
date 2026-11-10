@@ -107,7 +107,7 @@ export default function ItemDetail({ item, quantity, children }) {
               </dt>
               <dd
                 className="truncate text-xs text-ink/80 max-sm:whitespace-normal max-sm:wrap-anywhere"
-                title={fact.value}
+                data-tooltip={fact.value}
               >
                 {fact.value}
               </dd>

@@ -298,7 +298,7 @@ export default function PlayButton({ href, label = "Play" }) {
         // through to `title` and the control announced as its own state.
         aria-label={label}
         aria-describedby={noteId}
-        title={NO_SESSION_NOTE}
+        data-tooltip={NO_SESSION_NOTE}
         className={CONTROL_CLASSES}
         {...quickening}
       >
@@ -307,7 +307,7 @@ export default function PlayButton({ href, label = "Play" }) {
 
       {/* The description, not the name. Out of the layout because a line of
           text under a 5rem button would be wider than the button; sighted users
-          get the same sentence from `title`. */}
+          get the same sentence from the custom hover note. */}
       <span id={noteId} className="sr-only">
         {NO_SESSION_NOTE}
       </span>

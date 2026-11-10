@@ -164,7 +164,7 @@ export default function SceneCamera({
           transform: counter,
         }}
         onPointerDown={grab("aim")}
-        title="Drag to aim the camera"
+        data-tooltip="Drag to aim the camera"
       />
 
       <span
@@ -178,7 +178,7 @@ export default function SceneCamera({
           transform: counter,
         }}
         onPointerDown={grab("move")}
-        title="Drag to move the camera"
+        data-tooltip="Drag to move the camera"
       >
         <SceneMark className="size-7" />
       </span>

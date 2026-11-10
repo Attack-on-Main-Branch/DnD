@@ -1,0 +1,15 @@
+.surface {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--splash-color);
+  mask-image: url("./banner-art/splash.svg");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}

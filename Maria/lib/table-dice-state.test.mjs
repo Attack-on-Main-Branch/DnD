@@ -72,3 +72,47 @@ test("campaign reads update the Dungeon Master's dice and tolerate older respons
   store.sync({ combat: { inCombat: false } }, Date.now());
   assert.equal(store.read().headDiceLook, look);
 });
+
+test("banner selections reach open party cards", () => {
+  const store = createTableStore(seed());
+  assert.equal(store.read().bannerSkins.character, "classic");
+  store.sync(
+    {
+      party: [{ ...member, banner_skin: "dragon-lore" }],
+    },
+    Date.now(),
+  );
+  assert.equal(store.read().bannerSkins.character, "dragon-lore");
+  const banners = store.read().bannerSkins;
+  store.sync(
+    {
+      party: [{ ...member, banner_skin: "unknown" }],
+    },
+    Date.now(),
+  );
+  assert.equal(store.read().bannerSkins, banners);
+  store.sync(
+    {
+      party: [{ ...member, banner_skin: "classic" }],
+    },
+    Date.now(),
+  );
+  assert.equal(store.read().bannerSkins.character, "classic");
+});
+
+for (const skin of ["splash", "hexagon"]) {
+  test(`${skin} keeps its banner while live dice colours change for both seats`, () => {
+    const initial = { ...member, banner_skin: skin };
+    const store = createTableStore({ members: [initial], combat: initial });
+    store.sync(
+      {
+        party: [{ ...initial, dice_color: "#2563eb" }],
+        combat: { ...initial, dice_color: "#059669" },
+      },
+      Date.now(),
+    );
+    assert.equal(store.read().diceLooks.character.color, "#2563eb");
+    assert.equal(store.read().headDiceLook.color, "#059669");
+    assert.equal(store.read().bannerSkins.character, skin);
+  });
+}

@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
+import { DEFAULT_BANNER_SKIN, isBannerSkin } from "sina/rules/skins";
 import { isDiceColor, isDiceSkin } from "sina/rules/character";
 import { readCombat } from "sina/rules/combat";
 import { readContainers } from "sina/rules/containers";
@@ -174,6 +175,7 @@ function readSeed({
   const gone = {};
   const dice = {};
   const diceLooks = {};
+  const bannerSkins = {};
   const suffering = {};
   const wallets = {};
   const slots = {};
@@ -181,6 +183,9 @@ function readSeed({
   for (const member of members) {
     levels[member.id] = member.level;
     diceLooks[member.id] = readDiceLook(member);
+    bannerSkins[member.id] = isBannerSkin(member.banner_skin)
+      ? member.banner_skin
+      : DEFAULT_BANNER_SKIN;
     experience[member.id] = member.xp ?? 0;
     /* Null where this viewer may not read them — `campaign_party` answers with
        one for anybody but their own, so the card draws no pips at all. */
@@ -223,6 +228,7 @@ function readSeed({
     dead: gone,
     hitDice: dice,
     diceLooks,
+    bannerSkins,
     headDiceLook: readDiceLook(combat),
     conditions: suffering,
     /* One list per character the viewer was handed a sheet for. Read through
@@ -1498,6 +1504,7 @@ function createTableStore(seed) {
 
       if (slices.party) {
         let diceLooks = next.diceLooks;
+        let bannerSkins = next.bannerSkins;
         const levels = { ...next.levels };
         const experience = { ...next.xp };
         const marked = { ...next.inspiration };
@@ -1509,6 +1516,14 @@ function createTableStore(seed) {
 
         for (const member of slices.party) {
           if (member.id in levels) {
+            if (
+              isBannerSkin(member.banner_skin) &&
+              member.banner_skin !== bannerSkins[member.id]
+            ) {
+              if (bannerSkins === next.bannerSkins)
+                bannerSkins = { ...bannerSkins };
+              bannerSkins[member.id] = member.banner_skin;
+            }
             const look = readDiceLook(member, diceLooks[member.id]);
             if (look !== diceLooks[member.id]) {
               if (diceLooks === next.diceLooks) diceLooks = { ...diceLooks };
@@ -1528,6 +1543,7 @@ function createTableStore(seed) {
         next = {
           ...next,
           diceLooks,
+          bannerSkins,
           levels,
           xp: experience,
           inspiration: marked,
@@ -1670,8 +1686,23 @@ export function usePlayerDicePaused() {
   return useTableValue(selectPlayerDicePaused);
 }
 
+export function useBannerSkin(characterId) {
+  return useTableValue(
+    useCallback(
+      (state) => state.bannerSkins[characterId] ?? DEFAULT_BANNER_SKIN,
+      [characterId],
+    ),
+  );
+}
+
 export function useDiceLooks() {
   return useTableValue(selectDiceLooks);
+}
+
+export function useDiceLook(characterId) {
+  return useTableValue(
+    useCallback((state) => state.diceLooks[characterId] ?? null, [characterId]),
+  );
 }
 
 export function useHeadDiceLook() {

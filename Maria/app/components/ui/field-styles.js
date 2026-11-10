@@ -14,7 +14,7 @@
  */
 
 const BASE =
-  "w-full rounded-lg border bg-surface/30 px-3 py-2 text-sm text-ink " +
+  "w-full rounded-lg border px-3 py-2 text-sm text-ink " +
   "max-sm:min-h-11 max-sm:text-base " +
   "placeholder:text-ink/35 outline-none transition duration-300 " +
   "disabled:opacity-50";
@@ -39,14 +39,25 @@ const BORDER = {
 export const EDITING_CARD_CLASSES =
   "border-gold/70! shadow-[0_0_0_1px_rgba(255,223,156,0.25),0_0_22px_-6px_rgba(255,223,156,0.55)]!";
 
-export function controlClasses({ invalid = false, className = "" } = {}) {
-  return [BASE, invalid ? BORDER.invalid : BORDER.valid, className]
+export function controlClasses({
+  invalid = false,
+  solid = false,
+  className = "",
+} = {}) {
+  return [
+    BASE,
+    solid ? "bg-surface/95" : "bg-surface/30",
+    invalid ? BORDER.invalid : BORDER.valid,
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
 }
 
 export const LABEL_CLASSES =
   "font-display text-sm font-medium tracking-wide text-ink/85";
+
+export const APPEARANCE_PICKER_HEIGHT_CLASSES = "sm:min-h-45";
 
 /**
  * Focus chrome for a <label> standing in for an `sr-only` radio. The real input

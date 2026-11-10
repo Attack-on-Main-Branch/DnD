@@ -168,7 +168,7 @@ describe("readActivity, on a fight", () => {
   });
 });
 
-describe("readActivity, on a dice pouch", () => {
+describe("readActivity, on a pouch", () => {
   const opened = row({
     action_type: "dice_pouch_opened",
     payload: { skin: "galaxy", rarity: "rare" },
@@ -181,9 +181,25 @@ describe("readActivity, on a dice pouch", () => {
       actor: "Fern",
       seat: ROW.actor_character,
       head: false,
+      skinKind: "dice",
       skin: "galaxy",
       rarity: "rare",
     });
+  });
+
+  it("reads a banner reward and rejects mismatched skin kinds", () => {
+    const banner = readActivity({
+      ...opened,
+      payload: { kind: "banner", skin: "dragon-lore", rarity: "iconic" },
+    });
+    assert.equal(banner.skinKind, "banner");
+    assert.equal(banner.skin, "dragon-lore");
+    for (const payload of [
+      { kind: "banner", skin: "galaxy", rarity: "rare" },
+      { kind: "dice", skin: "dragon-lore", rarity: "iconic" },
+      { kind: "unknown", skin: "classic", rarity: "common" },
+    ])
+      assert.equal(readActivity({ ...opened, payload }), null);
   });
 
   it("drops a set or a rarity it does not know", () => {

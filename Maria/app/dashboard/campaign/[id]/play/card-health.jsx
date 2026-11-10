@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { isMassiveDamage } from "sina/rules/death";
 import { healthFraction, healthTier, MAX_HP } from "sina/rules/health";
 
@@ -8,9 +9,11 @@ import { controlClasses } from "@/app/components/ui/field-styles";
 import HealthBar from "@/app/components/ui/health-bar";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
+import { bannerSurfaceClass } from "@/app/dashboard/banner-presentation";
 
 import { changeCharacterHealth } from "./actions";
 import {
+  useBannerSkin,
   useHitPoints,
   useMaxHitPoints,
   useTempHitPoints,
@@ -47,8 +50,11 @@ export default function CardHealth({
   seatCharacterId,
   actorName,
   canEdit,
+  controlsTarget,
 }) {
   const [open, setOpen] = useState(false);
+  const controlsId = useId();
+  const bannerSkin = useBannerSkin(characterId);
 
   const current = useHitPoints(characterId);
   const ceiling = useMaxHitPoints(characterId);
@@ -178,6 +184,7 @@ export default function CardHealth({
       <div className="relative">
         <HealthBar
           compact
+          contrast={Boolean(bannerSurfaceClass(bannerSkin))}
           current={current}
           temp={temp}
           tempMax={tempMax}
@@ -198,6 +205,7 @@ export default function CardHealth({
             type="button"
             onClick={() => setOpen((was) => !was)}
             aria-expanded={open}
+            aria-controls={controlsTarget ? controlsId : undefined}
             aria-label={
               open
                 ? `Stop editing ${name} hit points`
@@ -211,71 +219,79 @@ export default function CardHealth({
       {/* Mounted either way so it can unfold rather than appear: a height
           cannot interpolate from `auto`. `inert` keeps the closed one out of
           the tab order. */}
-      {canEdit && (
-        <div
-          inert={!open || undefined}
-          className={`tray-fold ${open ? "" : "tray-folded"}`}
-        >
-          <div className="fold-body">
-            {/* How much, then which way. */}
-            <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2.5">
-              {/* Width on the wrapper, not the input: `controlClasses`
+      {canEdit &&
+        controlsTarget &&
+        createPortal(
+          <div
+            id={controlsId}
+            inert={!open || undefined}
+            className={`tray-fold ${open ? "" : "tray-folded"}`}
+          >
+            <div className="fold-body">
+              {/* How much, then which way. */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2.5">
+                {/* Width on the wrapper, not the input: `controlClasses`
                   already carries `w-full`. */}
-              <div className="w-14 shrink-0">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  /* The bar's own ceiling would be the wrong bound: a blow
+                <div className="w-14 shrink-0">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    /* The bar's own ceiling would be the wrong bound: a blow
                      large enough to kill outright is by definition larger than
                      what the bar holds. */
-                  max={MAX_HP}
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  /* The unit rather than a number: "10" read as a value already
+                    max={MAX_HP}
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    /* The unit rather than a number: "10" read as a value already
                      in the field, and the purse's fields next door name what
                      they want the same way. */
-                  placeholder="HP"
-                  aria-label={`Hit points to take from or give to ${name}`}
-                  className={controlClasses({
-                    className: "no-spin px-1 py-1 text-center tabular-nums",
-                  })}
-                />
-              </div>
+                    placeholder="HP"
+                    aria-label={`Hit points to take from or give to ${name}`}
+                    className={controlClasses({
+                      solid: true,
+                      className: "no-spin px-1 py-1 text-center tabular-nums",
+                    })}
+                  />
+                </div>
 
-              {/* Not disabled for a write in flight, only for a press that
+                {/* Not disabled for a write in flight, only for a press that
                   could not move the bar. See the note at the head of the file. */}
-              <StepButton
-                wide
-                tone="danger"
-                onClick={() => apply(-step)}
-                disabled={!typed || (current === 0 && temp === 0)}
-                label={`Take hit points from ${name}`}
-              >
-                Damage
-              </StepButton>
+                <StepButton
+                  wide
+                  solid
+                  tone="danger"
+                  onClick={() => apply(-step)}
+                  disabled={!typed || (current === 0 && temp === 0)}
+                  label={`Take hit points from ${name}`}
+                >
+                  Damage
+                </StepButton>
 
-              <StepButton
-                wide
-                onClick={() => apply(step)}
-                disabled={!typed || current === ceiling}
-                label={`Give hit points to ${name}`}
-              >
-                Heal
-              </StepButton>
-              <StepButton
-                wide
-                tone="sapphire"
-                onClick={() => apply(step, true)}
-                disabled={!typed || step <= temp}
-                label={`Give temporary hit points to ${name}`}
-              >
-                +Temp
-              </StepButton>
+                <StepButton
+                  wide
+                  solid
+                  onClick={() => apply(step)}
+                  disabled={!typed || current === ceiling}
+                  label={`Give hit points to ${name}`}
+                >
+                  Heal
+                </StepButton>
+                <StepButton
+                  wide
+                  solid
+                  tone="sapphire"
+                  onClick={() => apply(step, true)}
+                  disabled={!typed || step <= temp}
+                  label={`Give temporary hit points to ${name}`}
+                >
+                  +Temp
+                </StepButton>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          controlsTarget,
+        )}
     </div>
   );
 }

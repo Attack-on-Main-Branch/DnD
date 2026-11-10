@@ -29,7 +29,7 @@ export default function PencilButton({
       onFocus={onPrepare ?? undefined}
       disabled={disabled}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       className={
         "grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg max-sm:size-11 max-sm:touch-manipulation " +
         "text-ink/70 transition duration-300 " +

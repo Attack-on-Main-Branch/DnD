@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import LevelBadge from "@/app/dashboard/level-badge";
+
 import { useCharacterLevel } from "./table-state";
 
 /**
@@ -33,12 +35,6 @@ const RIDE = {
       "motion-safe:animate-[level-out-above_220ms_var(--ease-glide)_both]",
   },
 };
-
-/** 36px across. */
-const RING_CLASSES =
-  "relative z-10 grid size-9 shrink-0 place-items-center overflow-hidden " +
-  "rounded-full border border-gold/30 bg-gold/15 " +
-  "font-display text-lg leading-none font-semibold tabular-nums text-gold";
 
 function ride(car, to) {
   return {
@@ -80,7 +76,7 @@ export default function LevelRing({ characterId, atTable }) {
     <div className="relative flex shrink-0 items-center justify-center">
       {/* `overflow-hidden` is the clipping mask: the two numbers pass each
           other inside it and neither is seen outside the circle. */}
-      <span aria-hidden="true" className={RING_CLASSES}>
+      <LevelBadge>
         {/* Stacked in one grid cell, so the ring is still sized by its digit.
             The key is what replays the animation on each ride. */}
         <span
@@ -100,7 +96,7 @@ export default function LevelRing({ characterId, atTable }) {
             {car.leaving}
           </span>
         )}
-      </span>
+      </LevelBadge>
 
       {/* What the ring means, for a reader who cannot see it. */}
       <span className="sr-only">

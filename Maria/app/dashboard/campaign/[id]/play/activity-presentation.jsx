@@ -1,3 +1,4 @@
+import { bannerSkinDetails } from "@/app/dashboard/banner-presentation";
 import { CONDITIONS } from "sina/rules/conditions";
 
 import {
@@ -451,10 +452,15 @@ function Body({ entry }) {
     return (
       <>
         opened a new{" "}
-        <span className={`font-semibold ${look.text}`}>{look.label}</span> dice
-        set:{" "}
+        <span className={`font-semibold ${look.text}`}>{look.label}</span>{" "}
+        {entry.skinKind === "banner" ? "banner" : "dice set"}:{" "}
         <span className={EMPHASIS_CLASSES}>
-          {diceSkinDetails(entry.skin).label}
+          {
+            (entry.skinKind === "banner"
+              ? bannerSkinDetails(entry.skin)
+              : diceSkinDetails(entry.skin)
+            ).label
+          }
         </span>
       </>
     );

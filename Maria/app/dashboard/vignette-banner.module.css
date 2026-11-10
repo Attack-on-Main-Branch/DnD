@@ -1,0 +1,9 @@
+.surface {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 40px 4px
+      color-mix(in srgb, var(--vignette-color) 55%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--vignette-color) 18%, transparent);
+}

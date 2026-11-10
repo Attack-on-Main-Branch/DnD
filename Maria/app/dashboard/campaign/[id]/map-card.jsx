@@ -153,7 +153,7 @@ export default function MapCard({
           href={sceneDownloadUrl(map.url, map.name)}
           download
           aria-label={`Download ${map.name}`}
-          title="Download"
+          data-tooltip="Download"
           className="absolute right-2 bottom-2 grid size-7 place-items-center rounded-lg border border-gold/40 bg-surface/85 text-gold transition duration-300 hover:border-gold/70 hover:bg-gold/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
         >
           <svg

@@ -5,32 +5,37 @@ import {
   recordCampaignActivity,
 } from "sina/data/activity";
 import {
-  announceDiceSkins,
+  announceSkins,
   listDiceSkinUnlocks,
-  openDicePouch,
+  listBannerSkinUnlocks,
+  openSkinPouch,
 } from "sina/data/dice-pouch";
 import { grantInventoryItem } from "sina/data/inventory";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
-import { dicePouchPool, unlockedDiceSkins } from "sina/rules/dice-pouch";
+import {
+  pouchPool,
+  unlockedDiceSkins,
+  unlockedBannerSkins,
+} from "sina/rules/dice-pouch";
 
 import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
 import { createClient, getCurrentUser } from "@/lib/supabase";
 
-import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
+import { POUCH_ITEM } from "./dice-pouch-presentation";
 
 /**
- * A Dice Pouch handed out, opened, and told to the table. Opening and telling
+ * A Pouch handed out, opened, and told to the table. Opening and telling
  * are two calls on purpose: the log waits for the reel to stop — see
  * 20261004230000.
  */
 
 /** Sina reports why; the wording lives here, where the user can see it. */
 const POUCH_COPY = {
-  not_found: "There is no dice pouch here to open.",
+  not_found: "There is no pouch here to open.",
   collection_complete:
-    "Every dice set is already yours — there is nothing left in a pouch for you.",
-  dm_only: "Only the Dungeon Master can hand out a dice pouch.",
+    "Every skin is already yours — there is nothing left in a pouch for you.",
+  dm_only: "Only the Dungeon Master can hand out a pouch.",
   missing_function: "That part of the app is not ready yet.",
   missing_table: "That part of the app is not ready yet.",
   bad_id: "That character is no longer at this table.",
@@ -74,10 +79,10 @@ async function freshLog(supabase, campaignId) {
 
 /**
  * One pouch into each pack the session panel is aimed at, passing over anybody
- * who has already found every set. Logged the way `grantPackItems` logs: one
+ * who has already found every skin. Logged the way `grantPackItems` logs: one
  * pack is the trigger's line, several are one line written here.
  */
-export async function giveDicePouches(campaignId, characterIds) {
+export async function givePouches(campaignId, characterIds) {
   const targets = [
     ...new Set(
       (characterIds ?? []).filter((id) => typeof id === "string" && id),
@@ -88,31 +93,41 @@ export async function giveDicePouches(campaignId, characterIds) {
     return rejected("Choose who is being given it.");
   }
 
-  const { supabase, rejection } = await signedIn("giveDicePouches");
+  const { supabase, rejection } = await signedIn("givePouches");
 
   if (rejection) {
     return rejection;
   }
 
-  const unlocks = await listDiceSkinUnlocks(supabase, targets);
+  const [unlocks, banners] = await Promise.all([
+    listDiceSkinUnlocks(supabase, targets),
+    listBannerSkinUnlocks(supabase, targets),
+  ]);
+  const failedRead = unlocks.error ?? banners.error;
+  if (failedRead)
+    return refused(
+      "givePouches/read",
+      failedRead,
+      "Could not check those skin collections. Try again.",
+    );
 
-  if (unlocks.error) {
-    logFailure("listDiceSkinUnlocks", unlocks.error);
-  }
-
-  const rows = unlocks.data ?? [];
   const receiving = targets.filter(
     (id) =>
-      dicePouchPool(
-        unlockedDiceSkins(rows.filter((row) => row.character_id === id)),
-      ).length > 0,
+      pouchPool({
+        dice: unlockedDiceSkins(
+          unlocks.data.filter((row) => row.character_id === id),
+        ),
+        banner: unlockedBannerSkins(
+          banners.data.filter((row) => row.character_id === id),
+        ),
+      }).length > 0,
   );
 
   if (receiving.length === 0) {
     return rejected(
       targets.length === 1
-        ? "They have already found every dice set."
-        : "Everybody chosen has already found every dice set.",
+        ? "They have already found every skin."
+        : "Everybody chosen has already found every skin.",
     );
   }
 
@@ -122,7 +137,7 @@ export async function giveDicePouches(campaignId, characterIds) {
     receiving.map((characterId) =>
       grantInventoryItem(supabase, {
         characterId,
-        item: DICE_POUCH_ITEM,
+        item: POUCH_ITEM,
         quantity: 1,
         campaignId,
         seatCharacterId: null,
@@ -135,7 +150,7 @@ export async function giveDicePouches(campaignId, characterIds) {
 
   if (failed) {
     return refused(
-      "giveDicePouches",
+      "givePouches",
       failed.error,
       "Could not hand that over.",
       GIVE_COPY,
@@ -148,12 +163,12 @@ export async function giveDicePouches(campaignId, characterIds) {
       actorCharacterId: null,
       action: "item_granted",
       targetCharacterId: null,
-      itemName: DICE_POUCH_ITEM.name,
+      itemName: POUCH_ITEM.name,
       quantity: 1,
     });
 
     if (error) {
-      logFailure("giveDicePouches/record", error);
+      logFailure("givePouches/record", error);
     }
   }
 
@@ -164,7 +179,7 @@ export async function giveDicePouches(campaignId, characterIds) {
   };
 }
 
-/** One pouch opened, and the set it held — which nobody else is told yet. */
+/** One pouch opened, and the skin it held — which nobody else is told yet. */
 export async function openPouch(campaignId, characterId) {
   if (typeof characterId !== "string" || characterId.length === 0) {
     return rejected("Missing character id.");
@@ -176,7 +191,7 @@ export async function openPouch(campaignId, characterId) {
     return rejection;
   }
 
-  const { data, error } = await openDicePouch(supabase, {
+  const { data, error } = await openSkinPouch(supabase, {
     campaignId,
     characterId,
   });
@@ -185,7 +200,7 @@ export async function openPouch(campaignId, characterId) {
     return refused("openPouch", error, "Could not open the pouch. Try again.");
   }
 
-  return { kind: "success", skin: data.skin };
+  return { kind: "success", reward: data };
 }
 
 /**
@@ -200,13 +215,13 @@ export async function announcePouch(campaignId, characterId) {
     return rejection;
   }
 
-  const { error } = await announceDiceSkins(supabase, {
+  const { error } = await announceSkins(supabase, {
     campaignId,
     characterId,
   });
 
   if (error) {
-    logFailure("announceDiceSkins", error);
+    logFailure("announceSkins", error);
   }
 
   return { kind: "success", activity: await freshLog(supabase, campaignId) };
