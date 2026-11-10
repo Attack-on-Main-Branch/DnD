@@ -14,7 +14,8 @@
  * 20260823090000_campaign_activity_log.sql. Changing one means changing both.
  */
 
-import { DICE_SKIN_RARITIES, isDiceSkin } from "./character.js";
+import { isBannerSkin, SKIN_RARITIES } from "./skins.js";
+import { isDiceSkin } from "./character.js";
 import { isCoin, MAX_COINS } from "./currency.js";
 import { isCondition } from "./conditions.js";
 import { deathSaveOutcome, MAX_ARMOR_CLASS } from "./death.js";
@@ -366,9 +367,13 @@ export function readActivity(row) {
      the row by `announce_dice_skins`, so a later reshuffle does not rewrite
      what the table was told. */
   if (action === "dice_pouch_opened") {
-    return isDiceSkin(payload.skin) &&
-      DICE_SKIN_RARITIES.includes(payload.rarity)
-      ? { ...entry, skin: payload.skin, rarity: payload.rarity }
+    const skinKind = payload.kind ?? "dice";
+    const valid =
+      skinKind === "dice"
+        ? isDiceSkin(payload.skin)
+        : skinKind === "banner" && isBannerSkin(payload.skin);
+    return valid && SKIN_RARITIES.includes(payload.rarity)
+      ? { ...entry, skinKind, skin: payload.skin, rarity: payload.rarity }
       : null;
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "sina",
-  "version": "2.1.1",
+  "version": "2.2.1",
   "private": true,
   "type": "module",
   "description": "Backend: database schema, data access and the rules that guard it.",
@@ -15,6 +15,8 @@
     "./rules/ability-scores": "./src/rules/ability-scores.js",
     "./rules/auth": "./src/rules/auth.js",
     "./rules/character": "./src/rules/character.js",
+    "./rules/skins": "./src/rules/skins.js",
+    "./data/skins": "./src/data/skins.js",
     "./rules/dice-pouch": "./src/rules/dice-pouch.js",
     "./rules/character-stats": "./src/rules/character-stats.js",
     "./rules/combat": "./src/rules/combat.js",

@@ -8,7 +8,10 @@ import {
   listPartySheets,
 } from "sina/data/campaigns";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
-import { listDiceSkinUnlocks } from "sina/data/dice-pouch";
+import {
+  listDiceSkinUnlocks,
+  listBannerSkinUnlocks,
+} from "sina/data/dice-pouch";
 import { listPartyFeatures } from "sina/data/features";
 import {
   listCampaignContainers,
@@ -23,7 +26,7 @@ import {
   listMapPlacedTokens,
 } from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES } from "sina/rules/activity";
-import { unlockedDiceSkins } from "sina/rules/dice-pouch";
+import { unlockedDiceSkins, unlockedBannerSkins } from "sina/rules/dice-pouch";
 
 import { logFailure } from "@/lib/errors";
 import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
@@ -305,16 +308,17 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     return null;
   }
 
-  const [notes, sheet, unlocks] = await Promise.all([
+  const [notes, sheet, unlocks, bannerUnlocks] = await Promise.all([
     seat.characterId
       ? listCharacterNotes(supabase, seat.characterId)
       : listCampaignNotes(supabase, campaign.id),
     seat.characterId
       ? getCharacter(supabase, { id: seat.characterId, userId })
       : { data: null, error: null },
-    /* The sets this chair has found, which is what a Dice Pouch's reel is
+    /* The sets this chair has found, which is what a Pouch's reel is
        filled from: it shows only what the pouch could still hold. */
     listDiceSkinUnlocks(supabase, [seat.characterId].filter(Boolean)),
+    listBannerSkinUnlocks(supabase, [seat.characterId].filter(Boolean)),
   ]);
 
   if (notes.error) {
@@ -328,6 +332,9 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     logFailure("table/getCharacter", sheet.error);
   }
 
+  if (bannerUnlocks.error)
+    logFailure("table/listBannerSkinUnlocks", bannerUnlocks.error);
+
   if (unlocks.error) {
     logFailure("table/listDiceSkinUnlocks", unlocks.error);
   }
@@ -337,5 +344,8 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
     notes: notes.error ? [] : notes.data,
     sheet: sheet.error ? null : sheet.data,
     diceSkins: unlockedDiceSkins(unlocks.error ? [] : unlocks.data),
+    bannerSkins: unlockedBannerSkins(
+      bannerUnlocks.error ? [] : bannerUnlocks.data,
+    ),
   };
 }

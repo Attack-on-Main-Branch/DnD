@@ -10,8 +10,8 @@ import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
 import ConditionsGrid from "./conditions-grid";
-import { giveDicePouches } from "./dice-pouch-actions";
-import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
+import { givePouches } from "./dice-pouch-actions";
+import { POUCH_ITEM } from "./dice-pouch-presentation";
 import { takeRest } from "./session-actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
@@ -19,7 +19,7 @@ import XpBar, { XpStepper } from "./xp-bar";
 
 /**
  * Session management: who the panel is aimed at, the two rests, the
- * experience under them, and the Dice Pouches the party unlocks dice with.
+ * experience under them, and the Pouches the party unlocks skins with.
  *
  * ONE MENU AIMS BOTH HALVES, and it is the chest's own `MultiSelectMenu`: rows
  * toggle, the list stays open, and a subset is an ordinary answer — both writers
@@ -134,11 +134,11 @@ export default function SessionSettingsDrawer({
     run({
       paint: () => {
         for (const id of aimed) {
-          store.movePack(id, DICE_POUCH_ITEM, 1, null);
+          store.movePack(id, POUCH_ITEM, 1, null);
         }
       },
 
-      work: () => giveDicePouches(campaignId, aimed),
+      work: () => givePouches(campaignId, aimed),
 
       tell: (result) => {
         const given = result.given ?? [];
@@ -241,9 +241,9 @@ export default function SessionSettingsDrawer({
 
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
-      <section aria-label="Dice pouches">
+      <section aria-label="Pouches">
         <h3 className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
-          Dice pouch
+          Pouch
         </h3>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -253,13 +253,13 @@ export default function SessionSettingsDrawer({
               tone="gold"
               onClick={givePouch}
               disabled={aimed.length === 0}
-              label={`Give a dice pouch ${whom}`}
+              label={`Give a pouch ${whom}`}
             >
               Give pouch
             </StepButton>
 
             <HoverNote className="top-full left-0 mt-1">
-              Holds one dice set they have not found yet
+              Holds one dice or banner skin they have not found yet
             </HoverNote>
           </span>
         </div>

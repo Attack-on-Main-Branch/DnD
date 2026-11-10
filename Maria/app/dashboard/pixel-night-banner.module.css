@@ -1,0 +1,155 @@
+.surface {
+  --pixel-sky: color-mix(
+    in srgb,
+    var(--color-arcane) 58%,
+    var(--color-surface)
+  );
+  --pixel-depth: color-mix(
+    in srgb,
+    var(--color-arcane) 48%,
+    var(--color-surface)
+  );
+  --pixel-sky-middle: color-mix(
+    in srgb,
+    var(--color-arcane) 65%,
+    var(--color-surface)
+  );
+  --pixel-sky-lower: color-mix(
+    in srgb,
+    var(--color-arcane) 72%,
+    var(--color-surface)
+  );
+  --pixel-haze: color-mix(
+    in srgb,
+    var(--color-arcane) 78%,
+    var(--color-surface)
+  );
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--pixel-sky);
+  container-type: size;
+}
+
+.sky {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.moon {
+  position: absolute;
+  top: 5%;
+  right: 5%;
+  height: 34%;
+  width: auto;
+  aspect-ratio: 1;
+}
+
+.moonLight {
+  fill: color-mix(in srgb, var(--color-pearl-violet) 90%, var(--color-ink));
+}
+
+.moonBody {
+  fill: color-mix(in srgb, var(--color-pearl-violet) 78%, var(--pixel-sky));
+}
+
+.moonCrater {
+  fill: color-mix(in srgb, var(--color-arcane) 58%, var(--pixel-sky));
+}
+
+.skyMiddle {
+  fill: var(--pixel-sky-middle);
+}
+
+.skyLower {
+  fill: var(--pixel-sky-lower);
+}
+
+.dust {
+  fill: var(--color-pearl-violet);
+  opacity: 0.25;
+}
+
+.star {
+  --pixel-size: clamp(0.85px, calc(100cqh / 130), 3px);
+  position: absolute;
+  width: calc(var(--star-size) * var(--pixel-size));
+  height: calc(var(--star-size) * var(--pixel-size));
+  transform: translate(-50%, -50%);
+  animation: star-pulse var(--star-period) steps(8, end) infinite;
+  animation-delay: var(--star-phase);
+  animation-play-state: var(--banner-play-state, paused);
+}
+
+.halo {
+  fill: var(--color-pearl-violet);
+  opacity: 0.28;
+}
+
+.spark {
+  fill: var(--color-ink);
+}
+
+.horizon {
+  fill: var(--pixel-depth);
+}
+
+.haze {
+  fill: var(--pixel-haze);
+  opacity: 0.65;
+}
+
+.cloud {
+  position: absolute;
+}
+
+.leftCloud {
+  left: 0;
+  bottom: 18%;
+  width: 44%;
+  height: 36%;
+}
+
+.rightCloud {
+  right: 0;
+  bottom: 22%;
+  width: 42%;
+  height: 36%;
+}
+
+.cloudShadow {
+  fill: color-mix(in srgb, var(--color-pearl-violet) 65%, var(--color-arcane));
+}
+
+.cloudMid {
+  fill: color-mix(in srgb, var(--color-pearl-violet) 72%, var(--color-ink));
+}
+
+.cloudLight {
+  fill: color-mix(in srgb, var(--color-ink) 86%, var(--color-pearl-violet));
+}
+
+@keyframes star-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 0.35;
+  }
+  52% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star {
+    animation: none;
+    opacity: 0.7;
+  }
+}

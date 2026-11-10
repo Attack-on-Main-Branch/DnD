@@ -16,19 +16,24 @@
  */
 export const CHANGELOG = [
   {
-    version: "2.1.1",
-    date: "2026-11-07",
-    title: "A steadier table",
-    fixes: [
-      "A softly glowing compass wheel appears if the top loading bar finishes before a page is ready, then fades away as the content arrives. Pages can load while the inbox is still being read.",
+    version: "2.2.0",
+    date: "2026-11-10",
+    title: "A banner for your legend",
+    changes: [
+      "Added 13 banner skins to the game besides dice skins.",
+      "Dice Pouches are now Pouches. Each opens into one new dice or banner skin. Existing pouches and unlocked dice are kept.",
+      "Banners and dice have a Quill icon if their colour can be changed.",
+      "A compass wheel appears if the top loading bar finishes before a page is ready.",
       "Performance monitoring can measure real page speed and trace slow server requests to guide future improvements.",
+    ],
+    fixes: [
+      "Some tooltip designs were fixed to match the previous design.",
       "Saved dice skins and colours reach open tables and TV displays without a reload, including when a player returns to their seat.",
       "The animated background uses less memory on large displays and avoids redundant drawing. Reduced-motion users no longer load invisible 3D dice worlds.",
-      "Character sheets load bags and chests across campaigns together. Overlapping item and spell searches share detail requests, and a stalled table refresh no longer holds up later updates.",
-      "Dice Pouch animations load when a pouch is opened, and off-screen map thumbnails wait until they are needed.",
+      "Character sheets load bags and chests across campaigns together.",
       "Custom spells can be removed from a player's spellbook.",
-      "A player's inventory shows the Dungeon Master their shared loot chests as well as their pack and bags. Dungeon Masters can move stacks between that player's pack and bags, take loot for them, and inspect items and attachments in chests.",
-      "Thrown dice and their effects stay above every map token, including your own token through fog and while zooming.",
+      "A player's inventory shows the Dungeon Master their shared loot chests as well as their pack and bags.",
+      "Thrown dice and their effects stay above every map token.",
       "Tokens with matching initiative keep their turn order when moved, so nobody is skipped.",
       "Fog, grid and other button labels sit in the center of their controls.",
     ],

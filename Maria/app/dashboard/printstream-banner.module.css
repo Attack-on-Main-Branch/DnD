@@ -1,0 +1,68 @@
+.surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--color-printstream-paper);
+  text-shadow: none;
+}
+
+.pearl {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  animation: pearl-turn 18s linear infinite;
+  animation-play-state: var(--banner-play-state, paused);
+  will-change: var(--banner-will-change, auto);
+}
+
+.pearl svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--color-printstream-ink) 3%, transparent) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+.markings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--color-printstream-ink);
+}
+
+.edge {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-printstream-ink) 45%, transparent);
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 4px
+      color-mix(in srgb, var(--color-printstream-paper) 85%, transparent),
+    inset 0 1px 0 var(--color-printstream-paper);
+}
+
+@keyframes pearl-turn {
+  to {
+    transform: translate(-50%, -50%) rotate(330deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pearl {
+    animation: none;
+  }
+}

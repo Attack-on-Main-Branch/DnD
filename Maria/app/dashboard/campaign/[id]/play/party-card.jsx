@@ -1,7 +1,10 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 
+import BannerSkinArt from "@/app/dashboard/banner-skin-art";
+import BannerIdentity from "@/app/dashboard/banner-identity";
+import { bannerSurfaceClass } from "@/app/dashboard/banner-presentation";
 import Avatar from "@/app/components/ui/avatar";
 import { surfaceClasses } from "@/app/components/ui/surface";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
@@ -15,6 +18,8 @@ import InspirationPips from "./inspiration-pips";
 import LevelArmor from "./level-armor";
 import { SpellFlare } from "./spell-flares";
 import {
+  useBannerSkin,
+  useDiceLook,
   useHealthTier,
   useIsDying,
   useIsActiveTurn,
@@ -43,6 +48,11 @@ function PartyCard({
   actorName,
   phone = false,
 }) {
+  const bannerSkin = useBannerSkin(member.id);
+  const diceLook = useDiceLook(member.id);
+  const diceColor = diceLook?.color ?? member.dice_color;
+  const bannerClass = bannerSurfaceClass(bannerSkin);
+  const [healthControlsTarget, setHealthControlsTarget] = useState(null);
   const tier = useHealthTier(member.id);
   const dead = useIsDead(member.id);
   const dying = useIsDying(member.id);
@@ -55,7 +65,6 @@ function PartyCard({
   const rim = here
     ? `lit-health ${healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))}`
     : "";
-  const Name = phone ? "h2" : "p";
   const inspiration = showsInspiration && (
     <InspirationPips
       inline={phone}
@@ -69,93 +78,93 @@ function PartyCard({
 
   return (
     <li
-      className={surfaceClasses({
-        className:
-          // A column now rather than a row: the bar goes under the name it
-          // belongs to, and the row above it is unchanged.
-          `relative flex flex-col rounded-xl ${phone ? "p-2" : "p-4"} ` +
-          // On the card rather than in `.lit-*`, so the rim fades out when
-          // that class is taken away as well as in.
-          "transition-[border-color,box-shadow] duration-300 " +
-          `${rim} ${phone ? "" : CARD_CLASSES}`,
-      })}
+      className={`relative min-w-0 ${phone ? "" : CARD_CLASSES}`}
       {...(!phone && cardEntrance(index, count))}
     >
-      {/* Out of flow, so it answers to the card rather than to a row inside. */}
-      {!phone && <DiceCapsule characterId={member.id} />}
+      <div
+        className={surfaceClasses({
+          className:
+            `relative isolate flex flex-col rounded-xl ${bannerClass} ` +
+            // On the card rather than in `.lit-*`, so the rim fades out when
+            // that class is taken away as well as in.
+            "transition-[border-color,box-shadow] duration-300 " +
+            rim,
+        })}
+      >
+        <BannerSkinArt skin={bannerSkin} diceColor={diceColor} />
 
-      {/* Three marks in the gutter beside the card — see inspiration-pips.jsx.
+        {/* Out of flow, so it answers to the card rather than to a row inside. */}
+        {!phone && <DiceCapsule characterId={member.id} />}
+
+        {/* Three marks in the gutter beside the card — see inspiration-pips.jsx.
           A roll's pill comes out into the same strip and passes over them, which
           is what the layers say. */}
-      {!phone && inspiration}
+        {!phone && inspiration}
 
-      {/* Everything BUT the way back is dimmed for a dead character: the Revive
+        <div
+          className={`relative col-start-1 row-start-1 flex min-w-0 flex-col justify-center ${phone ? "p-2" : "p-4"}`}
+        >
+          {/* Everything BUT the way back is dimmed for a dead character: the Revive
           button underneath has to stay legible, and greying out the one control
           that undoes this would be a card arguing with itself. */}
-      <div
-        className={`transition-all duration-500 ${
-          dead ? "opacity-40 brightness-75 grayscale" : ""
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {phone && inspiration}
-          {/* The wrapper's and not the portrait's: `Avatar` clips its picture
-              with `overflow-hidden`, so a shadow on it is drawn inside. */}
-          <span
-            className={`relative inline-flex rounded-full transition-shadow duration-300 ${
-              myTurn ? "turn-lit" : ""
+          <div
+            className={`relative transition-all duration-500 ${
+              dead ? "opacity-40 brightness-75 grayscale" : ""
             }`}
           >
-            <Avatar
-              src={member.avatar_url}
-              color={diceColorHex(member.dice_color)}
+            <BannerIdentity
+              contrast={Boolean(bannerClass)}
+              heading={phone}
+              name={member.name}
+              discriminator={member.discriminator}
+              subtitle={`${member.race}${member.pathLabel ? ` · ${member.pathLabel}` : ""}`}
+              portrait={
+                <>
+                  {phone && inspiration}
+                  <span
+                    className={`relative inline-flex rounded-full transition-shadow duration-300 ${myTurn ? "turn-lit" : ""}`}
+                  >
+                    <Avatar
+                      src={member.avatar_url}
+                      color={diceColorHex(diceColor)}
+                    />
+                    <SpellFlare characterId={member.id} />
+                  </span>
+                </>
+              }
+              trailing={
+                <LevelArmor
+                  campaignId={campaignId}
+                  characterId={member.id}
+                  name={member.name}
+                  atTable={here}
+                  shown={showsArmor}
+                  canEdit={canEdit}
+                />
+              }
             />
-            <SpellFlare characterId={member.id} />
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <Name className="truncate font-display text-lg font-semibold tracking-wide text-ink">
-              {member.name}
-            </Name>
-            <p className="font-mono text-xs text-gold/70">
-              #{member.discriminator}
-            </p>
-            <p className="mt-0.5 truncate font-display text-[0.625rem] tracking-[0.15em] text-ink/50 uppercase">
-              {member.race}
-              {member.pathLabel ? ` · ${member.pathLabel}` : ""}
-            </p>
           </div>
 
-          {/* The number the table is looking at, whether it came from an award
-            here or from a chair on the other side of the room — and the shield
-            under it, for whoever may read this card's. */}
-          <LevelArmor
-            campaignId={campaignId}
-            characterId={member.id}
-            name={member.name}
-            atTable={here}
-            shown={showsArmor}
-            canEdit={canEdit}
-          />
-        </div>
-      </div>
+          {showsHealth && (
+            <CardCondition
+              campaignId={campaignId}
+              characterId={member.id}
+              name={member.name}
+              seatCharacterId={seatCharacterId}
+              actorName={actorName}
+              canEdit={canEdit}
+              isDungeonMaster={isDungeonMaster}
+              controlsTarget={healthControlsTarget}
+            />
+          )}
 
-      {showsHealth && (
-        <CardCondition
-          campaignId={campaignId}
-          characterId={member.id}
-          name={member.name}
-          seatCharacterId={seatCharacterId}
-          actorName={actorName}
-          canEdit={canEdit}
-          isDungeonMaster={isDungeonMaster}
-        />
-      )}
-
-      {/* LAST ON THE CARD, under the bar, because it arrives the way the
+          {/* LAST ON THE CARD, under the bar, because it arrives the way the
           hit-point stepper does. Public, and outside the dimming wrapper above:
           a dead character's conditions are still what the table is reading. */}
-      <CardConditions characterId={member.id} />
+          <CardConditions characterId={member.id} />
+        </div>
+      </div>
+      {showsHealth && canEdit && <div ref={setHealthControlsTarget} />}
     </li>
   );
 }

@@ -31,7 +31,7 @@ const CAMPAIGN_TABS = [
   // `focusable: false` for the reason the party tab has it: the panel opens
   // with a choice and a text field, so a stop on it is an empty step.
   { value: "create", label: "Create", focusable: false },
-  { value: "dice", label: "Dice", focusable: false },
+  { value: "skins", label: "Skins", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -184,7 +184,7 @@ export default async function CampaignPage({ params }) {
                 tokens={tokens}
               />
             ),
-            dice: (
+            skins: (
               <SheetDice
                 allUnlocked
                 diceColor={campaign.dice_color ?? DICE_THEMES.obsidian.body}

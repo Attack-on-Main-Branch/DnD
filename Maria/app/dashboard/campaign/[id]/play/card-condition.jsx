@@ -21,10 +21,6 @@ import { useIsDying, useIsDead } from "./table-state";
  * it is not the one, so the card is the size of what is actually in it — and a
  * dead one, whose only control is a single button, comes back to very nearly the
  * height it had before there was a bar at all.
- *
- * `.tray-fold` is the same mechanism the hit-point stepper opens on, so a card
- * that grows to show the saves grows the way a card that grows to show the
- * Damage and Heal buttons does.
  */
 export default function CardCondition({
   campaignId,
@@ -34,6 +30,7 @@ export default function CardCondition({
   actorName,
   canEdit,
   isDungeonMaster,
+  controlsTarget,
 }) {
   const dead = useIsDead(characterId);
   const dying = useIsDying(characterId);
@@ -48,6 +45,7 @@ export default function CardCondition({
           seatCharacterId={seatCharacterId}
           actorName={actorName}
           canEdit={canEdit}
+          controlsTarget={!dead && !dying ? controlsTarget : null}
         />
       </Layer>
 

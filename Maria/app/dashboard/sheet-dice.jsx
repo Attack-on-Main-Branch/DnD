@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
-import Button from "@/app/components/ui/button";
+import AppearanceControls from "./appearance-controls";
+import { useAppearanceDraft } from "./use-appearance-draft";
 import {
   NESTED_CARD_CLASSES,
   NESTED_CARD_SELECTED_CLASSES,
@@ -20,14 +21,6 @@ import PreviewDie from "@/app/dashboard/preview-die";
 import { PREVIEW_DIE, PREVIEW_SET } from "@/app/dashboard/preview-roller";
 import { DICE_TYPES } from "@/lib/dice-themes";
 
-/**
- * The Dice tab: what this sheet's dice are made of and the colour they come
- * in, tried on a real die before anything is written. The pickers fill the
- * page; the die stands beside them, any of the set thrown on demand.
- *
- * Saved by a button rather than on every change: a drag across the colour field
- * is a hundred colours, and only the one it stops on is a decision.
- */
 export default function SheetDice({
   diceColor,
   diceSkin,
@@ -35,50 +28,14 @@ export default function SheetDice({
   allUnlocked = false,
   saveDice,
 }) {
-  const stored = { color: diceColorHex(diceColor), skin: diceSkin };
-
-  const [color, setColor] = useState(stored.color);
-  const [skin, setSkin] = useState(stored.skin);
+  const appearance = useAppearanceDraft(
+    { diceColor: diceColorHex(diceColor), diceSkin },
+    saveDice,
+    "dice",
+  );
+  const { diceColor: color, diceSkin: skin } = appearance.draft;
+  const { saving } = appearance;
   const [die, setDie] = useState(PREVIEW_DIE);
-  const [note, setNote] = useState(null);
-  const [saving, startSaving] = useTransition();
-
-  /* The route renders again after a save, or after the sheet's editor; what it
-     brings back is the new resting point, adjusted during render. */
-  const [adopted, setAdopted] = useState(stored);
-
-  if (adopted.color !== stored.color || adopted.skin !== stored.skin) {
-    setAdopted(stored);
-    setColor(stored.color);
-    setSkin(stored.skin);
-  }
-
-  const changed = color !== stored.color || skin !== stored.skin;
-
-  // A word about the last save stops being true the moment anything moves.
-  function edit(set) {
-    return (value) => {
-      setNote(null);
-      set(value);
-    };
-  }
-
-  function save() {
-    setNote(null);
-
-    startSaving(async () => {
-      const result = await saveDice({
-        diceColor: color,
-        diceSkin: skin,
-      });
-
-      setNote(
-        result?.kind === "success"
-          ? "Your dice are saved."
-          : (result?.message ?? "Could not save the dice."),
-      );
-    });
-  }
 
   const chosen = diceSkinDetails(skin);
   const pictures = diceSkinPictures(skin);
@@ -89,7 +46,7 @@ export default function SheetDice({
       <div className="flex min-w-0 flex-col gap-8">
         <DiceColorPicker
           value={color}
-          onChange={edit(setColor)}
+          onChange={appearance.edit("diceColor")}
           disabled={saving}
         />
         <DiceSkinPicker
@@ -97,7 +54,7 @@ export default function SheetDice({
           color={color}
           unlocked={unlocked}
           allUnlocked={allUnlocked}
-          onChange={edit(setSkin)}
+          onChange={appearance.edit("diceSkin")}
           disabled={saving}
         />
       </div>
@@ -169,28 +126,7 @@ export default function SheetDice({
           ))}
         </div>
 
-        <div className="flex flex-wrap justify-center gap-2">
-          <Button onClick={save} disabled={!changed || saving}>
-            {saving ? "Saving…" : "Save dice"}
-          </Button>
-
-          {changed && !saving && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setColor(stored.color);
-                setSkin(stored.skin);
-                setNote(null);
-              }}
-            >
-              Undo
-            </Button>
-          )}
-        </div>
-
-        <p role="status" className="min-h-4 text-center text-xs text-gold/75">
-          {note}
-        </p>
+        <AppearanceControls subject="dice" {...appearance} />
       </aside>
     </div>
   );

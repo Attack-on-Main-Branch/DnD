@@ -10,7 +10,7 @@ import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh"
 import TravellingPack from "@/app/components/ui/travelling-pack";
 
 import { announcePouch, openPouch } from "./dice-pouch-actions";
-import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
+import { POUCH_ITEM } from "./dice-pouch-presentation";
 import DmPackDrawer from "./dm-pack-drawer";
 import PlayerPackDrawer from "./player-pack-drawer";
 import TablePopover from "./table-popover";
@@ -24,7 +24,9 @@ import { useContainerWire } from "./use-containers";
 import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
 
-const DicePouchOpening = dynamic(() => import("./dice-pouch-opening"));
+const PouchOpening = dynamic(() => import("./dice-pouch-opening"), {
+  ssr: false,
+});
 
 /**
  * The pack beside the scroll, and what is in it. One control, two drawers —
@@ -247,24 +249,37 @@ export default function InventoryPack({
 
     openingBusy.current = true;
     setOpening({ drawn: null });
-    const unlocked = [...(seat.diceSkins ?? []), ...found];
+    const unlocked = {
+      dice: [
+        ...(seat.diceSkins ?? []),
+        ...found
+          .filter((reward) => reward.kind === "dice")
+          .map((reward) => reward.skin),
+      ],
+      banner: [
+        ...(seat.bannerSkins ?? []),
+        ...found
+          .filter((reward) => reward.kind === "banner")
+          .map((reward) => reward.skin),
+      ],
+    };
 
     const result = await run({
-      paint: () => store.movePack(characterId, DICE_POUCH_ITEM, -1, null),
+      paint: () => store.movePack(characterId, POUCH_ITEM, -1, null),
       work: () => openPouch(campaignId, characterId),
       tell: () => send({ kind: "pack", characterId }),
       want: { inventory: true, characterIds: [characterId] },
     });
-    const skin = result?.skin;
+    const reward = result?.reward;
 
-    if (!skin) {
+    if (!reward) {
       openingBusy.current = false;
       setOpening(null);
       return;
     }
 
-    setFound((list) => [...list, skin]);
-    setOpening({ drawn: Promise.resolve(skin), unlocked });
+    setFound((list) => [...list, reward]);
+    setOpening({ drawn: Promise.resolve(reward), unlocked });
   }
 
   const announce = useCallback(() => {
@@ -320,7 +335,7 @@ export default function InventoryPack({
       </TablePopover>
 
       {opening?.drawn && (
-        <DicePouchOpening
+        <PouchOpening
           drawn={opening.drawn}
           color={seat.diceColor}
           unlocked={opening.unlocked}

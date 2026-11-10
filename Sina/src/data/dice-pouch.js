@@ -1,12 +1,4 @@
-/**
- * Every read and write against `character_dice_skins`, and the opening of a
- * Dice Pouch. Failures come back as a `reason` code, not a sentence.
- *
- * Both writes are definer RPCs and there is no write policy beside them: the
- * set a pouch holds is drawn in the database — see 20261004230000.
- */
-
-/** No `user_id` here to leave out: the row belongs to a character. */
+// Unlocks are read-only; the database draws and records every pouch reward.
 const COLUMNS = "character_id, skin, unlocked_at";
 
 const UNDEFINED_TABLE = "42P01";
@@ -57,13 +49,13 @@ function failure(error) {
  * Dungeon Master. An empty list is answered without a query, since PostgREST
  * renders `in.()` as a syntax error.
  */
-export async function listDiceSkinUnlocks(supabase, characterIds) {
+async function listUnlocks(supabase, characterIds, kind) {
   if (!characterIds || characterIds.length === 0) {
     return { data: [], error: null };
   }
 
   const { data, error } = await supabase
-    .from("character_dice_skins")
+    .from(`character_${kind}_skins`)
     .select(COLUMNS)
     .in("character_id", characterIds)
     .order("unlocked_at", { ascending: true });
@@ -71,12 +63,20 @@ export async function listDiceSkinUnlocks(supabase, characterIds) {
   return error ? failure(error) : { data: data ?? [], error: null };
 }
 
+export function listDiceSkinUnlocks(supabase, characterIds) {
+  return listUnlocks(supabase, characterIds, "dice");
+}
+
+export function listBannerSkinUnlocks(supabase, characterIds) {
+  return listUnlocks(supabase, characterIds, "banner");
+}
+
 /**
- * One pouch out of the pack, and the set it held. Null from the function is a
+ * One pouch out of the pack, and the skin it held. Null from the function is a
  * refusal — not their seat, or no pouch to open — and reads as `not_found`.
  */
-export async function openDicePouch(supabase, { campaignId, characterId }) {
-  const { data, error } = await supabase.rpc("open_dice_pouch", {
+export async function openSkinPouch(supabase, { campaignId, characterId }) {
+  const { data, error } = await supabase.rpc("open_pouch", {
     p_campaign: campaignId,
     p_character: characterId,
   });
@@ -89,12 +89,12 @@ export async function openDicePouch(supabase, { campaignId, characterId }) {
     return { data: null, error: { reason: "not_found", detail: null } };
   }
 
-  return { data: { skin: data }, error: null };
+  return { data, error: null };
 }
 
 /** The log lines for every set opened and not yet told. */
-export async function announceDiceSkins(supabase, { campaignId, characterId }) {
-  const { data, error } = await supabase.rpc("announce_dice_skins", {
+export async function announceSkins(supabase, { campaignId, characterId }) {
+  const { data, error } = await supabase.rpc("announce_skins", {
     p_campaign: campaignId,
     p_character: characterId,
   });

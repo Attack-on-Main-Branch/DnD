@@ -7,13 +7,16 @@ import {
   listContainersForCampaigns,
   listContainerItems,
 } from "sina/data/containers";
-import { listDiceSkinUnlocks } from "sina/data/dice-pouch";
+import {
+  listDiceSkinUnlocks,
+  listBannerSkinUnlocks,
+} from "sina/data/dice-pouch";
 import { listCharacterFeatures } from "sina/data/features";
 import { listCharacterInventory } from "sina/data/inventory";
 import { listCharacterSpells } from "sina/data/spells";
 import { characterHandle } from "sina/rules/character";
 import { canOpenContainer, readContainers } from "sina/rules/containers";
-import { unlockedDiceSkins } from "sina/rules/dice-pouch";
+import { unlockedDiceSkins, unlockedBannerSkins } from "sina/rules/dice-pouch";
 
 import { diceColorHex } from "@/app/dashboard/character-presentation";
 
@@ -25,7 +28,7 @@ import { campaignTablePath } from "@/lib/routes";
 import { createClient, currentUser } from "@/lib/supabase";
 
 import {
-  DicePanel,
+  SkinsPanel,
   FeaturePanel,
   InventoryPanel,
   NotesPanel,
@@ -57,7 +60,7 @@ const SHEET_TABS = [
   { value: "notes", label: "Notes" },
   { value: "feature", label: "Feature" },
   // Holds its own controls, so no tab stop in front of them.
-  { value: "dice", label: "Dice", focusable: false },
+  { value: "skins", label: "Skins", focusable: false },
 ];
 
 const CREATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -95,6 +98,7 @@ export default async function CharacterPage({ params }) {
     spells,
     features,
     diceSkins,
+    bannerSkins,
     error,
   } = await loadCharacter(id);
 
@@ -262,7 +266,13 @@ export default async function CharacterPage({ params }) {
             feature: (
               <FeaturePanel characterId={character.id} features={features} />
             ),
-            dice: <DicePanel character={character} unlocked={diceSkins} />,
+            skins: (
+              <SkinsPanel
+                character={character}
+                unlocked={diceSkins}
+                bannerUnlocked={bannerSkins}
+              />
+            ),
           }}
         />
       </div>
@@ -294,18 +304,27 @@ const loadCharacter = cache(async function loadCharacter(id) {
   // after it. Each needs only the id, RLS answers it for whoever is asking, and
   // on a miss all five are thrown away unread: one round trip's worth of
   // waiting rather than two.
-  const [{ data, error }, campaigns, notes, items, spells, features, unlocks] =
-    await Promise.all([
-      // Keep the error. Dropping it is what let a query that never ran read as
-      // a character that is not there.
-      getCharacter(supabase, { id, userId: user.id }),
-      listCampaignsForCharacter(supabase, id),
-      listCharacterNotes(supabase, id),
-      listCharacterInventory(supabase, id),
-      listCharacterSpells(supabase, id),
-      listCharacterFeatures(supabase, id),
-      listDiceSkinUnlocks(supabase, [id]),
-    ]);
+  const [
+    { data, error },
+    campaigns,
+    notes,
+    items,
+    spells,
+    features,
+    unlocks,
+    bannerUnlocks,
+  ] = await Promise.all([
+    // Keep the error. Dropping it is what let a query that never ran read as
+    // a character that is not there.
+    getCharacter(supabase, { id, userId: user.id }),
+    listCampaignsForCharacter(supabase, id),
+    listCharacterNotes(supabase, id),
+    listCharacterInventory(supabase, id),
+    listCharacterSpells(supabase, id),
+    listCharacterFeatures(supabase, id),
+    listDiceSkinUnlocks(supabase, [id]),
+    listBannerSkinUnlocks(supabase, [id]),
+  ]);
 
   // Not `bad_id` — a mistyped URL is not a fault worth a log line.
   if (error && error.reason !== "bad_id") {
@@ -323,6 +342,7 @@ const loadCharacter = cache(async function loadCharacter(id) {
       spells: [],
       features: [],
       diceSkins: [],
+      bannerSkins: [],
       error,
       user,
     };
@@ -350,6 +370,9 @@ const loadCharacter = cache(async function loadCharacter(id) {
     logFailure("listCharacterFeatures", features.error);
   }
 
+  if (bannerUnlocks.error)
+    logFailure("listBannerSkinUnlocks", bannerUnlocks.error);
+
   if (unlocks.error) {
     logFailure("listDiceSkinUnlocks", unlocks.error);
   }
@@ -373,6 +396,9 @@ const loadCharacter = cache(async function loadCharacter(id) {
     spells: spells.error ? [] : spells.data,
     features: features.error ? [] : features.data,
     diceSkins: unlockedDiceSkins(unlocks.error ? [] : unlocks.data),
+    bannerSkins: unlockedBannerSkins(
+      bannerUnlocks.error ? [] : bannerUnlocks.data,
+    ),
     error,
     user,
   };

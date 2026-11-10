@@ -16,7 +16,7 @@ const SUBJECT = "avatar";
  * the base ones, so the sheet prints the number Postgres would sort by.
  */
 const COLUMNS =
-  "id, kind, name, discriminator, race, archetype, class_id, alignment, dice_color, dice_skin, avatar_url, level, xp, current_hp, max_hp, " +
+  "id, kind, name, discriminator, race, archetype, class_id, alignment, dice_color, dice_skin, banner_skin, avatar_url, level, xp, current_hp, max_hp, " +
   "temp_hp, temp_hp_max, armor_class, death_saves, is_dead, hit_dice_spent, custom_proficiencies, conditions, " +
   "ability_str, ability_dex, ability_con, ability_int, ability_wis, ability_cha, " +
   "ability_str_total, ability_dex_total, ability_con_total, ability_int_total, ability_wis_total, ability_cha_total, " +

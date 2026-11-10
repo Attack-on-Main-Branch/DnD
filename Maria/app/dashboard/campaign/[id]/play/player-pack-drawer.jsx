@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { canOpenContainer } from "sina/rules/containers";
-import { isDicePouch } from "sina/rules/dice-pouch";
+import { isPouch } from "sina/rules/dice-pouch";
 import { parseQuantity } from "sina/rules/inventory";
 
 import { StepButton } from "@/app/components/ui/quantity-stepper";
@@ -20,7 +20,7 @@ import { rowItem } from "@/app/dashboard/inventory-presentation";
 import { EmptyPack } from "@/app/dashboard/pack-item-card";
 
 import { passContainerTo } from "./chest-actions";
-import { DICE_POUCH_ITEM } from "./dice-pouch-presentation";
+import { POUCH_ITEM } from "./dice-pouch-presentation";
 import HandSlot from "./hand-slot";
 import ItemSearch from "./item-search";
 import {
@@ -149,7 +149,7 @@ export default function PlayerPackDrawer({
     let pouch = null;
 
     for (const row of pack) {
-      if (isDicePouch(row.item_slug)) {
+      if (isPouch(row.item_slug)) {
         pouch = row.container_id ? pouch : row;
       } else if (row.container_id) {
         const held = inBags.get(row.container_id);
@@ -804,7 +804,7 @@ export default function PlayerPackDrawer({
   );
 }
 
-/** The Dice Pouches in hand, and the way into one. */
+/** The Pouches in hand, and the way into one. */
 function PouchShelf({ quantity, onOpen }) {
   return (
     <div className="mt-4 flex items-center gap-3 rounded-xl border border-gold/40 bg-gold/5 px-3 py-2.5 shadow-[inset_0_0_20px_-10px_var(--color-gold)]">
@@ -812,16 +812,14 @@ function PouchShelf({ quantity, onOpen }) {
 
       <div className="min-w-0 flex-1">
         <p className="font-display text-sm font-semibold tracking-wide text-gold">
-          {DICE_POUCH_ITEM.name}
+          {POUCH_ITEM.name}
           {quantity > 1 && (
             <span className="ml-1.5 font-mono text-[0.625rem] font-normal text-ink/50 tabular-nums">
               ×{quantity}
             </span>
           )}
         </p>
-        <p className="text-xs text-ink/55">
-          A dice set you have not found yet.
-        </p>
+        <p className="text-xs text-ink/55">{POUCH_ITEM.summary}</p>
       </div>
 
       <StepButton
@@ -829,7 +827,7 @@ function PouchShelf({ quantity, onOpen }) {
         tone="gold"
         onClick={onOpen}
         disabled={!onOpen}
-        label={`Open a ${DICE_POUCH_ITEM.name}`}
+        label={`Open a ${POUCH_ITEM.name}`}
       >
         Open
       </StepButton>

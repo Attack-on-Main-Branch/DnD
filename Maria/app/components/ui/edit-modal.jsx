@@ -14,6 +14,11 @@ import { SHEET_WIDTH_CLASS, surfaceClasses } from "./surface";
 const CLOSE_MS = 340;
 
 const SIZES = {
+  banner: {
+    dialog:
+      "max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[min(75rem,calc((100dvh-7rem)*var(--aspect-banner)))]",
+    content: "p-3 sm:p-5",
+  },
   sheet: {
     dialog: `max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] ${SHEET_WIDTH_CLASS}`,
     content: "p-6 max-sm:p-4 sm:p-8",

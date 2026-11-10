@@ -34,6 +34,7 @@ import {
   skillsOf,
   validateSkills,
 } from "./skills.js";
+import { SKIN_RARITIES } from "./skins.js";
 import { countCharacters, readProse } from "./text.js";
 
 export { countCharacters };
@@ -300,14 +301,7 @@ export function isDiceColor(value) {
 }
 
 /** Commonest first. */
-export const DICE_SKIN_RARITIES = [
-  "common",
-  "uncommon",
-  "rare",
-  "epic",
-  "legendary",
-  "iconic",
-];
+export const DICE_SKIN_RARITIES = SKIN_RARITIES;
 
 /**
  * What a character's dice are made of, beside the colour they come in, by

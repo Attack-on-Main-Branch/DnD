@@ -1,3 +1,5 @@
+"use client";
+
 import { TITLE_CLASSES } from "./entrance";
 
 /**
@@ -21,19 +23,20 @@ export default function TableTitle({ title, compact = false }) {
 
       {/* `whitespace-pre` so a space that falls on the seam is kept rather than
           collapsed away, which would close the join by a word space. */}
-      <span
-        aria-hidden="true"
-        className={
-          compact
-            ? "line-clamp-2 wrap-anywhere"
-            : "flex justify-center whitespace-pre max-sm:block max-sm:whitespace-normal max-sm:wrap-anywhere"
-        }
-      >
-        <span className={TITLE_CLASSES.left}>
-          {glyphs.slice(0, seam).join("")}
-        </span>
-        <span className={TITLE_CLASSES.right}>
-          {glyphs.slice(seam).join("")}
+      <span aria-hidden="true">
+        <span
+          className={
+            compact
+              ? "line-clamp-2 wrap-anywhere"
+              : "flex justify-center whitespace-pre max-sm:block max-sm:whitespace-normal max-sm:wrap-anywhere"
+          }
+        >
+          <span className={TITLE_CLASSES.left}>
+            {glyphs.slice(0, seam).join("")}
+          </span>
+          <span className={TITLE_CLASSES.right}>
+            {glyphs.slice(seam).join("")}
+          </span>
         </span>
       </span>
     </h1>

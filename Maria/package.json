@@ -1,13 +1,14 @@
 {
   "name": "maria",
-  "version": "2.1.1",
+  "version": "2.2.1",
   "private": true,
   "description": "Frontend: the Next.js application.",
   "scripts": {
     "dice-assets": "node scripts/dice-assets.mjs",
-    "predev": "npm run dice-assets",
+    "banner-assets": "node scripts/banner-assets.mjs",
+    "predev": "npm run dice-assets && npm run banner-assets",
     "dev": "next dev",
-    "prebuild": "npm run dice-assets",
+    "prebuild": "npm run dice-assets && npm run banner-assets",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

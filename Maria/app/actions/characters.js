@@ -45,7 +45,7 @@ const EDIT_COPY = {
   bad_id: { message: "That character could not be found.", field: null },
   skin_locked: {
     message:
-      "Those dice have not been found yet. Open a Dice Pouch at the table to find more.",
+      "Those dice have not been found yet. Open a Pouch at the table to find more.",
     field: "diceSkin",
   },
   invalid_value: {

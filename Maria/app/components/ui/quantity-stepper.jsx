@@ -33,6 +33,7 @@ export function StepButton({
   wide = false,
   pill = false,
   tone = "gold",
+  solid = false,
   children,
 }) {
   return (
@@ -48,10 +49,11 @@ export function StepButton({
       className={
         `grid shrink-0 cursor-pointer place-items-center border max-sm:min-h-11 max-sm:min-w-11 max-sm:touch-manipulation ` +
         `${pill ? "rounded-full" : "rounded-lg"} ` +
-        `border-gold/20 bg-surface/30 leading-none text-ink/70 ` +
+        `border-gold/20 leading-none text-ink/70 ` +
+        `${solid ? "bg-surface/95 disabled:text-ink/35" : "bg-surface/30 disabled:opacity-40"} ` +
         `transition-colors duration-300 ` +
         `${TONES[tone] ?? TONES.gold} ` +
-        `disabled:cursor-not-allowed disabled:opacity-40 ` +
+        `disabled:cursor-not-allowed ` +
         (wide
           ? "h-9 px-3 font-display text-xs font-semibold tracking-wide"
           : "size-9 text-lg")

@@ -1,0 +1,99 @@
+.surface {
+  container-type: size;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--color-lily-night);
+}
+
+.background,
+.flower {
+  position: absolute;
+  inset: 0;
+}
+
+.background {
+  background-image: var(--lily-background);
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+}
+
+.garden {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: max(100cqw, calc(100cqh * var(--lily-aspect)));
+  aspect-ratio: var(--lily-aspect);
+  transform: translateX(-50%);
+}
+
+.layer {
+  position: absolute;
+  left: var(--plant-left);
+  top: var(--plant-top);
+  width: var(--plant-width);
+  height: var(--plant-height);
+  transform-origin: var(--wind-origin);
+  animation: lily-wind var(--wind-duration) cubic-bezier(0.37, 0, 0.63, 1)
+    var(--wind-delay) infinite;
+  animation-play-state: var(--banner-play-state, paused);
+  will-change: var(--banner-will-change, auto);
+}
+
+.flower {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transform-origin: inherit;
+  animation: lily-flutter var(--flutter-duration) cubic-bezier(0.37, 0, 0.63, 1)
+    var(--flutter-delay) infinite alternate;
+  animation-play-state: var(--banner-play-state, paused);
+  will-change: var(--banner-will-change, auto);
+}
+
+.surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent var(--lily-ground-start),
+    color-mix(in srgb, var(--color-lily-night) 90%, transparent)
+  );
+}
+
+@keyframes lily-wind {
+  0%,
+  100% {
+    transform: rotate(calc(var(--wind-sway) * -1));
+  }
+  50% {
+    transform: rotate(var(--wind-sway));
+  }
+}
+
+@keyframes lily-flutter {
+  from {
+    transform: skewX(calc(var(--wind-sway) * -0.16));
+  }
+  to {
+    transform: skewX(calc(var(--wind-sway) * 0.16));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .background {
+    background-image: var(--lily-still-image);
+  }
+
+  .garden {
+    display: none;
+  }
+
+  .layer,
+  .flower {
+    animation: none;
+    will-change: auto;
+  }
+}
