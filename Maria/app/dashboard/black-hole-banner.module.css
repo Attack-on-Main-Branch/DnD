@@ -1,0 +1,17 @@
+.art {
+  object-fit: cover;
+  object-position: 63% center;
+  animation: pulse 9s ease-in-out infinite;
+  animation-play-state: var(--banner-play-state, paused);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    filter: brightness(1.3);
+  }
+
+  50% {
+    filter: brightness(0.7);
+  }
+}

@@ -27,7 +27,7 @@ export default function HealthBar({
   tierClass,
   label = "Health",
   compact = false,
-  contrast = false,
+  banner = false,
   temp = 0,
   tempMax = 0,
 }) {
@@ -35,17 +35,15 @@ export default function HealthBar({
     <section className="w-full">
       {compact ? (
         <p
-          className={`text-right font-mono text-[0.625rem] leading-none tabular-nums ${contrast ? "text-(--banner-detail)" : "text-ink/50"}`}
+          className={`text-right font-mono text-[0.625rem] leading-none tabular-nums ${banner ? "text-ink" : "text-ink/50"}`}
         >
           {/* `leading-none` again on the span: a line box is sized by the
               tallest inline box in it, so the larger number brought its own
               default leading back and cost six pixels a card. */}
-          <span
-            className={`text-[0.6875rem] leading-none ${contrast ? "text-(--banner-tag)" : "text-gold"}`}
-          >
+          <span className="text-[0.6875rem] leading-none text-gold">
             {current}
           </span>
-          <TempCount temp={temp} contrast={contrast} /> / {max} HP
+          <TempCount temp={temp} /> / {max} HP
         </p>
       ) : (
         <div className="flex items-baseline justify-between gap-4">
@@ -91,11 +89,6 @@ export default function HealthBar({
   );
 }
 
-function TempCount({ temp, contrast = false }) {
-  return temp > 0 ? (
-    <span className={contrast ? "text-(--banner-temp)" : "text-temp-hp"}>
-      {" "}
-      (+{temp})
-    </span>
-  ) : null;
+function TempCount({ temp }) {
+  return temp > 0 ? <span className="text-temp-hp"> (+{temp})</span> : null;
 }

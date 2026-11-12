@@ -40,10 +40,14 @@ describe("skin collections", () => {
         { skin: "splash" },
         { skin: "vignette" },
         { skin: "cyberpunk" },
+        { skin: "carbon-fiber" },
+        { skin: "stillwater" },
         { skin: "shattered-glass" },
         { skin: "pixel-night" },
+        { skin: "black-hole" },
         { skin: "topography" },
         { skin: "hexagon" },
+        { skin: "vortex" },
         { skin: "spider-lilies" },
         { skin: "sakura" },
         { skin: "lightning" },
@@ -93,7 +97,7 @@ describe("skin collections", () => {
   });
 
   it("finds Epic banners only after their rewards are unlocked", () => {
-    for (const skin of ["topography", "hexagon"]) {
+    for (const skin of ["topography", "hexagon", "vortex"]) {
       assert.equal(bannerSkinRarity(skin), "epic");
       assert.equal(validateBannerSkin(skin), null);
       assert.equal(isBannerSkinUnlocked(skin, []), false);
@@ -111,8 +115,11 @@ describe("skin collections", () => {
   it("keeps Uncommon and Rare banners locked until their rewards are found", () => {
     for (const [skin, rarity] of [
       ["cyberpunk", "uncommon"],
+      ["carbon-fiber", "uncommon"],
+      ["stillwater", "uncommon"],
       ["shattered-glass", "rare"],
       ["pixel-night", "rare"],
+      ["black-hole", "rare"],
     ]) {
       assert.equal(bannerSkinRarity(skin), rarity);
       assert.equal(validateBannerSkin(skin), null);
@@ -153,10 +160,14 @@ describe("mixed pouch draws", () => {
       { kind: "banner", skin: "splash", rarity: "common" },
       { kind: "banner", skin: "vignette", rarity: "common" },
       { kind: "banner", skin: "cyberpunk", rarity: "uncommon" },
+      { kind: "banner", skin: "carbon-fiber", rarity: "uncommon" },
+      { kind: "banner", skin: "stillwater", rarity: "uncommon" },
       { kind: "banner", skin: "shattered-glass", rarity: "rare" },
       { kind: "banner", skin: "pixel-night", rarity: "rare" },
+      { kind: "banner", skin: "black-hole", rarity: "rare" },
       { kind: "banner", skin: "topography", rarity: "epic" },
       { kind: "banner", skin: "hexagon", rarity: "epic" },
+      { kind: "banner", skin: "vortex", rarity: "epic" },
       { kind: "banner", skin: "spider-lilies", rarity: "legendary" },
       { kind: "banner", skin: "sakura", rarity: "legendary" },
       { kind: "banner", skin: "lightning", rarity: "legendary" },
@@ -193,16 +204,30 @@ describe("mixed pouch draws", () => {
     assert.deepEqual(pouchChances({ dice: DICE_SKIN_VALUES }), [
       { kind: "banner", skin: "splash", rarity: "common", chance: 1 / 5 },
       { kind: "banner", skin: "vignette", rarity: "common", chance: 1 / 5 },
-      { kind: "banner", skin: "cyberpunk", rarity: "uncommon", chance: 6 / 25 },
+      { kind: "banner", skin: "cyberpunk", rarity: "uncommon", chance: 2 / 25 },
+      {
+        kind: "banner",
+        skin: "carbon-fiber",
+        rarity: "uncommon",
+        chance: 2 / 25,
+      },
+      {
+        kind: "banner",
+        skin: "stillwater",
+        rarity: "uncommon",
+        chance: 2 / 25,
+      },
       {
         kind: "banner",
         skin: "shattered-glass",
         rarity: "rare",
-        chance: 2 / 25,
+        chance: 4 / 75,
       },
-      { kind: "banner", skin: "pixel-night", rarity: "rare", chance: 2 / 25 },
-      { kind: "banner", skin: "topography", rarity: "epic", chance: 3 / 50 },
-      { kind: "banner", skin: "hexagon", rarity: "epic", chance: 3 / 50 },
+      { kind: "banner", skin: "pixel-night", rarity: "rare", chance: 4 / 75 },
+      { kind: "banner", skin: "black-hole", rarity: "rare", chance: 4 / 75 },
+      { kind: "banner", skin: "topography", rarity: "epic", chance: 1 / 25 },
+      { kind: "banner", skin: "hexagon", rarity: "epic", chance: 1 / 25 },
+      { kind: "banner", skin: "vortex", rarity: "epic", chance: 1 / 25 },
       {
         kind: "banner",
         skin: "spider-lilies",

@@ -38,7 +38,6 @@ export default function BannerPreview({
       />
       <div className="relative col-start-1 row-start-1 flex min-w-0 flex-1 flex-col justify-center p-4">
         <BannerIdentity
-          contrast={Boolean(bannerClass)}
           portrait={
             <Avatar
               src={character.avatar_url}
@@ -70,7 +69,7 @@ export default function BannerPreview({
         <div className="relative mt-2.5">
           <HealthBar
             compact
-            contrast={Boolean(bannerClass)}
+            banner
             current={current}
             max={max}
             fraction={healthFraction(current, max)}
