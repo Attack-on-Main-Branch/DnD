@@ -16,9 +16,13 @@ const BANNER_FINISHES = {
   "shattered-glass": dynamic(() => import("./shattered-glass-banner")),
   vignette: dynamic(() => import("./vignette-banner")),
   cyberpunk: dynamic(() => import("./cyberpunk-banner")),
+  "carbon-fiber": dynamic(() => import("./carbon-fiber-banner")),
+  stillwater: dynamic(() => import("./stillwater-banner")),
   "pixel-night": dynamic(() => import("./pixel-night-banner")),
+  "black-hole": dynamic(() => import("./black-hole-banner")),
   "wings-of-freedom": dynamic(() => import("./wings-of-freedom-banner")),
   hexagon: dynamic(() => import("./hexagon-banner")),
+  vortex: dynamic(() => import("./vortex-banner")),
 };
 
 function BannerSkinArt({

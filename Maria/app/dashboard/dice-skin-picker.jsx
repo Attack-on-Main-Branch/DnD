@@ -19,7 +19,7 @@ export default function DiceSkinPicker({ color, ...props }) {
         <DicePicture
           picture={diceSkinPictures(option.value).tile}
           color={color}
-          className={`aspect-square w-full max-w-28 drop-shadow-[0_10px_12px_rgba(0,0,0,0.55)] transition duration-300 ${locked ? "opacity-75 blur-xs brightness-75 grayscale" : "motion-safe:group-hover:scale-105"}`}
+          className={`aspect-square w-full max-w-28 drop-shadow-[0_10px_12px_rgba(0,0,0,0.55)] transition duration-300 ${locked ? "opacity-75 blur-sm brightness-75 grayscale" : "motion-safe:group-hover:scale-105"}`}
         />
       )}
     />

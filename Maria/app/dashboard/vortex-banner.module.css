@@ -1,0 +1,42 @@
+.surface {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  background: var(--vortex-color);
+}
+
+.still,
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: luminosity;
+}
+
+.still {
+  object-fit: cover;
+}
+
+.canvas {
+  opacity: 0;
+}
+
+.canvas[data-vortex-ready] {
+  opacity: 1;
+}
+
+.canvas[data-vortex-ready] + .still {
+  visibility: hidden;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-surface) 29%, transparent),
+    color-mix(in srgb, var(--color-surface) 8%, transparent)
+  );
+}

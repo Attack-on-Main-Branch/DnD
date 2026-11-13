@@ -109,11 +109,10 @@ function PartyCard({
           that undoes this would be a card arguing with itself. */}
           <div
             className={`relative transition-all duration-500 ${
-              dead ? "opacity-40 brightness-75 grayscale" : ""
+              dead ? "brightness-75 grayscale" : ""
             }`}
           >
             <BannerIdentity
-              contrast={Boolean(bannerClass)}
               heading={phone}
               name={member.name}
               discriminator={member.discriminator}

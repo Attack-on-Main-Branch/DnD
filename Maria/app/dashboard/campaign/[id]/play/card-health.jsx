@@ -9,11 +9,9 @@ import { controlClasses } from "@/app/components/ui/field-styles";
 import HealthBar from "@/app/components/ui/health-bar";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { healthBarClass } from "@/app/dashboard/health-presentation";
-import { bannerSurfaceClass } from "@/app/dashboard/banner-presentation";
 
 import { changeCharacterHealth } from "./actions";
 import {
-  useBannerSkin,
   useHitPoints,
   useMaxHitPoints,
   useTempHitPoints,
@@ -54,7 +52,6 @@ export default function CardHealth({
 }) {
   const [open, setOpen] = useState(false);
   const controlsId = useId();
-  const bannerSkin = useBannerSkin(characterId);
 
   const current = useHitPoints(characterId);
   const ceiling = useMaxHitPoints(characterId);
@@ -184,7 +181,7 @@ export default function CardHealth({
       <div className="relative">
         <HealthBar
           compact
-          contrast={Boolean(bannerSurfaceClass(bannerSkin))}
+          banner
           current={current}
           temp={temp}
           tempMax={tempMax}

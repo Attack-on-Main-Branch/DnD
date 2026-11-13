@@ -182,64 +182,39 @@
   --color-sakura-blush: #f5d9de;
   --color-sakura-petal: #e8a8b7;
   --color-sakura-rose: #b95b79;
-  --color-sakura-ink: #49323a;
   --color-sakura-leaf: #829170;
   --color-sakura-sky: #e9f0ed;
 }
 
-.banner-surface {
-  --banner-name-gap: 0px;
-  --banner-heading: var(--color-ink);
-  --banner-detail: color-mix(in srgb, var(--color-ink) 90%, transparent);
-  --banner-tag: var(--color-gold);
-  --banner-temp: var(--color-temp-hp);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  text-shadow:
-    0 1px 2px var(--color-surface),
-    0 0 6px var(--color-surface),
-    0 0 10px var(--color-surface);
-}
-
-.banner-printstream,
-.banner-sakura {
-  --banner-heading: var(--banner-contrast-ink);
-  --banner-detail: color-mix(
-    in srgb,
-    var(--banner-contrast-ink) 85%,
-    transparent
-  );
-  --banner-tag: var(--banner-contrast-ink);
-  --banner-temp: var(--color-sky-800);
-  text-shadow:
-    0 1px 2px var(--banner-contrast-paper),
-    0 0 4px var(--banner-contrast-paper);
-}
-
-.banner-printstream {
-  --banner-contrast-ink: var(--color-printstream-ink);
-  --banner-contrast-paper: var(--color-printstream-paper);
-}
-
-.banner-sakura {
-  --banner-contrast-ink: var(--color-sakura-ink);
-  --banner-contrast-paper: var(--color-ink);
-}
-
-.banner-wings-of-freedom {
-  --banner-name-gap: 23cqw;
-  container-type: inline-size;
-}
-
-.banner-splash,
-.banner-cyberpunk,
-.banner-pixel-night {
+.banner-text {
   text-shadow:
     -1px 0 var(--color-surface),
     1px 0 var(--color-surface),
     0 -1px var(--color-surface),
     0 1px var(--color-surface),
-    0 1px 4px var(--color-surface);
+    -0.7px -0.7px var(--color-surface),
+    0.7px -0.7px var(--color-surface),
+    -0.7px 0.7px var(--color-surface),
+    0.7px 0.7px var(--color-surface);
+}
+
+.banner-surface {
+  --banner-name-gap: 0px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.banner-wings-of-freedom,
+.banner-stillwater {
+  container-type: inline-size;
+}
+
+.banner-wings-of-freedom {
+  --banner-name-gap: 23cqw;
+}
+
+.banner-stillwater {
+  --banner-name-gap: max(0px, 36cqw - 3.5rem);
 }
 
 .banner-surface::before {
