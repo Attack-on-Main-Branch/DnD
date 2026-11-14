@@ -2,68 +2,81 @@
 
 import { ButtonContent } from "@/app/components/ui/button";
 import Avatar from "@/app/components/ui/avatar";
+import { CheckIcon } from "@/app/components/ui/select-menu";
 import { diceColorHex } from "@/app/dashboard/character-presentation";
+import styles from "./party-pills.module.css";
 
-/**
- * The row of faces above a panel that can only hold one at a time — the pack's,
- * the sheet's beside it, the spellbook's, and the campaign view's when a
- * feature is being written onto somebody.
- *
- * ABOVE `play/` AND NOT IN IT, because the campaign page reaches for it too and
- * a route folder is not a place its parent should be importing out of.
- *
- * `role="group"` rather than a tablist: these control no panel of their own,
- * they aim the one below. `children` come first, which is where the pack puts
- * "All party" — a pill that is a target rather than a view has no business in
- * the list, hence a slot instead of a flag.
- */
 export default function PartyPills({
   members,
   chosen,
   onChoose,
   label,
-  children,
+  leading,
+  checkmarks = false,
+  showLabel = false,
 }) {
-  return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
-      {children}
+  const columns =
+    members.length === 4 ? 2 : Math.max(1, Math.min(3, members.length));
 
+  const portraits = (
+    <div className={styles.portraits} style={{ "--party-columns": columns }}>
       {members.map((member) => (
-        <Pill
-          key={member.id}
-          active={chosen === member.id}
-          onClick={() => onChoose(member.id)}
-          // Named outright: the avatar is `aria-hidden`, so the only text is
-          // inside a span.
-          label={member.name}
-          face={
-            <Avatar
-              src={member.avatar_url}
-              color={diceColorHex(member.dice_color)}
-              size="xs"
-              // The face IS this pill's left end — see the note on `face` below.
-              ring={false}
-              className="-my-px -ml-px"
-            />
-          }
-        >
-          <span className="button-label max-w-32 truncate">{member.name}</span>
-        </Pill>
+        <div key={member.id} className={styles.member}>
+          <Pill
+            active={
+              Array.isArray(chosen)
+                ? chosen.includes(member.id)
+                : chosen === member.id
+            }
+            checkmark={checkmarks}
+            onClick={() => onChoose(member.id)}
+            label={member.name}
+            face={
+              <Avatar
+                src={member.avatar_url}
+                color={diceColorHex(member.dice_color)}
+                size="xs"
+                ring={false}
+                className="-my-px -ml-px"
+              />
+            }
+          >
+            <span className="button-label min-w-0 flex-1 truncate text-left">
+              {member.name}
+            </span>
+          </Pill>
+        </div>
       ))}
+    </div>
+  );
+
+  return (
+    <div role="group" aria-label={label} className="space-y-2">
+      {showLabel && <p className="text-sm text-ink/75">{label}</p>}
+      {leading ? (
+        <div className={styles.withLeading}>
+          <div className={styles.leading}>{leading}</div>
+          {portraits}
+        </div>
+      ) : (
+        portraits
+      )}
     </div>
   );
 }
 
 /**
- * One pill. `face` stands at the capsule's LEFT END rather than inside it: the
- * negative margins put the circle over the border on three sides, so its own
- * diameter becomes the pill's height and the left padding goes away — which is
- * most of what keeps a row of six on one line. No ring on it either; a pale rim
- * inside the capsule's outline is two rims a few pixels apart.
- *
- * Without a `face` the pill is padded both sides, as "All party" wants.
+ * The avatar overlaps the border so it sits flush against the capsule's edge.
  */
-export function Pill({ active, onClick, disabled, label, face, children }) {
+export function Pill({
+  active,
+  onClick,
+  disabled,
+  label,
+  face,
+  checkmark,
+  children,
+}) {
   return (
     <button
       type="button"
@@ -71,8 +84,11 @@ export function Pill({ active, onClick, disabled, label, face, children }) {
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
-      className={`inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-full border font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
-        face ? "py-0 pr-3.5 pl-0" : "px-3 py-1.5"
+      title={label}
+      className={`inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+        face
+          ? "w-full min-w-0 justify-start py-0 pr-2 pl-0"
+          : "justify-center px-3 py-1.5"
       } ${
         active
           ? "border-gold/55 bg-gold/15 text-gold"
@@ -81,6 +97,18 @@ export function Pill({ active, onClick, disabled, label, face, children }) {
     >
       {face}
       <ButtonContent>{children}</ButtonContent>
+      {checkmark && (
+        <span
+          aria-hidden="true"
+          className="grid size-4 shrink-0 place-items-center"
+        >
+          {active ? (
+            <CheckIcon />
+          ) : (
+            <span className="size-2 rounded-full border border-ink/45" />
+          )}
+        </span>
+      )}
     </button>
   );
 }

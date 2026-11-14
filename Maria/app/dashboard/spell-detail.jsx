@@ -23,7 +23,7 @@ import {
  * children and sit under a rule at the foot, which is the only place the Cast
  * button appears.
  */
-export default function SpellDetail({ spell, children }) {
+export default function SpellDetail({ spell, children, onClose = null }) {
   return (
     <section
       aria-label={spell.name}
@@ -32,8 +32,7 @@ export default function SpellDetail({ spell, children }) {
         glow: true,
         // Long descriptions scroll inside the detail panel.
         // `glass-unfiltered`: a filtered surface keeps filtering at opacity 0.
-        className:
-          "scroll-gold max-h-[min(20rem,34vh)] overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered",
+        className: `scroll-gold ${onClose ? "max-h-[calc(100dvh-3rem)]" : "max-h-[min(20rem,34vh)]"} overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered`,
       })}
     >
       <div className="flex items-start justify-between gap-3">
@@ -44,6 +43,16 @@ export default function SpellDetail({ spell, children }) {
         <span className={`shrink-0 ${LEVEL_TAG_CLASSES}`}>
           {levelBadge(spell.level)}
         </span>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close details"
+            onClick={onClose}
+            className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink/65 hover:text-gold focus-visible:outline-2 focus-visible:outline-gold"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {(spell.school || spell.concentration || spell.ritual) && (

@@ -59,6 +59,7 @@ export default function ActivityLog({
   faces = [],
   className = "",
   display = false,
+  workspace = false,
 }) {
   const entries = useActivityEntries();
   const { resync } = useTableDeed(campaignId);
@@ -77,9 +78,8 @@ export default function ActivityLog({
   useWireMessage("log", reread);
 
   /**
-   * What was already here when this panel opened, and therefore what must NOT
-   * glide in. Without it every entry on the page raced in at once on a cold
-   * load, which reads as ten things having just happened.
+   * Rows already here when the panel opened belong to the page entrance.
+   * Only new activity uses the log's live entry animation.
    *
    * State with a lazy initialiser rather than a ref: it is read while
    * rendering, and it is never written again — so React rendering this twice
@@ -95,21 +95,31 @@ export default function ActivityLog({
       aria-label="Activity log"
       style={logEntrance()}
       className={surfaceClasses({
-        className: `flex w-full flex-col overflow-hidden rounded-2xl ${LOG_CLASSES} ${className}`,
+        className: `flex w-full flex-col overflow-hidden rounded-2xl ${workspace ? "workspace-log" : LOG_CLASSES} ${className}`,
       })}
     >
       {/* One element child, which is what panel-fold.js fades before it folds
           the shell around it. */}
       <div className="flex min-h-0 flex-1 flex-col">
-        <h2 className="px-4 pt-4 pb-3 font-display text-xs font-semibold tracking-[0.18em] text-gold/80 uppercase">
+        <h2
+          data-table-arrival-content={workspace ? "right" : undefined}
+          className="px-4 pt-4 pb-3 font-display text-xs font-semibold tracking-[0.18em] text-gold/80 uppercase"
+        >
           Activity log
         </h2>
 
         {/* The hairline the header and the changelog drawer carry. */}
-        <div aria-hidden="true" className={FADED_RULE_CLASSES} />
+        <div
+          aria-hidden="true"
+          data-table-arrival-content={workspace ? "right" : undefined}
+          className={FADED_RULE_CLASSES}
+        />
 
         {entries.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink/50 italic">
+          <p
+            data-table-arrival-content={workspace ? "right" : undefined}
+            className="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink/50 italic"
+          >
             Nothing has happened at this table yet.
           </p>
         ) : (

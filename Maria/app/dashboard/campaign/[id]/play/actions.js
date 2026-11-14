@@ -756,6 +756,8 @@ export async function moveMapPiece(tokenId, point) {
     y: spot.y,
     q: point?.q,
     r: point?.r,
+    distanceFt: point?.distanceFt,
+    turnId: point?.turnId,
   });
 
   if (error) {

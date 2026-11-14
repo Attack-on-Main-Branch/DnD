@@ -55,7 +55,6 @@ export default function PlayerSpellDrawer({
   actorName,
   book,
   caster,
-  compact = false,
 }) {
   const [reading, setReading] = useState(null);
   const [asking, setAsking] = useState(false);
@@ -196,13 +195,19 @@ export default function PlayerSpellDrawer({
   }
 
   return (
-    /* A column keeps the slot bar pinned while the shelves scroll. */
     <div data-popover-body className={`flex flex-col ${POPOVER_BODY_CLASSES}`}>
       {/* `min-h-0`, or a flex item will not shrink under its own content and
           the shelves would push the bar off the foot of the panel. */}
       <div className="scroll-gold min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5">
+        <SpellSlotTracker
+          campaignId={campaignId}
+          characterId={characterId}
+          slots={caster.slots}
+          classId={caster.classId}
+          level={caster.level}
+          className="mb-4"
+        />
         <SpellSearch
-          compact={compact}
           campaignId={campaignId}
           openSlug={open?.slug ?? null}
           onOpen={show}
@@ -220,7 +225,7 @@ export default function PlayerSpellDrawer({
 
             {shelves.map((shelf) => (
               <Shelf
-                compact={compact}
+                compact
                 key={shelf.level}
                 label={shelf.label}
                 count={shelf.spells.length}
@@ -228,6 +233,7 @@ export default function PlayerSpellDrawer({
                 {shelf.spells.map((spell) => (
                   <li key={spell.slug} className="flex">
                     <SpellRow
+                      roomy
                       spell={spell}
                       open={open?.slug === spell.slug}
                       onOpen={() => show(spell)}
@@ -246,17 +252,8 @@ export default function PlayerSpellDrawer({
         )}
       </div>
 
-      {/* A player reads the bar and does not move it — see the tracker. */}
-      <SpellSlotTracker
-        campaignId={campaignId}
-        characterId={characterId}
-        slots={caster.slots}
-        classId={caster.classId}
-        level={caster.level}
-      />
-
-      {open && (
-        <PopoverAside title={open.name} onClose={() => setReading(null)}>
+      <PopoverAside title={open?.name} onClose={() => setReading(null)}>
+        {open && (
           <SpellDetail spell={open}>
             {known.has(open.slug) ? (
               <>
@@ -308,8 +305,8 @@ export default function PlayerSpellDrawer({
               </div>
             )}
           </SpellDetail>
-        </PopoverAside>
-      )}
+        )}
+      </PopoverAside>
     </div>
   );
 }

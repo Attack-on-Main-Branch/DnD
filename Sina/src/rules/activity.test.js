@@ -9,6 +9,7 @@ import {
   readActivity,
   readActivityLog,
 } from "./activity.js";
+import { MAX_COINS } from "./currency.js";
 
 const ROW = {
   id: "6f1c3d2e-0000-4000-8000-000000000000",
@@ -802,6 +803,34 @@ describe("readActivity, containers", () => {
     assert.equal(entry.item, "Rope");
     assert.equal(entry.quantity, 2);
     assert.equal(entry.target, undefined);
+  });
+
+  it("reads chest coins and the recipient named for a DM claim", () => {
+    const entry = readActivity(
+      looted({
+        containerName: "Crypt Chest",
+        coin: "gp",
+        quantity: 1100,
+        targetName: "Fern",
+      }),
+    );
+    assert.equal(entry.container, "Crypt Chest");
+    assert.equal(entry.coin, "gp");
+    assert.equal(entry.quantity, 1100);
+    assert.equal(entry.target, "Fern");
+  });
+
+  it("refuses invalid chest coin denominations and quantities", () => {
+    assert.equal(
+      readActivity(looted({ containerName: "Chest", coin: "xp", quantity: 1 })),
+      null,
+    );
+    assert.equal(
+      readActivity(
+        looted({ containerName: "Chest", coin: "cp", quantity: MAX_COINS + 1 }),
+      ),
+      null,
+    );
   });
 
   it("refuses a loot line with no chest, no item, or no amount", () => {

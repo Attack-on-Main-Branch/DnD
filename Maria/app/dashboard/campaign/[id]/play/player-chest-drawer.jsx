@@ -14,6 +14,7 @@ import {
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 
 import { lootChestItem } from "./chest-actions";
+import ChestCoins from "./chest-coins";
 import { Action } from "./pack-controls";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
@@ -98,6 +99,9 @@ export default function PlayerChestDrawer({
       {chests.map((container) => {
         const expanded = open === container.id;
         const inside = contents[container.id] ?? [];
+        const coinPiles = Object.values(container.purse ?? {}).filter(
+          Boolean,
+        ).length;
 
         return (
           <section
@@ -125,7 +129,7 @@ export default function PlayerChestDrawer({
 
               <span className="flex shrink-0 items-center gap-2">
                 <span className="font-mono text-[0.625rem] text-ink/45 tabular-nums">
-                  {inside.length}
+                  {inside.length + coinPiles}
                 </span>
 
                 <span className={containerTagClasses(container.type)}>
@@ -135,13 +139,21 @@ export default function PlayerChestDrawer({
             </button>
 
             {expanded && (
-              <div className="mt-3 border-t border-gold/15 pt-3">
-                {inside.length === 0 ? (
+              <div className="mt-3 flex flex-col border-t border-gold/15 pt-3">
+                <ChestCoins
+                  campaignId={campaignId}
+                  container={container}
+                  characterId={characterId}
+                />
+                {inside.length === 0 && coinPiles === 0 && (
                   <p className="text-xs text-ink/50 italic">
                     Empty. Somebody has been here before you.
                   </p>
-                ) : (
-                  <ul className="flex flex-col gap-1.5">
+                )}
+                {inside.length > 0 && (
+                  <ul
+                    className={`flex flex-col gap-1.5${coinPiles ? " mt-3" : ""}`}
+                  >
                     {inside.map((row) => (
                       <li
                         key={row.id}

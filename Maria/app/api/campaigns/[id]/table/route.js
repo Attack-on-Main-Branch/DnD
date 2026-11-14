@@ -6,6 +6,7 @@ import {
   listPartyMembers,
   listPartySheets,
 } from "sina/data/campaigns";
+import { getCampaignCombat } from "sina/data/combat";
 import { getCharacter } from "sina/data/characters";
 import {
   listCampaignContainers,
@@ -113,10 +114,11 @@ export async function GET(request, { params }) {
        The shelf is also read for the pieces, whose query is `map_id in (…)` —
        so a board asked for on its own still pays for it. */
     want.maps || want.tokens ? listCampaignMaps(supabase, campaignId) : null,
-    /* One row, two answers: which picture is on the table, and whether the
-       party is fighting over it. Asked for either — a `campaigns` doorbell
-       rings for both, and the second query would be the same query. */
-    want.maps || want.combat ? getCampaignTable(supabase, campaignId) : null,
+    want.combat
+      ? getCampaignCombat(supabase, campaignId)
+      : want.maps
+        ? getCampaignTable(supabase, campaignId)
+        : null,
   ]);
 
   const shelf = slice("listCampaignContainers", containers);
@@ -183,7 +185,9 @@ export async function GET(request, { params }) {
 
       /* The whole of the fight, off the same row. Read through the rules layer in
        the store rather than here — see `setCombat` in table-state.jsx. */
-      combat: slice("getCampaignTable", table, (row) => row ?? undefined),
+      combat: want.combat
+        ? slice("getCampaignCombat", table, (row) => row ?? undefined)
+        : undefined,
     },
     { headers: UNCACHED },
   );

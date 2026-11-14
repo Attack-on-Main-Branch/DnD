@@ -60,19 +60,6 @@ export function containerTagClasses(type) {
   return type === "chest" ? CHEST_TAG_CLASSES : BAG_TAG_CLASSES;
 }
 
-/**
- * The reveal switch, the one control here that wears emerald: gold means "you
- * may press this" everywhere else, and a chest open to the party is a STATE
- * rather than an invitation — the argument the dice rail's veil makes for
- * violet.
- */
-export const REVEALED_CLASSES =
-  "border-emerald-500 bg-emerald-500/20 text-emerald-200 " +
-  "shadow-[0_0_18px_-6px_rgba(16,185,129,0.8)] hover:bg-emerald-500/30";
-
-export const HIDDEN_CLASSES =
-  "border-gold/25 bg-surface/40 text-ink/70 hover:border-gold/55 hover:text-gold";
-
 /** The names while they fit, a count once they do not. */
 function audienceLabel(visibleTo, members) {
   const named = (visibleTo ?? [])

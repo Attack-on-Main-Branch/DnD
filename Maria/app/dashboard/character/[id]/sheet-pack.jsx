@@ -12,6 +12,7 @@ import { rowItem } from "@/app/dashboard/inventory-presentation";
 import ItemDetail from "@/app/dashboard/item-detail";
 import ItemRow from "@/app/dashboard/item-row";
 import { EmptyPack } from "@/app/dashboard/pack-item-card";
+import CoinPiles from "@/app/dashboard/campaign/[id]/play/coin-piles";
 
 /**
  * The Inventory tab, drawn the way the pack above the map is: a name and a
@@ -36,6 +37,7 @@ import { EmptyPack } from "@/app/dashboard/pack-item-card";
 export default function SheetPack({ items, containers, chestItems }) {
   const [reading, setReading] = useState(null);
   const [openContainer, setOpenContainer] = useState(null);
+  const [openCoin, setOpenCoin] = useState(null);
 
   /* The pack itself, then one list per bag, in one pass over the rows. */
   const carried = useMemo(() => {
@@ -126,6 +128,7 @@ export default function SheetPack({ items, containers, chestItems }) {
             : (chestItems[container.id] ?? []);
 
         const unfolded = openContainer === container.id;
+        const coinPiles = Object.values(container.purse ?? {}).filter(Boolean).length;
 
         return (
           <section
@@ -139,11 +142,12 @@ export default function SheetPack({ items, containers, chestItems }) {
           >
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
+                setOpenCoin(null);
                 setOpenContainer((standing) =>
                   standing === container.id ? null : container.id,
-                )
-              }
+                );
+              }}
               aria-expanded={unfolded}
               className="flex w-full cursor-pointer items-center justify-between gap-3 text-left max-sm:min-h-11"
             >
@@ -153,7 +157,7 @@ export default function SheetPack({ items, containers, chestItems }) {
 
               <span className="flex shrink-0 items-center gap-2">
                 <span className="font-mono text-[10px] text-ink/45 tabular-nums">
-                  {inside.length}
+                  {inside.length + coinPiles}
                 </span>
 
                 <span className={containerTagClasses(container.type)}>
@@ -163,14 +167,18 @@ export default function SheetPack({ items, containers, chestItems }) {
             </button>
 
             {unfolded && (
-              <div className="mt-3 border-t border-gold/15 pt-3">
-                {inside.length === 0 ? (
+              <div className="mt-3 flex flex-col gap-3 border-t border-gold/15 pt-3">
+                {coinPiles > 0 && (
+                  <CoinPiles purse={container.purse} open={openCoin} onSelect={setOpenCoin} />
+                )}
+                {inside.length === 0 && coinPiles === 0 && (
                   <p className="text-xs text-ink/50 italic">
                     {container.type === "chest"
                       ? "Empty. Somebody has been here before you."
                       : "Nothing in it yet."}
                   </p>
-                ) : (
+                )}
+                {inside.length > 0 && (
                   <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {inside.map((held) => {
                       const item = rowItem(held);

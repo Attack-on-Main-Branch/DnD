@@ -1,3 +1,5 @@
+import { getCampaignTable } from "./campaigns.js";
+
 /**
  * Beginning a fight, ending one, writing a number down and handing the turn on.
  * Failures come back as a `reason` code, not a sentence.
@@ -24,6 +26,13 @@ const INVALID_TEXT_REPRESENTATION = "22P02";
     entry for, so the call never reaches Postgres and the two above never fire. */
 const TABLE_CACHE_MISS = "PGRST205";
 const FUNCTION_CACHE_MISS = "PGRST202";
+const GUIDANCE_COLUMNS = [
+  "combat_turn_id",
+  "next_turn_character_id",
+  "is_in_combat",
+  "active_turn_token_id",
+  "combat_round",
+];
 
 function classify(error) {
   if (error.code === CHECK_VIOLATION) {
@@ -106,7 +115,56 @@ export async function setTokenInitiative(supabase, { tokenId, initiative }) {
 
 /** Off the bottom is the top again, a round later. */
 export async function advanceCombatTurn(supabase, campaignId) {
+  let result = await supabase.rpc("advance_combat_turn_locked", {
+    p_campaign_id: campaignId,
+  });
+  if (result.error && classify(result.error) === "missing_function") {
+    result = await supabase.rpc("advance_combat_turn", {
+      p_campaign_id: campaignId,
+    });
+  }
+  return answer(result);
+}
+
+export async function getCampaignCombat(supabase, campaignId) {
+  const [table, guidance] = await Promise.all([
+    getCampaignTable(supabase, campaignId),
+    supabase.rpc("campaign_combat_guidance", { target_campaign: campaignId }),
+  ]);
+  if (table.error || !table.data) return table;
+  if (guidance.error) {
+    // Keep the table usable while the additive migration is being deployed.
+    if (
+      ["missing_function", "missing_column"].includes(classify(guidance.error))
+    )
+      return table;
+    return failure(guidance.error);
+  }
+  const current = guidance.data?.[0];
+  return {
+    data: current
+      ? {
+          ...table.data,
+          ...Object.fromEntries(
+            GUIDANCE_COLUMNS.filter((key) => Object.hasOwn(current, key)).map(
+              (key) => [key, current[key]],
+            ),
+          ),
+        }
+      : table.data,
+    error: null,
+  };
+}
+
+export async function finishCharacterTurn(
+  supabase,
+  { campaignId, characterId, turnId },
+) {
   return answer(
-    await supabase.rpc("advance_combat_turn", { p_campaign_id: campaignId }),
+    await supabase.rpc("finish_character_turn", {
+      p_campaign_id: campaignId,
+      p_character_id: characterId,
+      p_turn_id: turnId,
+    }),
   );
 }

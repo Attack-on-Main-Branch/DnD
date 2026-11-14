@@ -1,13 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback } from "react";
 
 import ChestMark from "@/app/components/ui/chest-mark";
 
-import DmChestDrawer from "./dm-chest-drawer";
 import DmTray from "./dm-tray";
 import { useChestItems, useContainers } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
+
+const DmChestDrawer = dynamic(() => import("./dm-chest-drawer"));
 
 /**
  * The containers, in the head of the table's box — AND THE HEAD OF THE TABLE'S
@@ -27,22 +29,25 @@ export default function ChestStage({ campaignId, members }) {
 
   return (
     <DmTray
+      workspaceName="Chests"
       mark={<ChestMark className="size-13" />}
       markLabel={`Bags and chests, ${containers.length}`}
       title="Bags and chests"
       meta={containers.length}
       panelLabel="Containers at this table"
     >
-      {/* No height of its own: the box scrolls a long shelf. */}
-      <div className="px-5 pt-4 pb-5">
-        <DmChestDrawer
-          campaignId={campaignId}
-          containers={containers}
-          chests={chests}
-          members={members}
-          onTold={told}
-        />
-      </div>
+      {(panelOpen) => (
+        <div className="px-5 pt-4 pb-5">
+          <DmChestDrawer
+            campaignId={campaignId}
+            containers={containers}
+            chests={chests}
+            members={members}
+            onTold={told}
+            panelOpen={panelOpen}
+          />
+        </div>
+      )}
     </DmTray>
   );
 }

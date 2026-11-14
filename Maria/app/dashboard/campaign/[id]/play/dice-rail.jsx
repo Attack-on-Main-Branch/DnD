@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { DICE, MAX_DICE_COUNT, parseDiceCount } from "sina/rules/dice";
 
 import EyeIcon from "@/app/components/ui/eye-icon";
@@ -10,6 +11,7 @@ import DieGlyph from "./dice-glyphs";
 import { diceCast, diceName } from "./dice-presentation";
 import { RollAnnouncement, useDiceTable } from "./dice-table";
 import { RAIL_CLASSES, railEntrance } from "./entrance";
+import { useTableWorkspace } from "./table-workspace";
 
 /**
  * The dice, stacked down the rail beside the board, with how many of them go at
@@ -31,7 +33,12 @@ const MARK_CLASSES =
   "text-(--cast-rest) hover:text-(--cast-ink) focus-visible:text-(--cast-ink) " +
   "disabled:cursor-not-allowed disabled:opacity-40";
 
-export default function DiceRail({ canKeepSecrets, phone = false }) {
+export default function DiceRail({
+  canKeepSecrets,
+  phone = false,
+  workspace = false,
+}) {
+  const tableWorkspace = useTableWorkspace();
   const {
     throwing,
     secret,
@@ -63,6 +70,78 @@ export default function DiceRail({ canKeepSecrets, phone = false }) {
   function throwDice(die) {
     setHandful("1");
     roll(die, count);
+  }
+
+  if (workspace) {
+    return (
+      <div
+        className="workspace-dice"
+        style={cast.style}
+        onPointerEnter={warm}
+        onFocusCapture={warm}
+      >
+        <label className="flex shrink-0 items-center gap-2 text-sm text-ink/75">
+          Dice
+          <Handful
+            phone
+            value={handful}
+            onChange={setHandful}
+            disabled={busy}
+          />
+        </label>
+        <div
+          role="group"
+          aria-label="Roll dice"
+          className="flex items-center gap-1"
+        >
+          {DICE.map((die) => (
+            <button
+              key={die.id}
+              type="button"
+              onClick={() => throwDice(die.id)}
+              disabled={busy}
+              aria-label={
+                secret
+                  ? `Roll ${diceName(die.id, count)} in secret`
+                  : `Roll ${diceName(die.id, count)}`
+              }
+              className="workspace-die"
+            >
+              <DieGlyph die={die.id} className="size-7" />
+            </button>
+          ))}
+        </div>
+        {!canKeepSecrets && playerDicePaused && (
+          <span role="status" className="text-xs text-ink/70">
+            Dice paused by the DM
+          </span>
+        )}
+        {canKeepSecrets &&
+          tableWorkspace?.rollTools &&
+          createPortal(
+            <div className="workspace-roll-switches" style={cast.style}>
+              <RollSwitch
+                on={secret}
+                onChange={setSecret}
+                disabled={throwing}
+                label="Keep your rolls from the table"
+              >
+                <EyeIcon crossedOut={secret} className="size-4" />
+              </RollSwitch>
+              <RollSwitch
+                on={playerDicePaused}
+                onChange={setPlayerDicePaused}
+                disabled={pausePending}
+                label="Pause player dice"
+              >
+                <DieGlyph die="d20" className="size-5" />
+              </RollSwitch>
+            </div>,
+            tableWorkspace.rollTools,
+          )}
+        <RollAnnouncement />
+      </div>
+    );
   }
 
   return (
@@ -145,8 +224,6 @@ export default function DiceRail({ canKeepSecrets, phone = false }) {
             onChange={setSecret}
             disabled={throwing}
             label="Keep your rolls from the table"
-            onText="Secret"
-            offText="Open"
           >
             <EyeIcon crossedOut={secret} className="size-4.5" />
           </RollSwitch>
@@ -155,8 +232,6 @@ export default function DiceRail({ canKeepSecrets, phone = false }) {
             onChange={setPlayerDicePaused}
             disabled={pausePending}
             label="Pause player dice"
-            onText="Paused"
-            offText="Players"
           >
             <DieGlyph die="d20" className="size-5" />
           </RollSwitch>
@@ -228,15 +303,7 @@ function Handful({ value, onChange, disabled, phone = false }) {
  *
  * `translate` rather than `left`, so the slide is a compositor transform.
  */
-function RollSwitch({
-  on,
-  onChange,
-  disabled,
-  label,
-  onText,
-  offText,
-  children,
-}) {
+function RollSwitch({ on, onChange, disabled, label, children }) {
   return (
     <div className="flex flex-col items-center gap-1">
       <button
@@ -246,6 +313,7 @@ function RollSwitch({
         disabled={disabled}
         onClick={() => onChange(!on)}
         aria-label={label}
+        title={label}
         className={`relative h-8 w-15 cursor-pointer rounded-full border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-40 max-sm:h-11 max-sm:touch-manipulation ${
           on
             ? "border-(--cast-rim) bg-(--cast-line) shadow-[0_0_16px_-4px_var(--cast-bloom)]"
@@ -261,16 +329,6 @@ function RollSwitch({
           {children}
         </span>
       </button>
-
-      {/* What the switch means, for anybody who has not watched it move.
-          `aria-hidden`: the control above already says it, and says it as a
-          state rather than as a word. */}
-      <p
-        aria-hidden="true"
-        className="font-mono text-[0.5625rem] tracking-[0.12em] text-ink/45 uppercase"
-      >
-        {on ? onText : offText}
-      </p>
     </div>
   );
 }

@@ -37,7 +37,7 @@ import {
   holdPackItem,
 } from "./pack-actions";
 import PlayerChestDrawer from "./player-chest-drawer";
-import PlayerPurse from "./player-purse";
+import CoinPurse from "./coin-purse";
 import {
   PopoverAside,
   POPOVER_BODY_CLASSES,
@@ -46,9 +46,7 @@ import {
 import { useChestItems, useContainers, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 import { usePackMove } from "./use-pack-move";
-
-/** What a dragged tile carries: its row id. */
-const PACK_DRAG_TYPE = "application/x-grimoire-pack-row";
+import { usePackDrag } from "./use-pack-drag";
 
 /**
  * A player's own purse, their own pack, the bags they carry and the chests
@@ -108,17 +106,12 @@ export default function PlayerPackDrawer({
   /* The hand lit and waiting for the next item pressed. */
   const [arming, setArming] = useState(false);
 
-  /* The row under the pointer, and the place it would land: "hand", "pack",
-     or a bag's id. Read from state rather than the drag's own data, which a
-     browser keeps sealed until the drop. */
-  const [dragged, setDragged] = useState(null);
-  const [dropOn, setDropOn] = useState(null);
-
   const store = useTableStore();
   const containers = useContainers();
   const chests = useChestItems();
   const { run, send } = useTableDeed(campaignId);
   const movePack = usePackMove(campaignId);
+  const { dragProps, dropZone } = usePackDrag(pack);
 
   /** Every bag this character is carrying, oldest first, as the shelf came. */
   const bags = useMemo(
@@ -292,65 +285,6 @@ export default function PlayerPackDrawer({
     setArming((standing) => !standing);
   }
 
-  /** A tile that can be picked up and carried to the hand, the pack or a bag. */
-  function dragProps(held) {
-    return {
-      draggable: true,
-      onDragStart: (event) => {
-        // Firefox starts no drag that carries no data.
-        event.dataTransfer.setData(PACK_DRAG_TYPE, held.id);
-        event.dataTransfer.effectAllowed = "move";
-        setDragged(held);
-      },
-      onDragEnd: () => {
-        setDragged(null);
-        setDropOn(null);
-      },
-    };
-  }
-
-  /**
-   * Somewhere a dragged tile may be let go. `accepts` is asked of the row and
-   * `land` is handed it. Leaving is only leaving when the pointer is not on
-   * one of the place's own children, which raise their own enter and leave.
-   */
-  function dropZone(place, accepts, land) {
-    const taking = Boolean(dragged) && accepts(dragged);
-
-    return {
-      taking,
-      over: taking && dropOn === place,
-      props: {
-        onDragOver: (event) => {
-          if (!taking) {
-            return;
-          }
-
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-          setDropOn(place);
-        },
-        onDragLeave: (event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) {
-            setDropOn((standing) => (standing === place ? null : standing));
-          }
-        },
-        onDrop: (event) => {
-          if (!taking) {
-            return;
-          }
-
-          event.preventDefault();
-
-          // The tile may be gone from the list before its dragend would fire.
-          setDragged(null);
-          setDropOn(null);
-          land(pack.find((one) => one.id === dragged.id) ?? dragged);
-        },
-      },
-    };
-  }
-
   /** A stack dropped somewhere else in the same coat: as many as the field
       says if it is the item standing open, the whole stack if not. */
   function stowDragged(held, to) {
@@ -437,10 +371,9 @@ export default function PlayerPackDrawer({
           empty purse, and neither belongs to a bag. */}
       <div className="flex flex-wrap items-start gap-3">
         <div
-          className={`max-w-full ${COIN_PANEL_CLASSES} ${compact ? "w-full px-1! py-1.5!" : ""}`}
+          className={`w-full ${COIN_PANEL_CLASSES} ${compact ? "px-1! py-1.5!" : ""}`}
         >
-          <PlayerPurse
-            compact={compact}
+          <CoinPurse
             campaignId={campaignId}
             characterId={characterId}
             actorName={actorName}
@@ -499,10 +432,11 @@ export default function PlayerPackDrawer({
               Nothing loose — it is all in the bags below.
             </p>
           ) : (
-            <ul className="mt-2.5 grid grid-cols-3 gap-2 max-sm:grid-cols-2">
+            <ul className="mt-2.5 grid grid-cols-2 gap-2">
               {carried.loose.map((held) => (
                 <li key={held.id} {...dragProps(held)} className="flex">
                   <ItemRow
+                    roomy
                     item={rowItem(held)}
                     quantity={held.quantity}
                     open={row?.id === held.id}
@@ -575,13 +509,14 @@ export default function PlayerPackDrawer({
                   /* Only what is in the pack itself can be taken in hand. */
                   <ul
                     inert={arming}
-                    className={`grid grid-cols-3 gap-2 transition-opacity duration-300 max-sm:grid-cols-2 ${
+                    className={`grid grid-cols-2 gap-2 transition-opacity duration-300 ${
                       arming ? "opacity-40" : ""
                     }`}
                   >
                     {inside.map((held) => (
                       <li key={held.id} {...dragProps(held)} className="flex">
                         <ItemRow
+                          roomy
                           item={rowItem(held)}
                           quantity={held.quantity}
                           open={row?.id === held.id}
@@ -635,8 +570,8 @@ export default function PlayerPackDrawer({
         onTold={chestTold}
       />
 
-      {open && (
-        <PopoverAside title={open.name} onClose={() => setReading(null)}>
+      <PopoverAside title={open?.name} onClose={() => setReading(null)}>
+        {open && (
           <ItemDetail item={open} quantity={row?.quantity}>
             {row ? (
               <>
@@ -798,8 +733,8 @@ export default function PlayerPackDrawer({
               </p>
             )}
           </ItemDetail>
-        </PopoverAside>
-      )}
+        )}
+      </PopoverAside>
     </div>
   );
 }

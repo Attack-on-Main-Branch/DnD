@@ -6023,12 +6023,480 @@ function surfaceNormals(
   return encodePng(SIZE, SIZE, channels, normal);
 }
 
-/**
- * Every recipe's three maps — colour, normal, surface — keyed by theme. The
- * atlas is read once, and recipes cut to the same proportions share one
- * relief, so another metal costs only its own colours.
- */
+function paintStainedGlass(recipe, base) {
+  const { ink, owner, position, density, faces, dice, tangents } = base;
+  const { frame, lead, medallion, panes, finish } = recipe;
+  const { bordering, unit } = faceFrames(faces);
+  const palette = recipe.palette.map(hex);
+  const coat = new Uint8Array(SIZE * SIZE * 3);
+  const emissive = new Uint8Array(SIZE * SIZE * 3);
+  const colours = Object.fromEntries(
+    Object.entries(recipe.colours).map(([name, value]) => [name, hex(value)]),
+  );
+  const across = faces.map(({ normal, centre }, face) =>
+    cross(
+      dot(normal, centre) < 0 ? normal.map((v) => -v) : normal,
+      tangents[face],
+    ),
+  );
+  const corners = dieCorners(faces);
+  const rotation = faces.map(({ centre }, face) => {
+    const toward = sub(
+      corners.find((corner) => corner.faces.has(face)).apex,
+      centre,
+    );
+    return Math.atan2(dot(toward, across[face]), dot(toward, tangents[face]));
+  });
+  const marks = numeralMarks(base, recipe.join);
+  const windows = faces.map(() => []);
+
+  for (const mark of marks) {
+    const size = unit[dice[mark.face]];
+    const alone = marks.filter((one) => one.face === mark.face).length === 1;
+    const centre = alone ? faces[mark.face].centre : mark.middle;
+    const [tx, ty] = alone
+      ? dieToAtlas(faces[mark.face], centre)
+      : [mark.x, mark.y];
+
+    windows[mark.face].push({
+      ...mark,
+      centre,
+      tx,
+      ty,
+      radius: (alone ? medallion.radius : medallion.corner) * size,
+    });
+  }
+
+  const scale = Object.fromEntries(
+    Object.keys(unit).map((die) => [
+      die,
+      Math.min(
+        1,
+        ...windows.flatMap((own, face) =>
+          dice[face] === die
+            ? own.map(
+                (one) =>
+                  (one.radius * (1 - 2 * medallion.notch) -
+                    medallion.margin * unit[die]) /
+                  one.reach,
+              )
+            : [],
+        ),
+      ),
+    ]),
+  );
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const height = new Float32Array(SIZE * SIZE);
+  const fitted = new Float32Array(SIZE * SIZE);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    const face = owner[pixel];
+    colour.set([...colours.silver, 255], pixel * 4);
+    writeSurface(surface, pixel, {
+      occlusion: 1,
+      roughness: finish.silver,
+      metalness: 0.85,
+    });
+
+    if (face < 0) continue;
+
+    const size = unit[dice[face]];
+    const point = position.subarray(pixel * 3, pixel * 3 + 3);
+    const relative = sub(point, faces[face].centre);
+    const x = dot(relative, tangents[face]) / size;
+    const y = dot(relative, across[face]) / size;
+    const radius = Math.hypot(x, y);
+    const angle = Math.atan2(y, x) - rotation[face];
+    const sides = bordering[face].length;
+    const sector = Math.PI / sides;
+    const soft = 0.65 / (density[pixel] * size);
+    const inside = (value) => smoothstep(-soft, soft, value);
+    const edge =
+      Math.min(...bordering[face].map((one) => offEdge(point, one).across)) /
+      size;
+    const phase = angle / sector + panes.twist * Math.sin(radius * 2.3);
+    const column = Math.floor(phase);
+    const fraction = phase - column;
+    const seam = Math.min(fraction, 1 - fraction) * sector * radius;
+    const ring =
+      radius - panes.radius - panes.scallop * Math.cos(angle * sides);
+    const band = ring > 0 ? 1 : 0;
+    const index =
+      (((column + band * 2 + face * 3) % palette.length) + palette.length) %
+      palette.length;
+    const ripple = Math.sin(x * 2.2 + index) * Math.cos(y * 2.6 - index);
+    const glass = palette[index].map((value) => value * (0.96 + ripple * 0.04));
+    let fromWindow = Infinity;
+    let own = null;
+
+    for (const one of windows[face]) {
+      const offset = sub(point, one.centre);
+      const theta =
+        Math.atan2(dot(offset, across[face]), dot(offset, tangents[face])) -
+        rotation[face];
+      const spoke = theta / sector;
+      const slot = Math.floor(spoke);
+      const local = (spoke - slot) * sector;
+      const inner = one.radius * (1 - 2 * medallion.notch);
+      const ra = slot % 2 === 0 ? one.radius : inner;
+      const rb = slot % 2 === 0 ? inner : one.radius;
+      const border =
+        (ra * rb * Math.sin(sector)) /
+        (rb * Math.sin(sector - local) + ra * Math.sin(local));
+      const distance = (length(offset) - border) / size;
+
+      if (distance < fromWindow) {
+        fromWindow = distance;
+        own = one;
+      }
+    }
+
+    const centre = 1 - inside(fromWindow);
+    const tracery = 1 - inside(Math.abs(fromWindow) - lead.width);
+    const leading = Math.max(
+      (1 - inside(seam - lead.width)) * (1 - centre),
+      (1 - inside(Math.abs(ring) - lead.width)) * (1 - centre),
+      tracery,
+      1 - inside(edge - frame.width),
+    );
+    const silver = 1 - inside(edge - frame.silver);
+    const glazed = (1 - centre) * (1 - leading) * (1 - silver);
+    coat.set([Math.round(glazed * 255), 255, 0], pixel * 3);
+    emissive.set(
+      glass.map((value) => Math.round(value * glazed)),
+      pixel * 3,
+    );
+    const paneColour = mix(glass, colours.ivory, centre);
+    const painted = mix(
+      mix(paneColour, colours.lead, leading),
+      colours.silver,
+      silver,
+    );
+    colour.set([...painted, 255], pixel * 4);
+    writeSurface(surface, pixel, {
+      occlusion:
+        1 -
+        (1 - leading) *
+          (1 - silver) *
+          (1 -
+            inside(
+              Math.min(seam, Math.abs(ring), Math.abs(fromWindow)) -
+                lead.width * 2,
+            )) *
+          0.15,
+      roughness:
+        (finish.glass * (1 - centre) + finish.ivory * centre) *
+          (1 - leading) *
+          (1 - silver) +
+        finish.lead * leading * (1 - silver) +
+        finish.silver * silver,
+      metalness: 0.45 * leading * (1 - silver) + 0.85 * silver,
+    });
+    height[pixel] =
+      size * (lead.height * leading + panes.ripple * ripple * (1 - leading));
+
+    if (own && fromWindow < soft) {
+      const px = pixel % SIZE,
+        py = Math.floor(pixel / SIZE);
+      const sx = own.x + (px - own.tx) / scale[dice[face]];
+      const sy = own.y + (py - own.ty) / scale[dice[face]];
+      const landing =
+        clamp(Math.round(sy), 0, SIZE - 1) * SIZE +
+        clamp(Math.round(sx), 0, SIZE - 1);
+      fitted[pixel] = owner[landing] === face ? sample(ink, sx, sy) : 0;
+    }
+  }
+
+  const glyphs = neighbourhood(fitted, recipe.weight, true);
+  const outline = neighbourhood(glyphs, recipe.numerals.outline, true);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0) continue;
+
+    const at = pixel * 4;
+    const under = colour.subarray(at, at + 3);
+    const inked = mix(
+      mix(Array.from(under), colours.lead, outline[pixel]),
+      colours.ivory,
+      glyphs[pixel],
+    );
+    colour.set(inked, at);
+    const mask = outline[pixel];
+    coat[pixel * 3] = Math.round(coat[pixel * 3] * (1 - mask));
+    for (let channel = 0; channel < 3; channel++) {
+      emissive[pixel * 3 + channel] = Math.round(
+        emissive[pixel * 3 + channel] * (1 - mask),
+      );
+    }
+    writeSurface(surface, pixel, {
+      occlusion: surface[pixel * 3] / 255,
+      roughness:
+        (surface[pixel * 3 + 1] / 255) * (1 - mask) + finish.numerals * mask,
+      metalness: (surface[pixel * 3 + 2] / 255) * (1 - mask),
+    });
+    height[pixel] -=
+      recipe.numerals.engrave * unit[dice[owner[pixel]]] * glyphs[pixel];
+  }
+
+  bleed(
+    owner,
+    [
+      { data: colour, channels: 4 },
+      { data: surface, channels: 3 },
+      { data: height, channels: 1 },
+      { data: coat, channels: 3 },
+      { data: emissive, channels: 3 },
+    ],
+    recipe.bleed,
+  );
+  const flat = new Float32Array(SIZE * SIZE);
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    coat: encodePng(SIZE, SIZE, 3, coat),
+    emissive: encodePng(SIZE, SIZE, 3, emissive),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: surfaceNormals({ height, tiltX: flat, tiltY: flat }, base),
+  };
+}
+
+/** Rainbow metal leaves around emerald wells, with raised gilt numerals. */
+function paintPrismatic(recipe, base) {
+  const { ink, owner, density, position, faces, tangents, dice } = base;
+  const { disc, frame, leaf, scroll, relief, finish } = recipe;
+  const { bordering, unit } = faceFrames(faces);
+  const corners = dieCorners(faces);
+  const axes = faces.map(({ normal, centre }, face) => {
+    const outward = dot(normal, centre) < 0 ? normal.map((v) => -v) : normal;
+
+    return cross(outward, tangents[face]);
+  });
+  const ornaments = faces.map(({ centre }, face) =>
+    corners
+      .filter((corner) => corner.faces.has(face))
+      .map(({ apex }) => {
+        const toward = sub(apex, centre);
+        const reach = length(toward);
+
+        return { toward: toward.map((v) => v / reach), reach };
+      }),
+  );
+  const discs = faces.map(() => []);
+
+  for (const mark of numeralMarks(base, recipe.join)) {
+    const size = unit[dice[mark.face]];
+    const central =
+      length(sub(mark.middle, faces[mark.face].centre)) < size * 0.5;
+
+    discs[mark.face].push({
+      ...mark,
+      radius: (central ? disc.radius : disc.corner) * size,
+    });
+  }
+
+  const scale = Object.fromEntries(
+    Object.keys(unit).map((die) => [
+      die,
+      Math.min(
+        1,
+        ...discs.flatMap((marks, face) =>
+          dice[face] === die
+            ? marks.map(
+                (mark) => (mark.radius - disc.margin * unit[die]) / mark.reach,
+              )
+            : [],
+        ),
+      ),
+    ]),
+  );
+  const colours = Object.fromEntries(
+    Object.entries(recipe.colours).map(([name, colour]) => [name, hex(colour)]),
+  );
+  const spectrum = rampThrough(
+    recipe.spectrum.map((colour, index, stops) => [
+      index / (stops.length - 1),
+      hex(colour),
+    ]),
+  );
+  const colour = new Uint8Array(SIZE * SIZE * 4);
+  const surface = new Uint8Array(SIZE * SIZE * 3);
+  const height = new Float32Array(SIZE * SIZE);
+  const fitted = new Float32Array(SIZE * SIZE);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    const face = owner[pixel];
+    colour.set([...colours.silver, 255], pixel * 4);
+    writeSurface(surface, pixel, {
+      occlusion: 1,
+      roughness: finish.metal,
+      metalness: 0.85,
+    });
+
+    if (face < 0) {
+      continue;
+    }
+
+    const size = unit[dice[face]];
+    const point = position.subarray(pixel * 3, pixel * 3 + 3);
+    const relative = sub(point, faces[face].centre);
+    const a = dot(relative, tangents[face]) / size;
+    const b = dot(relative, axes[face]) / size;
+    const soft = 0.8 / (density[pixel] * size);
+    const inside = (v) => smoothstep(-soft, soft, v);
+    const angle = Math.atan2(b, a);
+    const edge =
+      Math.min(...bordering[face].map((one) => offEdge(point, one).across)) /
+      size;
+    let own = null;
+    let fromDisc = Infinity;
+
+    for (const mark of discs[face]) {
+      const distance = (length(sub(point, mark.middle)) - mark.radius) / size;
+
+      if (distance < fromDisc) {
+        fromDisc = distance;
+        own = mark;
+      }
+    }
+
+    const inset = 1 - inside(fromDisc);
+    const ring = inside(fromDisc) * (1 - inside(fromDisc - disc.ring));
+    let petal = 0;
+    let ridge = 0;
+
+    for (const ornament of ornaments[face]) {
+      const along = dot(relative, ornament.toward) / ornament.reach;
+      const sideways =
+        dot(relative, cross(faces[face].normal, ornament.toward)) /
+        ornament.reach;
+      const u = (along - leaf.centre) / leaf.length;
+      const v = (sideways + 0.025 * Math.sin(u * Math.PI)) / leaf.width;
+      const lens = Math.sqrt(Math.max(0, 1 - u * u)) * (1 - 0.25 * u);
+      const shape =
+        inside(((lens - Math.abs(v)) * leaf.width * ornament.reach) / size) *
+        (1 - inside(Math.abs(u) - 1));
+
+      petal = Math.max(petal, shape);
+      ridge = Math.max(ridge, shape * clamp(1 - Math.abs(v) / (lens || 1)));
+    }
+
+    petal *= inside(fromDisc - disc.ring - 0.025);
+    ridge *= petal;
+    const rim = 1 - inside(edge - frame.width);
+    const phase =
+      a * 0.75 + b * 0.45 + 0.28 * Math.sin(3 * angle + Math.hypot(a, b) * 3);
+    const rainbow = spectrum(phase - Math.floor(phase));
+    const metal = mix(colours.silver, rainbow, 0.5 + 0.5 * petal);
+    const curl = Math.sin(
+      angle * bordering[face].length + Math.hypot(a, b) * scroll.twist,
+    );
+    const channel =
+      (1 - smoothstep(0, scroll.width, Math.abs(curl))) *
+      inside(fromDisc - disc.ring);
+    const leafEdge = petal * (1 - smoothstep(0.02, 0.2, ridge));
+    const recess = (1 - inside(edge - frame.width * 1.6)) * (1 - rim);
+    const paint = layers();
+    paint.over(metal, 1);
+    paint.over(colours.recess, channel * 0.65 + leafEdge * 0.6);
+    paint.over(colours.silver, ridge * 0.22);
+    paint.over(colours.recess, recess * 0.8);
+    paint.over(rainbow, rim);
+    paint.over(colours.gold, ring);
+
+    const radial = own ? length(sub(point, own.middle)) / own.radius : 0;
+    const swirl = Math.sin(angle * scroll.turns + radial * scroll.twist);
+    const vein = smoothstep(1 - scroll.width * 6, 1 - scroll.width, swirl);
+    const enamel = mix(colours.emerald, colours.jade, vein * 0.75);
+    paint.over(
+      mix(enamel, colours.recess, smoothstep(0.72, 1, radial) * 0.65),
+      inset,
+    );
+    paint.write(colour, pixel);
+    writeSurface(surface, pixel, {
+      occlusion:
+        1 -
+        recess * 0.5 -
+        channel * 0.2 -
+        inset * smoothstep(0.8, 1, radial) * 0.3,
+      roughness:
+        finish.metal * (1 - inset - ring) +
+        finish.enamel * inset +
+        finish.gold * ring,
+      metalness: 0.85 * (1 - inset) + inset * 0.3,
+    });
+    height[pixel] =
+      size *
+      (frame.height * rim +
+        leaf.height * (petal * 0.5 + ridge * 0.5) +
+        relief.ring * Math.sin(Math.PI * clamp(fromDisc / disc.ring)) * ring +
+        inset * (-relief.well + scroll.height * vein) -
+        channel * scroll.height);
+
+    if (own && fromDisc < soft) {
+      const x = pixel % SIZE;
+      const y = Math.floor(pixel / SIZE);
+      const sx = own.x + (x - own.x) / scale[dice[face]];
+      const sy = own.y + (y - own.y) / scale[dice[face]];
+      const landing =
+        clamp(Math.round(sy), 0, SIZE - 1) * SIZE +
+        clamp(Math.round(sx), 0, SIZE - 1);
+
+      fitted[pixel] = owner[landing] === face ? sample(ink, sx, sy) : 0;
+    }
+  }
+
+  const glyphs = neighbourhood(fitted, recipe.weight, true);
+  const shadow = neighbourhood(glyphs, 2, true);
+
+  for (let pixel = 0; pixel < SIZE * SIZE; pixel++) {
+    if (owner[pixel] < 0) continue;
+
+    const glyph = glyphs[pixel];
+    const at = pixel * 4;
+    const shade = clamp(shadow[pixel] - glyph) * 0.65;
+    const under = Array.from(
+      colour.subarray(at, at + 3),
+      (v) => v * (1 - shade),
+    );
+    colour.set(mix(under, colours.gold, glyph), at);
+    const size = unit[dice[owner[pixel]]];
+    height[pixel] =
+      height[pixel] * (1 - glyph) + relief.numerals * size * glyph;
+    writeSurface(surface, pixel, {
+      occlusion: (surface[pixel * 3] / 255) * (1 - shade),
+      roughness:
+        (surface[pixel * 3 + 1] / 255) * (1 - glyph) + finish.gold * glyph,
+      metalness: (surface[pixel * 3 + 2] / 255) * (1 - glyph) + 0.8 * glyph,
+    });
+  }
+
+  bleed(
+    owner,
+    [
+      { data: colour, channels: 4 },
+      { data: surface, channels: 3 },
+      { data: height, channels: 1 },
+    ],
+    recipe.bleed,
+  );
+  const flat = new Float32Array(SIZE * SIZE);
+
+  return {
+    colour: encodePng(SIZE, SIZE, 4, colour),
+    surface: encodePng(SIZE, SIZE, 3, surface),
+    normal: surfaceNormals(
+      { height, tiltX: flat, tiltY: flat },
+      base,
+      Boolean(recipe.parallax),
+    ),
+  };
+}
+
+/** Every recipe's maps, with the stock atlas prepared once per batch. */
 const PAINTERS = {
+  "stained-glass": paintStainedGlass,
+  prismatic: paintPrismatic,
   epoxy: paintEpoxy,
   paper: paintPaper,
   cracked: paintCracked,

@@ -8,6 +8,7 @@ export default function FogBrushPreview({
   canSweep,
   brush,
   frameRef,
+  imageRef,
   pointAt,
 }) {
   const ringRef = useRef(null);
@@ -28,7 +29,9 @@ export default function FogBrushPreview({
       if (event)
         pointer.current = { clientX: event.clientX, clientY: event.clientY };
       const at = pointer.current;
-      const box = frameRef.current.getBoundingClientRect();
+      const frame = frameRef.current;
+      const box = frame.getBoundingClientRect();
+      if (!box.width || !box.height) return;
       const inside =
         at &&
         at.clientX >= box.left &&
@@ -37,9 +40,16 @@ export default function FogBrushPreview({
         at.clientY <= box.bottom &&
         locate.current(at);
       const tracking = brush && inside;
+      const width =
+        imageRef.current?.getBoundingClientRect().width ?? box.width;
       ring.style.visibility = tracking || preview ? "visible" : "hidden";
-      ring.style.left = tracking ? `${at.clientX - box.left}px` : "50%";
-      ring.style.top = tracking ? `${at.clientY - box.top}px` : "50%";
+      ring.style.width = `${((width * frame.clientWidth) / box.width) * (size / 50)}px`;
+      ring.style.left = tracking
+        ? `${((at.clientX - box.left) / box.width) * 100}%`
+        : "50%";
+      ring.style.top = tracking
+        ? `${((at.clientY - box.top) / box.height) * 100}%`
+        : "50%";
     }
 
     function leave(event) {
@@ -64,6 +74,7 @@ export default function FogBrushPreview({
     window.addEventListener("scroll", reposition, true);
     const observer = new ResizeObserver(reposition);
     observer.observe(frameRef.current);
+    if (imageRef.current) observer.observe(imageRef.current);
     return () => {
       clearTimeout(timer);
       document.removeEventListener("pointermove", follow);
@@ -72,15 +83,15 @@ export default function FogBrushPreview({
       window.removeEventListener("scroll", reposition, true);
       observer.disconnect();
     };
-  }, [size, scale, brush, canSweep, frameRef]);
+  }, [size, scale, brush, canSweep, frameRef, imageRef]);
 
   if (!canSweep) return null;
   return (
     <span
       ref={ringRef}
       aria-hidden="true"
-      className={`pointer-events-none absolute aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed ${brush === "hide" ? "border-ruby bg-ruby/10" : "border-gold/80 bg-gold/10"}`}
-      style={{ width: `${size * 2 * scale}%`, visibility: "hidden" }}
+      className={`pointer-events-none absolute z-10 aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed ${brush === "hide" ? "border-ruby bg-ruby/10" : "border-gold/80 bg-gold/10"}`}
+      style={{ visibility: "hidden" }}
     />
   );
 }

@@ -16,10 +16,51 @@
  */
 export const CHANGELOG = [
   {
+    version: "2.5.1",
+    date: "2026-11-14",
+    fixes: ["The glow behind each coin pile is wider and follows the size of the pile."],
+  },
+  {
+    version: "2.5.0",
+    date: "2026-11-14",
+    changes: ["The Dungeon Master can set starting coins when creating a loot chest."],
+  },
+  {
+    version: "2.4.0",
+    date: "2026-11-14",
+    changes: [
+      "The Dungeon Master can stock loot chests with coins. Players can take them into their purses using the same animated coin piles as in Inventory.",
+    ],
+  },
+  {
+    version: "2.3.1",
+    date: "2026-11-13",
+    fixes: ["Coin piles shrink to fit side by side in narrow inventories."],
+  },
+  {
+    version: "2.3.0",
+    date: "2026-11-12",
+    title: "Coins in the purse",
+    changes: [
+      "Inventory shows animated coin piles. Select a pile to pay or send coins to another party member.",
+      "The Dungeon Master can grant coins from a character’s purse or grant and take coins across the party from the combined purse.",
+    ],
+  },
+  {
     version: "2.2.0",
     date: "2026-11-10",
     title: "A banner for your legend",
     changes: [
+      "The desktop play screen gives the map more space and shows rolls beside the player who threw them.",
+      "The Dungeon Master can switch between Tokens and Combat. During combat, players see initiative in their left panel and can enter their own score once while its field is empty. The Dungeon Master can edit any score.",
+      "The Dungeon Master can drag items between packs and bags, see held items in the same In hand slot as players, and apply chest and bag access from party portraits.",
+      "Inventory and spell lists have wider tiles, and spell slots appear above search.",
+      "Table panels unfold with a glowing rim and slide between tools. Item and spell details reveal from the center.",
+      "Ability cards show their icon, score, modifier, and saving throw together.",
+      "Party pickers center portraits in even rows. All party sits beside the player portraits in Inventory, Spells, Session, and loot chests.",
+      "The initiative tracker unfolds from a line and scrolls to keep the active token centered when space allows.",
+      "The player turn prompt marks movement in 5-foot increments. Moving a token sends chevrons along its arrow and shows dash or range warnings under the distance. A small message announces when a player’s turn is next.",
+      "Added 2 new dice skins.",
       "Added 13 banner skins to the game besides dice skins.",
       "Dice Pouches are now Pouches. Each opens into one new dice or banner skin. Existing pouches and unlocked dice are kept.",
       "Banners and dice have a Quill icon if their colour can be changed.",
@@ -27,6 +68,13 @@ export const CHANGELOG = [
       "Performance monitoring can measure real page speed and trace slow server requests to guide future improvements.",
     ],
     fixes: [
+      "Closing Chests discards unapplied access and ownership changes.",
+      "Session controls stay in place when changing who an action is for. Desktop drawers wait until first opened before mounting their contents.",
+      "The Dungeon Master’s combat controls stay in place as the initiative list opens and scrolls.",
+      "Secret throws tint the map rim violet again, and the Dungeon Master’s dice results appear along the map’s left edge.",
+      "The initiative tracker uses smaller capsules and saves space when the order switches sides. Long turn orders scroll inside the tracker, and editing a score highlights the whole capsule.",
+      "Opening one player’s health controls only expands their banner row.",
+      "A soft, rounded fog border fills substantial gaps around the map with fog of war on or off, and the brush preview follows the cursor.",
       "Some tooltip designs were fixed to match the previous design.",
       "Saved dice skins and colours reach open tables and TV displays without a reload, including when a player returns to their seat.",
       "The animated background uses less memory on large displays and avoids redundant drawing. Reduced-motion users no longer load invisible 3D dice worlds.",
@@ -44,7 +92,6 @@ export const CHANGELOG = [
     title: "A clearer view of the table",
     changes: [
       "Cast to TV opens a read-only display with a larger map, live initiative and activity, and the table’s shared dice and arrows.",
-      "The phone table shows the campaign title and larger, sharper animated dice over a full-height map. Fog of war continues into the frame padding, and zooming in reveals the map there. The rim and backdrop turn red during combat. Sheet, Spells and Pack slide up from the bottom.",
       "Dungeon Masters can download the party's character builds, health, combat stats, equipment, spells and features as JSON from the Party tab, without conditions, inspiration, hit dice, coins or attachment details.",
       "Dungeon Masters can attach an HTML file up to 25 MB to an item. Check item opens it from the inventory in a large animated window with a close button in the corner. HTML renders at 1920×1080 and scales to fit the preview, keeping its desktop layout on smaller screens.",
       "Dungeon Masters can pause the party's dice while keeping their own rolls available.",

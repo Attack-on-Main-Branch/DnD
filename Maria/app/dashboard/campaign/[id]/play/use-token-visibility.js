@@ -7,28 +7,25 @@ const REVEALED_ALPHA = 250;
 
 export function useVisibleMapTokens(tokens, mask, enabled, canSweep) {
   const [revealed, setRevealed] = useState(() => new Set());
-  const { maskRef, subscribe } = mask;
+  const { pixelsRef, subscribe } = mask;
 
   useEffect(() => {
     if (!enabled || canSweep) return;
 
     function update() {
-      const canvas = maskRef.current;
+      const pixels = pixelsRef.current;
       const next = new Set();
-      if (canvas) {
-        const context = canvas.getContext("2d");
+      if (pixels) {
+        const { width, height, data } = pixels;
         for (const token of tokens) {
           if (token.mine) continue;
-          const x = Math.min(
-            canvas.width - 1,
-            Math.round(token.x * canvas.width),
-          );
-          const y = Math.min(
-            canvas.height - 1,
-            Math.round(token.y * canvas.height),
-          );
-          const pixels = context.getImageData(x, y, 1, 1).data;
-          if (isFogClearForDm(pixels, 0) && pixels[3] >= REVEALED_ALPHA) {
+          const x = Math.min(width - 1, Math.round(token.x * width));
+          const y = Math.min(height - 1, Math.round(token.y * height));
+          const offset = (y * width + x) * 4;
+          if (
+            isFogClearForDm(data, offset) &&
+            data[offset + 3] >= REVEALED_ALPHA
+          ) {
             next.add(token.id);
           }
         }
@@ -42,7 +39,7 @@ export function useVisibleMapTokens(tokens, mask, enabled, canSweep) {
 
     update();
     return subscribe(update);
-  }, [canSweep, enabled, maskRef, subscribe, tokens]);
+  }, [canSweep, enabled, pixelsRef, subscribe, tokens]);
 
   return useMemo(
     () =>

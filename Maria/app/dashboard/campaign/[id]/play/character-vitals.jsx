@@ -72,7 +72,10 @@ export default function CharacterVitals({ characterId, name, vitals }) {
       {/* No glyphs. Five emoji across a 300px ribbon were five different
           drawing styles fighting the display face, and each one cost the figure
           beside it the room to be read. */}
-      <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+      <ul
+        data-vitals-grid
+        className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5"
+      >
         <Tile
           value={formatModifier(vitals.initiative)}
           label="Init"

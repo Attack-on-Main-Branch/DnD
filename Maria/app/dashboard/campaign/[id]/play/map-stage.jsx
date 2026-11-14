@@ -12,6 +12,7 @@ import { useMapToolsShown } from "./map-tools";
 import MapRim from "./map-rim";
 import TableMap from "./table-map";
 import { useTableMaps } from "./table-maps";
+import { useTableWorkspace } from "./table-workspace";
 
 /**
  * The world, at its own aspect ratio and the height map-height.js allows.
@@ -64,6 +65,7 @@ export default function MapStage({
   children,
 }) {
   const { activeUrl, isScene } = useTableMaps();
+  const workspace = useTableWorkspace();
   const ruled = useMapToolsShown(canRule);
 
   const url = activeUrl ?? served;
@@ -89,9 +91,9 @@ export default function MapStage({
   if (!url) {
     return (
       <div
-        data-shrink
-        className={`relative grid ${display ? "h-full" : MAP_HEIGHT_CLASS} w-full max-w-xl place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${MAP_CLASSES}`}
-        style={MAP_DELAY}
+        data-table-arrival-map={!display && !workspace ? true : undefined}
+        className={`relative grid ${display || workspace ? "h-full" : MAP_HEIGHT_CLASS} w-full ${workspace ? "" : "max-w-xl"} place-items-center rounded-2xl border-2 border-dashed border-gold/20 px-6 text-center ${display ? MAP_CLASSES : ""}`}
+        style={display ? MAP_DELAY : undefined}
       >
         <p className="font-display text-base font-medium tracking-wide text-ink/60">
           No map for this campaign.
@@ -102,11 +104,26 @@ export default function MapStage({
     );
   }
 
-  return (
-    /* `data-shrink` takes the mat, the marks and the dice board with it, which
-       is the whole reason the frame is a child here rather than a sibling.
+  if (workspace) {
+    return (
+      <div className="relative size-full p-2">
+        <div className="relative size-full [container-type:size]">
+          <MapRim compact />
+          <TableMap
+            url={url}
+            title={title}
+            campaignId={campaignId}
+            faces={faces}
+            seat={seat}
+            canSweep={canSweep}
+          />
+        </div>
+      </div>
+    );
+  }
 
-       `min-w-0` beside `w-fit` is what lets this give way. It is a flex item,
+  return (
+    /* `min-w-0` beside `w-fit` is what lets this give way. It is a flex item,
        and a flex item's automatic minimum size is its content — so a window too
        narrow for the map at its own size did not shrink the picture, it painted
        it over the log and the party.
@@ -117,7 +134,7 @@ export default function MapStage({
        the only width limit. See map-height.js. */
     <div
       ref={stageRef}
-      data-shrink
+      data-table-arrival-map={!display ? true : undefined}
       inert={display}
       className="relative w-fit min-w-0 max-sm:mb-[var(--map-controls-height,0px)]"
     >
@@ -127,7 +144,7 @@ export default function MapStage({
           THE MAT IS WHAT SAYS THE PARTY IS FIGHTING. Utilities rather than a
           `.lit-*` class — these have to OUTRANK `.glass`'s own border and
           shadow, which is the way round `.lit-cast` in globals.css warns of. */}
-      <MapRim />
+      <MapRim animate={display} />
 
       {/* `relative` rather than a z-index: the frame is positioned and this is
           not, so without it the rim would paint over the map. */}
@@ -138,7 +155,6 @@ export default function MapStage({
         faces={faces}
         seat={seat}
         canSweep={canSweep}
-        cast={cast}
         heightClass={
           display
             ? "max-h-[100cqh]"
@@ -146,11 +162,12 @@ export default function MapStage({
               ? MAP_MAX_HEIGHT_TOOLS_CLASS
               : MAP_MAX_HEIGHT_CLASS
         }
-        className={`relative ${MAP_CLASSES}`}
-        style={MAP_DELAY}
+        className={display ? `relative ${MAP_CLASSES}` : "relative"}
+        style={display ? MAP_DELAY : undefined}
       />
 
       {children}
+      {cast}
     </div>
   );
 }

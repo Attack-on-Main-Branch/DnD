@@ -31,11 +31,7 @@ export const TABLE_CONTROLS_AT = CARDS_AT + 160;
 /** Asked for reduced motion, every beat becomes the app's plain opacity ramp. */
 const STILL = "motion-reduce:animate-[view-fade_200ms_ease-out]";
 
-/** The two halves, converging. No delay: the beat the rest are measured from. */
-export const TITLE_CLASSES = {
-  left: `motion-safe:animate-[kern-in-left_1.1s_var(--ease-tray)_backwards] ${STILL}`,
-  right: `motion-safe:animate-[kern-in-right_1.1s_var(--ease-tray)_backwards] ${STILL}`,
-};
+export const TITLE_CLASSES = `motion-safe:animate-[table-arrival-title_1.1s_var(--ease-tray)_backwards] ${STILL}`;
 
 export const MAP_CLASSES = `motion-safe:animate-[map-rise_0.4s_var(--ease-tray)_var(--enter-delay)_backwards] ${STILL}`;
 

@@ -20,6 +20,7 @@ export default function TableDisplay({ campaignId, title, diceSkin, slices }) {
   const faces = members.map((member) => ({
     characterId: member.id,
     label: member.name,
+    speed: member.speed,
     src: member.avatar_url,
     color: diceColorHex(member.dice_color),
     diceColor: member.dice_color,

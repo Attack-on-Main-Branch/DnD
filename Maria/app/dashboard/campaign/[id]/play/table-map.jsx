@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DEFAULT_CONE_ANGLE,
   MAP_DRAWING_SHAPES,
@@ -9,10 +10,12 @@ import {
   readMapDrawing,
 } from "sina/rules/map-drawing";
 import { FEET_PER_HEX } from "sina/rules/grid";
+import { DEFAULT_SPEED } from "sina/rules/character-stats";
+import { movementState, turnMovement } from "sina/rules/combat";
 
 import Button from "@/app/components/ui/button";
 import { hexDistance, hexToPixel, pixelToHex } from "@/lib/hex-math";
-import { mapDestination } from "@/lib/token-movement.mjs";
+import { mapDestination, mapMovementFeet } from "@/lib/token-movement.mjs";
 
 import { useMapZoom } from "../use-map-zoom";
 
@@ -22,6 +25,7 @@ import MapRim from "./map-rim";
 import MapDrawing, { DrawingDistance } from "./map-drawing";
 import MapDrawingTools, { MapControlTray } from "./map-drawing-tools";
 import MapTools from "./map-tools";
+import PlayerTurnNotice from "./player-turn-notice";
 import FogOverlay from "./fog-overlay";
 import FogBrushPreview from "./fog-brush-preview";
 import HexGridOverlay from "./hex-grid-overlay";
@@ -35,6 +39,8 @@ import { diceColorHex } from "@/app/dashboard/character-presentation";
 import { MAP_MAX_HEIGHT_CLASS } from "./map-height";
 import { useMapTokens } from "./use-map-tokens";
 import { useVisibleMapTokens } from "./use-token-visibility";
+import { useTableWorkspace } from "./table-workspace";
+import { useCombatState, useDiceLooks, useHeadDiceLook } from "./table-state";
 
 /**
  * The board, and the two hands over it.
@@ -67,7 +73,6 @@ export default function TableMap({
   faces,
   seat,
   canSweep,
-  cast = null,
   heightClass = MAP_MAX_HEIGHT_CLASS,
   className = "",
   style,
@@ -75,6 +80,8 @@ export default function TableMap({
 }) {
   const frameRef = useRef(null);
   const imageRef = useRef(null);
+  const workspace = useTableWorkspace();
+  const fitted = phone || Boolean(workspace);
 
   /* The picture that WAS on the table, fading over the new one — which is
      already at full strength underneath. See `.map-leaving` in globals.css. */
@@ -121,12 +128,16 @@ export default function TableMap({
     isScene,
     settled: gridSettled,
     natural,
+    grid,
     faces,
     seat,
     canSweep,
   });
 
   const { send, display } = useTableWire();
+  const combat = useCombatState();
+  const diceLooks = useDiceLooks();
+  const headDiceLook = useHeadDiceLook();
   const visibleTokens = useVisibleMapTokens(
     tokens,
     mask,
@@ -169,7 +180,9 @@ export default function TableMap({
      one names points; `anchorOf` takes whichever it can use. */
   const [aims, setAims] = useState({});
 
-  useEffect(() => setAims({}), [activeId]);
+  useEffect(() => {
+    setAims((current) => (Object.keys(current).length ? {} : current));
+  }, [activeId]);
 
   useWireMessage(
     "aim",
@@ -442,14 +455,21 @@ export default function TableMap({
   const spoke = useRef(0);
 
   const announce = useCallback(
-    (from, to, shape = MAP_DRAWING_SHAPES[0], angle = DEFAULT_CONE_ANGLE) => {
+    (
+      from,
+      to,
+      shape = MAP_DRAWING_SHAPES[0],
+      angle = DEFAULT_CONE_ANGLE,
+      tokenId,
+    ) => {
       const ruled = isDrawingCell(from) && isDrawingCell(to);
+      const source = `${activeId}:${shape}:${angle}:${tokenId ?? ""}`;
       const next =
         !from || !to
           ? null
           : ruled
-            ? `${activeId}:${shape}:${angle}:${from.q},${from.r}:${to.q},${to.r}`
-            : `${activeId}:${shape}:${angle}:${from.x.toFixed(4)},${from.y.toFixed(4)}:${to.x.toFixed(4)},${to.y.toFixed(4)}`;
+            ? `${source}:${from.q},${from.r}:${to.q},${to.r}`
+            : `${source}:${from.x.toFixed(4)},${from.y.toFixed(4)}:${to.x.toFixed(4)},${to.y.toFixed(4)}`;
 
       if (told.current === next) {
         return;
@@ -470,6 +490,7 @@ export default function TableMap({
         seat: seat?.characterId ?? HEAD_OF_TABLE,
         shape,
         angle,
+        tokenId,
         from: from && named(from),
         to: to && named(to),
       });
@@ -479,7 +500,7 @@ export default function TableMap({
 
   const tapShape = aim?.token ? MAP_DRAWING_SHAPES[0] : shape;
   useEffect(() => {
-    if (phone) announce(aim?.from, aim?.to, tapShape, angle);
+    if (phone) announce(aim?.from, aim?.to, tapShape, angle, aim?.token?.id);
   }, [aim, angle, announce, phone, tapShape]);
 
   async function confirmMove(candidate) {
@@ -547,6 +568,17 @@ export default function TableMap({
     return point;
   }, []);
 
+  const grab = useCallback((token, event) => {
+    setLifted({
+      piece: pieceOf(token),
+      token,
+      from: token,
+      origin: { clientX: event.clientX, clientY: event.clientY },
+    });
+  }, []);
+
+  const liftToken = useCallback((token) => lift?.(token.id), [lift]);
+
   /**
    * A HAND ON THE BOARD, until it is taken off again. On the document, because
    * a drag that left the board still has to be answered: dropped outside, a
@@ -563,33 +595,44 @@ export default function TableMap({
       return undefined;
     }
 
+    let frame = null;
+    let pending;
+
     function follow(event) {
       if (measure && event.pointerId !== measure.pointerId) {
         return;
       }
-      const point = aimAt(event);
 
-      /* A HIDDEN PIECE DRAGS IN SILENCE. Its row is withheld from every player,
-         so an arrow tracking it across their board would be the one thing that
-         gave it away. The head of the table still sees their own. */
-      if (carrying?.token?.isHidden) {
-        return;
-      }
+      pending = event;
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        const point = aimAt(pending);
 
-      const anchor = carrying ? carrying.from : measure.from;
+        // A hidden piece's movement stays with the Dungeon Master.
+        if (carrying?.token?.isHidden) return;
 
-      latest.current.announce(
-        anchor && latest.current.snap(anchor),
-        point,
-        measure?.shape,
-        measure?.angle,
-      );
+        const anchor = measure ? measure.from : carrying.from;
+        latest.current.announce(
+          anchor && latest.current.snap(anchor),
+          point,
+          measure?.shape,
+          measure?.angle,
+          measure ? undefined : carrying.token?.id,
+        );
+      });
+    }
+
+    function stopFollowing() {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
     }
 
     function release(event) {
       if (measure && event.pointerId !== measure.pointerId) {
         return;
       }
+      stopFollowing();
       const { pointAt: at, snap: pull } = latest.current;
 
       if (measure) {
@@ -628,6 +671,7 @@ export default function TableMap({
     }
 
     function cancel() {
+      stopFollowing();
       setMeasure(null);
       setLifted(null);
       setHover(null);
@@ -641,12 +685,13 @@ export default function TableMap({
     window.addEventListener("blur", cancel);
 
     return () => {
+      stopFollowing();
       document.removeEventListener("pointermove", follow);
       document.removeEventListener("pointerup", release);
       document.removeEventListener("pointercancel", cancel);
       window.removeEventListener("blur", cancel);
     };
-  }, [aimAt, carrying, hold, lifted, measure]);
+  }, [aimAt, carrying, hold, measure]);
 
   /**
    * On the document rather than the frame, as the piece-carrying hand above is:
@@ -703,20 +748,26 @@ export default function TableMap({
     };
   }, [stroking]);
 
-  /* `onLoad` below never fires for a picture that was already in the cache when
-     this mounted, and that is the common case on the second visit. */
+  const readNatural = useCallback(
+    (image) => {
+      const width = image?.naturalWidth;
+      const height = image?.naturalHeight;
+      if (!width || !height) return;
+
+      const size = { width, height };
+      if (!phone) holdTray(width, height);
+      setNatural((current) =>
+        current?.width === width && current.height === height ? current : size,
+      );
+      reportNatural(size);
+    },
+    [phone, reportNatural],
+  );
+
   useEffect(() => {
     const image = imageRef.current;
-
-    if (image?.complete && image.naturalWidth) {
-      const size = { width: image.naturalWidth, height: image.naturalHeight };
-
-      if (!phone) holdTray(size.width, size.height);
-      setNatural(size);
-      // The mask is held in the provider and wants this picture's ratio.
-      reportNatural(size);
-    }
-  }, [phone, reportNatural, url]);
+    if (image?.complete) readNatural(image);
+  }, [readNatural, url]);
 
   useEffect(() => {
     if (phone && natural) holdTray(natural.width, natural.height);
@@ -727,8 +778,7 @@ export default function TableMap({
    * line and the figure over it are drawn from the same pair of points.
    *
    * A CHAIR'S OWN DICE COLOUR, which is what marks everything else a person does
-   * at this table. The head of the table rolls the house's dice and has none, so
-   * theirs is gold — the colour that chair already wears everywhere else.
+   * at this table.
    */
   const beams = useMemo(() => {
     if (!natural) {
@@ -736,15 +786,46 @@ export default function TableMap({
     }
 
     const drawn = [];
+    function colorFor(at) {
+      const color =
+        at === HEAD_OF_TABLE
+          ? headDiceLook?.color
+          : (diceLooks[at]?.color ??
+            faces.find((face) => face.characterId === at)?.diceColor);
+      return color ? diceColorHex(color) : "var(--color-gold)";
+    }
+
+    const localColor = colorFor(seat?.characterId ?? HEAD_OF_TABLE);
+
+    function preview(token, from, to) {
+      if (!token) return null;
+      const distance = mapMovementFeet(from, to, natural, grid);
+      const active = combat.inCombat && combat.activeTokenId === token.id;
+      const speed =
+        token.characterId === seat?.characterId
+          ? seat?.speed
+          : faces.find((face) => face.characterId === token.characterId)?.speed;
+      return {
+        tokenId: token.id,
+        distance,
+        range: active
+          ? movementState(
+              speed ?? DEFAULT_SPEED,
+              turnMovement(combat, token) + distance,
+            )
+          : null,
+      };
+    }
 
     if (aim?.to) {
       drawn.push({
         key: "phone",
         from: aim.from,
         to: aim.to,
-        color: seatColor(seat, faces),
+        color: localColor,
         shape: tapShape,
         angle,
+        movement: preview(aim.token, aim.token, aim.to),
       });
     }
 
@@ -755,9 +836,12 @@ export default function TableMap({
         key: "mine",
         from: snap(measure ? measure.from : carrying.from),
         to: hover,
-        color: seatColor(seat, faces),
+        color: localColor,
         shape: measure?.shape ?? MAP_DRAWING_SHAPES[0],
         angle: measure?.angle ?? DEFAULT_CONE_ANGLE,
+        movement: measure
+          ? null
+          : preview(carrying.token, carrying.from, hover),
       });
     }
 
@@ -769,6 +853,8 @@ export default function TableMap({
       }
       const from = anchorOf(beam.from, grid.enabled, grid.size, natural);
       const to = anchorOf(beam.to, grid.enabled, grid.size, natural);
+      const token =
+        beam.tokenId && tokens.find(({ id }) => id === beam.tokenId);
 
       if (from && to) {
         drawn.push({
@@ -777,7 +863,8 @@ export default function TableMap({
           to,
           shape: beam.shape,
           angle: beam.angle,
-          color: chairColor(at, faces),
+          color: colorFor(at),
+          movement: preview(token, from, to),
         });
       }
     }
@@ -789,16 +876,24 @@ export default function TableMap({
     angle,
     activeId,
     carrying,
+    combat,
+    diceLooks,
     faces,
-    grid.enabled,
-    grid.size,
+    grid,
+    headDiceLook,
     hover,
     measure,
     natural,
     seat,
     snap,
     tapShape,
+    tokens,
   ]);
+  const ownPreview = beams.find(
+    (beam) =>
+      (beam.key === "mine" || beam.key === "phone") &&
+      beam.movement?.tokenId === ownToken?.id,
+  )?.movement;
 
   /** Right-button drawings suppress the browser's menu over the map. */
   function onContextMenu(event) {
@@ -807,10 +902,10 @@ export default function TableMap({
     }
   }
 
-  const layerStyle = phone ? undefined : imageStyle;
+  const layerStyle = fitted ? undefined : imageStyle;
   const ratio = natural && natural.width / natural.height;
   const traySize =
-    (phone || display) && ratio
+    (fitted || display) && ratio
       ? {
           width: `min(100cqw, ${100 * ratio}cqh)`,
           aspectRatio: ratio,
@@ -829,21 +924,12 @@ export default function TableMap({
         // which cancels the pan before it begins.
         draggable={false}
         className={
-          (phone || display) && natural
+          (fitted || display) && natural
             ? "block size-full"
             : `block max-w-full ${heightClass}`
         }
         style={layerStyle}
-        onLoad={(event) => {
-          const size = {
-            width: event.target.naturalWidth,
-            height: event.target.naturalHeight,
-          };
-
-          if (!phone) holdTray(size.width, size.height);
-          setNatural(size);
-          reportNatural(size);
-        }}
+        onLoad={(event) => readNatural(event.currentTarget)}
       />
 
       {/* The one it replaced, pinned over the box the new one just sized and
@@ -887,6 +973,7 @@ export default function TableMap({
           // The cell, ruled or not — the piece it points at is that size too.
           size={grid.size}
           color={beam.color}
+          moving={Boolean(beam.movement)}
           layerStyle={layerStyle}
         />
       ))}
@@ -913,17 +1000,11 @@ export default function TableMap({
              is not a drag, and now does nothing at all. */
         onGrab={
           !phone && place && (!canDraw || shape === MAP_DRAWING_SHAPES[0])
-            ? (token, event) =>
-                setLifted({
-                  piece: pieceOf(token),
-                  token,
-                  from: token,
-                  origin: { clientX: event.clientX, clientY: event.clientY },
-                })
+            ? grab
             : null
         }
-        onMark={mark ? (token, patch) => mark(token, patch) : null}
-        onLift={!phone && lift ? (token) => lift(token.id) : null}
+        onMark={mark}
+        onLift={!phone && lift ? liftToken : null}
       />
       {/* Distances sit above the pieces, including those visible in fog. */}
       {beams.map((beam) => (
@@ -935,6 +1016,7 @@ export default function TableMap({
           to={beam.to}
           shape={beam.shape}
           size={grid.size}
+          movement={beam.movement}
           layerStyle={{ ...layerStyle, zIndex: 1 }}
         />
       ))}
@@ -946,19 +1028,10 @@ export default function TableMap({
         subscribe={mask.subscribe}
         seeThrough={canSweep}
         enabled={fog.enabled}
-        coverOnLoad={display}
-        frameRatio={phone ? ratio : undefined}
+        coverOnLoad={display || Boolean(workspace)}
+        frameRatio={fitted ? ratio : undefined}
         style={layerStyle}
       />
-      <FogBrushPreview
-        size={fogSize}
-        scale={scale}
-        canSweep={canSweep}
-        brush={brush}
-        frameRef={frameRef}
-        pointAt={pointAt}
-      />
-
       {/* Over the fog: the Dungeon Master sees through it anyway. */}
       {camera && (
         <SceneCamera
@@ -1026,15 +1099,6 @@ export default function TableMap({
 
         frameProps.onPointerDown?.(event);
       }}
-      onPointerMove={(event) => {
-        frameProps.onPointerMove?.(event);
-
-        if (!holding) {
-          return;
-        }
-
-        aimAt(event);
-      }}
       onPointerLeave={() => {
         if (!carrying && !measure) {
           setHover(null);
@@ -1052,9 +1116,9 @@ export default function TableMap({
           : zoomed
             ? "cursor-grab active:cursor-grabbing"
             : "cursor-default"
-      } ${phone ? "size-full bg-surface [-webkit-touch-callout:none]" : "w-fit"} ${className}`}
+      } ${fitted ? "size-full bg-surface [-webkit-touch-callout:none]" : "w-fit"} ${className}`}
     >
-      {phone ? (
+      {fitted ? (
         <div
           className="absolute top-1/2 left-1/2 -translate-1/2"
           style={{ ...traySize, ...imageStyle }}
@@ -1063,6 +1127,24 @@ export default function TableMap({
         </div>
       ) : (
         mapLayers
+      )}
+      <FogBrushPreview
+        size={fogSize}
+        scale={scale}
+        canSweep={canSweep}
+        brush={brush}
+        frameRef={frameRef}
+        imageRef={imageRef}
+        pointAt={pointAt}
+      />
+      {!canSweep && seat?.characterId && (
+        <PlayerTurnNotice
+          campaignId={campaignId}
+          characterId={seat.characterId}
+          speed={seat.speed}
+          token={ownToken}
+          dragFeet={ownPreview?.distance}
+        />
       )}
     </div>
   );
@@ -1082,7 +1164,20 @@ export default function TableMap({
       ) : (
         frame
       )}
-      {phone ? (
+      {workspace && <DiceBoard compactRim traySize={traySize} />}
+      {workspace ? (
+        canDraw &&
+        workspace.mapTools &&
+        createPortal(
+          <MapDrawingTools
+            shape={shape}
+            angle={angle}
+            onShape={setShape}
+            onAngle={setAngle}
+          />,
+          workspace.mapTools,
+        )
+      ) : phone ? (
         canDraw && (
           <div className="relative z-10 col-start-1 row-start-2 grid w-full justify-items-center gap-1">
             <MapDrawingTools
@@ -1133,9 +1228,11 @@ export default function TableMap({
               />
             </MapControlTray>
           )}
-          <div className="relative">{cast}</div>
         </div>
       )}
+      {workspace?.dmTools &&
+        canSweep &&
+        createPortal(<MapTools />, workspace.dmTools)}
       <TokenRoll tokens={visibleTokens} />
     </>
   );
@@ -1201,20 +1298,6 @@ function settled(standing, point) {
   return Number.isInteger(standing.q) && Number.isInteger(point.q)
     ? standing.q === point.q && standing.r === point.r
     : standing.x === point.x && standing.y === point.y;
-}
-
-/**
- * The colour a chair draws in. Gold for the head of the table, whose seat has no
- * dice colour of its own — `markFace` in page.jsx carries the rest across.
- */
-function seatColor(seat, faces) {
-  return chairColor(seat?.characterId ?? HEAD_OF_TABLE, faces);
-}
-
-function chairColor(at, faces) {
-  const face = faces.find((one) => one.characterId === at);
-
-  return face?.diceColor ? diceColorHex(face.diceColor) : "var(--color-gold)";
 }
 
 /** The pair as this chair sends them: the point always, the cell where there is one. */

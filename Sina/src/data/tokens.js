@@ -13,6 +13,7 @@
  */
 
 import { removeObject, uploadObject } from "./storage.js";
+import { movementStep, readTurnId } from "../rules/combat.js";
 
 /** The maps' bucket — the pieces live beside them, see rules/tokens.js. */
 const BUCKET = "campaign-maps";
@@ -25,10 +26,11 @@ const TEMPLATE_COLUMNS = "id, campaign_id, name, image_url, created_at";
 
 /* `placed_at` is the first tie-break in the initiative order, and
    `combat_turn_order` breaks it the same way. */
-const PLACED_COLUMNS =
+const BASE_PLACED_COLUMNS =
   "id, map_id, character_id, template_id, is_party_marker, " +
   "hex_q, hex_r, world_x, world_y, ring_color, is_hidden, is_dead, " +
   "conditions, initiative, placed_at";
+const PLACED_COLUMNS = `${BASE_PLACED_COLUMNS}, movement_ft, movement_turn_id`;
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const CHECK_VIOLATION = "23514";
@@ -228,16 +230,18 @@ export async function listMapPlacedTokens(
     return { data: [], error: null };
   }
 
-  const query = supabase
-    .from("map_placed_tokens")
-    .select(PLACED_COLUMNS)
-    .in("map_id", ids);
-
-  if (visibleOnly) {
-    query.eq("is_hidden", false);
+  function read(columns) {
+    const query = supabase
+      .from("map_placed_tokens")
+      .select(columns)
+      .in("map_id", ids);
+    if (visibleOnly) query.eq("is_hidden", false);
+    return query.order("placed_at", { ascending: true });
   }
-
-  const { data, error } = await query.order("placed_at", { ascending: true });
+  let result = await read(PLACED_COLUMNS);
+  if (result.error?.code === UNDEFINED_COLUMN)
+    result = await read(BASE_PLACED_COLUMNS);
+  const { data, error } = result;
 
   return error ? failure(error) : { data: data ?? [], error: null };
 }
@@ -276,14 +280,26 @@ export async function placeMapToken(
 
 /** One already down, moved. The id names the row; the function asks again
     whether this caller's hand may move it. */
-export async function moveMapToken(supabase, { tokenId, x, y, q, r }) {
-  const { data, error } = await supabase.rpc("move_map_token", {
+export async function moveMapToken(
+  supabase,
+  { tokenId, x, y, q, r, distanceFt, turnId },
+) {
+  const point = {
     p_token_id: tokenId,
     p_x: x,
     p_y: y,
     p_q: Number.isInteger(q) ? q : null,
     p_r: Number.isInteger(r) ? r : null,
+  };
+  let result = await supabase.rpc("move_map_token_with_movement", {
+    ...point,
+    p_distance_ft: movementStep(distanceFt),
+    p_turn_id: readTurnId(turnId),
   });
+  if (result.error && classify(result.error) === "missing_function") {
+    result = await supabase.rpc("move_map_token", point);
+  }
+  const { data, error } = result;
 
   if (error) {
     return failure(error);

@@ -8,9 +8,62 @@ import {
   MIN_INITIATIVE,
   parseInitiative,
   readCombat,
+  MAX_MOVEMENT_STEP,
+  movementFeet,
+  movementState,
+  movementStep,
+  readTurnId,
+  turnMovement,
 } from "./combat.js";
 
 const TOKEN = "6f1c3d2e-0000-4000-8000-0000000000t1";
+
+describe("turn movement guidance", () => {
+  const turnId = "6f1c3d2e-0000-4000-8000-000000000123";
+  it("keeps normal speed and dash boundaries inclusive", () => {
+    assert.equal(movementState(30, 0), "walking");
+    assert.equal(movementState(30, 30), "walking");
+    assert.equal(movementState(30, 30.1), "dashing");
+    assert.equal(movementState(30, 60), "dashing");
+    assert.equal(movementState(30, 60.1), "out_of_range");
+  });
+  it("uses the character's actual speed", () => {
+    assert.equal(movementState(25, 26), "dashing");
+    assert.equal(movementState(25, 51), "out_of_range");
+    assert.equal(movementState(35, 31), "walking");
+  });
+  it("counts only movement belonging to this turn, including after refresh", () => {
+    const combat = { inCombat: true, turnId };
+    const token = { movementFt: 45, movementTurnId: turnId };
+    assert.equal(turnMovement(combat, token), 45);
+    assert.equal(turnMovement({ ...combat, turnId: "next-turn" }, token), 0);
+    assert.equal(turnMovement({ ...combat, inCombat: false }, token), 0);
+    assert.equal(turnMovement({ inCombat: true }, token), 0);
+    assert.equal(turnMovement(combat, null), 0);
+  });
+  it("rejects malformed turn ids and non-finite movement reports", () => {
+    assert.equal(readTurnId(turnId), turnId);
+    for (const value of [null, "", "not-a-uuid", 7])
+      assert.equal(readTurnId(value), null);
+    for (const value of [NaN, Infinity, -1, "30"]) {
+      assert.equal(movementFeet(value), 0);
+      assert.equal(movementStep(value), null);
+    }
+    assert.equal(movementStep(MAX_MOVEMENT_STEP + 1), null);
+    assert.equal(movementStep(0), 0);
+    assert.equal(movementStep(12.5), 12.5);
+  });
+  it("reads the server's turn and next-player fields on both paths", () => {
+    const row = readCombat({
+      is_in_combat: true,
+      combat_turn_id: turnId,
+      next_turn_character_id: "player",
+    });
+    assert.equal(row.turnId, turnId);
+    assert.equal(row.nextCharacterId, "player");
+    assert.deepEqual(readCombat(row), row);
+  });
+});
 
 function piece(over = {}) {
   return {
@@ -58,14 +111,26 @@ describe("readCombat", () => {
         active_turn_token_id: TOKEN,
         combat_round: 4,
       }),
-      { inCombat: true, activeTokenId: TOKEN, round: 4 },
+      {
+        inCombat: true,
+        activeTokenId: TOKEN,
+        round: 4,
+        turnId: null,
+        nextCharacterId: null,
+      },
     );
   });
 
   it("reads a message off the wire the same way", () => {
     assert.deepEqual(
       readCombat({ inCombat: true, activeTokenId: TOKEN, round: 2 }),
-      { inCombat: true, activeTokenId: TOKEN, round: 2 },
+      {
+        inCombat: true,
+        activeTokenId: TOKEN,
+        round: 2,
+        turnId: null,
+        nextCharacterId: null,
+      },
     );
   });
 

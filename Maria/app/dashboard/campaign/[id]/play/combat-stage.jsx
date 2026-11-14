@@ -1,39 +1,47 @@
 "use client";
 
-import CombatMark from "@/app/components/ui/combat-mark";
+import { useState } from "react";
 
 import CombatTracker from "./combat-tracker";
-import DmTray from "./dm-tray";
-import { useCombatState } from "./table-state";
+import TokenPalette from "./token-palette";
+import { useTableMaps } from "./table-maps";
 
-/**
- * The mark that calls for initiative, first in the head of the table's box,
- * and the ladder it opens. `bare`: the ladder writes its own title row, with
- * the round beside it.
- *
- * Lit from the store and not from the box alone: a Dungeon Master who closed
- * the tracker still has to see, without opening anything, that a fight is on.
- */
-export default function CombatStage({ campaignId, faces }) {
-  const { inCombat } = useCombatState();
+export default function CombatStage({ campaignId, faces, members }) {
+  const [showCombat, setShowCombat] = useState(false);
+  const { hold } = useTableMaps();
 
   return (
-    <DmTray
-      mark={
-        <CombatMark
-          className={`size-11 ${inCombat ? "motion-safe:animate-pulse" : ""}`}
-        />
-      }
-      markLabel={
-        inCombat
-          ? "Initiative, a fight is running"
-          : "Initiative and combat turns"
-      }
-      panelLabel="Initiative and combat turns"
-      alarm={inCombat}
-      bare
-    >
-      <CombatTracker campaignId={campaignId} faces={faces} canManage />
-    </DmTray>
+    <section aria-label="Board tools" className="board-tools">
+      <div
+        role="group"
+        aria-label="Board tools view"
+        className="board-tools-switch"
+      >
+        <button
+          type="button"
+          aria-pressed={!showCombat}
+          onClick={() => setShowCombat(false)}
+        >
+          Tokens
+        </button>
+        <button
+          type="button"
+          aria-pressed={showCombat}
+          onClick={() => {
+            hold(null);
+            setShowCombat(true);
+          }}
+        >
+          Combat
+        </button>
+      </div>
+      {showCombat ? (
+        <CombatTracker campaignId={campaignId} faces={faces} canManage />
+      ) : (
+        <div className="board-token-scroll scroll-gold">
+          <TokenPalette members={members} />
+        </div>
+      )}
+    </section>
   );
 }

@@ -1,0 +1,129 @@
+.row {
+  display: flex;
+  position: relative;
+  isolation: isolate;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  padding-top: 18px;
+}
+
+.row:not(:has(> .slot:not([hidden]))) {
+  display: none;
+}
+
+.slot {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: calc(var(--pile-width) * 1px);
+  aspect-ratio: var(--pile-width) / var(--pile-height);
+}
+
+.slot[hidden] {
+  display: none;
+}
+
+.slot::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  left: var(--pile-center, 50%);
+  top: var(--glow-center-y, 100%);
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%)
+    scale(var(--glow-scale-x, 1), var(--glow-scale-y, 1));
+  opacity: var(--glow-opacity, 0);
+  background: radial-gradient(
+    ellipse closest-side,
+    var(--metal),
+    color-mix(in srgb, var(--metal) 74%, transparent) 31%,
+    color-mix(in srgb, var(--metal) 34%, transparent) 62%,
+    color-mix(in srgb, var(--metal) 8%, transparent) 86%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.slot[data-highlight]::before {
+  opacity: min(1, calc(var(--glow-opacity, 0) * 1.25));
+}
+.slot[data-flying]::before {
+  will-change: transform, opacity;
+}
+
+.art,
+.shadow,
+.flight {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  display: block;
+  width: calc((1 + 40 / var(--pile-width)) * 100%);
+  height: 100%;
+  max-width: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.art {
+  color: var(--coin-pigment, var(--metal));
+}
+.shadow {
+  z-index: -1;
+  color: color-mix(
+    in srgb,
+    var(--coin-pigment, var(--metal)) 40%,
+    var(--color-surface)
+  );
+  height: calc((1 + 10 / var(--pile-height)) * 100%);
+}
+.flight {
+  color: color-mix(in srgb, var(--metal) 18%, var(--color-ink));
+  top: calc(-54 / var(--pile-height) * 100%);
+  width: calc((1 + 34 / var(--pile-width)) * 100%);
+  height: calc((1 + 54 / var(--pile-height)) * 100%);
+  visibility: hidden;
+}
+.slot[data-flying] .flight {
+  visibility: visible;
+}
+
+.trigger {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--metal);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
+.capsule {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  top: var(--pile-label-top, 0);
+  left: var(--pile-center, 50%);
+  transform: translate(-50%, -100%);
+  width: max-content;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--metal) 49%, var(--color-surface));
+  color: var(--metal);
+  background: color-mix(in srgb, var(--metal) 13%, var(--color-surface));
+  pointer-events: none;
+}
+.slot[data-highlight] .capsule {
+  display: inline-flex;
+}

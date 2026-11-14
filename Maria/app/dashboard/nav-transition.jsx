@@ -10,6 +10,8 @@ import {
 import { closeOut, reopen } from "@/app/components/ui/panel-fold";
 import { markRouteChange } from "@/app/components/view-nav";
 
+import { playTableEntrance } from "./campaign/[id]/play/table-page-entrance";
+
 /**
  * Moving between the dashboard's pages, played as a closing rather than a cut:
  * panels marked `data-fold` fold away, pieces marked `data-fade` leave with
@@ -35,11 +37,8 @@ import { markRouteChange } from "@/app/components/view-nav";
  * pathname: `?new` opens and closes the creation sheet without the pathname
  * ever moving, and the bar would be left crawling until its safety timeout.
  *
- * THE REQUEST LEAVES ON THE PRESS, NOT AFTER THE CLOSING. Pushing once the
- * closing had finished put its whole length in front of the server's, on every
- * hop. The push now goes at once, and `Curtain` suspends the same transition
- * until the closing is done — Next dispatches its router update synchronously
- * inside it — so the new page commits after whichever of the two is slower.
+ * `Curtain` lets the other dashboard routes start loading during their exit.
+ * The play page waits for its full sequence before pushing the next route.
  */
 export default function NavTransition({ className, children }) {
   const router = useRouter();
@@ -47,6 +46,7 @@ export default function NavTransition({ className, children }) {
   const [curtain, setCurtain] = useState(null);
   const rootRef = useRef(null);
   const leaving = useRef(false);
+  const closingTable = useRef(null);
   const wasNavigating = useRef(false);
 
   useEffect(() => {
@@ -55,6 +55,9 @@ export default function NavTransition({ className, children }) {
       // Whatever the new page kept — the dashboard's greeting is rendered
       // either side of `?new` — is still wearing the closing. Take it off.
       reopen();
+      if (closingTable.current?.isConnected)
+        playTableEntrance(closingTable.current, true);
+      closingTable.current = null;
     }
 
     wasNavigating.current = navigating;
@@ -69,7 +72,9 @@ export default function NavTransition({ className, children }) {
     if (
       !root ||
       !href ||
-      leaving.current ||
+      event.defaultPrevented ||
+      link.hasAttribute("download") ||
+      (link.target && link.target !== "_self") ||
       event.button !== 0 ||
       event.metaKey ||
       event.ctrlKey ||
@@ -79,19 +84,25 @@ export default function NavTransition({ className, children }) {
       return;
     }
 
-    const target = new URL(href, window.location.href);
+    const from = window.location.href;
+    const target = new URL(href, from);
     const here = window.location.pathname + window.location.search;
+    const leavingRoute = target.pathname !== window.location.pathname;
+    const table = leavingRoute
+      ? root.querySelector("[data-table-arrival]")
+      : null;
 
     if (
       target.origin !== window.location.origin ||
       !target.pathname.startsWith("/dashboard") ||
       target.pathname + target.search === here ||
-      !root.querySelector("[data-fade], [data-fold]")
+      (!table && !root.querySelector("[data-fade], [data-fold]"))
     ) {
       return;
     }
 
     event.preventDefault();
+    if (leaving.current) return;
     leaving.current = true;
     startNavigationProgress();
 
@@ -99,15 +110,20 @@ export default function NavTransition({ className, children }) {
        in globals.css. */
     markRouteChange();
 
-    const leavingRoute = target.pathname !== window.location.pathname;
+    if (table) {
+      closingTable.current = table;
+      playTableEntrance(table, false).then(() => {
+        leaving.current = false;
+        if (root.isConnected && window.location.href === from) {
+          startNavigating(() => router.push(href));
+        } else {
+          stopNavigationProgress();
+        }
+      });
+      return;
+    }
 
-    // The anchor, not the event's target: the star is a drawing inside one,
-    // and what leaves differently is the whole control.
     const closing = closeOut(root, { leavingRoute, pressed: link });
-
-    // Released when the closing ends rather than on arrival: `?new` leaves and
-    // lands on the same pathname, so anything watching the route would never
-    // see it move.
     const closed = new Promise((resolve) => {
       window.setTimeout(() => {
         leaving.current = false;

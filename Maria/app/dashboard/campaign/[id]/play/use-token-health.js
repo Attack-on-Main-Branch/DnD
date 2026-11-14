@@ -10,6 +10,8 @@ import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh"
 import { useTableWire, useWireMessage } from "./table-wire";
 import { useIsDying } from "./table-state";
 
+const EMPTY = {};
+
 export function useIsTokenKnocked(token) {
   const characterKnocked = useIsDying(token.characterId);
   if (token.isDead) return false;
@@ -21,10 +23,12 @@ export function useIsTokenKnocked(token) {
 
 export function useTokenHealth(campaignId, canEdit, tokenIds) {
   const { display } = useTableWire();
-  const [health, setHealth] = useState({});
+  const [health, setHealth] = useState(EMPTY);
   const revision = useRef(0);
   const refresh = useCallback(async () => {
     const run = ++revision.current;
+    if (!tokenIds) return;
+
     const result = await (
       canEdit
         ? readTokenHealth(campaignId)
@@ -42,7 +46,7 @@ export function useTokenHealth(campaignId, canEdit, tokenIds) {
 
   useEffect(() => {
     refresh();
-  }, [refresh, tokenIds]);
+  }, [refresh]);
   useLiveRefresh({
     channel: `token-health:${campaignId}`,
     table: "map_token_health",

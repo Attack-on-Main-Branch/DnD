@@ -11,6 +11,8 @@
  */
 
 /** Mirrors the `type` CHECK. */
+import { readPurse } from "./currency.js";
+
 export const CONTAINER_TYPES = ["bag", "chest"];
 
 export const MAX_CONTAINER_NAME_LENGTH = 60;
@@ -90,6 +92,7 @@ export function readContainer(row) {
     id,
     name,
     type,
+    ...(chest ? { purse: readPurse(row) } : {}),
     campaignId: row.campaign_id ?? null,
     ownerCharacterId: chest ? null : (row.owner_character_id ?? null),
     isRevealed: chest ? Boolean(row.is_revealed) : false,

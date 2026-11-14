@@ -9,6 +9,7 @@ import {
   listMapPlacedTokens,
 } from "sina/data/tokens";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
+import { movementSpeed } from "sina/rules/character-stats";
 import { readCombat } from "sina/rules/combat";
 
 import { logFailure } from "@/lib/errors";
@@ -88,6 +89,7 @@ export async function loadTableDisplay(
         ({
           id,
           name,
+          race,
           avatar_url,
           dice_color,
           dice_skin,
@@ -97,6 +99,7 @@ export async function loadTableDisplay(
         }) => ({
           id,
           name,
+          speed: movementSpeed(race),
           avatar_url,
           dice_color,
           dice_skin,

@@ -5,6 +5,7 @@ import {
   compareTokenPlacement,
   initiativeOrder,
   MIN_COMBAT_ROUND,
+  readCombat,
 } from "sina/rules/combat";
 
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
@@ -131,14 +132,17 @@ export function useCombat(campaignId, faces = [], display = false) {
     run({
       paint: () => store.setCombat(next),
       work: () => beginCombat(campaignId),
-      tell: () => {
-        send({ kind: "combat", combat: next });
+      tell: (result) => {
+        const settled = readCombat(result.combat ?? next);
+        store.setCombat(settled);
+        send({ kind: "combat", combat: settled });
+        if (!result.combat) resync({ combat: true });
         // The line the database wrote; the other chairs answer by re-reading.
         send({ kind: "log" });
       },
       want: { combat: true, tokens: true },
     });
-  }, [campaignId, order, run, send, store]);
+  }, [campaignId, order, resync, run, send, store]);
 
   /** Over, and the numbers go with it — on every one of this campaign's maps.
       Painted locally to match, or the ladder sits full of numbers the database
@@ -161,8 +165,11 @@ export function useCombat(campaignId, faces = [], display = false) {
         }
       },
       work: () => concludeCombat(campaignId),
-      tell: () => {
-        send({ kind: "combat", combat: next });
+      tell: (result) => {
+        const settled = readCombat(result.combat ?? next);
+        store.setCombat(settled);
+        send({ kind: "combat", combat: settled });
+        if (!result.combat) resync({ combat: true });
         send({ kind: "log" });
       },
       want: { combat: true, tokens: true },
@@ -207,15 +214,24 @@ export function useCombat(campaignId, faces = [], display = false) {
             store.setCombat({
               ...combat,
               activeTokenId: after[0]?.id ?? null,
+              turnId: null,
+              nextCharacterId: null,
             });
           }
         },
-        work: () => writeInitiative(tokenId, initiative),
-        tell: () => send({ kind: "token", token: written }),
+        work: () => writeInitiative(tokenId, initiative, campaignId),
+        tell: (result) => {
+          send({ kind: "token", token: written });
+          if (result.combat) {
+            const settled = readCombat(result.combat);
+            store.setCombat(settled);
+            send({ kind: "combat", combat: settled });
+          } else resync({ combat: true });
+        },
         want: { combat: true, tokens: true },
       });
     },
-    [combat, order, placed, run, send, store],
+    [campaignId, combat, order, placed, resync, run, send, store],
   );
 
   /** One step down the ladder; off the bottom is the top again, a round later. */
@@ -224,15 +240,25 @@ export function useCombat(campaignId, faces = [], display = false) {
       return;
     }
 
-    const next = { ...combat, ...steppedTurn(combat, order) };
+    const next = {
+      ...combat,
+      ...steppedTurn(combat, order),
+      turnId: null,
+      nextCharacterId: null,
+    };
 
     run({
       paint: () => store.setCombat(next),
       work: () => nextCombatTurn(campaignId),
-      tell: () => send({ kind: "combat", combat: next }),
+      tell: (result) => {
+        const settled = readCombat(result.combat ?? next);
+        store.setCombat(settled);
+        send({ kind: "combat", combat: settled });
+        if (!result.combat) resync({ combat: true });
+      },
       want: { combat: true },
     });
-  }, [campaignId, combat, order, run, send, store]);
+  }, [campaignId, combat, order, resync, run, send, store]);
 
   return {
     ...combat,

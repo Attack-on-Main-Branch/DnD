@@ -96,10 +96,11 @@ export default function ItemSearch({ campaignId, openSlug, onOpen }) {
 
       {searchable && (
         <>
-          <ul className="mt-3 grid grid-cols-3 gap-2">
+          <ul className="mt-3 grid grid-cols-2 gap-2">
             {shown.items.map((item) => (
               <li key={item.slug} className="flex">
                 <ItemRow
+                  roomy
                   item={item}
                   open={openSlug === item.slug}
                   onOpen={() => onOpen(item)}

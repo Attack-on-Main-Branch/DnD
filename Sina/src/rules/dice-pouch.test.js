@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DICE_SKIN_VALUES } from "./character.js";
+import { DICE_SKIN_VALUES, diceSkinRarity } from "./character.js";
 import {
   BANNER_SKIN_VALUES,
   SKIN_RARITIES,
@@ -21,6 +21,32 @@ import {
 } from "./dice-pouch.js";
 
 const complete = { dice: DICE_SKIN_VALUES, banner: BANNER_SKIN_VALUES };
+
+describe("new dice rewards", () => {
+  for (const [skin, rarity] of [
+    ["prismatic", "legendary"],
+    ["stained-glass", "rare"],
+  ]) {
+    it(`offers ${skin} as a locked ${rarity} reward until found`, () => {
+      const chances = pouchChances();
+      const reward = chances.find(
+        (one) => one.kind === "dice" && one.skin === skin,
+      );
+      const peers = chances.filter((one) => one.rarity === rarity);
+
+      assert.equal(diceSkinRarity(skin), rarity);
+      assert.equal(reward.chance, POUCH_ODDS[rarity] / 100 / peers.length);
+      assert.equal(isDiceSkinUnlocked(skin, []), false);
+      assert.equal(isDiceSkinUnlocked(skin, [skin]), true);
+      assert.equal(
+        pouchPool({ dice: [skin] }).some(
+          (one) => one.kind === "dice" && one.skin === skin,
+        ),
+        false,
+      );
+    });
+  }
+});
 
 describe("skin collections", () => {
   it("starts with Classic in both collections and discards unknown unlocks", () => {

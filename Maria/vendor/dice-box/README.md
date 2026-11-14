@@ -27,12 +27,18 @@ A PBR theme's material:
 | `metallicTexture`          | glTF layout: red occlusion, green roughness, blue metalness       |
 | `environmentIntensity`     | optional, default 1                                              |
 | `directIntensity`          | optional, default 1                                              |
-| `clearCoat`                | optional `{ intensity, roughness }`: a glossy layer over the lot |
+| `clearCoat`                | optional `{ intensity, roughness, texture }`; texture's red masks the coat, green multiplies roughness |
+| `emissiveTexture`          | optional RGB self-lighting map; black leaves a part unlit |
+| `emissiveIntensity`        | optional emission strength, default 1 |
 | `opacity`                  | optional: see-through, for glass — see below                     |
 | `accent`, `accentTexture` | optional: a second colour from the first — see below             |
 | `parallax`                 | optional: depth, from a height in `bumpTexture`'s alpha          |
 
 Five later additions:
+
+The gloss coat can be masked, and an emissive map can light coloured panes while
+leaving their leading dark. Both are optional and shared by the onscreen and
+offscreen renderers; the physics and main-thread bundle stay unchanged.
 
 - **Glass.** `opacity` is how much of what is behind the body it hides.
   Whatever the albedo paints over the body stays solid, so a glass die's

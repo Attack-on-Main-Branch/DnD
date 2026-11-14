@@ -12,9 +12,7 @@ import { HEAD_OF_TABLE, useDiceTable } from "./dice-table";
  * that card to the left and slips back under when it is done; see
  * `.dice-capsule` in globals.css for both halves.
  *
- * `under` turns that quarter round for the ONE chair with no card: the head of
- * the table's comes out from under the board they threw onto. Same mechanism
- * either way — a slot that clips, and a pill that travels out of it.
+ * The Dungeon Master's capsule sits at the map's left edge.
  *
  * It comes out as the die leaves the hand rather than as it lands: a table
  * watching a board light up with nothing beside it could not tell whose roll it
@@ -35,7 +33,11 @@ import { HEAD_OF_TABLE, useDiceTable } from "./dice-table";
  * `variant: "solid"` and not glass: this comes out over the board, and a
  * translucent pill had the map reading straight through the number.
  */
-export default function DiceCapsule({ characterId = null, under = false }) {
+export default function DiceCapsule({
+  characterId = null,
+  workspace,
+  className = "",
+}) {
   const { flying, results } = useDiceTable();
 
   const key = characterId ?? HEAD_OF_TABLE;
@@ -50,11 +52,17 @@ export default function DiceCapsule({ characterId = null, under = false }) {
   return (
     <span
       aria-hidden="true"
-      className={
-        under
-          ? "dice-slot-under pointer-events-none absolute top-full left-1/2 z-10 -translate-x-1/2"
-          : "dice-slot pointer-events-none absolute top-1/2 right-full z-10 -translate-y-1/2"
-      }
+      className={`${
+        workspace === "map"
+          ? `workspace-map-roll pointer-events-none absolute z-20 ${
+              characterId
+                ? "top-4 left-1/2 -translate-x-1/2"
+                : "workspace-dm-roll top-1/2 left-4 -translate-y-1/2"
+            }`
+          : workspace === "banner"
+            ? "dice-slot pointer-events-none absolute top-[var(--party-banner-center)] right-[calc(100%+var(--party-banner-gutter))] z-20 -translate-y-1/2"
+            : "dice-slot pointer-events-none absolute top-1/2 right-full z-10 -translate-y-1/2"
+      } ${className}`}
     >
       <span
         style={diceCast(flight ? flight.secret : result?.secret).style}
@@ -63,12 +71,14 @@ export default function DiceCapsule({ characterId = null, under = false }) {
           variant: "solid",
           className:
             "dice-capsule glass-unfiltered block rounded-full px-5 py-2 " +
-            (under ? "dice-capsule-under " : "") +
+            (workspace ? "workspace-roll-pill " : "") +
             "border-(--cast-line) " +
             "shadow-[inset_0_1px_0_var(--cast-wash),0_0_32px_-8px_var(--cast-bloom),0_18px_44px_-20px_rgba(0,0,0,0.95)]",
         })}
       >
-        <p className="flex items-center gap-2 font-display text-base font-semibold tracking-wide whitespace-nowrap text-(--cast-ink)">
+        <p
+          className={`flex items-center gap-2 font-display font-semibold tracking-wide whitespace-nowrap text-(--cast-ink) ${workspace ? "text-lg" : "text-base"}`}
+        >
           {die && <DieGlyph die={die} className="size-5 shrink-0" />}
           {/* How many of that one glyph are on their way. A landed roll says it
               in the sentence instead — "3d6 ➔ 14". */}

@@ -12,9 +12,11 @@
  * a drawer reads every chest at the table in one query.
  */
 
+import { COIN_TYPES } from "../rules/currency.js";
+
 const COLUMNS =
   "id, campaign_id, name, type, owner_character_id, is_revealed, " +
-  "visible_to_character_ids, created_at";
+  `visible_to_character_ids, created_at, ${COIN_TYPES.join(", ")}`;
 
 const ITEM_COLUMNS =
   "id, container_id, item_slug, name, category, description, quantity, " +
@@ -143,16 +145,20 @@ export async function listContainerItems(supabase, containerIds) {
  * `.select()` makes the INSERT report the row, so an RLS refusal — no row
  * rather than a failure — is told apart from a write that landed.
  *
- * The name and the kind, and nothing else: `is_revealed` and
+ * Chests can start with coins. `is_revealed` and
  * `owner_character_id` are `reveal_chest`'s and `transfer_container`'s alone.
  */
-export async function insertContainer(supabase, { campaignId, container }) {
+export async function insertContainer(
+  supabase,
+  { campaignId, container, coins },
+) {
   const { data, error } = await supabase
     .from("containers")
     .insert({
       campaign_id: campaignId,
       name: container.name,
       type: container.type,
+      ...(container.type === "chest" && coins),
     })
     .select(COLUMNS)
     .maybeSingle();
@@ -308,4 +314,39 @@ export async function takeChestItem(
   }
 
   return data === null ? REFUSED : { data: { remaining: data }, error: null };
+}
+
+export async function stockChestCoins(
+  supabase,
+  { campaignId, containerId, coin, amount },
+) {
+  const { data, error } = await supabase.rpc("stock_chest_coins", {
+    p_campaign_id: campaignId,
+    p_container_id: containerId,
+    p_coin: coin,
+    p_amount: amount,
+  });
+  return error
+    ? failure(error)
+    : data === null
+      ? REFUSED
+      : { data: { moved: data }, error: null };
+}
+
+export async function takeChestCoins(
+  supabase,
+  { campaignId, containerId, characterId, coin, amount },
+) {
+  const { data, error } = await supabase.rpc("take_chest_coins", {
+    p_campaign_id: campaignId,
+    p_container_id: containerId,
+    p_character_id: characterId,
+    p_coin: coin,
+    p_amount: amount,
+  });
+  return error
+    ? failure(error)
+    : data === null
+      ? REFUSED
+      : { data: { moved: data }, error: null };
 }

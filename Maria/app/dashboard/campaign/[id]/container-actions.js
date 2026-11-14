@@ -13,6 +13,7 @@ import {
   MAX_CAMPAIGN_CONTAINERS,
   validateContainer,
 } from "sina/rules/containers";
+import { parsePurse } from "sina/rules/currency";
 import {
   MAX_ITEM_QUANTITY,
   parseQuantity,
@@ -102,6 +103,7 @@ export async function writeCampaignContainer(campaignId, values) {
   }
 
   const contents = readContents(values?.items);
+  const { coins, total } = parsePurse(values?.coins);
 
   const supabase = await createClient();
   const { user, error: authError } = await getCurrentUser(supabase);
@@ -115,6 +117,7 @@ export async function writeCampaignContainer(campaignId, values) {
   const { data: made, error } = await insertContainer(supabase, {
     campaignId,
     container,
+    coins: total > 0 ? coins : undefined,
   });
 
   if (error) {

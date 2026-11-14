@@ -176,6 +176,7 @@ export default function NotesScroll({ campaignId, seat, inline = false }) {
 
   return (
     <TablePopover
+      workspaceName="Notes"
       inline={inline}
       icon={ParchmentScroll}
       label={

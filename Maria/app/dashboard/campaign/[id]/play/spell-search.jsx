@@ -23,12 +23,7 @@ const MIN_QUERY = 2;
 
 const NOTHING = { term: null, spells: [], reachedOut: false };
 
-export default function SpellSearch({
-  campaignId,
-  openSlug,
-  onOpen,
-  compact = false,
-}) {
+export default function SpellSearch({ campaignId, openSlug, onOpen }) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState(NOTHING);
 
@@ -96,12 +91,11 @@ export default function SpellSearch({
 
       {searchable && (
         <>
-          <ul
-            className={`mt-3 grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-3"}`}
-          >
+          <ul className="mt-3 grid grid-cols-2 gap-2">
             {shown.spells.map((spell) => (
               <li key={spell.slug} className="flex">
                 <SpellRow
+                  roomy
                   spell={spell}
                   open={openSlug === spell.slug}
                   onOpen={() => onOpen(spell)}

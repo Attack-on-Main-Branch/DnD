@@ -163,6 +163,16 @@ const SKIN_COPY = {
     description:
       "Grey stone glowing blue, teal and gold — keeps its own colour",
   },
+  prismatic: {
+    label: "Prismatic",
+    description:
+      "Rainbow metal, emerald medallions and gold numbers — keeps its own colour",
+  },
+  "stained-glass": {
+    label: "Stained Glass",
+    description:
+      "Glowing coloured glass with bright reflections, dark leading and ivory numbers — keeps its own colour",
+  },
 };
 
 const UNDRESSED_SKINS = DICE_SKIN_VALUES.filter(

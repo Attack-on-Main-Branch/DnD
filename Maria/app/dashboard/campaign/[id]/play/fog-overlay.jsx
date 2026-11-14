@@ -38,19 +38,22 @@ export default function FogOverlay({
     let lastFrame = 0;
     let dirty = false;
     let transitioning = false;
+    let edgeFog = false;
     let covered = coverOnLoad;
+
+    function draw(now) {
+      transitioning = renderer.draw(motion.matches ? 0 : now / 1000, now);
+      if (covered && (maskRef.current || !enabledRef.current)) {
+        host.removeAttribute("data-fog-pending");
+        covered = false;
+      }
+      lastFrame = now;
+      dirty = false;
+    }
 
     function tick(now) {
       frame = null;
-      if (dirty || now - lastFrame >= FRAME_MS) {
-        transitioning = renderer.draw(motion.matches ? 0 : now / 1000, now);
-        if (covered && maskRef.current) {
-          host.removeAttribute("data-fog-pending");
-          covered = false;
-        }
-        lastFrame = now;
-        dirty = false;
-      }
+      if (dirty || now - lastFrame >= FRAME_MS) draw(now);
       schedule();
     }
 
@@ -59,30 +62,37 @@ export default function FogOverlay({
         frame === null &&
         !document.hidden &&
         (dirty ||
-          ((framed || enabledRef.current) &&
-            (transitioning || !motion.matches)))
+          transitioning ||
+          ((enabledRef.current || edgeFog) && !motion.matches))
       ) {
         frame = requestAnimationFrame(tick);
       }
     }
 
-    function update(change) {
+    function update(change, resizedAt) {
       const source = maskRef.current;
-      const mask = pad
-        ? pad(
-            source,
-            host.clientWidth,
-            host.clientHeight,
-            frameRatio,
-            enabledRef.current,
-          )
-        : source;
+      const padded = pad?.(
+        source,
+        host.clientWidth,
+        host.clientHeight,
+        frameRatio,
+        !enabledRef.current,
+      );
+      const mask = pad ? padded?.canvas : source;
       if (!mask) return;
-      renderer.update(mask, {
-        ...(framed ? null : change),
-        immediate: seeThrough || motion.matches || Boolean(change?.immediate),
-      });
+      edgeFog = padded?.edgeFog ?? false;
+      renderer.update(
+        mask,
+        {
+          ...(framed ? null : change),
+          feathered: edgeFog,
+          immediate: seeThrough || motion.matches || Boolean(change?.immediate),
+        },
+        resizedAt,
+      );
       dirty = true;
+      // A backing-store resize clears the canvas, so redraw before this layout is painted.
+      if (resizedAt !== undefined) draw(resizedAt);
       schedule();
     }
 
@@ -99,10 +109,10 @@ export default function FogOverlay({
     }
 
     update();
-    redrawRef.current = framed ? () => update() : resume;
+    redrawRef.current = () => update();
     const unsubscribe = subscribe(update);
     const observer = framed
-      ? new ResizeObserver(() => update({ immediate: true }))
+      ? new ResizeObserver(() => update({ immediate: true }, performance.now()))
       : null;
     observer?.observe(host);
     document.addEventListener("visibilitychange", resume);
@@ -133,7 +143,7 @@ export default function FogOverlay({
         data-fog-pending={coverOnLoad ? "" : undefined}
         className="size-full transition-opacity ease-in-out data-fog-pending:bg-surface motion-reduce:transition-none"
         style={{
-          opacity: framed || enabled ? (seeThrough ? DM_OPACITY : 1) : 0,
+          opacity: enabled || frameRatio ? (seeThrough ? DM_OPACITY : 1) : 0,
           transitionDuration: `${FOG_TRANSITION_MS}ms`,
         }}
       />

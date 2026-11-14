@@ -27,10 +27,18 @@ import AbilityCard from "@/app/dashboard/ability-card";
  * with the score itself, `total` included. A function and not a flag — see
  * AbilityCard. Both run on the server, so it crosses between them freely.
  */
-export function CharacterStats({ character, scoreField = null }) {
+export function CharacterStats({
+  character,
+  scoreField = null,
+  atTable = false,
+}) {
   return (
     <>
-      <AbilityScores character={character} scoreField={scoreField} />
+      <AbilityScores
+        character={character}
+        scoreField={scoreField}
+        atTable={atTable}
+      />
       <SkillList character={character} />
     </>
   );
@@ -45,7 +53,7 @@ export function CharacterStats({ character, scoreField = null }) {
  * counting it again doubled it. The save is derived from the path and the rung
  * and stored nowhere — see `sina/rules/saving-throws`.
  */
-function AbilityScores({ character, scoreField }) {
+function AbilityScores({ character, scoreField, atTable }) {
   const scores = ABILITIES.map((ability) => ({
     ...ability,
     total: character[`ability_${ability.id}_total`],
@@ -62,7 +70,10 @@ function AbilityScores({ character, scoreField }) {
         Ability scores
       </h3>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 max-sm:grid-cols-2 max-sm:gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        data-table-abilities={atTable || undefined}
+        className="mt-3 grid grid-cols-1 gap-3 max-sm:grid-cols-2 max-sm:gap-2 sm:grid-cols-2 lg:grid-cols-3"
+      >
         {scores.map((score) => {
           const modifier = abilityModifier(score.total);
 
@@ -72,6 +83,7 @@ function AbilityScores({ character, scoreField }) {
               ability={score}
               total={score.total}
               modifier={modifier}
+              showSave={atTable}
               save={getSavingThrowBonus({
                 className: character.class_id,
                 abilityName: score.id,
@@ -121,7 +133,10 @@ function SkillList({ character }) {
         </p>
       </div>
 
-      <ul className="mt-3 grid grid-cols-1 gap-x-6 max-sm:grid-cols-3 max-sm:gap-x-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul
+        data-skill-list
+        className="mt-3 grid grid-cols-1 gap-x-6 max-sm:grid-cols-3 max-sm:gap-x-2 sm:grid-cols-2 lg:grid-cols-3"
+      >
         {SKILLS.map((skill) => {
           const state = skillState(skills, skill.id);
 

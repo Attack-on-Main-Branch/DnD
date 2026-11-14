@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { FOG_MASK_WIDTH } from "sina/rules/fog";
 import { paintFogStroke } from "@/lib/fog-paint";
 
@@ -181,5 +181,8 @@ export function useFogMask({ mapId, maskUrl, natural, own = null }) {
     [],
   );
 
-  return { maskRef, subscribe, stroke, serialise };
+  return useMemo(
+    () => ({ maskRef, pixelsRef, subscribe, stroke, serialise }),
+    [serialise, stroke, subscribe],
+  );
 }

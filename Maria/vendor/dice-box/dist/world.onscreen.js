@@ -20431,8 +20431,18 @@ class tf {
     const { theme: t, material: i } = e;
     this.scene.environmentTexture || (this.scene.environmentTexture = $l(this.scene));
     const r = pi(e), s = i.bumpTexture ? await this.getTexture("bump", e) : null, n = i.metallicTexture ? await this.getTexture("metallic", e) : null, a = i.accent && i.accentTexture ? await this.getTexture("accent", e) : null;
+    const coatTexture = i.clearCoat?.texture ? await this.importTextureAsync(e.basePath + "/" + i.clearCoat.texture, t) : null;
+    if (coatTexture) coatTexture.gammaSpace = false;
+    const emissiveTexture = i.emissiveTexture ? await this.importTextureAsync(e.basePath + "/" + i.emissiveTexture, t) : null;
     for (const o of ["light", "dark"]) {
       const l = new it(`${t}_${o}`, this.scene);
+      if (coatTexture) l.clearCoat.texture = coatTexture;
+      if (emissiveTexture) {
+        l.emissiveTexture = emissiveTexture;
+        l.emissiveColor.set(1, 1, 1);
+        l.emissiveIntensity = i.emissiveIntensity ?? 1;
+      }
+
       i.diffuseTexture && i.diffuseTexture[o] && (r.material.diffuseTexture = i.diffuseTexture[o], l.albedoTexture = await this.getTexture("diffuse", r)), s && (l.bumpTexture = s), s && i.parallax && (l.useParallax = !0, l.useParallaxOcclusion = !0, l.parallaxScaleBias = i.parallax), n && (l.metallicTexture = n, l.useAmbientOcclusionFromMetallicTextureRed = !0, l.useRoughnessFromMetallicTextureAlpha = !1, l.useRoughnessFromMetallicTextureGreen = !0, l.useMetallnessFromMetallicTextureBlue = !0, l.metallic = 1, l.roughness = 1), l.environmentIntensity = i.environmentIntensity ?? 1, l.directIntensity = i.directIntensity ?? 1, l.allowShaderHotSwapping = !1, i.clearCoat && (l.clearCoat.isEnabled = !0, l.clearCoat.intensity = i.clearCoat.intensity ?? 1, l.clearCoat.roughness = i.clearCoat.roughness ?? 0), i.opacity !== void 0 && (l.alpha = i.opacity, l.backFaceCulling = !1, l.separateCullingPass = !0, l.twoSidedLighting = !0, l.Fragment_Custom_Alpha(`
 #ifdef ALBEDO
 alpha = mix(alpha, 1.0, albedoTexture.a);

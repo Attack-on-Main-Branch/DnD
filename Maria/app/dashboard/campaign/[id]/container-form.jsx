@@ -5,6 +5,7 @@ import {
   MAX_CAMPAIGN_CONTAINERS,
   MAX_CONTAINER_NAME_LENGTH,
 } from "sina/rules/containers";
+import { COIN_TYPES, MAX_COINS, parsePurse } from "sina/rules/currency";
 import { MAX_ITEM_QUANTITY, parseQuantity } from "sina/rules/inventory";
 
 import { ButtonContent } from "@/app/components/ui/button";
@@ -14,6 +15,7 @@ import FormActions from "@/app/components/ui/form-actions";
 import FormAlert from "@/app/components/ui/form-alert";
 import TextField from "@/app/components/ui/text-field";
 import { CONTAINER_KINDS } from "@/app/dashboard/container-presentation";
+import { coinName, coinTint } from "@/app/dashboard/currency-presentation";
 
 /* The table's own search, borrowed rather than written twice: finding an item
    is a paragraph of behaviour — debounce, abort, a term the answer remembers. */
@@ -26,7 +28,7 @@ import {
 /**
  * A bag or a chest, made: what kind, what it is called, and what is in it.
  *
- * THREE QUESTIONS AND NOT FIVE. It used to ask who carries a bag and who may
+ * It used to ask who carries a bag and who may
  * see a chest, and neither is a decision made away from the table — a bag is
  * handed to somebody in play, a chest is revealed when they find it. So
  * everything made here starts ownerless and hidden.
@@ -54,6 +56,7 @@ export default function ContainerForm({
 }) {
   const [type, setType] = useState(editing?.type ?? "bag");
   const [name, setName] = useState(editing?.name ?? "");
+  const [coinAmounts, setCoinAmounts] = useState({});
   const [contents, setContents] = useState(initialContents);
   const [picked, setPicked] = useState(null);
   const [error, setError] = useState(null);
@@ -130,7 +133,12 @@ export default function ContainerForm({
             type,
             items,
           })
-        : await writeCampaignContainer(campaignId, { name, type, items });
+        : await writeCampaignContainer(campaignId, {
+            name,
+            type,
+            items,
+            coins: type === "chest" ? parsePurse(coinAmounts).coins : undefined,
+          });
 
       // A submit arms the loading bar, and nothing here navigates.
       stopNavigationProgress();
@@ -147,6 +155,7 @@ export default function ContainerForm({
       }
 
       setName("");
+      setCoinAmounts({});
       setContents([]);
       setPicked(null);
       setError(null);
@@ -206,6 +215,38 @@ export default function ContainerForm({
         disabled={blocked}
         aria-describedby={FEEDBACK_ID}
       />
+
+      {!editing && type === "chest" && (
+        <fieldset disabled={blocked} className="min-w-0">
+          <legend className="font-display text-sm font-medium tracking-wide text-ink/85">
+            Initial coins
+          </legend>
+          <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {COIN_TYPES.map((coin) => (
+              <label key={coin} className="flex min-w-0 flex-col gap-1 text-xs">
+                <span className="font-display" style={{ color: coinTint(coin) }}>
+                  {coinName(coin)}
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={String(MAX_COINS).length}
+                  placeholder="0"
+                  value={coinAmounts[coin] ?? ""}
+                  onChange={(event) => {
+                    const amount = event.target.value;
+                    setCoinAmounts((held) => ({ ...held, [coin]: amount }));
+                  }}
+                  className={controlClasses({
+                    className: "px-1.5 py-1 text-center tabular-nums",
+                  })}
+                />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       {carried ? (
         <p className="text-xs text-ink/50">

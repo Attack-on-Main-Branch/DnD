@@ -391,13 +391,23 @@ export function readActivity(row) {
 
   if (action === "chest_looted") {
     const container = name(payload.containerName);
-    const item = text(payload.itemName);
     const quantity = whole(payload.quantity);
+    if (!container || quantity === null || quantity < 1) return null;
 
-    // Nobody at the other end: it came from the world.
-    return container && item && quantity !== null && quantity >= 1
-      ? { ...entry, container, item, quantity }
-      : null;
+    if (payload.coin !== undefined) {
+      return isCoin(payload.coin) && quantity <= MAX_COINS
+        ? {
+            ...entry,
+            container,
+            coin: payload.coin,
+            quantity,
+            target: text(payload.targetName),
+          }
+        : null;
+    }
+
+    const item = text(payload.itemName);
+    return item ? { ...entry, container, item, quantity } : null;
   }
 
   /**

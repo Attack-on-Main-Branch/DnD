@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { surfaceClasses } from "@/app/components/ui/surface";
+import { useTableWorkspace } from "./table-workspace";
 
 /**
  * The three marks above the map, and the ONE panel behind all of them.
@@ -47,7 +48,9 @@ const usePlacementEffect =
 const MarksContext = createContext(null);
 
 export function useTableMarks() {
-  return useContext(MarksContext);
+  const marks = useContext(MarksContext);
+  const workspace = useTableWorkspace();
+  return workspace ?? marks;
 }
 
 export default function TableMarks({ children }) {

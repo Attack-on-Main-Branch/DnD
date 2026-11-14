@@ -158,6 +158,10 @@ function drawDie(
   };
   const colourAt = reader(maps.colour, 4);
   const surfaceAt = reader(maps.surface, 3);
+  const coatAt = maps.coat ? reader(maps.coat, 3) : null;
+  const emissiveAt = maps.emissive ? reader(maps.emissive, 3) : null;
+  const glaze = new Float32Array(4);
+  const glow = new Float32Array(4);
   const accentAt = maps.accent ? greyReader(maps.accent) : null;
   const texel = new Float32Array(4);
   const finish = new Float32Array(4);
@@ -277,12 +281,29 @@ function drawDie(
             0.55 *
             (1 - roughness) ** 2 *
             facing ** (6 + 90 * (1 - roughness));
-          const highlight = clamp(shine);
+          let highlight = clamp(shine);
+          if (coatAt) {
+            coatAt(u, v, glaze);
+            const fresnel = 0.04 + 0.96 * (1 - clamp(normal[2])) ** 5;
+            const reflection = clamp(
+              glaze[0] *
+                (maps.glass.clearCoat?.intensity ?? 1) *
+                fresnel *
+                studio(
+                  reflected,
+                  glaze[1] * (maps.glass.clearCoat?.roughness ?? 0),
+                ) *
+                (maps.glass.environmentIntensity ?? 1),
+            );
+            highlight = 1 - (1 - highlight) * (1 - reflection);
+          }
+          if (emissiveAt) emissiveAt(u, v, glow);
+          const emission = maps.glass.emissiveIntensity ?? 1;
 
           const painted = [
-            clamp(r * lit, 0, alpha),
-            clamp(g * lit, 0, alpha),
-            clamp(bl * lit, 0, alpha),
+            clamp(r * lit + glow[0] * emission, 0, alpha),
+            clamp(g * lit + glow[1] * emission, 0, alpha),
+            clamp(bl * lit + glow[2] * emission, 0, alpha),
             alpha,
           ];
 
@@ -438,11 +459,15 @@ export function drawThumbnails(
   surfacePng,
   opacity,
   accentPng,
+  glass = {},
 ) {
   const maps = {
     colour: decodePng(colourPng),
     surface: decodePng(surfacePng),
     accent: accentPng ? decodePng(accentPng) : null,
+    coat: glass.coat ? decodePng(glass.coat) : null,
+    emissive: glass.emissive ? decodePng(glass.emissive) : null,
+    glass,
   };
   const mesh = (name) => scene.meshes.find((one) => one.name === name);
 

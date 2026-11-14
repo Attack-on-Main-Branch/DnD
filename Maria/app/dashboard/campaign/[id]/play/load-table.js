@@ -1,12 +1,12 @@
 import { cache } from "react";
 import { listCampaignActivity } from "sina/data/activity";
 import {
-  getCampaignTable,
   listCampaignMaps,
   listCampaignNotes,
   listPartyMembers,
   listPartySheets,
 } from "sina/data/campaigns";
+import { getCampaignCombat } from "sina/data/combat";
 import { getCharacter, listCharacterNotes } from "sina/data/characters";
 import {
   listDiceSkinUnlocks,
@@ -32,20 +32,21 @@ import { logFailure } from "@/lib/errors";
 import { DUNGEON_MASTER_SEAT } from "@/lib/routes";
 import { createClient, currentUser } from "@/lib/supabase";
 
-/**
- * The table's own load, and deliberately not the sheet's. load-campaign.js
- * reads the campaign as its owner; this goes through `campaign_table`, which
- * answers for the Dungeon Master and for every player with a character in the
- * party, and hands back only what the board paints.
- *
- * `cache` deduplicates within a request: `generateMetadata` and the component
- * each call it. Sentinels rather than redirects, since `generateMetadata` is
- * not the place for those.
- */
-export const loadTable = cache(async function loadTable(id, requestedSeat) {
-  const supabase = await createClient();
-  const { user, error: authError } = await currentUser();
+const tableSession = cache(async () => {
+  const [supabase, session] = await Promise.all([
+    createClient(),
+    currentUser(),
+  ]);
+  return { supabase, ...session };
+});
 
+export const loadTableCampaign = cache(async (id) => {
+  const { supabase, user } = await tableSession();
+  return user ? getCampaignCombat(supabase, id) : null;
+});
+
+export async function loadTable(id, requestedSeat) {
+  const { supabase, user, error: authError } = await tableSession();
   if (authError) {
     logFailure("table/auth", authError);
     return "auth-unavailable";
@@ -55,198 +56,105 @@ export const loadTable = cache(async function loadTable(id, requestedSeat) {
     return "signed-out";
   }
 
-  /* Together rather than one after the other, the way load-campaign.js does —
-     the campaign included, since nothing in this wave needs more than its id
-     and on a miss the rest is thrown away unread. Not only the first paint:
-     every doorbell here is answered by re-rendering the whole route. The seat
-     still waits for the party, being chosen out of it. */
+  const table = loadTableCampaign(id);
+  const seatsAndParty = Promise.all([
+    table,
+    listPartyMembers(supabase, id),
+  ]).then(async ([{ data: campaign }, party]) => {
+    if (!campaign) return null;
+
+    const members = rows("listPartyMembers", party);
+    const seats = seatsAt(campaign, members);
+    const selected =
+      seats.find((seat) => seat.id === requestedSeat) ?? seats[0];
+    const dm = selected?.id === DUNGEON_MASTER_SEAT;
+    const ids = members.map((member) => member.id);
+
+    const [seat, inventory, spells, sheets, features, staging] =
+      await Promise.all([
+        readSeat(supabase, campaign.id, selected, user.id),
+        listPartyInventory(supabase, ids),
+        listPartySpells(supabase, ids),
+        dm ? listPartySheets(supabase, id) : null,
+        listPartyFeatures(supabase, ids),
+        dm ? listSceneStaging(supabase, id) : null,
+      ]);
+
+    return {
+      members,
+      seat,
+      inventory: rows("listPartyInventory", inventory),
+      spells: rows("listPartySpells", spells),
+      sheets: rows("listPartySheets", sheets),
+      features: rows("listPartyFeatures", features),
+      staging: rows("listSceneStaging", staging, null),
+    };
+  });
+
+  const board = listCampaignMaps(supabase, id).then(async (result) => {
+    const pictures = rows("listCampaignMaps", result);
+    const tokens = await listMapPlacedTokens(
+      supabase,
+      pictures.map(({ id }) => id),
+    );
+    return { maps: pictures, tokens: rows("listMapPlacedTokens", tokens) };
+  });
+
+  const storage = listCampaignContainers(supabase, id).then(async (result) => {
+    const shelf = rows("listCampaignContainers", result);
+    const items = await listContainerItems(
+      supabase,
+      shelf.map(({ id }) => id),
+    );
+    return {
+      containers: shelf,
+      containerItems: rows("listContainerItems", items),
+    };
+  });
+
   const [
     { data: campaign, error },
-    party,
     templates,
-    log,
+    activity,
     purses,
-    containers,
-    maps,
+    details,
+    pictures,
+    chests,
   ] = await Promise.all([
-    getCampaignTable(supabase, id),
-    listPartyMembers(supabase, id),
-    /* The hand a Dungeon Master invented on the campaign sheet. Every chair is
-       handed it, not only the one that deals: a player's board draws the
-       monster standing in front of them from the same list. */
+    table,
     listCampaignTokenTemplates(supabase, id),
     listCampaignActivity(supabase, id, MAX_ACTIVITY_ENTRIES),
-    /* Beside the party rather than after it: `campaign_purses` is asked about
-       the campaign, and it decides for itself whose purses the caller may
-       read — the whole party's for a Dungeon Master, their own for a player. */
     listPartyPurses(supabase, id),
-    /* And beside it for the same reason: the SELECT policy on `containers`
-       decides which this viewer may see, so neither the party nor the seat is
-       needed to ask. */
-    listCampaignContainers(supabase, id),
-    /* And beside those: the shelf answers the Dungeon Master and the party
-       alike, so it needs neither. Every chair is handed it, not only the one
-       that can switch — a player's board paints from the same list. */
-    listCampaignMaps(supabase, id),
+    seatsAndParty,
+    board,
+    storage,
   ]);
 
-  // `bad_id` is a hand-typed URL against a uuid column — a miss rather than a
-  // failure. Everything else is handed to the page to throw on.
-  const realFailure = error && error.reason !== "bad_id" ? error : null;
-
-  if (realFailure) {
-    logFailure("getCampaignTable", realFailure);
-  }
-
+  const realFailure = error?.reason === "bad_id" ? null : error;
+  if (realFailure) logFailure("getCampaignCombat", realFailure);
   if (!campaign) {
-    return {
-      campaign: null,
-      members: [],
-      maps: [],
-      templates: [],
-      tokens: [],
-      inventory: [],
-      spells: [],
-      purses: [],
-      activity: [],
-      sheets: [],
-      features: [],
-      containers: [],
-      containerItems: [],
-      staging: null,
-      seat: null,
-      error: realFailure,
-    };
+    return { campaign: null, error: realFailure };
   }
 
-  if (party.error) {
-    logFailure("listPartyMembers", party.error);
-  }
-
-  if (purses.error) {
-    logFailure("listPartyPurses", purses.error);
-  }
-
-  if (maps.error) {
-    logFailure("listCampaignMaps", maps.error);
-  }
-
-  if (templates.error) {
-    logFailure("listCampaignTokenTemplates", templates.error);
-  }
-
-  if (log.error) {
-    logFailure("listCampaignActivity", log.error);
-  }
-
-  if (containers.error) {
-    logFailure("listCampaignContainers", containers.error);
-  }
-
-  const members = party.error ? [] : party.data;
-  const shelf = containers.error ? [] : containers.data;
-  const pictures = maps.error ? [] : maps.data;
-
-  /* All three wait on the party and none on the others. RLS decides what comes
-     back: the Dungeon Master reads the whole table's packs, a player their
-     own. */
-  const [seat, packs, books, sheets, held, features, placed, staging] =
-    await Promise.all([
-      readSeat(supabase, campaign, members, requestedSeat, user.id),
-      listPartyInventory(
-        supabase,
-        members.map((member) => member.id),
-      ),
-      /* The same boundary over `character_spells`: the head of the table reads
-         the party's books, a player their own. */
-      listPartySpells(
-        supabase,
-        members.map((member) => member.id),
-      ),
-      /* The party's scores and skills. `campaign_sheets` answers the owner
-         alone, so this is asked on the deed rather than on the chair — which
-         chair they are in is settled a step below, and an owner sitting as a
-         character reads their own sheet through readSeat. One stable RPC over
-         six rows at most, rather than a second round trip after the seat. */
-      campaign.is_owner
-        ? listPartySheets(supabase, id)
-        : { data: [], error: null },
-      /* What is in the containers nobody is carrying. The ids are the query, so
-         this waits on the shelf and on nothing else. */
-      listContainerItems(
-        supabase,
-        shelf.map((container) => container.id),
-      ),
-      /* The whole party's, and RLS hands over everybody's: a feature is what a
-         character can do, and the table finds that out the first time they do
-         it. Only the ids this read already has — see listPartyFeatures. */
-      listPartyFeatures(
-        supabase,
-        members.map((member) => member.id),
-      ),
-      /* EVERY MAP'S PIECES, not only the one on the table: switching pictures
-         is then a filter in the browser rather than a round trip. A hidden one
-         is not in this list for anybody but the Dungeon Master — the SELECT
-         policy decides that, not the columns. */
-      listMapPlacedTokens(
-        supabase,
-        pictures.map((map) => map.id),
-      ),
-      // The camera and the directions answer the owner alone.
-      campaign.is_owner
-        ? listSceneStaging(supabase, id)
-        : { data: null, error: null },
-    ]);
-
-  if (packs.error) {
-    logFailure("listPartyInventory", packs.error);
-  }
-
-  if (books.error) {
-    logFailure("listPartySpells", books.error);
-  }
-
-  if (sheets.error) {
-    logFailure("listPartySheets", sheets.error);
-  }
-
-  if (features.error) {
-    logFailure("listPartyFeatures", features.error);
-  }
-
-  if (held.error) {
-    logFailure("listContainerItems", held.error);
-  }
-
-  if (placed.error) {
-    logFailure("listMapPlacedTokens", placed.error);
-  }
-
-  if (staging.error) {
-    logFailure("listSceneStaging", staging.error);
-  }
-
-  // Logged rather than thrown on: the map is the page, and neither a party nor
-  // a board that could not load is a reason to replace it with an error.
   return {
     campaign,
-    members,
-    maps: pictures,
-    templates: templates.error ? [] : templates.data,
-    tokens: placed.error ? [] : placed.data,
-    inventory: packs.error ? [] : packs.data,
-    spells: books.error ? [] : books.data,
-    purses: purses.error ? [] : purses.data,
-    activity: log.error ? [] : log.data,
-    sheets: sheets.error ? [] : sheets.data,
-    features: features.error ? [] : features.data,
-    containers: shelf,
-    containerItems: held.error ? [] : held.data,
-    staging: staging.error ? null : staging.data,
-    seat,
+    ...details,
+    ...pictures,
+    ...chests,
+    templates: rows("listCampaignTokenTemplates", templates),
+    purses: rows("listPartyPurses", purses),
+    activity: rows("listCampaignActivity", activity),
     error: null,
   };
-});
+}
+
+function rows(action, result, fallback = []) {
+  if (result?.error) {
+    logFailure(action, result.error);
+    return fallback;
+  }
+  return result?.data ?? fallback;
+}
 
 /**
  * Every chair at this table that belongs to the viewer, which an account owning
@@ -300,10 +208,7 @@ function seatsAt(campaign, members) {
  * answer for it: its return type is the display subset, and the ability columns
  * are not in it. A Dungeon Master's chair has no character and so no sheet.
  */
-async function readSeat(supabase, campaign, members, requestedSeat, userId) {
-  const seats = seatsAt(campaign, members);
-  const seat = seats.find((one) => one.id === requestedSeat) ?? seats[0];
-
+async function readSeat(supabase, campaignId, seat, userId) {
   if (!seat) {
     return null;
   }
@@ -311,7 +216,7 @@ async function readSeat(supabase, campaign, members, requestedSeat, userId) {
   const [notes, sheet, unlocks, bannerUnlocks] = await Promise.all([
     seat.characterId
       ? listCharacterNotes(supabase, seat.characterId)
-      : listCampaignNotes(supabase, campaign.id),
+      : listCampaignNotes(supabase, campaignId),
     seat.characterId
       ? getCharacter(supabase, { id: seat.characterId, userId })
       : { data: null, error: null },

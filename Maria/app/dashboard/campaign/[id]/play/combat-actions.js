@@ -4,11 +4,13 @@ import { listCampaignActivity } from "sina/data/activity";
 import {
   advanceCombatTurn,
   endCombat,
+  finishCharacterTurn,
+  getCampaignCombat,
   setTokenInitiative,
   startCombat,
 } from "sina/data/combat";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
-import { parseInitiative } from "sina/rules/combat";
+import { parseInitiative, readTurnId } from "sina/rules/combat";
 
 import { logFailure, logUncovered } from "@/lib/errors";
 import { rejected, sessionRejection } from "@/lib/rejection";
@@ -53,6 +55,16 @@ async function freshLog(supabase, campaignId) {
   return readActivityLog(data);
 }
 
+async function freshCombat(supabase, campaignId) {
+  if (!campaignId) return undefined;
+  const { data, error } = await getCampaignCombat(supabase, campaignId);
+  if (error) {
+    logFailure("getCampaignTable", error);
+    return undefined;
+  }
+  return data ?? undefined;
+}
+
 /** The cursor lands on whoever is highest, which may be nobody. */
 export async function beginCombat(campaignId) {
   const supabase = await createClient();
@@ -68,7 +80,11 @@ export async function beginCombat(campaignId) {
     return refusedCombat("beginCombat", error, "Could not begin the fight.");
   }
 
-  return { kind: "success", activity: await freshLog(supabase, campaignId) };
+  const [activity, combat] = await Promise.all([
+    freshLog(supabase, campaignId),
+    freshCombat(supabase, campaignId),
+  ]);
+  return { kind: "success", activity, combat };
 }
 
 /** Over: the cursor cleared, the round back to one, every number wiped. */
@@ -86,12 +102,16 @@ export async function concludeCombat(campaignId) {
     return refusedCombat("concludeCombat", error, "Could not end the fight.");
   }
 
-  return { kind: "success", activity: await freshLog(supabase, campaignId) };
+  const [activity, combat] = await Promise.all([
+    freshLog(supabase, campaignId),
+    freshCombat(supabase, campaignId),
+  ]);
+  return { kind: "success", activity, combat };
 }
 
 /** An empty box clears it, so `null` is a value here and not a missing
     argument. Bounded through the rules layer, and again by the CHECK. */
-export async function writeInitiative(tokenId, initiative) {
+export async function writeInitiative(tokenId, initiative, campaignId) {
   if (typeof tokenId !== "string" || tokenId.length === 0) {
     return rejected("That piece is no longer there.");
   }
@@ -116,7 +136,7 @@ export async function writeInitiative(tokenId, initiative) {
     );
   }
 
-  return { kind: "success" };
+  return { kind: "success", combat: await freshCombat(supabase, campaignId) };
 }
 
 /** Off the bottom is the top again, a round later. */
@@ -134,5 +154,25 @@ export async function nextCombatTurn(campaignId) {
     return refusedCombat("nextCombatTurn", error, "Could not pass the turn.");
   }
 
-  return { kind: "success" };
+  return { kind: "success", combat: await freshCombat(supabase, campaignId) };
+}
+
+export async function endPlayerTurn(campaignId, characterId, turnId) {
+  if (!readTurnId(turnId))
+    return rejected("The turn is updating. Try again in a moment.");
+  const supabase = await createClient();
+  const { user, error: authError } = await getCurrentUser(supabase);
+  if (!user) return sessionRejection("endPlayerTurn", authError);
+  const { error } = await finishCharacterTurn(supabase, {
+    campaignId,
+    characterId,
+    turnId,
+  });
+  if (error?.reason === "not_found")
+    return rejected(
+      "It is no longer your turn. The turn order has been refreshed.",
+    );
+  if (error)
+    return refusedCombat("endPlayerTurn", error, "Could not end your turn.");
+  return { kind: "success", combat: await freshCombat(supabase, campaignId) };
 }

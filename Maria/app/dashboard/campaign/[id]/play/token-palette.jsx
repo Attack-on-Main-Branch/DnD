@@ -14,7 +14,7 @@ import { ringWorn } from "./use-map-tokens";
  * The pieces to be put down — the Dungeon Master's hand.
  *
  * A PANEL THAT STAYS OPEN, because it is used WHILE looking at the board: pick a
- * face, click a hex, pick the next — see token-stage.jsx. A row for the party
+ * face, click a hex, pick the next. A row for the party
  * and one for the tokens, each wrapping.
  *
  * WHAT IS IN IT DEPENDS ON THE PICTURE, and that is the whole of the placement
@@ -77,7 +77,7 @@ export default function TokenPalette({ members }) {
     <div
       role="group"
       aria-label="Place a piece"
-      className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-5 pt-4 pb-5"
+      className="flex flex-col gap-2 border-y border-gold/15 px-2 py-3"
     >
       <Heading>Party</Heading>
 
@@ -207,7 +207,11 @@ function Piece({ held, onHold, label, children }) {
         event.preventDefault();
         onHold();
       }}
+      onClick={(event) => {
+        if (event.detail === 0) onHold();
+      }}
       aria-pressed={held}
+      data-tooltip={label}
       aria-label={
         held
           ? `Holding ${label}. Click the map to place, or press again to put down.`

@@ -1,6 +1,7 @@
 import { formatModifier } from "sina/rules/skills";
 
 import { abilityEmblem, withAlpha } from "./character-presentation";
+import AbilityIcon from "@/app/components/ui/ability-icon";
 
 /**
  * One ability score, drawn the same way wherever it is read: the sheet, the
@@ -25,17 +26,29 @@ export default function AbilityCard({
   modifier,
   save,
   field = null,
+  showSave = false,
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-gold/15 bg-surface/25 px-3.5 py-3 max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-1 max-sm:px-2.5">
+    <div
+      data-ability-card
+      className="flex items-center gap-3 rounded-lg border border-gold/15 bg-surface/25 px-3.5 py-3 max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-1 max-sm:px-2.5"
+    >
       <AbilityEmblem id={ability.id} />
 
       <div className="min-w-0 flex-1 max-sm:contents">
-        <p className="font-display text-xs font-semibold tracking-wide text-ink/85 uppercase max-sm:col-span-2 max-sm:text-[0.625rem] max-sm:tracking-normal">
+        <p
+          data-ability-label
+          className="font-display text-xs font-semibold tracking-wide text-ink/85 uppercase max-sm:col-span-2 max-sm:text-[0.625rem] max-sm:tracking-normal"
+        >
           {ability.name}
         </p>
 
-        <AbilityMeta modifier={modifier} save={save} className="mt-0.5" />
+        <AbilityMeta
+          modifier={modifier}
+          save={save}
+          showSave={showSave}
+          className="mt-0.5"
+        />
       </div>
 
       {field ?? (
@@ -57,17 +70,26 @@ export default function AbilityCard({
  * this sheet — the skills list marks its own the same way — so the colour is
  * the fact rather than decoration.
  */
-export function AbilityMeta({ modifier, save, className = "" }) {
+export function AbilityMeta({
+  modifier,
+  save,
+  showSave = false,
+  className = "",
+}) {
+  const proficient = save !== null && save !== undefined;
   return (
-    <p className={`font-mono text-[0.65rem] text-ink/45 ${className}`}>
-      Mod {formatModifier(modifier)}
-      {save !== null && save !== undefined && (
+    <p
+      data-ability-meta
+      className={`font-mono text-[0.65rem] text-ink/45 ${className}`}
+    >
+      <span>Mod {formatModifier(modifier)}</span>
+      {(proficient || showSave) && (
         <>
           {/* The separator is punctuation and not a word: read aloud, "Mod +1
               Save +3" is the sentence, and a middle dot in it is noise. */}
           <span aria-hidden="true"> · </span>
-          <span className="font-medium text-gold/90">
-            Save {formatModifier(save)}
+          <span className={proficient ? "font-medium text-gold/90" : undefined}>
+            Save {formatModifier(save ?? modifier)}
           </span>
         </>
       )}
@@ -77,21 +99,20 @@ export function AbilityMeta({ modifier, save, className = "" }) {
 
 /** The ability's mark, in the ring the sheet's cards set it in. */
 function AbilityEmblem({ id }) {
-  const { accent, clip } = abilityEmblem(id);
+  const { accent } = abilityEmblem(id);
 
   return (
     <span
+      data-ability-emblem
       aria-hidden="true"
       className="grid size-10 shrink-0 place-items-center rounded-full border border-gold/15 bg-white/5 max-sm:hidden"
+      style={{ color: accent }}
     >
       <span
-        className="size-5"
-        style={{
-          background: accent,
-          clipPath: clip,
-          filter: `drop-shadow(0 0 6px ${withAlpha(accent, 0.35)})`,
-        }}
-      />
+        style={{ filter: `drop-shadow(0 0 6px ${withAlpha(accent, 0.35)})` }}
+      >
+        <AbilityIcon ability={id} />
+      </span>
     </span>
   );
 }

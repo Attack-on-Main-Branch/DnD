@@ -15,7 +15,7 @@ import { DEFAULT_BANNER_SKIN, isBannerSkin } from "sina/rules/skins";
 import { isDiceColor, isDiceSkin } from "sina/rules/character";
 import { readCombat } from "sina/rules/combat";
 import { readContainers } from "sina/rules/containers";
-import { COIN_TYPES, readPurse } from "sina/rules/currency";
+import { COIN_TYPES, MAX_COINS, readPurse } from "sina/rules/currency";
 import { isDying, parseArmorClass, readDeathSaves } from "sina/rules/death";
 import { readConditions } from "sina/rules/conditions";
 import { readFeatures } from "sina/rules/features";
@@ -1095,6 +1095,8 @@ function createTableStore(seed) {
       if (
         standing.inCombat === asked.inCombat &&
         standing.activeTokenId === asked.activeTokenId &&
+        standing.turnId === asked.turnId &&
+        standing.nextCharacterId === asked.nextCharacterId &&
         standing.round === asked.round
       ) {
         return;
@@ -1328,7 +1330,7 @@ function createTableStore(seed) {
     passContainer(containerId, from, to) {
       const shelf = state.containers;
 
-      if (!to || from === to || !shelf.some((one) => one.id === containerId)) {
+      if (from === to || !shelf.some((one) => one.id === containerId)) {
         return;
       }
 
@@ -1348,7 +1350,7 @@ function createTableStore(seed) {
         );
       }
 
-      if (to in packs) {
+      if (to && to in packs) {
         packs[to] = [
           ...packs[to],
           ...moving.map((row) => ({
@@ -1359,7 +1361,7 @@ function createTableStore(seed) {
         ];
       }
 
-      chests[containerId] = [];
+      chests[containerId] = to ? [] : moving;
 
       commit({
         ...state,
@@ -1385,25 +1387,8 @@ function createTableStore(seed) {
 
       amend("purses", characterId, {
         ...purse,
-        [coin]: Math.max(0, purse[coin] + delta),
+        [coin]: Math.min(MAX_COINS, Math.max(0, purse[coin] + delta)),
       });
-    },
-
-    /** Every denomination at once: the Dungeon Master's Grant and Take. */
-    movePurseBy(characterId, coins, sign) {
-      const purse = state.purses[characterId];
-
-      if (!purse) {
-        return;
-      }
-
-      const next = { ...purse };
-
-      for (const coin of COIN_TYPES) {
-        next[coin] = Math.max(0, next[coin] + sign * (coins[coin] ?? 0));
-      }
-
-      amend("purses", characterId, next);
     },
 
     /* ---------------------------------------------------------------------
@@ -1483,6 +1468,8 @@ function createTableStore(seed) {
         if (
           next.combat.inCombat !== asked.inCombat ||
           next.combat.activeTokenId !== asked.activeTokenId ||
+          next.combat.turnId !== asked.turnId ||
+          next.combat.nextCharacterId !== asked.nextCharacterId ||
           next.combat.round !== asked.round
         ) {
           next = { ...next, combat: asked };
@@ -1895,6 +1882,10 @@ export function useCombatState() {
   return useTableValue(selectCombat);
 }
 
+export function useInCombat() {
+  return useTableValue(selectInCombat);
+}
+
 /**
  * A BOOLEAN and not the cursor, which is the point: six cards subscribing to the
  * turn would each re-render on every step, and this way five read `false` before
@@ -1974,6 +1965,7 @@ export function useChestItems() {
 
 const selectActivity = (state) => state.log.shown;
 const selectCombat = (state) => state.combat;
+const selectInCombat = (state) => state.combat.inCombat;
 const selectTokens = (state) => state.tokens;
 const selectTemplates = (state) => state.templates;
 const selectDead = (state) => state.dead;

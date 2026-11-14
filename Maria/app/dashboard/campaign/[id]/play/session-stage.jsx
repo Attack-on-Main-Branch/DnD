@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import SettingsMark from "@/app/components/ui/settings-mark";
 import { useRouteRefresh } from "@/app/components/use-route-refresh";
 
 import DmTray from "./dm-tray";
-import SessionSettingsDrawer from "./session-settings-drawer";
+const SessionSettingsDrawer = dynamic(
+  () => import("./session-settings-drawer"),
+);
 
 /**
  * The session itself, in the head of the table's box after the chest: what the

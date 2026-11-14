@@ -1,47 +1,77 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   MAX_INITIATIVE,
   MIN_INITIATIVE,
   parseInitiative,
 } from "sina/rules/combat";
 
-import { ButtonContent } from "@/app/components/ui/button";
 import Avatar from "@/app/components/ui/avatar";
+import CombatMark from "@/app/components/ui/combat-mark";
 import PartyMark from "@/app/components/ui/party-mark";
+import { useReducedMotion } from "@/app/components/use-reduced-motion";
+import { playReveal } from "@/app/components/ui/reveal-animation";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
+import { useInCombat } from "./table-state";
 import { useCombat } from "./use-combat";
+import "./combat-tracker.css";
 
-/**
- * The initiative ladder: every piece standing on the board, highest roll at the
- * top, and the glow walking down it.
- *
- * TWO COLUMNS AND ONE ORDER. The party down the left of the spine, what the
- * table invented down the right — but not two lists: the rung a piece sits on is
- * its NUMBER, so a goblin on 15 sits between a fighter on 20 and a wizard on 10.
- *
- * ONLY WHAT IS ON THE BOARD — the rows of `map_placed_tokens` for the picture on
- * the table, not the party rail and not the hand of pieces.
- */
-export default function CombatTracker({
+export default function CombatTracker({ display = false, ...props }) {
+  return display ? (
+    <CombatContent {...props} display />
+  ) : (
+    <AnimatedCombatTracker {...props} />
+  );
+}
+
+function AnimatedCombatTracker({ canManage = false, ...props }) {
+  const inCombat = useInCombat();
+  return (
+    <InitiativeReveal
+      next={inCombat ? "tracker" : canManage ? "start" : null}
+      tracker={
+        <CombatContent {...props} canManage={canManage} mode="tracker" />
+      }
+      start={<CombatContent {...props} canManage mode="start" />}
+    />
+  );
+}
+
+function CombatContent({
   campaignId,
   faces,
   canManage = false,
   display = false,
+  seatCharacterId,
+  mode,
 }) {
-  const {
-    inCombat,
-    activeTokenId,
-    round,
-    pieces,
-    order,
-    begin,
-    conclude,
-    setInitiative,
-    nextTurn,
-  } = useCombat(campaignId, faces, display);
+  const combat = useCombat(campaignId, faces, display);
+  const { inCombat, activeTokenId, round, pieces, begin } = combat;
+
+  if (!display) {
+    if (mode === "start") {
+      return (
+        <button
+          type="button"
+          onClick={begin}
+          className="workspace-tool mt-2 border border-gold/30 text-gold"
+        >
+          <CombatMark className="workspace-tool-icon" />
+          Start combat
+        </button>
+      );
+    }
+
+    return (
+      <InitiativeOrder
+        combat={combat}
+        canManage={canManage}
+        seatCharacterId={seatCharacterId}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -59,67 +89,22 @@ export default function CombatTracker({
         )}
       </div>
 
-      {canManage && (
-        <div className="flex items-center gap-2 px-4 pb-3">
-          <button
-            type="button"
-            onClick={inCombat ? conclude : begin}
-            className={`inline-flex items-center justify-center min-h-8 flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] uppercase transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
-              inCombat
-                ? "border-rose-500 bg-rose-950/60 text-rose-300 shadow-[0_0_12px_rgba(225,29,72,0.6)] motion-safe:animate-pulse"
-                : "border-gold/30 text-gold hover:bg-gold/10"
-            }`}
-          >
-            <ButtonContent>
-              {inCombat ? "End combat" : "Start combat"}
-            </ButtonContent>
-          </button>
-
-          {/* Nothing to hand on when nobody has rolled. */}
-          {inCombat && order.length > 0 && (
-            <button
-              type="button"
-              onClick={nextTurn}
-              className="inline-flex items-center justify-center min-h-8 flex-1 cursor-pointer rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 py-2 font-mono text-[0.625rem] tracking-[0.16em] text-amber-200 uppercase transition duration-300 hover:bg-amber-400/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-            >
-              <ButtonContent>Next turn</ButtonContent>
-            </button>
-          )}
-        </div>
-      )}
-
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
       {pieces.length === 0 ? (
         <p className="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink/50 italic">
-          {display && !inCombat
+          {!inCombat
             ? "No active combat."
             : "No pieces are standing on this battlefield."}
         </p>
       ) : (
-        <div
-          className={`scroll-gold min-h-0 flex-1 overflow-x-hidden px-3 py-2 ${display ? "overflow-y-hidden" : "overflow-y-auto"}`}
-        >
-          {/* THE SPINE. The list is its own positioning context and not the
-              scroller: an absolute child of a scrolling box is sized by what is
-              VISIBLE, so the line would stop at the fold and slide with it. */}
-          <ol className={`relative flex flex-col ${display ? "gap-1.5" : ""}`}>
-            {!display && (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gold/15"
-              />
-            )}
-
-            {pieces.map((piece, at) => (
-              <Rung
+        <div className="scroll-gold min-h-0 flex-1 overflow-hidden px-3 py-2">
+          <ol className="flex flex-col gap-1.5">
+            {pieces.map((piece) => (
+              <DisplayRung
                 key={piece.id}
                 piece={piece}
                 active={inCombat && piece.id === activeTokenId}
-                offset={display ? 0 : stepAbove(pieces, at)}
-                ruled={!display && hasBelow(pieces, at)}
-                onWrite={canManage ? setInitiative : undefined}
-                display={display}
               />
             ))}
           </ol>
@@ -129,104 +114,158 @@ export default function CombatTracker({
   );
 }
 
-/**
- * How far one rung stands below the one above it.
- *
- * ACROSS THE LADDER, HALF A STEP: the two are on opposite sides, so overlapping
- * costs nothing, and half a capsule is what says one went after the other.
- * DOWN ONE SIDE, A WHOLE ONE, or two capsules would pass through each other.
- *
- * Not a `-mt-*` utility: it is arithmetic off the pill's height, and a class
- * built from a value is one Tailwind's scanner never sees. In rem, as the
- * pill's `size-7` is, so the two scale with the table together.
- */
-const PILL_REM = 1.75;
-const SIDE_GAP_REM = 0.625;
+function InitiativeReveal({ next, tracker, start }) {
+  const [shown, setShown] = useState(next);
+  const node = useRef(null);
+  const reduceMotion = useReducedMotion();
 
-/** Which column a piece stands in: what the table invented is on the right. */
-function side(piece) {
-  return Boolean(piece.templateId);
-}
+  if (shown === null && next !== null) setShown(next);
 
-function stepAbove(pieces, at) {
-  if (at === 0) {
-    return 0;
-  }
+  useLayoutEffect(() => {
+    if (shown === null) return;
 
-  return side(pieces[at]) === side(pieces[at - 1])
-    ? SIDE_GAP_REM
-    : (SIDE_GAP_REM - PILL_REM) / 2;
-}
+    const open = shown === next;
+    const animation = playReveal(
+      node.current,
+      `initiative-reveal-${shown}`,
+      open,
+    );
+    let current = true;
+    Promise.resolve(animation).then(
+      () => {
+        if (current && !open) setShown(next);
+      },
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, [next, reduceMotion, shown]);
 
-/**
- * Whether anything follows this piece down its OWN side, which is what decides
- * whether it wears a rule under it. The columns are half a step out of phase, so
- * a rule drawn the full width would cut through the capsule opposite.
- */
-function hasBelow(pieces, at) {
-  return pieces.slice(at + 1).some((piece) => side(piece) === side(pieces[at]));
-}
-
-/**
- * One rung: a face, a name, and the number it rolled.
- *
- * PARTY-PILLS' CAPSULE — see party-pills.jsx. The portrait stands at the
- * capsule's own END: the negative margins put the circle over the border, so its
- * diameter IS the pill's height. No ring on it either, a rim inside a rim being
- * two a few pixels apart.
- *
- * The name is cut at the spine and never past it, and it is the only part of the
- * capsule that gives way. `flex-row-reverse` rather than a second block of
- * markup, so the two sides cannot drift apart.
- */
-function Rung({ piece, active, offset, ruled, onWrite, display }) {
-  const enemy = !display && Boolean(piece.templateId);
-  const current = useRef(null);
-
-  useEffect(() => {
-    if (display && active) {
-      current.current?.scrollIntoView({ block: "nearest" });
-    }
-  }, [active, display]);
+  if (shown === null) return null;
 
   return (
-    <li
-      ref={current}
-      style={{ marginTop: `${offset}rem` }}
-      className={`relative flex ${enemy ? "justify-end" : "justify-start"}`}
+    <div
+      key={shown}
+      ref={node}
+      className="initiative-reveal"
+      data-reveal={shown}
+      inert={shown !== next || undefined}
     >
-      {/* Its own side's rule, run to the middle and no further. */}
-      {ruled && (
-        <span
-          aria-hidden="true"
-          className={`pointer-events-none absolute -bottom-[0.3125rem] h-px bg-gold/12 ${
-            enemy ? "right-0 left-1/2" : "right-1/2 left-0"
-          }`}
-        />
+      {shown === "tracker" ? tracker : start}
+    </div>
+  );
+}
+
+function mayWriteInitiative(piece, canManage, seatCharacterId) {
+  return (
+    canManage ||
+    Boolean(
+      seatCharacterId &&
+      piece.characterId === seatCharacterId &&
+      piece.initiative === null,
+    )
+  );
+}
+
+function InitiativeOrder({ combat, canManage, seatCharacterId }) {
+  const {
+    activeTokenId,
+    pieces,
+    order,
+    round,
+    conclude,
+    nextTurn,
+    setInitiative,
+  } = combat;
+  const scroller = useRef(null);
+  const activeIndex = pieces.findIndex((piece) => piece.id === activeTokenId);
+
+  useLayoutEffect(() => {
+    const viewport = scroller.current;
+    const list = viewport?.firstElementChild;
+    const row = list?.children[activeIndex];
+    if (!row) return;
+
+    function center() {
+      const bounds = row.getBoundingClientRect();
+      viewport.scrollTop +=
+        bounds.top -
+        viewport.getBoundingClientRect().top +
+        (bounds.height - viewport.clientHeight) / 2;
+    }
+
+    center();
+    const observer = new ResizeObserver(center);
+    observer.observe(viewport);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [activeIndex, activeTokenId, round]);
+
+  return (
+    <section aria-label="Initiative" className="initiative-tracker">
+      <div className="initiative-header">
+        <div className="initiative-heading">
+          <h2>Initiative</h2>
+          <span>Round {round}</span>
+        </div>
+        {canManage && (
+          <div className="initiative-actions">
+            <button type="button" onClick={conclude} className="initiative-end">
+              End combat
+            </button>
+            <button
+              type="button"
+              onClick={nextTurn}
+              disabled={order.length === 0}
+              className="initiative-next"
+            >
+              Next turn
+            </button>
+          </div>
+        )}
+      </div>
+      {pieces.length ? (
+        <div ref={scroller} className="initiative-scroll scroll-gold">
+          <ol aria-label="Turn order" className="initiative-order">
+            {pieces.map((piece) => (
+              <InitiativeEntry
+                key={piece.id}
+                piece={piece}
+                active={piece.id === activeTokenId}
+                onWrite={
+                  mayWriteInitiative(piece, canManage, seatCharacterId)
+                    ? setInitiative
+                    : undefined
+                }
+              />
+            ))}
+          </ol>
+        </div>
+      ) : (
+        <p className="px-3 py-2 text-xs text-ink/60">
+          No combatants on the map.
+        </p>
       )}
+    </section>
+  );
+}
 
-      <div
-        className={`inline-flex items-center gap-1.5 rounded-full border transition-[border-color,box-shadow,background-color] duration-300 ${
-          display ? "w-full" : "max-w-[calc(50%_-_0.5rem)]"
-        } ${enemy ? "flex-row-reverse pr-0 pl-1.5" : "pr-1.5 pl-0"} ${
-          active
-            ? "border-amber-300 bg-amber-400/15 shadow-[0_0_12px_rgba(251,191,36,0.9)]"
-            : "border-gold/20 bg-surface/40"
-        }`}
-      >
-        <Face piece={piece} edge={enemy ? "-my-px -mr-px" : "-my-px -ml-px"} />
-
+function InitiativeEntry({ piece, active, onWrite }) {
+  return (
+    <li
+      aria-current={active ? "step" : undefined}
+      className="initiative-row"
+      data-enemy={Boolean(piece.templateId) || undefined}
+    >
+      <div className="initiative-capsule">
         <span
-          className={`min-w-0 font-display text-xs tracking-wide ${
-            enemy ? "text-right" : ""
-          } ${active ? "text-amber-100" : "text-ink/75"} ${display ? "flex-1 wrap-anywhere py-1 leading-tight" : "truncate"}`}
+          className="initiative-face"
+          data-tooltip={piece.isHidden ? "Hidden from players" : piece.label}
+          data-tooltip-title={piece.isHidden ? piece.label : undefined}
         >
-          {piece.label}
+          <Face piece={piece} />
         </span>
-
-        {/* KEYED ON THE NUMBER, which is what reconciles the box with the
-            table: a value that changes under it is a fresh box holding the fresh
-            number. A commit only lands on the way out, so no caret is lost. */}
         {onWrite ? (
           <InitiativeBox
             key={written(piece.initiative)}
@@ -236,12 +275,45 @@ function Rung({ piece, active, offset, ruled, onWrite, display }) {
         ) : (
           <span
             aria-label={`Initiative for ${piece.label}`}
-            className="w-9 shrink-0 text-center font-display text-sm font-bold text-gold tabular-nums"
+            className="initiative-number"
           >
             {written(piece.initiative) || "—"}
           </span>
         )}
       </div>
+    </li>
+  );
+}
+
+function DisplayRung({ piece, active }) {
+  const current = useRef(null);
+
+  useEffect(() => {
+    if (active) current.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
+  return (
+    <li
+      ref={current}
+      aria-current={active ? "step" : undefined}
+      className={`flex w-full items-center gap-1.5 rounded-full border pr-1.5 transition-[border-color,box-shadow,background-color] duration-300 ${
+        active
+          ? "border-amber-300 bg-amber-400/15 shadow-[0_0_12px_var(--gold-70)]"
+          : "border-gold/20 bg-surface/40"
+      }`}
+    >
+      <Face piece={piece} edge="-my-px -ml-px" />
+      <span
+        className={`min-w-0 flex-1 wrap-anywhere py-1 font-display text-xs leading-tight tracking-wide ${active ? "text-amber-100" : "text-ink/75"}`}
+      >
+        {piece.label}
+      </span>
+      <span
+        aria-label={`Initiative for ${piece.label}`}
+        className="w-9 shrink-0 text-center font-display text-sm font-bold text-gold tabular-nums"
+      >
+        {written(piece.initiative) || "—"}
+      </span>
     </li>
   );
 }
@@ -286,7 +358,7 @@ function InitiativeBox({ piece, onWrite }) {
       }}
       /* Bare and not `controlClasses`: the capsule is already the rim.
          `no-spin` takes the browser's steppers off — see globals.css. */
-      className="no-spin w-9 shrink-0 border-none bg-transparent p-0 text-center font-display text-sm font-bold text-gold tabular-nums shadow-none outline-none placeholder:text-ink/30"
+      className="initiative-number no-spin border-none bg-transparent p-0 shadow-none outline-none placeholder:text-ink/30"
     />
   );
 }
@@ -294,7 +366,7 @@ function InitiativeBox({ piece, onWrite }) {
 /** The board's own three faces from map-token.jsx, without the rims and shadows
     that only mean something over a picture. `edge` is what makes the circle the
     capsule's end rather than something inside it. */
-function Face({ piece, edge }) {
+function Face({ piece, edge = "" }) {
   if (piece.isPartyMarker) {
     return <PartyMark className={`size-7 shrink-0 ${edge}`} />;
   }
