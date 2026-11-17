@@ -26,7 +26,7 @@ import { useTableDeed } from "./use-table-deed";
  * happened; it goes to `logFailure` and the pending line comes down.
  *
  * The promise NEVER REJECTS, and callers still await it where two quick presses
- * would race: the log keeps ten entries and the purse can write five at once.
+ * would race: the log is bounded and the purse can write five at once.
  */
 export function useActivityLog(campaignId) {
   const store = useTableStore();

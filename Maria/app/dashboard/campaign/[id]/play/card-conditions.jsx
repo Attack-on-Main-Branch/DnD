@@ -60,7 +60,7 @@ export default function CardConditions({ characterId }) {
               )}
 
               <span
-                className={`font-display text-[0.75rem] leading-none tracking-wide ${conditionDress(key).color}`}
+                className={`banner-label font-display text-[0.75rem] leading-none tracking-wide ${conditionDress(key).color}`}
               >
                 {CONDITIONS[key].name}
               </span>

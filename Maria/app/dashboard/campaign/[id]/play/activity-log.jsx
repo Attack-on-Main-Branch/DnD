@@ -16,7 +16,7 @@ import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
 
 /**
- * The last ten things this table has seen, newest at the top, standing opposite
+ * Recent activity, newest at the top, standing opposite
  * the dice rail at the same height.
  *
  * It keeps itself current the two ways the pack next door does: Postgres
@@ -43,13 +43,8 @@ import { useWireMessage } from "./table-wire";
  * line party-rail.jsx warns at rather than near it, and it is affordable
  * because this one never animates its own backdrop after the entrance.
  *
- * Ten entries is the whole of what exists — `purge_campaign_activity` sees to
- * that — and at this height they very nearly all fit; the scroller inside is
- * for the last of them, where the alternative was cutting the oldest off with
- * nothing to say it had happened.
- *
  * NOT `memo` — see table-map.jsx. A remount replayed the entrance on every
- * refresh, as though ten things had just happened.
+ * refresh, as though the whole log had just happened.
  *
  * Where it stands and how tall it is are the COLUMN's — see
  * activity-column.jsx. This is the log and knows nothing about a fight.
@@ -167,7 +162,7 @@ export default function ActivityLog({
 
 /**
  * Who did it, as a face rather than a word — the name is in the sentence
- * already, and a column of portraits is how a log of ten lines becomes
+ * already. A column of portraits makes the log
  * skimmable.
  *
  * The head of the table wears the party's own gold token, exactly as it does on

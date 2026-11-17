@@ -35,7 +35,7 @@ export default function HealthBar({
     <section className="w-full">
       {compact ? (
         <p
-          className={`text-right font-mono text-[0.625rem] leading-none tabular-nums ${banner ? "text-ink" : "text-ink/50"}`}
+          className={`text-right font-mono text-[0.625rem] leading-none tabular-nums ${banner ? "banner-label text-ink" : "text-ink/50"}`}
         >
           {/* `leading-none` again on the span: a line box is sized by the
               tallest inline box in it, so the larger number brought its own

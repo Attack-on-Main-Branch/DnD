@@ -24,6 +24,8 @@ const complete = { dice: DICE_SKIN_VALUES, banner: BANNER_SKIN_VALUES };
 
 describe("new dice rewards", () => {
   for (const [skin, rarity] of [
+    ["iron-bloom", "rare"],
+    ["carbon-fiber", "common"],
     ["prismatic", "legendary"],
     ["stained-glass", "rare"],
   ]) {
@@ -169,6 +171,19 @@ describe("skin collections", () => {
 });
 
 describe("mixed pouch draws", () => {
+  it("tracks the Carbon Fiber dice and banner independently", () => {
+    const skin = "carbon-fiber";
+    const carbonFiber = (owned) =>
+      pouchPool(owned).filter((one) => one.skin === skin);
+
+    assert.deepEqual(carbonFiber({ dice: [skin] }), [
+      { kind: "banner", skin, rarity: "uncommon" },
+    ]);
+    assert.deepEqual(carbonFiber({ banner: [skin] }), [
+      { kind: "dice", skin, rarity: "common" },
+    ]);
+  });
+
   it("keeps dice and banner unlocks separate and excludes every owned reward", () => {
     const pool = pouchPool({ dice: ["classic", "wood"] });
     assert.equal(
@@ -295,8 +310,12 @@ describe("mixed pouch draws", () => {
     );
     assert.deepEqual(pouchChances(complete), []);
     const chances = pouchChances({
-      dice: ["classic", "crystal", "glass", "fade", "ornate"],
-      banner: ["splash", "vignette"],
+      dice: DICE_SKIN_VALUES.filter(
+        (skin) => diceSkinRarity(skin) === "common",
+      ),
+      banner: BANNER_SKIN_VALUES.filter(
+        (skin) => bannerSkinRarity(skin) === "common",
+      ),
     });
     assert.ok(!chances.some(({ rarity }) => rarity === "common"));
     assert.ok(

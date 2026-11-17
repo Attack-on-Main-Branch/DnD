@@ -72,7 +72,7 @@ export default function DesktopTable({
           />
         )
       }
-      mapRoll={<DiceCapsule workspace="map" />}
+      mapRoll={<DiceCapsule key="map-roll" workspace="map" />}
       activity={
         <ActivityLog
           key="activity"
@@ -114,6 +114,7 @@ export default function DesktopTable({
       }
     >
       <MapStage
+        key="map"
         url={campaign.map_url}
         title={campaign.title}
         campaignId={campaign.id}

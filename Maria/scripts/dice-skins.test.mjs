@@ -2,20 +2,79 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
+import { DICE_TYPES } from "../lib/dice-themes.mjs";
 import { DICE_SKIN_RECIPES } from "./dice-recipes.mjs";
 import { paintSkins } from "./dice-skins.mjs";
 import { drawThumbnails } from "./dice-thumbnails.mjs";
 import { decodePng } from "./png.mjs";
 
-test("Stained Glass uses polished dielectric panes, rough leading and unchanged meshes", async () => {
+async function stockDice() {
   const stock = new URL(
     "../vendor/dice-box/dist/assets/themes/default/",
     import.meta.url,
   );
-  const meshes = JSON.parse(
-    await readFile(new URL("default.json", stock), "utf8"),
-  );
-  const numerals = await readFile(new URL("diffuse-light.png", stock));
+  const [mesh, numerals] = await Promise.all([
+    readFile(new URL("default.json", stock), "utf8"),
+    readFile(new URL("diffuse-light.png", stock)),
+  ]);
+
+  return { meshes: JSON.parse(mesh), numerals };
+}
+
+test("Iron Bloom tints petals on every die and keeps the stems and iron fixed", async () => {
+  const stock = await stockDice();
+  const name = "iron-bloom";
+  const recipe = DICE_SKIN_RECIPES[name];
+  const maps = paintSkins({ [name]: recipe }, stock)[name];
+  const colour = decodePng(maps.colour);
+  const surface = decodePng(maps.surface);
+  let iron = 0;
+  let stems = 0;
+  let petals = 0;
+
+  for (let pixel = 0; pixel < colour.width * colour.height; pixel++) {
+    const at = pixel * 4;
+    const [r, g, b, alpha] = colour.samples.subarray(at, at + 4);
+    const metalness = surface.samples[pixel * 3 + 2];
+
+    if (metalness === Math.round(recipe.metalness * 255)) {
+      iron++;
+      assert.equal(alpha, 255, "iron cannot inherit the player's colour");
+    }
+
+    if (alpha === 255 && g > Math.max(r, b) + 35) {
+      stems++;
+    }
+
+    if (alpha < 25) {
+      petals++;
+      assert.ok(metalness < 25, "petals sit in the engraved metal");
+    }
+  }
+
+  assert.ok(iron > stems + petals);
+  assert.ok(stems > 0, "green inlay is fully opaque");
+  assert.ok(petals > 0, "petals take the player's colour");
+
+  const { set } = drawThumbnails(stock.meshes, maps.colour, maps.surface);
+  const { width, channels, samples } = decodePng(set.picture);
+  const cell = width / DICE_TYPES.length;
+  const openings = new Array(DICE_TYPES.length).fill(0);
+  const tint = decodePng(set.tint).samples;
+
+  for (let at = channels - 1; at < samples.length; at += channels) {
+    if (samples[at] < 80 && tint[at] > 100) {
+      openings[Math.floor((Math.floor(at / channels) % width) / cell)]++;
+    }
+  }
+
+  for (const [index, die] of DICE_TYPES.entries()) {
+    assert.ok(openings[index] > 0, `${die} preview shows tintable petals`);
+  }
+});
+
+test("Stained Glass uses polished dielectric panes, rough leading and unchanged meshes", async () => {
+  const { meshes, numerals } = await stockDice();
   const before = structuredClone(meshes);
   const recipe = DICE_SKIN_RECIPES["stained-glass"];
   const recipes = { "stained-glass": recipe };
@@ -123,14 +182,7 @@ test("Stained Glass uses polished dielectric panes, rough leading and unchanged 
 });
 
 test("Prismatic paints opaque, deterministic PBR relief without changing the dice", async () => {
-  const stock = new URL(
-    "../vendor/dice-box/dist/assets/themes/default/",
-    import.meta.url,
-  );
-  const meshes = JSON.parse(
-    await readFile(new URL("default.json", stock), "utf8"),
-  );
-  const numerals = await readFile(new URL("diffuse-light.png", stock));
+  const { meshes, numerals } = await stockDice();
   const before = structuredClone(meshes);
   const recipes = { prismatic: DICE_SKIN_RECIPES.prismatic };
   const maps = paintSkins(recipes, { meshes, numerals }).prismatic;

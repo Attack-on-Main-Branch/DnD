@@ -45,6 +45,8 @@ begin
   assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'banner' and skin = 'vignette' and rarity = 'common');
   assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'banner' and skin = 'cyberpunk' and rarity = 'uncommon');
   assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'banner' and skin = 'carbon-fiber' and rarity = 'uncommon');
+  assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'dice' and skin = 'carbon-fiber' and rarity = 'common');
+  assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'dice' and skin = 'iron-bloom' and rarity = 'rare');
   assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'banner' and skin = 'stillwater' and rarity = 'uncommon');
   assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'banner' and skin = 'topography' and rarity = 'epic');
   assert exists (select 1 from public.skin_pouch_pool(v_character) where kind = 'banner' and skin = 'hexagon' and rarity = 'epic');
@@ -101,6 +103,7 @@ begin
   assert public.set_banner_skin(v_character, 'character', 'cyberpunk');
   assert (select banner_skin = 'cyberpunk' from public.campaign_party(v_campaign) where id = v_character);
   assert 'banner:carbon-fiber' = any(v_seen), 'The shared pool includes Carbon Fiber';
+  assert 'dice:carbon-fiber' = any(v_seen), 'The Carbon Fiber dice unlock separately';
   assert public.set_banner_skin(v_character, 'character', 'carbon-fiber');
   assert (select banner_skin = 'carbon-fiber' from public.campaign_party(v_campaign) where id = v_character);
   assert 'banner:stillwater' = any(v_seen), 'The shared pool includes Stillwater';

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-
 import { ButtonContent } from "@/app/components/ui/button";
 import { reviveDownedCharacter } from "./actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
+
+export const CONDITION_BUTTON_CLASSES =
+  "inline-flex min-h-8 cursor-pointer items-center justify-center rounded-lg border bg-transparent px-2.5 py-1.5 font-display text-xs font-semibold tracking-[0.16em] uppercase shadow-[0_0_0_1px_var(--color-surface)] backdrop-blur-xs transition duration-300 focus-visible:shadow-[0_0_0_6px_var(--color-surface)] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-65";
 
 /**
  * One hit point, and everything the card is wearing taken off with it.
@@ -18,9 +19,13 @@ import { useTableDeed } from "./use-table-deed";
  * Emerald, which at this table is the colour of a bar filling: the experience
  * bar wears it, and so does the rest that puts everybody back on their feet.
  */
-export default function ReviveButton({ campaignId, characterId, name }) {
-  const [busy, setBusy] = useState(false);
-
+export default function ReviveButton({
+  campaignId,
+  characterId,
+  name,
+  busy,
+  setBusy,
+}) {
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
 
@@ -31,17 +36,14 @@ export default function ReviveButton({ campaignId, characterId, name }) {
 
     setBusy(true);
 
-    /* Painted on the press, unlike the death save beside it: this one cannot
-       be refused by any rule the browser does not already know — the seat is
-       the head of the table and the character is on the rail — so the card
-       coming back at once is the answer, and a refusal puts it back. */
-    store.setCondition(characterId, {
-      hitPoints: 1,
-      isDead: false,
-      deathSaves: { successes: 0, failures: 0 },
-    });
-
     run({
+      paint: () =>
+        store.setCondition(characterId, {
+          hitPoints: 1,
+          isDead: false,
+          deathSaves: { successes: 0, failures: 0 },
+        }),
+
       work: () => reviveDownedCharacter(campaignId, characterId),
 
       tell: (result) => {
@@ -66,16 +68,14 @@ export default function ReviveButton({ campaignId, characterId, name }) {
   }
 
   return (
-    <div className="mt-2.5">
-      <button
-        type="button"
-        onClick={revive}
-        disabled={busy}
-        aria-label={`Revive ${name} at one hit point`}
-        className="inline-flex items-center justify-center min-h-8 w-full cursor-pointer rounded-lg border border-emerald-400 bg-emerald-500/20 px-3 py-1.5 font-display text-[0.6875rem] font-semibold tracking-[0.16em] text-emerald-300 uppercase transition duration-300 hover:bg-emerald-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400/70 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <ButtonContent>Revive</ButtonContent>
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={revive}
+      disabled={busy}
+      aria-label={`Revive ${name} at one hit point`}
+      className={`${CONDITION_BUTTON_CLASSES} w-full border-emerald-400 text-emerald-200 hover:bg-emerald-400/15 focus-visible:outline-emerald-400/70`}
+    >
+      <ButtonContent>Revive</ButtonContent>
+    </button>
   );
 }

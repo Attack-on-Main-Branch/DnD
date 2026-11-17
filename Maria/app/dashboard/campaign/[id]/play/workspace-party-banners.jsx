@@ -2,9 +2,6 @@
 
 import { cloneElement, useEffect, useRef, useState } from "react";
 
-const BANNER_WIDTH = 352;
-const GAP = 8;
-
 export default function WorkspacePartyBanners({ children }) {
   const root = useRef(null);
   const [layout, setLayout] = useState({
@@ -24,7 +21,9 @@ export default function WorkspacePartyBanners({ children }) {
     const controls = [...list.querySelectorAll("[data-banner-controls]")];
 
     function measure() {
-      if (!contents.length || !list.clientWidth) return;
+      const bannerWidth = contents[0]?.parentElement.offsetWidth;
+      if (!bannerWidth || !list.clientWidth) return;
+      const gap = parseFloat(getComputedStyle(list).rowGap);
       const heights = contents.map(
         (content) => content.parentElement.offsetHeight,
       );
@@ -68,9 +67,9 @@ export default function WorkspacePartyBanners({ children }) {
         const scale = Math.max(
           0,
           Math.min(
-            (list.clientWidth - GAP * (columns - 1)) /
-              (BANNER_WIDTH * columns + gutter * (columns - 1)),
-            (available - GAP * (rows.length - 1)) / height,
+            (list.clientWidth - gap * (columns - 1)) /
+              (bannerWidth * columns + gutter * (columns - 1)),
+            (available - gap * (rows.length - 1)) / height,
           ),
         );
         if (scale > best.scale)
@@ -102,15 +101,12 @@ export default function WorkspacePartyBanners({ children }) {
       className="workspace-party-banners"
       aria-busy={layout.scale === 0}
       style={{
-        "--party-banner-width": `${BANNER_WIDTH}px`,
         "--party-banner-scale": layout.scale,
         "--party-banner-gutter": `${layout.gutter * layout.scale}px`,
-        gridTemplateColumns: `repeat(${layout.columns}, ${BANNER_WIDTH * layout.scale}px)`,
+        gridTemplateColumns: `repeat(${layout.columns}, calc(var(--party-banner-width) * var(--party-banner-scale)))`,
         gridTemplateRows: layout.rows
           .map((height) => `${height * layout.scale}px`)
           .join(" "),
-        gap: `${GAP}px`,
-        columnGap: `${GAP + layout.gutter * layout.scale}px`,
       }}
     >
       {children.map((child, index) =>

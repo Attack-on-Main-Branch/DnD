@@ -64,7 +64,7 @@ describe("the catalogue", () => {
   });
 
   it("holds the ceiling the purge trigger keeps", () => {
-    assert.equal(MAX_ACTIVITY_ENTRIES, 10);
+    assert.equal(MAX_ACTIVITY_ENTRIES, 15);
   });
 });
 

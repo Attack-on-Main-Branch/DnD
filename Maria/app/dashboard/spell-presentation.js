@@ -69,7 +69,7 @@ export const RITUAL_CHIP_CLASSES =
  * because most of these are spans — only the head of the table gets a button —
  * and an inline element takes no height from `size-*`.
  */
-const PIP_BASE =
+export const SLOT_PIP_CLASSES =
   "block size-3.5 shrink-0 rounded-full transition duration-300 " +
   "disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -90,10 +90,10 @@ export function slotPipClasses(available, interactive = false) {
   const face = available ? PIP_AVAILABLE : PIP_EXPENDED;
 
   if (!interactive) {
-    return `${PIP_BASE} ${face}`;
+    return `${SLOT_PIP_CLASSES} ${face}`;
   }
 
-  return `${PIP_BASE} ${face} ${
+  return `${SLOT_PIP_CLASSES} ${face} ${
     available ? PIP_AVAILABLE_HOVER : PIP_EXPENDED_HOVER
   }`;
 }

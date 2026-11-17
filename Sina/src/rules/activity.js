@@ -11,7 +11,7 @@
  * neighbour would bring the campaign catalogues along with it.
  *
  * Every bound here is mirrored by a CHECK constraint or a literal in
- * 20260823090000_campaign_activity_log.sql. Changing one means changing both.
+ * the activity log migrations. Changing one means changing both.
  */
 
 import { isBannerSkin, SKIN_RARITIES } from "./skins.js";
@@ -78,7 +78,7 @@ export const ACTOR_TYPES = ["dm", "player"];
  * read: `purge_campaign_activity` deletes past it on every insert, so this is
  * what actually exists rather than what is fetched.
  */
-export const MAX_ACTIVITY_ENTRIES = 10;
+export const MAX_ACTIVITY_ENTRIES = 15;
 
 /** Mirrors `campaign_activity_logs_actor_check`. */
 export const MAX_ACTOR_NAME_LENGTH = 80;

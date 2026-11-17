@@ -177,7 +177,7 @@ export default function CardHealth({
   }
 
   return (
-    <div className="mt-2.5">
+    <div>
       <div className="relative">
         <HealthBar
           compact

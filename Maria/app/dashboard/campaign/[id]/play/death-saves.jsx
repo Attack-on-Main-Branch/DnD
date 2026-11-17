@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { DEATH_SAVE_DIE, DEATH_SAVE_TARGET } from "sina/rules/death";
+
+import { ButtonContent } from "@/app/components/ui/button";
+import { BANNER_SUBTITLE_CLASSES } from "@/app/dashboard/banner-identity";
+import { SLOT_PIP_CLASSES } from "@/app/dashboard/spell-presentation";
 
 import DieGlyph from "./dice-glyphs";
 import { useDiceTable } from "./dice-table";
 import { killCharacter, rollDeathSaveFor } from "./actions";
+import ReviveButton, { CONDITION_BUTTON_CLASSES } from "./revive-button";
 import { useDeathSaves, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 
@@ -27,18 +31,14 @@ import { useTableDeed } from "./use-table-deed";
  *
  * WHO ROLLS IS THE PLAYER, AND ONLY THE PLAYER. Those three saves are the one
  * thing a dying character still gets to do, and handing the dice to the other
- * side of the screen takes the only tension in the rule with it — so the head of
- * the table gets `Kill` instead: the decision, said out loud, rather than a die
- * thrown on somebody else's behalf. `roll_death_save` and `kill_character` each
- * ask again.
+ * side of the screen takes the only tension in the rule with it.
  */
-const PIP_BASE = "block size-2.5 rounded-full transition duration-300";
+const PIP_EMPTY = "border border-gold/50 bg-surface/70";
 
-const PIP_EMPTY = "border border-ink/25 bg-black/30";
+const PIP_SUCCESS =
+  "bg-emerald-400 shadow-[0_0_0.375rem] shadow-emerald-400/60";
 
-const PIP_SUCCESS = "bg-emerald-400 shadow-[0_0_6px_#34d399]";
-
-const PIP_FAILURE = "bg-rose-500 shadow-[0_0_6px_#f43f5e]";
+const PIP_FAILURE = "bg-rose-500 shadow-[0_0_0.375rem] shadow-rose-500/60";
 
 export default function DeathSaves({
   campaignId,
@@ -47,9 +47,10 @@ export default function DeathSaves({
   seatCharacterId,
   canRoll,
   canKill,
+  busy,
+  setBusy,
 }) {
   const saves = useDeathSaves(characterId);
-  const [busy, setBusy] = useState(false);
 
   const store = useTableStore();
   const { run, send } = useTableDeed(campaignId);
@@ -142,8 +143,8 @@ export default function DeathSaves({
   }
 
   return (
-    <div className="mt-2.5 flex items-center gap-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex min-w-max flex-1 flex-col gap-1">
         <Tally
           label="Success"
           plural="successes"
@@ -161,18 +162,24 @@ export default function DeathSaves({
       </div>
 
       {canKill && (
-        <button
-          type="button"
-          onClick={finish}
-          disabled={busy}
-          aria-label={`Kill ${name}`}
-          className="shrink-0 cursor-pointer rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 py-1.5 font-display text-[0.75rem] font-semibold tracking-[0.14em] text-rose-300 uppercase transition duration-300 hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-400/70 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {/* Letter-spacing is added AFTER the last letter too, so a tracked
-              word sits 0.14em left of the centre it was padded into. Taking
-              that one gap back off the end is what centres it. */}
-          <span className="-mr-[0.14em] block">Kill</span>
-        </button>
+        <div className="ml-auto grid shrink-0 grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={finish}
+            disabled={busy}
+            aria-label={`Kill ${name}`}
+            className={`${CONDITION_BUTTON_CLASSES} border-rose-400 text-rose-200 hover:bg-rose-400/15 focus-visible:outline-rose-400/70`}
+          >
+            <ButtonContent>Kill</ButtonContent>
+          </button>
+          <ReviveButton
+            campaignId={campaignId}
+            characterId={characterId}
+            name={name}
+            busy={busy}
+            setBusy={setBusy}
+          />
+        </div>
       )}
 
       {canRoll && (
@@ -181,10 +188,13 @@ export default function DeathSaves({
           onClick={throwOne}
           disabled={busy || throwing || rollingDisabled}
           aria-label={`Roll a death save for ${name}`}
-          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-display text-[0.6875rem] font-semibold tracking-[0.14em] text-gold uppercase transition duration-300 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold/70 disabled:cursor-not-allowed disabled:opacity-40"
+          className={`${CONDITION_BUTTON_CLASSES} w-auto shrink-0 gap-1.5 border-gold text-gold hover:bg-gold/15 focus-visible:outline-gold/70`}
         >
-          <DieGlyph die={DEATH_SAVE_DIE} className="size-4" />
-          Roll
+          <DieGlyph
+            die={DEATH_SAVE_DIE}
+            className="size-4 shrink-0 scale-125 overflow-visible stroke-surface stroke-2 [paint-order:stroke_fill] [&_path]:[vector-effect:non-scaling-stroke]"
+          />
+          <ButtonContent>Roll</ButtonContent>
         </button>
       )}
     </div>
@@ -201,7 +211,9 @@ export default function DeathSaves({
 function Tally({ label, plural, filled, toneClass, name }) {
   return (
     <p className="flex items-center gap-2">
-      <span className="w-12 shrink-0 font-mono text-[0.5625rem] tracking-[0.14em] text-ink/45 uppercase">
+      <span
+        className={`banner-label w-16 shrink-0 font-semibold [text-box:trim-both_cap_alphabetic] ${BANNER_SUBTITLE_CLASSES}`}
+      >
         {label}
       </span>
 
@@ -209,7 +221,7 @@ function Tally({ label, plural, filled, toneClass, name }) {
         {Array.from({ length: DEATH_SAVE_TARGET }, (_, index) => (
           <span
             key={index}
-            className={`${PIP_BASE} ${index < filled ? toneClass : PIP_EMPTY}`}
+            className={`${SLOT_PIP_CLASSES} ${index < filled ? toneClass : PIP_EMPTY}`}
           />
         ))}
       </span>

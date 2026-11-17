@@ -22,6 +22,10 @@
   initial-value: 1;
 }
 
+html:has([data-table-workspace]) {
+  font-size: max(100%, min(100dvw * 16 / 1920, 100dvh * 16 / 1080));
+}
+
 .table-workspace {
   --workspace-sidebar-width: 22rem;
   display: grid;
@@ -191,6 +195,7 @@
 
 .workspace-map {
   position: relative;
+  isolation: isolate;
   min-width: 0;
   min-height: 0;
   margin: 0.25rem 0.5rem 0.5rem;
@@ -254,6 +259,8 @@
   display: flex;
   width: 100%;
   overflow-x: auto;
+  margin-block: calc(-1 * var(--workspace-footer-padding));
+  padding: var(--workspace-footer-padding) 0.75rem;
   scrollbar-width: thin;
   align-items: center;
   justify-content: safe center;
@@ -307,7 +314,7 @@
 }
 
 .workspace-die:hover svg {
-  filter: drop-shadow(0 0 0.5rem var(--cast-bloom));
+  filter: drop-shadow(0 0 0.25rem var(--cast-bloom));
 }
 
 .workspace-panel [data-character-sheet] {
@@ -453,14 +460,6 @@
   display: none;
 }
 
-.workspace-roll-pill {
-  background: color-mix(
-    in srgb,
-    var(--color-background) 85%,
-    var(--color-surface)
-  );
-}
-
 .workspace-map-roll .dice-capsule {
   margin: 0;
 }
@@ -477,11 +476,6 @@
 .workspace-die svg {
   width: clamp(1.5rem, 4.5cqw, 2.5rem);
   height: clamp(1.5rem, 4.5cqw, 2.5rem);
-}
-
-.workspace-dice input[type="number"] {
-  width: 2.25rem;
-  min-width: 2.25rem;
 }
 
 .workspace-dice > label {
@@ -527,6 +521,7 @@
   grid-column: 3;
   grid-row: 2 / -1;
   position: relative;
+  z-index: 1;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -552,19 +547,27 @@
 
 .workspace-party-list {
   min-height: 0;
-  padding: 0.5rem 0.75rem 0.5rem 2rem;
+  padding: 0.5rem calc(var(--banner-glow-blur) + 0.25rem) 0.5rem 2rem;
 }
 
 .workspace-party-banners {
+  --party-banner-width: 22rem;
+  --party-banner-gap: 0.5rem;
   display: grid;
   width: 100%;
   justify-content: center;
+  row-gap: var(--party-banner-gap);
+  column-gap: calc(var(--party-banner-gap) + var(--party-banner-gutter));
 }
 
 .workspace-banner-slot {
   position: relative;
   min-width: 0;
   min-height: 0;
+}
+
+.workspace-banner-slot:has(.dice-capsule:not([data-away])) {
+  z-index: 1;
 }
 
 .workspace-party-banners .workspace-party-card {

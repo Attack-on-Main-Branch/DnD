@@ -70,6 +70,7 @@
 
   --surface-55: color-mix(in srgb, var(--color-surface) 55%, transparent);
   --surface-96: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  --banner-glow-blur: 1.25rem;
   --table-reveal-duration: 300ms;
   --table-frame-rim: var(--gold-55);
   --table-frame-glow: drop-shadow(0 0 0.3rem var(--gold-40));
@@ -204,15 +205,19 @@
 }
 
 .banner-text {
-  text-shadow:
-    -1px 0 var(--color-surface),
-    1px 0 var(--color-surface),
-    0 -1px var(--color-surface),
-    0 1px var(--color-surface),
-    -0.7px -0.7px var(--color-surface),
-    0.7px -0.7px var(--color-surface),
-    -0.7px 0.7px var(--color-surface),
-    0.7px 0.7px var(--color-surface);
+  --banner-text-shadow:
+    -1px 0 var(--color-surface), 1px 0 var(--color-surface),
+    0 -1px var(--color-surface), 0 1px var(--color-surface),
+    -0.7px -0.7px var(--color-surface), 0.7px -0.7px var(--color-surface),
+    -0.7px 0.7px var(--color-surface), 0.7px 0.7px var(--color-surface),
+    0 1px 2px var(--color-surface);
+  text-shadow: var(--banner-text-shadow);
+}
+
+.banner-text :where(button, input, .banner-label) {
+  text-shadow: var(--banner-text-shadow);
+  -webkit-text-stroke: 0.14em var(--color-surface);
+  paint-order: stroke fill;
 }
 
 .banner-surface {
@@ -241,10 +246,6 @@
   min-width: 0;
   aspect-ratio: var(--aspect-banner);
   pointer-events: none;
-}
-
-.banner-surface :where(button, input) {
-  text-shadow: inherit;
 }
 
 /*
@@ -474,6 +475,21 @@ body {
       0 0 0 1px color-mix(in srgb, var(--hp-c3) 30%, transparent),
       0 0 28px -4px color-mix(in srgb, var(--hp-c3) 60%, transparent),
       0 16px 40px -20px rgb(0 0 0 / 90%);
+  }
+
+  .banner-text[data-banner-rim] {
+    --banner-rim: var(--hp-c3);
+    border-color: var(--banner-rim);
+    box-shadow:
+      0 0 0 1px var(--banner-rim),
+      0 0 0 2px color-mix(in srgb, var(--banner-rim) 45%, var(--color-surface)),
+      0 0 var(--banner-glow-blur) 1px
+        color-mix(in srgb, var(--banner-rim) 85%, transparent),
+      0 16px 40px -20px rgb(0 0 0 / 90%);
+  }
+
+  [data-banner-rim].hp-solar {
+    --banner-rim: var(--color-gold);
   }
 
   .health-rhombus {
@@ -1279,15 +1295,17 @@ body {
     --stone-dark: #2b2825;
 
     background-color: var(--stone-mid);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
     background-image:
       radial-gradient(
         ellipse 70% 55% at 50% 38%,
         rgba(255, 255, 255, 0.08),
         transparent 70%
       ),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.92 0 0 0 0 0.9 0 0 0 0 0.86 0 0 0 1.5 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 -1.6 0.72'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E"),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018' numOctaves='5' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncG type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncB type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncA type='linear' slope='0' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 0.92 0 0 0 0 0.9 0 0 0 0 0.86 0 0 0 1.5 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 -1.6 0.72'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018' numOctaves='5' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncG type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncB type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncA type='linear' slope='0' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"),
       linear-gradient(
         160deg,
         var(--stone-light),

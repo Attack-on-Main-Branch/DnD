@@ -31,7 +31,7 @@ import {
  * the marks of inspiration standing OUTSIDE its left edge, in the gutter the
  * dice capsule comes out into.
  *
- * A lit rim means somebody is here, with its colour read from their health tier.
+ * The glowing rim shows health while the player is at the table.
  */
 function PartyCard({
   campaignId,
@@ -64,7 +64,7 @@ function PartyCard({
   const myTurn = useIsActiveTurn(member.id);
 
   const rim = here
-    ? `lit-health ${healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))}`
+    ? healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))
     : "";
   const Card = workspace ? "article" : "li";
   const inspiration = showsInspiration && (
@@ -84,17 +84,20 @@ function PartyCard({
       {...(!phone && !workspace && cardEntrance(index, count))}
     >
       <div
+        data-banner-rim={here || undefined}
         data-banner-content={workspace || undefined}
         className={surfaceClasses({
           className:
             `relative isolate flex flex-col rounded-xl ${bannerClass} ` +
-            // On the card rather than in `.lit-*`, so the rim fades out when
-            // that class is taken away as well as in.
             "transition-[border-color,box-shadow] duration-300 " +
             rim,
         })}
       >
-        <BannerSkinArt skin={bannerSkin} diceColor={diceColor} />
+        <BannerSkinArt
+          skin={bannerSkin}
+          diceColor={diceColor}
+          className={dead ? "grayscale brightness-75" : ""}
+        />
 
         {/* Out of flow, so it answers to the card rather than to a row inside. */}
         {!phone && !workspace && (
@@ -109,13 +112,8 @@ function PartyCard({
         <div
           className={`relative col-start-1 row-start-1 flex min-w-0 flex-col justify-center ${phone ? "p-2" : "p-4"}`}
         >
-          {/* Everything BUT the way back is dimmed for a dead character: the Revive
-          button underneath has to stay legible, and greying out the one control
-          that undoes this would be a card arguing with itself. */}
           <div
-            className={`relative transition-all duration-500 ${
-              dead ? "brightness-75 grayscale" : ""
-            }`}
+            className={`relative transition-[filter] duration-500 ${dead ? "grayscale" : ""}`}
           >
             <BannerIdentity
               heading={phone}
@@ -162,9 +160,6 @@ function PartyCard({
             />
           )}
 
-          {/* LAST ON THE CARD, under the bar, because it arrives the way the
-          hit-point stepper does. Public, and outside the dimming wrapper above:
-          a dead character's conditions are still what the table is reading. */}
           <CardConditions characterId={member.id} />
         </div>
       </div>

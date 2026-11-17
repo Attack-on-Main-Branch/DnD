@@ -40,7 +40,7 @@ export default function DicePicture({
 
   return (
     <span aria-hidden="true" className={`relative block ${className}`}>
-      {masked(picture.tint, color)}
+      {picture.tint && masked(picture.tint, color)}
       {picture.accent && masked(picture.accent, diceAccentColor(color))}
       <span
         className="absolute inset-0 bg-no-repeat"

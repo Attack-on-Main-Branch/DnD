@@ -52,7 +52,7 @@ export default function DiceCapsule({
   return (
     <span
       aria-hidden="true"
-      className={`${
+      className={`w-max ${
         workspace === "map"
           ? `workspace-map-roll pointer-events-none absolute z-20 ${
               characterId
@@ -70,8 +70,7 @@ export default function DiceCapsule({
         className={surfaceClasses({
           variant: "solid",
           className:
-            "dice-capsule glass-unfiltered block rounded-full px-5 py-2 " +
-            (workspace ? "workspace-roll-pill " : "") +
+            "dice-capsule glass-unfiltered block rounded-full bg-surface px-5 py-2 " +
             "border-(--cast-line) " +
             "shadow-[inset_0_1px_0_var(--cast-wash),0_0_32px_-8px_var(--cast-bloom),0_18px_44px_-20px_rgba(0,0,0,0.95)]",
         })}

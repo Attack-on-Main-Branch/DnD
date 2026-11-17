@@ -273,9 +273,9 @@ function Handful({ value, onChange, disabled, phone = false }) {
         onChange={(event) => set(event.target.value)}
         aria-label="How many dice the next roll throws"
         className={controlClasses({
-          className: phone
-            ? "no-spin h-8 w-12 px-1 py-0 text-center tabular-nums"
-            : "no-spin px-1 py-1 text-center tabular-nums max-sm:w-14",
+          className: `no-spin px-1! text-center tabular-nums ${
+            phone ? "h-8 w-12! shrink-0 py-0!" : "py-1! max-sm:w-14"
+          }`,
         })}
       />
 
