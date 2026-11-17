@@ -4,6 +4,7 @@
  * than a sentence.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { removeObject, uploadObject } from "./storage.js";
 
 /** The bucket, and what its reasons are named after — see storage.js. */
@@ -25,18 +26,6 @@ const COLUMNS =
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const FOREIGN_KEY_VIOLATION = "23503";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/**
- * Not a SQLSTATE: PostgREST's own code for a function it has no entry for. The
- * call never reaches Postgres, which is why `42883` alone never fired for an
- * unpushed migration. `data/activity.js` says the same about a missing TABLE.
- */
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   if (error.code === UNIQUE_VIOLATION) {
@@ -59,34 +48,11 @@ function classify(error) {
     return "skin_locked";
   }
 
-  if (error.code === UNDEFINED_TABLE) {
-    return "missing_table";
+  if (error.code === "PGRST205") {
+    return "unknown";
   }
 
-  // The table is there and a column of it is not: a migration written but
-  // never pushed. Its own reason, because the fix is a specific one.
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  // A migration written but never pushed, which is what `npm run db:list` is
-  // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // The character went away between the page rendering and the write landing.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure — 404 rather than 500.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {
@@ -497,35 +463,6 @@ export async function reviveCharacter(supabase, { id, campaignId }) {
     "revive_character",
     { p_char_id: id, p_campaign: campaignId },
     readState,
-  );
-}
-
-/**
- * One hit die out of the pool, at the face the table's own die came to rest on.
- * `spend_hit_die` turns it into hit points through `apply_heal`, so the bar, the
- * death saves and the log all move the way they do for any other heal.
- */
-export async function spendHitDie(
-  supabase,
-  { id, roll = null, campaignId, seatCharacterId = null },
-) {
-  return deed(
-    supabase,
-    "spend_hit_die",
-    {
-      p_char_id: id,
-      p_roll_override: roll,
-      p_campaign: campaignId,
-      p_seat: seatCharacterId,
-    },
-    (answer) => ({
-      roll: answer.roll,
-      faces: answer.faces,
-      modifier: answer.modifier,
-      gained: answer.gained,
-      hitDiceSpent: answer.hit_dice_spent,
-      currentHp: answer.current_hp,
-    }),
   );
 }
 

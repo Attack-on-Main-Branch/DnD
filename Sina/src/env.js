@@ -31,10 +31,6 @@ export const DEFAULT_VERTEX_LOCATION = "global";
  * because localhost is HTTP and the cookie would be dropped. `httpOnly` keeps
  * the 400-day refresh token away from any script that runs on the page; every
  * Supabase call here is server-side, so nothing needs to read it.
- *
- * Note: `createBrowserSupabase` shares this object and cannot see an HttpOnly
- * cookie. Wiring one up means re-deciding this, not just importing it — it
- * would come back unauthenticated rather than erroring.
  */
 export const AUTH_COOKIE_OPTIONS = {
   secure: process.env.NODE_ENV === "production",

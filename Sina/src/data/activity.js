@@ -9,6 +9,8 @@
  * against even if this wanted to.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
+
 /**
  * No `user_id` on this table and nothing here may invent one. `campaign_id`
  * stays out too — every read is already filtered to one campaign, and the panel
@@ -21,54 +23,12 @@
 const COLUMNS =
   "id, actor_character, actor_name, actor_type, action_type, payload, created_at";
 
-/** Postgres SQLSTATEs we can say something specific about. */
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/**
- * Not a SQLSTATE: PostgREST's own code for a table it has no entry for. A
- * request for one never reaches Postgres, so there is nothing for Postgres to
- * report — which is why `42P01` alone never fired here against a project this
- * migration had not been pushed to. The four data modules next door predate the
- * observation and still test only for the SQLSTATE.
- */
-const SCHEMA_CACHE_MISS = "PGRST205";
-
-/** The same, for a FUNCTION it has no entry for. `42883` never fires either. */
-const FUNCTION_CACHE_MISS = "PGRST202";
-
 function classify(error) {
-  // Past the rules layer but refused by the bounds CHECK: a disagreement
-  // between Sina/src/rules/activity.js and the migration.
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
+  if (error.code === "42703") {
+    return "unknown";
   }
 
-  // The campaign went away between the deed and the entry describing it.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed, which is what `npm run db:list` is
-  // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

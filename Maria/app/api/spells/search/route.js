@@ -10,7 +10,13 @@ import {
 import { rowSpell } from "@/app/dashboard/spell-presentation";
 import { memoizeAsync } from "@/lib/async-cache.mjs";
 import { logFailure } from "@/lib/errors";
-import { createClient, getCurrentUser } from "@/lib/supabase";
+
+import {
+  cacheCatalogue,
+  RESULTS,
+  searchCatalogue,
+  upstream,
+} from "../../catalogue-search";
 
 /**
  * The SRD's spells and the campaign's own, searchable from the spellbook.
@@ -23,83 +29,16 @@ import { createClient, getCurrentUser } from "@/lib/supabase";
  * `campaign_spells` is not cached at all — at most sixty rows, one indexed read
  * away, and unlike the SRD they change.
  */
-const API = "https://www.dnd5eapi.co/api/2024";
-
-/** How many cards the grid shows, and so how many details are fetched. */
-const RESULTS = 12;
-
-/** Below this a search matches most of the catalogue and none of it usefully. */
-const MIN_QUERY = 2;
-
-const INDEX_TTL_MS = 6 * 60 * 60 * 1000;
-const UPSTREAM_TIMEOUT_MS = 8000;
-
-/**
- * How long the twelve details get before the answer goes without them. A slow
- * one is dropped from THIS answer; the fetch behind it goes on filling the
- * cache, and a name and a level are enough to find a spell by.
- */
-const DETAIL_DEADLINE_MS = 2500;
-
-/**
- * Module scope, which on a serverless host means per instance — so `next:
- * { revalidate }` on every fetch below is the half that survives a cold start
- * and this is the half that answers in microseconds.
- *
- * `loading` holds the in-flight build so a burst of first keystrokes shares one
- * upstream request instead of racing to start their own.
- */
-let index = { at: 0, entries: [] };
-let loading = null;
-
-async function upstream(path) {
-  const response = await fetch(`${API}/${path}`, {
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    headers: { accept: "application/json" },
-    // Next's own data cache, which outlives this instance. A week: the list
-    // endpoint and the ~320 details behind it are static reference data.
-    next: { revalidate: 604800 },
-  });
-
-  if (!response.ok) {
-    throw new Error(`${path} answered ${response.status}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Every spell's name, level and where its detail lives. A failure leaves the
- * previous index in place: a stale catalogue beats no catalogue. The level
- * comes from the index, which is what lets a result be shelved before its
- * detail has arrived.
- */
-async function catalogue() {
-  if (index.entries.length > 0 && Date.now() - index.at < INDEX_TTL_MS) {
-    return index.entries;
-  }
-
-  if (!loading) {
-    loading = upstream("spells")
-      .then((list) => {
-        const entries = (list?.results ?? []).map((spell) => ({
-          slug: spell.index,
-          name: spell.name,
-          lower: String(spell.name ?? "").toLowerCase(),
-          level: Number.isInteger(spell.level) ? spell.level : null,
-          path: `spells/${spell.index}`,
-        }));
-
-        index = { at: Date.now(), entries };
-        return entries;
-      })
-      .finally(() => {
-        loading = null;
-      });
-  }
-
-  return loading;
-}
+const catalogue = cacheCatalogue(async () => {
+  const list = await upstream("spells");
+  return (list?.results ?? []).map((spell) => ({
+    slug: spell.index,
+    name: spell.name,
+    lower: String(spell.name ?? "").toLowerCase(),
+    level: Number.isInteger(spell.level) ? spell.level : null,
+    path: `spells/${spell.index}`,
+  }));
+});
 
 /**
  * The column's bound, taken at the last word: a hard slice ends "must make a
@@ -373,95 +312,14 @@ const detail = memoizeAsync(
   (entry) => entry.slug,
 );
 
-/**
- * The detail if it is quick, the outline if not. The timer is cleared either
- * way: an unresolved `setTimeout` holds the Node event loop open.
- */
-function detailOrOutline(entry) {
-  let timer;
-
-  const deadline = new Promise((resolve) => {
-    timer = setTimeout(() => resolve(outline(entry)), DETAIL_DEADLINE_MS);
-  });
-
-  return Promise.race([
-    detail(entry).catch(() => outline(entry)),
-    deadline,
-  ]).finally(() => clearTimeout(timer));
-}
-
-/**
- * Starts-with, then word-starts-with, then merely contains. Ties keep the SRD's
- * own alphabetical order, which is the order the index arrives in.
- */
-function rank(entry, query) {
-  if (entry.lower.startsWith(query)) {
-    return 0;
-  }
-
-  return entry.lower.includes(` ${query}`) ? 1 : 2;
-}
-
 export async function GET(request) {
-  // The upstream is public, so this is not protecting the data — it keeps our
-  // server from being an open proxy onto somebody else's rate limit.
-  const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
-
-  if (authError) {
-    logFailure("spellSearch/auth", authError);
-    return Response.json({ spells: [] }, { status: 503 });
-  }
-
-  if (!user) {
-    return Response.json({ spells: [] }, { status: 401 });
-  }
-
-  const { searchParams } = request.nextUrl;
-  const query = (searchParams.get("q") ?? "").trim().toLowerCase();
-  const campaignId = searchParams.get("campaign");
-
-  if (query.length < MIN_QUERY) {
-    return Response.json({ spells: [] });
-  }
-
-  // Started before the SRD is asked, awaited after.
-  const homebrew = campaignId
-    ? campaignSpells(supabase, campaignId, query)
-    : Promise.resolve([]);
-
-  try {
-    const entries = await catalogue();
-
-    const matches = entries
-      .filter((entry) => entry.lower.includes(query))
-      .sort((a, b) => rank(a, query) - rank(b, query))
-      .slice(0, RESULTS);
-
-    // One slow or failed detail must not lose the other eleven.
-    const [mine, spells] = await Promise.all([
-      homebrew,
-      Promise.all(matches.map(detailOrOutline)),
-    ]);
-
-    return Response.json(
-      // The campaign's own first: likelier wanted than a fifth fire spell.
-      { spells: [...mine, ...spells] },
-      // Private, not shared: this is behind a session check.
-      { headers: { "cache-control": "private, max-age=60" } },
-    );
-  } catch (thrown) {
-    logFailure("spellSearch", {
-      reason: "upstream_unavailable",
-      detail: String(thrown),
-    });
-
-    // The SRD is unreachable; the campaign's own spells are not.
-    return Response.json({
-      spells: await homebrew,
-      reason: "upstream_unavailable",
-    });
-  }
+  return searchCatalogue(request, {
+    kind: "spell",
+    catalogue,
+    campaignEntries: campaignSpells,
+    detail,
+    outline,
+  });
 }
 
 /**

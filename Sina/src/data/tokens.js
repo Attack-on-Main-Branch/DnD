@@ -12,6 +12,7 @@
  * the Dungeon Master's own and there is nothing on it to narrow.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { removeObject, uploadObject } from "./storage.js";
 import { movementStep, readTurnId } from "../rules/combat.js";
 
@@ -36,15 +37,7 @@ const PLACED_COLUMNS = `${BASE_PLACED_COLUMNS}, movement_ft, movement_turn_id`;
 const CHECK_VIOLATION = "23514";
 const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
 const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** Not SQLSTATEs: PostgREST's own codes for a table or function it has no
-    entry for, so the call never reaches Postgres and the two above never fire. */
-const TABLE_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   if (error.code === CHECK_VIOLATION) {
@@ -68,26 +61,7 @@ function classify(error) {
     return "limit_reached";
   }
 
-  if (error.code === UNDEFINED_TABLE || error.code === TABLE_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed.
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure — 404 rather than 500.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "failed";
+  return classifyDatabaseError(error, "failed");
 }
 
 function failure(error) {

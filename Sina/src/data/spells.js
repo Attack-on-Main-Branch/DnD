@@ -9,6 +9,8 @@
  * browsers spending the last 3rd-level slot must not both find it there.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
+
 /**
  * `character_id` is here on purpose, as in inventory.js: the Dungeon Master
  * reads the party's spellbooks in one query and has to know whose each row is.
@@ -27,15 +29,6 @@ const CATALOGUE_COLUMNS =
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** PostgREST's own codes for a table or a function it has no entry for. */
-const SCHEMA_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   // The spellbook is unique on `(character_id, spell_slug)`, so this is a spell
@@ -51,33 +44,11 @@ function classify(error) {
     return "limit_reached";
   }
 
-  // Past readCatalogueSpell but refused by the bounds CHECK: a disagreement
-  // between Sina/src/rules/spells.js and the migration.
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
+  if (error.code === "42703") {
+    return "unknown";
   }
 
-  // The character went away between the page rendering and the write landing.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

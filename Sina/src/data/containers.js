@@ -12,6 +12,7 @@
  * a drawer reads every chest at the table in one query.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { COIN_TYPES } from "../rules/currency.js";
 
 const COLUMNS =
@@ -24,19 +25,6 @@ const ITEM_COLUMNS =
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/**
- * Not SQLSTATEs: PostgREST's own codes for a function or a table it has no
- * entry for. The call never reaches Postgres, which is why `42883` alone never
- * fired for an unpushed migration. See the note in data/currency.js.
- */
-const FUNCTION_CACHE_MISS = "PGRST202";
-const SCHEMA_CACHE_MISS = "PGRST205";
 
 function classify(error) {
   // Trigger-raised, so matched on the message: it has no SQLSTATE of its own
@@ -51,35 +39,11 @@ function classify(error) {
     return "already_carried";
   }
 
-  // Past validateContainer but refused by the bounds CHECK: a disagreement
-  // between Sina/src/rules/containers.js and the migration.
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
+  if (error.code === "42703") {
+    return "unknown";
   }
 
-  // The campaign or the character went away between the page rendering and the
-  // write landing.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed, which is what `npm run db:list` is
-  // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

@@ -4,6 +4,7 @@
  * Failures come back as a `reason` code, not a sentence.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { removeObject, uploadObject } from "./storage.js";
 
 const BUCKET = "campaign-maps";
@@ -19,14 +20,6 @@ const COLUMNS =
 const CHECK_VIOLATION = "23514";
 const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** Not a SQLSTATE: PostgREST's own code for a function it has no entry for,
-    so the call never reaches Postgres and `42883` alone never fires. */
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   if (error.code === CHECK_VIOLATION) {
@@ -59,26 +52,11 @@ function classify(error) {
     return "map_limit_reached";
   }
 
-  if (error.code === UNDEFINED_TABLE) {
-    return "missing_table";
+  if (error.code === "PGRST205") {
+    return "unknown";
   }
 
-  // A migration written but never pushed.
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure — 404 rather than 500.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

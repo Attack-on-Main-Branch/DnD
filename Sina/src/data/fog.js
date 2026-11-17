@@ -10,55 +10,13 @@
  * `fogMaskObjectPath`, and `uploadObject`'s `rewritable` for what it costs.
  */
 
+import { classifyDatabaseError as classify } from "./database-errors.js";
 import { removeObject, uploadObject } from "./storage.js";
 
 const BUCKET = "campaign-fog-masks";
 
 /** What this module's storage reasons are named after — see storage.js. */
 const SUBJECT = "fog";
-
-/** Postgres SQLSTATEs we can say something specific about. */
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** Not SQLSTATEs: PostgREST's own codes for a table or function it has no
-    entry for, so the call never reaches Postgres and the two above never fire. */
-const TABLE_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
-
-function classify(error) {
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
-  }
-
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === TABLE_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed.
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
-}
 
 function failure(error) {
   return {
