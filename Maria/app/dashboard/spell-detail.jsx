@@ -1,3 +1,4 @@
+import CloseButton from "@/app/components/ui/close-button";
 import {
   FADED_RULE_CLASSES,
   surfaceClasses,
@@ -23,7 +24,7 @@ import {
  * children and sit under a rule at the foot, which is the only place the Cast
  * button appears.
  */
-export default function SpellDetail({ spell, children }) {
+export default function SpellDetail({ spell, children, onClose = null }) {
   return (
     <section
       aria-label={spell.name}
@@ -32,8 +33,7 @@ export default function SpellDetail({ spell, children }) {
         glow: true,
         // Long descriptions scroll inside the detail panel.
         // `glass-unfiltered`: a filtered surface keeps filtering at opacity 0.
-        className:
-          "scroll-gold max-h-[min(20rem,34vh)] overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered",
+        className: `scroll-gold ${onClose ? "max-h-[calc(100dvh-3rem)]" : "max-h-[min(20rem,34vh)]"} overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered`,
       })}
     >
       <div className="flex items-start justify-between gap-3">
@@ -44,6 +44,7 @@ export default function SpellDetail({ spell, children }) {
         <span className={`shrink-0 ${LEVEL_TAG_CLASSES}`}>
           {levelBadge(spell.level)}
         </span>
+        {onClose && <CloseButton label="Close details" onClick={onClose} />}
       </div>
 
       {(spell.school || spell.concentration || spell.ritual) && (
@@ -153,16 +154,5 @@ function Label({ children }) {
     <span className="font-mono text-[0.625rem] tracking-[0.14em] text-gold/70 uppercase">
       {children}
     </span>
-  );
-}
-
-export function EmptySpellbook({ title = "No spells are known", description }) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gold/20 py-10 text-center">
-      <p className="font-display text-base font-medium tracking-wide text-ink/80">
-        {title}
-      </p>
-      <p className="max-w-sm px-4 text-xs text-ink/50">{description}</p>
-    </div>
   );
 }

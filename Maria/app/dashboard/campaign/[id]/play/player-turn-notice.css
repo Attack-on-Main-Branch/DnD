@@ -1,0 +1,216 @@
+.player-turn-notice {
+  --detail-panel-radius: 1.5rem;
+  --movement-tone: var(--color-gold);
+  --preview-tone: var(--color-gold);
+  position: absolute;
+  z-index: 20;
+  bottom: 0.75rem;
+  left: 50%;
+  width: min(24rem, calc(100% - 1.5rem));
+  transform: translateX(-50%);
+  user-select: text;
+}
+
+.player-turn-panel {
+  border: 0;
+  border-radius: var(--detail-panel-radius);
+  color: var(--color-ink);
+  padding: 0.625rem 0.875rem 0.875rem;
+}
+
+.player-turn-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.player-turn-heading h2 {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--color-gold);
+  line-height: 1.25;
+}
+
+.player-turn-symbol {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--gold-20);
+  border-radius: 50%;
+  background: linear-gradient(var(--gold-20), var(--gold-10));
+  color: var(--color-gold);
+  font-weight: 600;
+}
+
+.player-turn-heading button {
+  display: flex;
+  min-height: 2.25rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--gold-40);
+  border-radius: 999px;
+  background: var(--gold-10);
+  color: var(--color-gold);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.player-turn-heading button:hover {
+  background: var(--gold-20);
+}
+
+.player-turn-heading button:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.player-turn-heading button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.player-turn-movement {
+  margin: 0.375rem 0.25rem 0;
+  font-size: 0.6875rem;
+  color: var(--ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-turn-movement strong {
+  display: block;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.player-movement-labels {
+  position: relative;
+  height: 1.75rem;
+  line-height: 0.8125rem;
+}
+
+.player-movement-limit {
+  position: absolute;
+  right: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.player-movement-limit[data-midpoint] {
+  right: 50%;
+  translate: 50%;
+  text-align: center;
+}
+
+.player-movement-track {
+  position: relative;
+  height: 0.4375rem;
+  margin-top: 0.125rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--gold-10);
+}
+
+.player-movement-track[data-dash] {
+  background: linear-gradient(to right, var(--gold-10) 50%, var(--gold-20) 50%);
+}
+
+.player-movement-track > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+}
+
+.player-movement-preview {
+  background: color-mix(in srgb, var(--preview-tone) 52%, transparent);
+}
+
+.player-movement-fill {
+  width: var(--moved);
+  background: var(--movement-tone);
+  transition: width 180ms ease-out;
+}
+
+.player-movement-track::after {
+  position: absolute;
+  content: "";
+  inset: 0;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(var(--movement-step) - 1px),
+    var(--color-surface) calc(var(--movement-step) - 1px) var(--movement-step)
+  );
+}
+
+.player-movement-track[data-dash]::before {
+  position: absolute;
+  z-index: 1;
+  content: "";
+  inset: 0 auto 0 calc(50% - 1px);
+  width: 2px;
+  background: var(--color-surface);
+}
+
+.player-turn-notice[data-movement="dashing"] {
+  --movement-tone: var(--color-amber-300);
+}
+
+.player-turn-notice[data-movement="out_of_range"] {
+  --movement-tone: var(--color-rose-300);
+}
+
+.player-turn-notice[data-preview="dashing"] {
+  --preview-tone: var(--color-amber-300);
+}
+
+.player-turn-notice[data-preview="out_of_range"] {
+  --preview-tone: var(--color-rose-300);
+}
+
+[data-preview] .player-movement-fill {
+  transition: none;
+}
+
+.player-turn-next {
+  width: fit-content;
+  margin: 0 auto;
+  color: var(--color-gold);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-shadow:
+    0 1px 4px var(--color-background),
+    0 1px 8px var(--color-background);
+}
+
+.player-turn-up-next {
+  pointer-events: none;
+}
+
+@media (max-width: 40rem) {
+  .player-turn-notice {
+    bottom: 0.5rem;
+    width: min(24rem, calc(100% - 1rem));
+  }
+  .player-turn-symbol {
+    width: 1.875rem;
+    height: 1.875rem;
+  }
+  .player-turn-heading h2 {
+    font-size: 0.875rem;
+  }
+  .player-turn-heading button {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-movement-fill {
+    transition: none;
+  }
+}

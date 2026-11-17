@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
+@source "../lib";
 
 /*
  * The app is dark, always: the animated background paints an opaque near-black
@@ -68,6 +70,22 @@
 
   --surface-55: color-mix(in srgb, var(--color-surface) 55%, transparent);
   --surface-96: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  --banner-glow-blur: 1.25rem;
+  --table-reveal-duration: 300ms;
+  --table-frame-rim: var(--gold-55);
+  --table-frame-glow: drop-shadow(0 0 0.3rem var(--gold-40));
+}
+
+@property --detail-reveal-width {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --detail-reveal-height {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
 }
 
 @theme inline {
@@ -182,64 +200,43 @@
   --color-sakura-blush: #f5d9de;
   --color-sakura-petal: #e8a8b7;
   --color-sakura-rose: #b95b79;
-  --color-sakura-ink: #49323a;
   --color-sakura-leaf: #829170;
   --color-sakura-sky: #e9f0ed;
 }
 
+.banner-text {
+  --banner-text-shadow:
+    -1px 0 var(--color-surface), 1px 0 var(--color-surface),
+    0 -1px var(--color-surface), 0 1px var(--color-surface),
+    -0.7px -0.7px var(--color-surface), 0.7px -0.7px var(--color-surface),
+    -0.7px 0.7px var(--color-surface), 0.7px 0.7px var(--color-surface),
+    0 1px 2px var(--color-surface);
+  text-shadow: var(--banner-text-shadow);
+}
+
+.banner-text :where(button, input, .banner-label) {
+  text-shadow: var(--banner-text-shadow);
+  -webkit-text-stroke: 0.14em var(--color-surface);
+  paint-order: stroke fill;
+}
+
 .banner-surface {
   --banner-name-gap: 0px;
-  --banner-heading: var(--color-ink);
-  --banner-detail: color-mix(in srgb, var(--color-ink) 90%, transparent);
-  --banner-tag: var(--color-gold);
-  --banner-temp: var(--color-temp-hp);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  text-shadow:
-    0 1px 2px var(--color-surface),
-    0 0 6px var(--color-surface),
-    0 0 10px var(--color-surface);
 }
 
-.banner-printstream,
-.banner-sakura {
-  --banner-heading: var(--banner-contrast-ink);
-  --banner-detail: color-mix(
-    in srgb,
-    var(--banner-contrast-ink) 85%,
-    transparent
-  );
-  --banner-tag: var(--banner-contrast-ink);
-  --banner-temp: var(--color-sky-800);
-  text-shadow:
-    0 1px 2px var(--banner-contrast-paper),
-    0 0 4px var(--banner-contrast-paper);
-}
-
-.banner-printstream {
-  --banner-contrast-ink: var(--color-printstream-ink);
-  --banner-contrast-paper: var(--color-printstream-paper);
-}
-
-.banner-sakura {
-  --banner-contrast-ink: var(--color-sakura-ink);
-  --banner-contrast-paper: var(--color-ink);
+.banner-wings-of-freedom,
+.banner-stillwater {
+  container-type: inline-size;
 }
 
 .banner-wings-of-freedom {
   --banner-name-gap: 23cqw;
-  container-type: inline-size;
 }
 
-.banner-splash,
-.banner-cyberpunk,
-.banner-pixel-night {
-  text-shadow:
-    -1px 0 var(--color-surface),
-    1px 0 var(--color-surface),
-    0 -1px var(--color-surface),
-    0 1px var(--color-surface),
-    0 1px 4px var(--color-surface);
+.banner-stillwater {
+  --banner-name-gap: max(0px, 36cqw - 3.5rem);
 }
 
 .banner-surface::before {
@@ -251,10 +248,6 @@
   pointer-events: none;
 }
 
-.banner-surface :where(button, input) {
-  text-shadow: inherit;
-}
-
 /*
  * Reserved whether or not the page scrolls, so hiding it behind a modal takes
  * nothing away. Without it the page and the modal are centred on different
@@ -262,21 +255,6 @@
  */
 html {
   scrollbar-gutter: stable;
-}
-
-/*
- * THE TABLE SCALES AS ONE PICTURE. Its rem follows the window — 15px at 1920
- * by 960 — so the log, the rails and the party keep the same share of every
- * monitor and the board takes the rest, rather than fixed-width furniture
- * eating a small screen's board. Floored for legibility, which is also where
- * browser zoom starts to enlarge it; capped so a large monitor's spare room
- * goes to the board. From `lg` only: below that the table is one stack and
- * reads at the app's own size. Media queries keep measuring the initial rem.
- */
-@media (width >= 64rem) {
-  :root:has([data-table-scale]) {
-    font-size: clamp(12px, min(100vw / 128, 100vh / 64), 18px);
-  }
 }
 
 body {
@@ -497,6 +475,21 @@ body {
       0 0 0 1px color-mix(in srgb, var(--hp-c3) 30%, transparent),
       0 0 28px -4px color-mix(in srgb, var(--hp-c3) 60%, transparent),
       0 16px 40px -20px rgb(0 0 0 / 90%);
+  }
+
+  .banner-text[data-banner-rim] {
+    --banner-rim: var(--hp-c3);
+    border-color: var(--banner-rim);
+    box-shadow:
+      0 0 0 1px var(--banner-rim),
+      0 0 0 2px color-mix(in srgb, var(--banner-rim) 45%, var(--color-surface)),
+      0 0 var(--banner-glow-blur) 1px
+        color-mix(in srgb, var(--banner-rim) 85%, transparent),
+      0 16px 40px -20px rgb(0 0 0 / 90%);
+  }
+
+  [data-banner-rim].hp-solar {
+    --banner-rim: var(--color-gold);
   }
 
   .health-rhombus {
@@ -979,6 +972,77 @@ body {
     animation: panel-content 200ms ease-out 470ms backwards;
   }
 
+  .edit-dialog-detail,
+  .edit-dialog-detail[data-closing],
+  .edit-dialog-detail > .edit-detail-content,
+  .edit-dialog-detail[data-closing] > .edit-detail-content {
+    animation: none;
+  }
+
+  :is(.table-detail-reveal, [data-table-arrival-map]) {
+    --detail-reveal-inline: calc(
+      (1 - var(--detail-reveal-width)) * (50% - 2px)
+    );
+    --detail-reveal-block: calc(
+      (1 - var(--detail-reveal-height)) * (50% - 2px)
+    );
+    --detail-reveal-radius: calc(
+      2px + (var(--detail-panel-radius, 1rem) - 2px) *
+        var(--detail-reveal-height)
+    );
+    --detail-reveal-clip: inset(
+      var(--detail-reveal-block) var(--detail-reveal-inline) round
+        var(--detail-reveal-radius)
+    );
+  }
+
+  .table-detail-reveal::before {
+    position: absolute;
+    z-index: 1;
+    inset: var(--detail-reveal-block) var(--detail-reveal-inline);
+    border: 1px solid var(--table-frame-rim);
+    border-radius: var(--detail-reveal-radius);
+    background: color-mix(
+      in srgb,
+      var(--color-gold) calc(85% * (1 - var(--detail-reveal-height))),
+      transparent
+    );
+    filter: var(--table-frame-glow);
+    pointer-events: none;
+    content: "";
+  }
+
+  .edit-detail-content {
+    clip-path: var(--detail-reveal-clip);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .edit-dialog-detail[open],
+    .edit-dialog-detail[open][data-closing],
+    .player-turn-notice[data-own-turn] {
+      animation: table-detail-unfold var(--table-reveal-duration) linear both
+        paused;
+    }
+  }
+
+  @keyframes table-detail-unfold {
+    0%,
+    10% {
+      --detail-reveal-width: 0;
+      --detail-reveal-height: 0;
+      animation-timing-function: ease-out;
+    }
+    45% {
+      --detail-reveal-width: 1;
+      --detail-reveal-height: 0;
+      animation-timing-function: var(--ease-tray);
+    }
+    100% {
+      --detail-reveal-width: 1;
+      --detail-reveal-height: 1;
+    }
+  }
+
   .edit-dialog::backdrop {
     animation: map-backdrop 300ms ease-out both;
   }
@@ -997,6 +1061,10 @@ body {
 
   .edit-dialog[data-closing]::backdrop {
     animation: panel-fade-out 300ms ease-out both;
+  }
+
+  .edit-dialog-detail[open]::backdrop {
+    animation-duration: var(--table-reveal-duration);
   }
 
   /*
@@ -1227,15 +1295,17 @@ body {
     --stone-dark: #2b2825;
 
     background-color: var(--stone-mid);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
     background-image:
       radial-gradient(
         ellipse 70% 55% at 50% 38%,
         rgba(255, 255, 255, 0.08),
         transparent 70%
       ),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.92 0 0 0 0 0.9 0 0 0 0 0.86 0 0 0 1.5 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 -1.6 0.72'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E"),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018' numOctaves='5' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncG type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncB type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncA type='linear' slope='0' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 0.92 0 0 0 0 0.9 0 0 0 0 0.86 0 0 0 1.5 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 -1.6 0.72'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018' numOctaves='5' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncG type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncB type='linear' slope='1.7' intercept='-0.35'/%3E%3CfeFuncA type='linear' slope='0' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"),
       linear-gradient(
         160deg,
         var(--stone-light),
@@ -1443,12 +1513,6 @@ body {
    */
   .dice-slot {
     clip-path: inset(-3rem 0 -3rem -3rem);
-  }
-
-  /* The head of the table's, under the board: the clipped edge is the top
-     rather than the right, because this one tucks upward. */
-  .dice-slot-under {
-    clip-path: inset(0 -3rem -3rem -3rem);
   }
 
   .dice-capsule {
@@ -2275,28 +2339,13 @@ body {
   }
 }
 
-/*
- * The table's arrival: the title converges out of wide kerning, the map grows
- * from the middle, the frame blooms around it once it has landed. The party
- * rail reuses `glide-in-right` above.
- *
- * `letter-spacing` interpolates towards whatever the element rests at, so the
- * halves collapse into `tracking-wide` rather than a number written twice. It
- * costs a layout per frame on one line of text, which is the effect itself.
- */
-@keyframes kern-in-left {
+@keyframes table-arrival-title {
   from {
     opacity: 0;
-    letter-spacing: 2em;
-    translate: -3em 0;
+    letter-spacing: 1.4em;
   }
-}
-
-@keyframes kern-in-right {
-  from {
-    opacity: 0;
-    letter-spacing: 2em;
-    translate: 3em 0;
+  15% {
+    opacity: 1;
   }
 }
 

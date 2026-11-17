@@ -19,20 +19,17 @@ import {
   CONTAINER_CARD_CLASSES,
   NOBODY_YET,
 } from "@/app/dashboard/container-presentation";
-import {
-  catalogueFacts,
-  itemFactList,
-  rowItem,
-} from "@/app/dashboard/inventory-presentation";
 import { removeCharacterFeature } from "@/app/actions/features";
 import { strikeCampaignToken } from "@/app/actions/campaign-tokens";
+import DetailOverlay from "@/app/dashboard/detail-overlay";
+import EmptyCatalogue from "@/app/dashboard/empty-catalogue";
 import FeatureGrid from "@/app/dashboard/feature-grid";
-import PackItemCard, { EmptyPack } from "@/app/dashboard/pack-item-card";
-import {
-  LEVEL_TAG_CLASSES,
-  SCHOOL_TAG_CLASSES,
-  levelBadge,
-} from "@/app/dashboard/spell-presentation";
+import { catalogueItem } from "@/app/dashboard/inventory-presentation";
+import ItemDetail from "@/app/dashboard/item-detail";
+import ItemRow from "@/app/dashboard/item-row";
+import SpellDetail from "@/app/dashboard/spell-detail";
+import { rowSpell, spellsByShelf } from "@/app/dashboard/spell-presentation";
+import SpellShelves from "@/app/dashboard/spell-shelves";
 
 import ContainerForm from "./container-form";
 import CampaignFeatureForm from "./feature-form";
@@ -100,6 +97,7 @@ export default function CreatePanel({
   tokens,
 }) {
   const [kind, setKind] = useState("item");
+  const [readingSlug, setReadingSlug] = useState(null);
   const [error, setError] = useState(null);
   const [isPending, startTransition] = useTransition();
   const [removingItem, setRemovingItem] = useState(null);
@@ -138,6 +136,14 @@ export default function CreatePanel({
 
   /* Read once rather than per card: two shapes live in one table. */
   const shelf = useMemo(() => readContainers(containers), [containers]);
+  const spellShelves = useMemo(() => spellsByShelf(spells), [spells]);
+  const readingItem =
+    kind === "item" ? items.find((row) => row.item_slug === readingSlug) : null;
+  const readingSpell =
+    kind === "spell"
+      ? spells.find((row) => row.spell_slug === readingSlug)
+      : null;
+  const reading = readingItem ?? readingSpell;
 
   /* How much is in each of the ones NOBODY is carrying. A carried bag keeps
      its contents in pack rows, which are read at the table and not here. */
@@ -186,6 +192,7 @@ export default function CreatePanel({
 
   function choose(value) {
     setKind(value);
+    setReadingSlug(null);
     setEditingId(null);
     setSaved(null);
   }
@@ -265,9 +272,42 @@ export default function CreatePanel({
       if (typeof result?.cleanupPending === "boolean") {
         setCleanupNeeded(result.cleanupPending);
       }
-      if (remove === strikeCampaignItem) setRemovingItem(null);
+      if (remove === strikeCampaignItem) {
+        setRemovingItem(null);
+        setReadingSlug(null);
+      }
     });
   }
+
+  function editReading() {
+    setReadingSlug(null);
+    startEditing(reading.id);
+  }
+
+  function removeReading() {
+    if (readingItem) {
+      setRemovingItem(readingItem);
+    } else {
+      setReadingSlug(null);
+      strike(strikeCampaignSpell, readingSpell.id);
+    }
+  }
+
+  const readingActions = reading && (
+    <div className="flex justify-end gap-1">
+      <EditButton
+        label={`Edit ${reading.name}`}
+        active={editingId === reading.id}
+        disabled={isPending}
+        onClick={editReading}
+      />
+      <StrikeButton
+        label={`Remove ${reading.name}`}
+        disabled={isPending}
+        onClick={removeReading}
+      />
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -380,63 +420,36 @@ export default function CreatePanel({
         {kind === "spell" &&
           (spells.length === 0 ? (
             <div className="mt-3">
-              <EmptyPack
+              <EmptyCatalogue
                 title="Nothing written down"
                 description="Spells you invent for this campaign are kept here, and taught from the table."
               />
             </div>
           ) : (
-            <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {spells.map((row) => (
-                <li key={row.id} className="flex">
-                  <SpellEntry
-                    spell={row}
-                    disabled={isPending}
-                    editing={editingId === row.id}
-                    onEdit={() => startEditing(row.id)}
-                    onStrike={() => strike(strikeCampaignSpell, row.id)}
-                  />
-                </li>
-              ))}
-            </ul>
+            <SpellShelves
+              shelves={spellShelves}
+              openSlug={readingSlug}
+              onOpen={(spell) => setReadingSlug(spell.slug)}
+            />
           ))}
 
         {kind === "item" &&
           (items.length === 0 ? (
             <div className="mt-3">
-              <EmptyPack
+              <EmptyCatalogue
                 title="Nothing written down"
                 description="Items you invent for this campaign are kept here, and found from the table."
               />
             </div>
           ) : (
-            // Three to a row, as on the character sheet: same width, same cards.
-            <ul className="mt-3 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((row, index) => (
+            <ul className="mt-3 grid grid-cols-2 gap-2">
+              {items.map((row) => (
                 <li key={row.id} className="flex">
-                  <PackItemCard
-                    item={rowItem(row)}
-                    index={index}
-                    editing={editingId === row.id}
-                  >
-                    {/* What the panel at the table will print, on one line. */}
-                    <ItemFacts row={row} />
-
-                    <div className="mt-2 flex justify-end gap-1">
-                      <EditButton
-                        label={`Edit ${row.name}`}
-                        active={editingId === row.id}
-                        disabled={isPending}
-                        onClick={() => startEditing(row.id)}
-                      />
-
-                      <StrikeButton
-                        label={`Remove ${row.name}`}
-                        disabled={isPending}
-                        onClick={() => setRemovingItem(row)}
-                      />
-                    </div>
-                  </PackItemCard>
+                  <ItemRow
+                    item={catalogueItem(row)}
+                    open={readingSlug === row.item_slug}
+                    onOpen={() => setReadingSlug(row.item_slug)}
+                  />
                 </li>
               ))}
             </ul>
@@ -445,7 +458,7 @@ export default function CreatePanel({
         {kind === "container" &&
           (shelf.length === 0 ? (
             <div className="mt-3">
-              <EmptyPack
+              <EmptyCatalogue
                 title="Nothing on the table"
                 description="Bags and chests you make are opened from the table — a bag by whoever carries it, a chest once you reveal it."
               />
@@ -473,7 +486,7 @@ export default function CreatePanel({
         {kind === "feature" &&
           (granted.length === 0 ? (
             <div className="mt-3">
-              <EmptyPack
+              <EmptyCatalogue
                 title="Nothing granted"
                 description="Features you write onto this party are read from their sheets and from the scores drawer at the table."
               />
@@ -485,23 +498,17 @@ export default function CreatePanel({
                   granted.some((one) => one.character_id === member.id),
                 )
                 .map((member) => (
-                  <section key={member.id}>
-                    <h3 className="font-mono text-[10px] tracking-[0.16em] text-ink/45 uppercase">
-                      {namesById.get(member.id)}
-                    </h3>
-
-                    <div className="mt-2">
-                      <FeatureGrid
-                        features={granted.filter(
-                          (one) => one.character_id === member.id,
-                        )}
-                        onRemove={strikeFeature}
-                        onEdit={(feature) => startEditing(feature.id)}
-                        editingId={editingId}
-                        pending={striking}
-                      />
-                    </div>
-                  </section>
+                  <FeatureGrid
+                    key={member.id}
+                    title={`${member.name}’s features`}
+                    features={granted.filter(
+                      (one) => one.character_id === member.id,
+                    )}
+                    onRemove={strikeFeature}
+                    onEdit={(feature) => startEditing(feature.id)}
+                    editingId={editingId}
+                    pending={striking}
+                  />
                 ))}
             </div>
           ))}
@@ -509,7 +516,7 @@ export default function CreatePanel({
         {kind === "token" &&
           (tokens.length === 0 ? (
             <div className="mt-3">
-              <EmptyPack
+              <EmptyCatalogue
                 title="Nothing in your hand"
                 description="Pieces you draw here are dealt from the palette at the table — as many copies of each as the encounter needs."
               />
@@ -557,6 +564,17 @@ export default function CreatePanel({
           </div>
         )}
       </section>
+      <DetailOverlay title={reading?.name} onClose={() => setReadingSlug(null)}>
+        {readingItem ? (
+          <ItemDetail item={catalogueItem(readingItem)}>
+            {readingActions}
+          </ItemDetail>
+        ) : readingSpell ? (
+          <SpellDetail spell={rowSpell(readingSpell)}>
+            {readingActions}
+          </SpellDetail>
+        ) : null}
+      </DetailOverlay>
       <ConfirmDialog
         open={Boolean(removingItem)}
         title={`Remove ${removingItem?.name ?? "item"} everywhere?`}
@@ -568,57 +586,6 @@ export default function CreatePanel({
         }}
         onCancel={() => setRemovingItem(null)}
       />
-    </div>
-  );
-}
-
-/**
- * Built to PackItemCard's shape so the two lists read as one thing: the level
- * where a stack count goes, the school where a category tag goes.
- */
-function SpellEntry({ spell, disabled, editing, onEdit, onStrike }) {
-  return (
-    <div
-      className={`flex h-full w-full flex-col rounded-xl border p-3.5 text-left transition duration-300 ${NESTED_CARD_CLASSES} ${
-        editing ? EDITING_CARD_CLASSES : ""
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 flex-1 font-display text-sm font-semibold tracking-wide text-ink">
-          {spell.name}
-        </p>
-
-        <span className={`shrink-0 ${LEVEL_TAG_CLASSES}`}>
-          {levelBadge(spell.level)}
-        </span>
-      </div>
-
-      {spell.school && (
-        <p className="mt-1.5">
-          <span className={SCHOOL_TAG_CLASSES}>{spell.school}</span>
-        </p>
-      )}
-
-      {spell.description && (
-        <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink/55">
-          {spell.description}
-        </p>
-      )}
-
-      <div className="mt-auto flex justify-end gap-1 pt-3">
-        <EditButton
-          label={`Edit ${spell.name}`}
-          active={editing}
-          disabled={disabled}
-          onClick={onEdit}
-        />
-
-        <StrikeButton
-          label={`Remove ${spell.name}`}
-          disabled={disabled}
-          onClick={onStrike}
-        />
-      </div>
     </div>
   );
 }
@@ -732,21 +699,6 @@ function TokenEntry({ token, disabled, editing, onEdit, onStrike }) {
         onClick={onStrike}
       />
     </div>
-  );
-}
-
-/** The written-down facts, run together — the card has one line for them. */
-function ItemFacts({ row }) {
-  const facts = itemFactList(catalogueFacts(row));
-
-  if (facts.length === 0) {
-    return null;
-  }
-
-  return (
-    <p className="font-mono text-[11px] text-ink/45 tabular-nums">
-      {facts.map((fact) => fact.value).join(" · ")}
-    </p>
   );
 }
 

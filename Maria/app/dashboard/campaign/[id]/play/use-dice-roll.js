@@ -177,15 +177,7 @@ export function useDiceRoll({
    */
   const warm = useCallback(() => {
     if (prefersReducedMotion()) return;
-    // The first lane on its own, and the rest behind it: a chair that rolls on
-    // arrival should wait for one world rather than for three.
-    diceEngine(0)
-      .then(() => {
-        for (let lane = 1; lane < DICE_LANES; lane += 1) {
-          diceEngine(lane).catch(() => {});
-        }
-      })
-      .catch(() => {});
+    diceEngine(0).catch(() => {});
   }, []);
 
   /** One lane, taken in turn. A throw that fails does not stop the next. */

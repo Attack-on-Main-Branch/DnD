@@ -9,44 +9,7 @@
  * one back — see `sina/rules/inspiration`.
  */
 
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-const SCHEMA_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
-
-function classify(error) {
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
-  }
-
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed, which `npm run db:list` catches.
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
-}
+import { classifyDatabaseError as classify } from "./database-errors.js";
 
 function failure(error) {
   return {

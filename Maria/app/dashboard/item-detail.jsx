@@ -1,3 +1,4 @@
+import CloseButton from "@/app/components/ui/close-button";
 import {
   FADED_RULE_CLASSES,
   surfaceClasses,
@@ -23,7 +24,12 @@ import ItemDocument from "./item-document";
  * No hooks: what is open is the drawer's business. The controls arrive as
  * children and sit under a rule at the foot.
  */
-export default function ItemDetail({ item, quantity, children }) {
+export default function ItemDetail({
+  item,
+  quantity,
+  children,
+  onClose = null,
+}) {
   const stack = stackLabel(quantity);
   const facts = itemFactList(item.facts);
 
@@ -42,8 +48,7 @@ export default function ItemDetail({ item, quantity, children }) {
         variant: "solid",
         glow: true,
         // `glass-unfiltered`: a filtered surface keeps filtering at opacity 0.
-        className:
-          "scroll-gold max-h-[min(20rem,34vh)] overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered",
+        className: `scroll-gold ${onClose ? "max-h-[calc(100dvh-3rem)]" : "max-h-[min(20rem,34vh)]"} overflow-y-auto rounded-2xl px-5 py-4 text-left glass-unfiltered`,
       })}
     >
       <div className="flex items-start justify-between gap-3">
@@ -54,6 +59,7 @@ export default function ItemDetail({ item, quantity, children }) {
         {stack && (
           <span className={`shrink-0 ${STACK_TAG_CLASSES}`}>{stack}</span>
         )}
+        {onClose && <CloseButton label="Close details" onClick={onClose} />}
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

@@ -11,10 +11,10 @@ import {
 import { createPortal } from "react-dom";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
-import Button from "@/app/components/ui/button";
-import EditModal from "@/app/components/ui/edit-modal";
+import DetailOverlay from "@/app/dashboard/detail-overlay";
 
 import { useTableMarks } from "./table-marks";
+import { useTableWorkspace, WorkspaceTool } from "./table-workspace";
 
 /**
  * How tall a panel's contents stand — ONE height for every mark and every chair,
@@ -41,37 +41,14 @@ const AsideContext = createContext({ node: null, open: false });
 export function PopoverAside({ children, title, onClose }) {
   const { node, open, overlay } = useContext(AsideContext);
 
-  if (overlay && open && onClose) {
+  if (overlay && onClose) {
     return (
       <DetailOverlay title={title} onClose={onClose}>
-        {children}
+        {open ? children : null}
       </DetailOverlay>
     );
   }
   return node && open ? createPortal(children, node) : null;
-}
-
-function DetailOverlay({ children, title, onClose }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <EditModal
-      open={open}
-      title={title}
-      onClose={() => setOpen(false)}
-      onAfterClose={onClose}
-    >
-      <div className="mb-2 flex justify-end">
-        <Button
-          variant="ghost"
-          aria-label="Close details"
-          onClick={() => setOpen(false)}
-        >
-          ✕
-        </Button>
-      </div>
-      {children}
-    </EditModal>
-  );
 }
 
 /**
@@ -105,8 +82,24 @@ const FOCUSABLE =
 export default function TablePopover({
   inline = false,
   inlineOpen = true,
+  workspaceName,
   ...props
 }) {
+  const workspace = useTableWorkspace();
+
+  if (workspace && !inline) {
+    const { icon: Icon, children, ...panel } = props;
+    return (
+      <WorkspaceTool {...panel} name={workspaceName} icon={<Icon />}>
+        {(open) => (
+          <AsideContext.Provider value={{ overlay: true, open }}>
+            {children}
+          </AsideContext.Provider>
+        )}
+      </WorkspaceTool>
+    );
+  }
+
   return inline ? (
     <InlineTablePanel {...props} open={inlineOpen} />
   ) : (
@@ -115,6 +108,9 @@ export default function TablePopover({
 }
 
 function InlineTablePanel({ title, count, meta, open, children }) {
+  const [visited, setVisited] = useState(open);
+  if (open && !visited) setVisited(true);
+
   return (
     <section
       aria-label={title}
@@ -130,7 +126,7 @@ function InlineTablePanel({ title, count, meta, open, children }) {
         {meta}
       </div>
       <AsideContext.Provider value={{ overlay: true, open }}>
-        {children}
+        {visited && children}
       </AsideContext.Provider>
     </section>
   );
@@ -154,6 +150,8 @@ function PopupTablePopover({
 
   const { body, under, open, hold, toggle, close } = useTableMarks();
   const isOpen = open === value;
+  const [visited, setVisited] = useState(false);
+  if (isOpen && !visited) setVisited(true);
 
   /*
    * Focus moves in with the panel, or Escape has nothing to catch and the mark
@@ -287,7 +285,7 @@ function PopupTablePopover({
                 <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
                 <AsideContext.Provider value={{ node: under, open: isOpen }}>
-                  {children}
+                  {visited && children}
                 </AsideContext.Provider>
               </div>
             </div>

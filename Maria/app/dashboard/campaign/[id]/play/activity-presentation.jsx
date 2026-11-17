@@ -633,8 +633,15 @@ function Body({ entry }) {
   if (entry.action === "chest_looted") {
     return (
       <>
-        took <Stack quantity={entry.quantity} item={entry.item} /> from{" "}
+        took{" "}
+        {entry.coin ? (
+          <Coins amount={entry.quantity} coin={entry.coin} />
+        ) : (
+          <Stack quantity={entry.quantity} item={entry.item} />
+        )}{" "}
+        from{" "}
         <Container name={entry.container} />
+        <Addressed into="for" target={entry.target} />
       </>
     );
   }

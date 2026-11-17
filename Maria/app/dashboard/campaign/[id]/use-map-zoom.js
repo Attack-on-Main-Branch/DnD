@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** How far a press may drift before it counts as a drag rather than a click. */
 const DRAG_SLOP_PX = 4;
@@ -453,6 +453,14 @@ export function useMapZoom({
     }
   }
 
+  const imageStyle = useMemo(
+    () => ({
+      transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+      transition: dragging ? "none" : "transform 250ms ease",
+    }),
+    [dragging, offset.x, offset.y, scale],
+  );
+
   return {
     zoomed,
     hint: zoomed ? ZOOM_HINT.in : ZOOM_HINT.out,
@@ -482,12 +490,7 @@ export function useMapZoom({
       onLostPointerCapture: onPointerCancel,
     },
 
-    imageStyle: {
-      transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-      // Only the zoom is animated. Easing the pan would leave the map a frame
-      // behind the pointer, which reads as lag.
-      transition: dragging ? "none" : "transform 250ms ease",
-    },
+    imageStyle,
   };
 }
 

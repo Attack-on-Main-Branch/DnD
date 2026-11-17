@@ -3,17 +3,13 @@
 import { useState } from "react";
 
 import { ButtonContent } from "@/app/components/ui/button";
-import MultiSelectMenu from "@/app/components/ui/multi-select-menu";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
-import SelectMenu from "@/app/components/ui/select-menu";
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
 import {
   chestAudienceLine,
   CONTAINER_CARD_CLASSES,
   CONTAINER_KINDS,
-  HIDDEN_CLASSES,
   NOBODY_YET,
-  REVEALED_CLASSES,
 } from "@/app/dashboard/container-presentation";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 import ItemDetail from "@/app/dashboard/item-detail";
@@ -24,8 +20,10 @@ import {
   revealChestTo,
   stockChestItem,
 } from "./chest-actions";
+import ChestCoins from "./chest-coins";
 import ItemSearch from "./item-search";
 import { adjustPackItem } from "./pack-actions";
+import PartyAudience from "./party-audience";
 import { useAllPacks, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 
@@ -53,10 +51,11 @@ export default function DmChestDrawer({
   chests,
   members,
   onTold,
+  panelOpen,
 }) {
   const packs = useAllPacks();
   const store = useTableStore();
-  const { run } = useTableDeed(campaignId);
+  const { run, resync } = useTableDeed(campaignId);
 
   const [open, setOpen] = useState(null);
   const [reading, setReading] = useState(null);
@@ -65,17 +64,15 @@ export default function DmChestDrawer({
      chest while it hands a bag over. */
   const [shelves, setShelves] = useState([]);
 
-  /* The audience being ASSEMBLED, which is not yet the audience: a chest is
-     revealed on a press. Keyed by container, so switching cards keeps it. */
-  const [drafts, setDrafts] = useState({});
+  const [draft, setDraft] = useState(null);
+  const [wasOpen, setWasOpen] = useState(panelOpen);
 
-  function chosenFor(container) {
-    return drafts[container.id] ?? container.visibleTo;
+  if (wasOpen !== panelOpen) {
+    setWasOpen(panelOpen);
+    if (!panelOpen) setDraft(null);
   }
 
-  function setChosen(container, ids) {
-    setDrafts((held) => ({ ...held, [container.id]: ids }));
-  }
+  const memberIds = new Set(members.map(({ id }) => id));
 
   /** A bag somebody is holding keeps its stacks in their pack. */
   function carrierOf(container) {
@@ -121,12 +118,9 @@ export default function DmChestDrawer({
   }
 
   /** Shown to the faces currently lit, and to nobody else. */
-  function reveal(container) {
-    const chosen = chosenFor(container);
-
-    if (chosen.length === 0) {
-      return;
-    }
+  function applyAccess(container, chosen) {
+    setDraft(null);
+    if (chosen.length === 0) return hide(container);
 
     const alone =
       chosen.length === 1
@@ -167,23 +161,30 @@ export default function DmChestDrawer({
     const from = container.ownerCharacterId;
     const receiver = members.find((member) => member.id === to);
 
-    if (from === to || !receiver) {
+    if (from === to || (to && !receiver)) {
       return;
     }
 
+    setDraft(null);
     run({
-      note: [
-        {
-          action: "bag_transferred",
-          actor: "Dungeon Master",
-          container: container.name,
-          target: receiver.name,
-        },
-      ],
+      note: receiver
+        ? [
+            {
+              action: "bag_transferred",
+              actor: "Dungeon Master",
+              container: container.name,
+              target: receiver.name,
+            },
+          ]
+        : [],
 
       paint: () => store.passContainer(container.id, from, to),
       work: () => passContainerTo(campaignId, container.id, to, null),
-      tell: onTold,
+      tell: () => {
+        onTold();
+        if (!to)
+          resync({ containers: true, inventory: true, characterIds: [from] });
+      },
 
       want: {
         containers: true,
@@ -206,10 +207,27 @@ export default function DmChestDrawer({
   function card(container) {
     const expanded = open === container.id;
     const contents = contentsOf(container);
+    const coinPiles = Object.values(container.purse ?? {}).filter(Boolean).length;
     const held = contents.find((row) => row.id === reading);
     const carrier = members.find(
       (member) => member.id === container.ownerCharacterId,
     );
+    const savedAudience = container.isRevealed
+      ? container.visibleTo.filter((id) => memberIds.has(id))
+      : [];
+    const saved =
+      container.type === "bag"
+        ? [container.ownerCharacterId].filter(Boolean)
+        : savedAudience;
+    const chosen = (expanded ? (draft ?? saved) : saved).filter((id) =>
+      memberIds.has(id),
+    );
+    const owner = chosen[0] ?? null;
+    const audienceChanged =
+      expanded &&
+      draft !== null &&
+      (chosen.length !== savedAudience.length ||
+        chosen.some((id) => !savedAudience.includes(id)));
 
     return (
       <li
@@ -222,11 +240,10 @@ export default function DmChestDrawer({
       >
         <button
           type="button"
-          onClick={() =>
-            setOpen((standing) =>
-              standing === container.id ? null : container.id,
-            )
-          }
+          onClick={() => {
+            setDraft(null);
+            setOpen(expanded ? null : container.id);
+          }}
           aria-expanded={expanded}
           className="flex w-full cursor-pointer items-start justify-between gap-3 text-left"
         >
@@ -246,17 +263,21 @@ export default function DmChestDrawer({
                   rather than the pack's `×N`, which beside a name reads as two
                   of the bag. No kind tag: the dropdown it is in says that. */}
           <span className="shrink-0 font-mono text-[0.625rem] text-ink/45 tabular-nums">
-            {contents.length}
+            {contents.length + coinPiles}
           </span>
         </button>
 
         {expanded && (
           <div className="mt-3 flex flex-col gap-3 border-t border-gold/15 pt-3">
-            {contents.length === 0 ? (
+            {container.type === "chest" && (
+              <ChestCoins campaignId={campaignId} container={container} deposit />
+            )}
+            {contents.length === 0 && coinPiles === 0 && (
               <p className="text-xs text-ink/50 italic">
                 Nothing in it. Find something below to put in.
               </p>
-            ) : (
+            )}
+            {contents.length > 0 && (
               <ul className="flex flex-col gap-1.5">
                 {contents.map((row) => (
                   <li
@@ -311,53 +332,48 @@ export default function DmChestDrawer({
 
             {container.type === "chest" ? (
               <div className="flex flex-col gap-2">
-                <MultiSelectMenu
+                <PartyAudience
                   label="Who may see it"
-                  options={members.map((member) => ({
-                    value: member.id,
-                    label: member.name,
-                  }))}
-                  value={chosenFor(container)}
-                  onChange={(ids) => setChosen(container, ids)}
-                  everything="All party"
-                  disabled={members.length === 0}
+                  members={members}
+                  value={chosen}
+                  onChange={setDraft}
                 />
 
-                <div className="flex justify-end">
-                  {container.isRevealed ? (
-                    <RevealButton
-                      revealed
-                      onClick={() => hide(container)}
-                      label={`Hide ${container.name} again`}
+                {audienceChanged && (
+                  <div className="flex justify-end">
+                    <StepButton
+                      wide
+                      pill
+                      onClick={() => applyAccess(container, chosen)}
+                      label={`Apply access for ${container.name}`}
                     >
-                      Hide
-                    </RevealButton>
-                  ) : (
-                    <RevealButton
-                      onClick={() => reveal(container)}
-                      disabled={chosenFor(container).length === 0}
-                      label={`Reveal ${container.name} to the chosen`}
-                    >
-                      Reveal to selected
-                    </RevealButton>
-                  )}
-                </div>
+                      Apply change
+                    </StepButton>
+                  </div>
+                )}
               </div>
             ) : (
-              /* No way back to nobody: taking a bag out of somebody's
-                     hands and putting it nowhere is not a thing that happens at
-                     a table. The only other place it goes is other hands. */
-              <SelectMenu
-                label="Carried by"
-                options={members.map((member) => ({
-                  value: member.id,
-                  label: member.name,
-                }))}
-                value={container.ownerCharacterId ?? ""}
-                onChange={(id) => hand(container, id)}
-                placeholder={NOBODY_YET}
-                disabled={members.length === 0}
-              />
+              <div className="flex flex-col gap-2">
+                <PartyAudience
+                  label="Carried by"
+                  members={members}
+                  value={chosen}
+                  onChange={setDraft}
+                  single
+                />
+                {draft !== null && owner !== container.ownerCharacterId && (
+                  <div className="flex justify-end">
+                    <StepButton
+                      wide
+                      pill
+                      onClick={() => hand(container, owner)}
+                      label={`Apply owner for ${container.name}`}
+                    >
+                      Apply change
+                    </StepButton>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -377,13 +393,19 @@ export default function DmChestDrawer({
           <section key={kind.value} aria-label={kind.plural} className="py-1">
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
+                if (
+                  unfolded &&
+                  held.some((container) => container.id === open)
+                ) {
+                  setDraft(null);
+                }
                 setShelves((standing) =>
                   standing.includes(kind.value)
                     ? standing.filter((one) => one !== kind.value)
                     : [...standing, kind.value],
-                )
-              }
+                );
+              }}
               aria-expanded={unfolded}
               className="group flex w-full cursor-pointer items-center gap-2.5 rounded-md py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
@@ -439,23 +461,5 @@ export default function DmChestDrawer({
         );
       })}
     </div>
-  );
-}
-
-/** Emerald only while it is ON — see container-presentation.js. */
-function RevealButton({ revealed, onClick, disabled, label, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={Boolean(revealed)}
-      aria-label={label}
-      className={`inline-flex min-h-8 cursor-pointer items-center justify-center rounded-full border px-4 py-1.5 font-display text-xs tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
-        revealed ? REVEALED_CLASSES : HIDDEN_CLASSES
-      }`}
-    >
-      <ButtonContent>{children}</ButtonContent>
-    </button>
   );
 }

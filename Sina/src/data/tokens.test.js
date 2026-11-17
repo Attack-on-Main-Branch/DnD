@@ -22,6 +22,57 @@ const TEMPLATE = "6f1c3d2e-0000-4000-8000-0000000007e3";
 const TOKEN = "6f1c3d2e-0000-4000-8000-0000000000t1";
 const CHARACTER = "6f1c3d2e-0000-4000-8000-000000000ch4";
 
+describe("movement reports", () => {
+  it("bounds advisory distances without blocking the position", async () => {
+    const client = stubQuery({ data: true, error: null });
+    const result = await moveMapToken(client, {
+      tokenId: TOKEN,
+      x: 0.8,
+      y: 0.3,
+      distanceFt: Infinity,
+      turnId: "bad",
+    });
+    assert.equal(result.error, null);
+    assert.equal(client.lastRpc.params.p_x, 0.8);
+    assert.equal(client.lastRpc.params.p_distance_ft, null);
+    assert.equal(client.lastRpc.params.p_turn_id, null);
+  });
+  it("keeps authorized movement available before the additive RPC is installed", async () => {
+    const calls = [];
+    const client = {
+      rpc: async (name, params) => {
+        calls.push({ name, params });
+        return name === "move_map_token_with_movement"
+          ? { data: null, error: { code: "PGRST202" } }
+          : { data: true, error: null };
+      },
+    };
+    assert.equal(
+      (await moveMapToken(client, { tokenId: TOKEN, x: 0.2, y: 0.3 })).error,
+      null,
+    );
+    assert.deepEqual(
+      calls.map((call) => call.name),
+      ["move_map_token_with_movement", "move_map_token"],
+    );
+  });
+  it("does not bypass a refusal by retrying another movement function", async () => {
+    const calls = [];
+    const client = {
+      rpc: async (name) => {
+        calls.push(name);
+        return { data: false, error: null };
+      },
+    };
+    assert.equal(
+      (await moveMapToken(client, { tokenId: TOKEN, x: 0.2, y: 0.3 })).error
+        .reason,
+      "not_found",
+    );
+    assert.deepEqual(calls, ["move_map_token_with_movement"]);
+  });
+});
+
 /** Every SQLSTATE this layer promises to say something specific about. */
 const SQLSTATES = [
   ["23514", "invalid_value", "a row that got past validateTokenTemplate"],
@@ -234,7 +285,7 @@ describe("the board", () => {
 
     await moveMapToken(chain, { tokenId: TOKEN, x: 0.4, y: 0.6, q: 1, r: 1 });
 
-    assert.equal(chain.lastRpc.name, "move_map_token");
+    assert.equal(chain.lastRpc.name, "move_map_token_with_movement");
     assert.equal(chain.lastRpc.params.p_token_id, TOKEN);
   });
 

@@ -5,6 +5,7 @@
  * definer functions in 20261005120000 are their only writers.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { removeObject, uploadObject } from "./storage.js";
 
 const BUCKET = "campaign-maps";
@@ -17,12 +18,6 @@ const DIRECTION_COLUMNS = "token_id, direction";
 
 const CHECK_VIOLATION = "23514";
 const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-const TABLE_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   if (error.code === CHECK_VIOLATION) {
@@ -38,23 +33,7 @@ function classify(error) {
     return "scene_takes_no_pieces";
   }
 
-  if (error.code === UNDEFINED_TABLE || error.code === TABLE_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "failed";
+  return classifyDatabaseError(error, "failed");
 }
 
 function failure(error) {

@@ -6,10 +6,7 @@
  * others.
  *
  * NO WIDTH CEILING. The board's column is what decides its width: the log and
- * the party rail either side are measured in rem, and the table's rem follows
- * the window (see `data-table-scale` in globals.css), so the furniture keeps
- * one share of every monitor and the board takes whatever is left. A ceiling
- * of its own only ever stopped it short of the room it had. The stage is
+ * the party rail either side give the board whatever room remains. The stage is
  * `w-fit min-w-0`, so the flex row is what makes it give way — and the picture
  * follows with `max-w-full`, which keeps the glass mat the same 1.5rem on all
  * four sides.

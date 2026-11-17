@@ -7,10 +7,7 @@ import {
   removeTokenTemplate,
   uploadTokenImage,
 } from "sina/data/tokens";
-import {
-  listTokenHealth,
-  writeTokenTemplate,
-} from "sina/data/table-adjustments";
+import { writeTokenTemplate } from "sina/data/table-adjustments";
 import { parseTokenMaxHp, MAX_TOKEN_HP } from "sina/rules/token-health";
 import {
   MAX_CAMPAIGN_TOKENS,
@@ -290,41 +287,6 @@ export async function strikeCampaignToken(campaignId, id) {
   revalidateBoth(campaignId);
 
   return { kind: "success" };
-}
-
-/**
- * The hand as it stands, for a form that has just changed it. Read back rather
- * than worked out in the browser: the trigger is what decides whether a fifth
- * piece was allowed, and only the database knows what two tabs did.
- */
-export async function readCampaignTokens(campaignId) {
-  const supabase = await createClient();
-  const { user } = await getCurrentUser(supabase);
-
-  if (!user) {
-    return null;
-  }
-
-  const { data, error } = await listCampaignTokenTemplates(
-    supabase,
-    campaignId,
-  );
-
-  if (error) {
-    logFailure("readCampaignTokens", error);
-    return null;
-  }
-
-  const health = await listTokenHealth(supabase, campaignId, true);
-  if (health.error) {
-    logFailure("readCampaignTokens/health", health.error);
-    return null;
-  }
-  return data.map((token) => ({
-    ...token,
-    max_hp:
-      health.data.find((row) => row.template_id === token.id)?.max_hp ?? null,
-  }));
 }
 
 /** Best effort, and said out loud in the log if it did not work. */

@@ -14,21 +14,11 @@
  * type is the column list, and the column list is the boundary.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
+
 /** Postgres SQLSTATEs we can say something specific about. */
 const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
 const NUMERIC_OUT_OF_RANGE = "22003";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/**
- * Not SQLSTATEs: PostgREST's own codes for a function or a table it has no
- * entry for. The call never reaches Postgres, which is why `42883` alone never
- * fired for an unpushed migration. See the note in data/activity.js.
- */
-const FUNCTION_CACHE_MISS = "PGRST202";
-const SCHEMA_CACHE_MISS = "PGRST205";
 
 function classify(error) {
   // Past parseCoins but refused by `characters_currency_check`: a disagreement
@@ -42,28 +32,11 @@ function classify(error) {
     return "invalid_value";
   }
 
-  // The character or the campaign went away mid-request.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
+  if (error.code === "42703") {
+    return "unknown";
   }
 
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed, which is what `npm run db:list` is
-  // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

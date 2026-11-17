@@ -1,12 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { MAX_SCENES } from "sina/rules/scene";
 
 import SceneMark from "@/app/components/ui/scene-mark";
 
 import DmTray from "./dm-tray";
-import SceneDrawer from "./scene-drawer";
 import { useTableMaps } from "./table-maps";
+
+const SceneDrawer = dynamic(() => import("./scene-drawer"));
 
 /**
  * The scene painter, in the head of the table's box. It stays open while the
@@ -19,6 +21,7 @@ export default function SceneStage({ faces }) {
 
   return (
     <DmTray
+      workspaceName="Scenes"
       mark={<SceneMark className="size-11" />}
       markLabel={`Scene painter, ${painted} of ${MAX_SCENES} scenes`}
       title="Scene"

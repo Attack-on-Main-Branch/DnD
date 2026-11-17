@@ -13,16 +13,9 @@
  * know whose each row is.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
+
 const COLUMNS = "id, character_id, name, description, created_at";
-
-/** Postgres SQLSTATEs we can say something specific about. */
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** PostgREST's own code for a table it has no entry for — see data/currency.js. */
-const SCHEMA_CACHE_MISS = "PGRST205";
 
 function classify(error) {
   // Trigger-raised, so matched on the message: it has no SQLSTATE of its own.
@@ -30,28 +23,14 @@ function classify(error) {
     return "limit_reached";
   }
 
-  // Past validateFeature but refused by the bounds CHECK: a disagreement
-  // between Sina/src/rules/features.js and the migration.
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
+  switch (error.code) {
+    case "42703":
+    case "42883":
+    case "PGRST202":
+      return "unknown";
   }
 
-  // The character went away between the page rendering and the write landing.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so
-  // it arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

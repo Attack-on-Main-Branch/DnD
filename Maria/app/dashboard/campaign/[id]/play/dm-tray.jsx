@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { Suspense, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
 import { useDmMarks } from "./dm-marks";
+import { useTableWorkspace, WorkspaceTool } from "./table-workspace";
 
 /**
  * One mark along the top of the head of the table's box, and the panel it
@@ -15,20 +16,38 @@ import { useDmMarks } from "./dm-marks";
  * A DISCLOSURE AND NOT A DIALOG: the panel stands in the column beside the
  * board rather than over it, so nothing traps the focus and nothing closes it
  * but its own mark or Escape.
- *
- * `alarm` is the mark lit in the fight's own rose, whatever is open. `bare`
- * leaves the title row to the panel itself.
  */
-export default function DmTray({
-  mark,
-  markLabel,
-  title,
-  meta,
-  panelLabel,
-  alarm = false,
-  bare = false,
-  children,
-}) {
+export default function DmTray(props) {
+  const workspace = useTableWorkspace();
+  const content = (open) => (
+    <Suspense
+      fallback={
+        <p role="status" className="px-5 py-4 text-sm text-ink/60">
+          Loading…
+        </p>
+      }
+    >
+      {typeof props.children === "function"
+        ? props.children(open)
+        : props.children}
+    </Suspense>
+  );
+
+  return workspace ? (
+    <WorkspaceTool
+      name={props.workspaceName ?? props.title}
+      title={props.title}
+      label={props.markLabel}
+      icon={props.mark}
+    >
+      {content}
+    </WorkspaceTool>
+  ) : (
+    <LegacyDmTray {...props}>{content}</LegacyDmTray>
+  );
+}
+
+function LegacyDmTray({ mark, markLabel, title, meta, panelLabel, children }) {
   const value = useId();
   const panelId = `${value}-panel`;
 
@@ -36,6 +55,8 @@ export default function DmTray({
 
   const { body, open, hold, toggle, close } = useDmMarks();
   const isOpen = open === value;
+  const [visited, setVisited] = useState(false);
+  if (isOpen && !visited) setVisited(true);
 
   function onKeyDown(event) {
     if (event.key !== "Escape") {
@@ -47,11 +68,7 @@ export default function DmTray({
     triggerRef.current?.focus();
   }
 
-  const tone = alarm
-    ? "text-rose-400 hover:text-rose-300"
-    : isOpen
-      ? "text-gold"
-      : "text-ink/60 hover:text-gold";
+  const tone = isOpen ? "text-gold" : "text-ink/60 hover:text-gold";
 
   return (
     <>
@@ -91,26 +108,22 @@ export default function DmTray({
                     : ""
                 }`}
               >
-                {!bare && (
-                  <>
-                    <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3">
-                      <h2 className="min-w-0 truncate font-display text-sm font-semibold tracking-wide text-gold">
-                        {title}
-                      </h2>
+                <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-3">
+                  <h2 className="min-w-0 truncate font-display text-sm font-semibold tracking-wide text-gold">
+                    {title}
+                  </h2>
 
-                      {meta !== undefined && meta !== null && (
-                        <p className="shrink-0 font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
-                          {meta}
-                        </p>
-                      )}
-                    </div>
+                  {meta !== undefined && meta !== null && (
+                    <p className="shrink-0 font-mono text-xs tracking-[0.2em] text-ink/45 uppercase">
+                      {meta}
+                    </p>
+                  )}
+                </div>
 
-                    {/* The hairline the header and the changelog drawer carry. */}
-                    <div aria-hidden="true" className={FADED_RULE_CLASSES} />
-                  </>
-                )}
+                {/* The hairline the header and the changelog drawer carry. */}
+                <div aria-hidden="true" className={FADED_RULE_CLASSES} />
 
-                {children}
+                {visited && children(isOpen)}
               </div>
             </div>
           </div>,

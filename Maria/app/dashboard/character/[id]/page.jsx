@@ -455,7 +455,12 @@ async function loadShelf(supabase, characterId, campaigns) {
   }
 
   return {
-    containers: reachable.map(({ id, name, type }) => ({ id, name, type })),
+    containers: reachable.map(({ id, name, type, purse }) => ({
+      id,
+      name,
+      type,
+      purse,
+    })),
     chestItems,
   };
 }

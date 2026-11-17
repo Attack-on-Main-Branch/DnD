@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DICE_SKIN_VALUES } from "./character.js";
+import { DICE_SKIN_VALUES, diceSkinRarity } from "./character.js";
 import {
   BANNER_SKIN_VALUES,
   SKIN_RARITIES,
@@ -22,6 +22,34 @@ import {
 
 const complete = { dice: DICE_SKIN_VALUES, banner: BANNER_SKIN_VALUES };
 
+describe("new dice rewards", () => {
+  for (const [skin, rarity] of [
+    ["iron-bloom", "rare"],
+    ["carbon-fiber", "common"],
+    ["prismatic", "legendary"],
+    ["stained-glass", "rare"],
+  ]) {
+    it(`offers ${skin} as a locked ${rarity} reward until found`, () => {
+      const chances = pouchChances();
+      const reward = chances.find(
+        (one) => one.kind === "dice" && one.skin === skin,
+      );
+      const peers = chances.filter((one) => one.rarity === rarity);
+
+      assert.equal(diceSkinRarity(skin), rarity);
+      assert.equal(reward.chance, POUCH_ODDS[rarity] / 100 / peers.length);
+      assert.equal(isDiceSkinUnlocked(skin, []), false);
+      assert.equal(isDiceSkinUnlocked(skin, [skin]), true);
+      assert.equal(
+        pouchPool({ dice: [skin] }).some(
+          (one) => one.kind === "dice" && one.skin === skin,
+        ),
+        false,
+      );
+    });
+  }
+});
+
 describe("skin collections", () => {
   it("starts with Classic in both collections and discards unknown unlocks", () => {
     assert.deepEqual(unlockedDiceSkins(null), ["classic"]);
@@ -40,10 +68,14 @@ describe("skin collections", () => {
         { skin: "splash" },
         { skin: "vignette" },
         { skin: "cyberpunk" },
+        { skin: "carbon-fiber" },
+        { skin: "stillwater" },
         { skin: "shattered-glass" },
         { skin: "pixel-night" },
+        { skin: "black-hole" },
         { skin: "topography" },
         { skin: "hexagon" },
+        { skin: "vortex" },
         { skin: "spider-lilies" },
         { skin: "sakura" },
         { skin: "lightning" },
@@ -93,7 +125,7 @@ describe("skin collections", () => {
   });
 
   it("finds Epic banners only after their rewards are unlocked", () => {
-    for (const skin of ["topography", "hexagon"]) {
+    for (const skin of ["topography", "hexagon", "vortex"]) {
       assert.equal(bannerSkinRarity(skin), "epic");
       assert.equal(validateBannerSkin(skin), null);
       assert.equal(isBannerSkinUnlocked(skin, []), false);
@@ -111,8 +143,11 @@ describe("skin collections", () => {
   it("keeps Uncommon and Rare banners locked until their rewards are found", () => {
     for (const [skin, rarity] of [
       ["cyberpunk", "uncommon"],
+      ["carbon-fiber", "uncommon"],
+      ["stillwater", "uncommon"],
       ["shattered-glass", "rare"],
       ["pixel-night", "rare"],
+      ["black-hole", "rare"],
     ]) {
       assert.equal(bannerSkinRarity(skin), rarity);
       assert.equal(validateBannerSkin(skin), null);
@@ -136,6 +171,19 @@ describe("skin collections", () => {
 });
 
 describe("mixed pouch draws", () => {
+  it("tracks the Carbon Fiber dice and banner independently", () => {
+    const skin = "carbon-fiber";
+    const carbonFiber = (owned) =>
+      pouchPool(owned).filter((one) => one.skin === skin);
+
+    assert.deepEqual(carbonFiber({ dice: [skin] }), [
+      { kind: "banner", skin, rarity: "uncommon" },
+    ]);
+    assert.deepEqual(carbonFiber({ banner: [skin] }), [
+      { kind: "dice", skin, rarity: "common" },
+    ]);
+  });
+
   it("keeps dice and banner unlocks separate and excludes every owned reward", () => {
     const pool = pouchPool({ dice: ["classic", "wood"] });
     assert.equal(
@@ -153,10 +201,14 @@ describe("mixed pouch draws", () => {
       { kind: "banner", skin: "splash", rarity: "common" },
       { kind: "banner", skin: "vignette", rarity: "common" },
       { kind: "banner", skin: "cyberpunk", rarity: "uncommon" },
+      { kind: "banner", skin: "carbon-fiber", rarity: "uncommon" },
+      { kind: "banner", skin: "stillwater", rarity: "uncommon" },
       { kind: "banner", skin: "shattered-glass", rarity: "rare" },
       { kind: "banner", skin: "pixel-night", rarity: "rare" },
+      { kind: "banner", skin: "black-hole", rarity: "rare" },
       { kind: "banner", skin: "topography", rarity: "epic" },
       { kind: "banner", skin: "hexagon", rarity: "epic" },
+      { kind: "banner", skin: "vortex", rarity: "epic" },
       { kind: "banner", skin: "spider-lilies", rarity: "legendary" },
       { kind: "banner", skin: "sakura", rarity: "legendary" },
       { kind: "banner", skin: "lightning", rarity: "legendary" },
@@ -193,16 +245,30 @@ describe("mixed pouch draws", () => {
     assert.deepEqual(pouchChances({ dice: DICE_SKIN_VALUES }), [
       { kind: "banner", skin: "splash", rarity: "common", chance: 1 / 5 },
       { kind: "banner", skin: "vignette", rarity: "common", chance: 1 / 5 },
-      { kind: "banner", skin: "cyberpunk", rarity: "uncommon", chance: 6 / 25 },
+      { kind: "banner", skin: "cyberpunk", rarity: "uncommon", chance: 2 / 25 },
+      {
+        kind: "banner",
+        skin: "carbon-fiber",
+        rarity: "uncommon",
+        chance: 2 / 25,
+      },
+      {
+        kind: "banner",
+        skin: "stillwater",
+        rarity: "uncommon",
+        chance: 2 / 25,
+      },
       {
         kind: "banner",
         skin: "shattered-glass",
         rarity: "rare",
-        chance: 2 / 25,
+        chance: 4 / 75,
       },
-      { kind: "banner", skin: "pixel-night", rarity: "rare", chance: 2 / 25 },
-      { kind: "banner", skin: "topography", rarity: "epic", chance: 3 / 50 },
-      { kind: "banner", skin: "hexagon", rarity: "epic", chance: 3 / 50 },
+      { kind: "banner", skin: "pixel-night", rarity: "rare", chance: 4 / 75 },
+      { kind: "banner", skin: "black-hole", rarity: "rare", chance: 4 / 75 },
+      { kind: "banner", skin: "topography", rarity: "epic", chance: 1 / 25 },
+      { kind: "banner", skin: "hexagon", rarity: "epic", chance: 1 / 25 },
+      { kind: "banner", skin: "vortex", rarity: "epic", chance: 1 / 25 },
       {
         kind: "banner",
         skin: "spider-lilies",
@@ -244,8 +310,12 @@ describe("mixed pouch draws", () => {
     );
     assert.deepEqual(pouchChances(complete), []);
     const chances = pouchChances({
-      dice: ["classic", "crystal", "glass", "fade", "ornate"],
-      banner: ["splash", "vignette"],
+      dice: DICE_SKIN_VALUES.filter(
+        (skin) => diceSkinRarity(skin) === "common",
+      ),
+      banner: BANNER_SKIN_VALUES.filter(
+        (skin) => bannerSkinRarity(skin) === "common",
+      ),
     });
     assert.ok(!chances.some(({ rarity }) => rarity === "common"));
     assert.ok(

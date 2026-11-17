@@ -16,7 +16,7 @@ import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
 
 /**
- * The last ten things this table has seen, newest at the top, standing opposite
+ * Recent activity, newest at the top, standing opposite
  * the dice rail at the same height.
  *
  * It keeps itself current the two ways the pack next door does: Postgres
@@ -43,13 +43,8 @@ import { useWireMessage } from "./table-wire";
  * line party-rail.jsx warns at rather than near it, and it is affordable
  * because this one never animates its own backdrop after the entrance.
  *
- * Ten entries is the whole of what exists — `purge_campaign_activity` sees to
- * that — and at this height they very nearly all fit; the scroller inside is
- * for the last of them, where the alternative was cutting the oldest off with
- * nothing to say it had happened.
- *
  * NOT `memo` — see table-map.jsx. A remount replayed the entrance on every
- * refresh, as though ten things had just happened.
+ * refresh, as though the whole log had just happened.
  *
  * Where it stands and how tall it is are the COLUMN's — see
  * activity-column.jsx. This is the log and knows nothing about a fight.
@@ -59,6 +54,7 @@ export default function ActivityLog({
   faces = [],
   className = "",
   display = false,
+  workspace = false,
 }) {
   const entries = useActivityEntries();
   const { resync } = useTableDeed(campaignId);
@@ -77,9 +73,8 @@ export default function ActivityLog({
   useWireMessage("log", reread);
 
   /**
-   * What was already here when this panel opened, and therefore what must NOT
-   * glide in. Without it every entry on the page raced in at once on a cold
-   * load, which reads as ten things having just happened.
+   * Rows already here when the panel opened belong to the page entrance.
+   * Only new activity uses the log's live entry animation.
    *
    * State with a lazy initialiser rather than a ref: it is read while
    * rendering, and it is never written again — so React rendering this twice
@@ -95,21 +90,31 @@ export default function ActivityLog({
       aria-label="Activity log"
       style={logEntrance()}
       className={surfaceClasses({
-        className: `flex w-full flex-col overflow-hidden rounded-2xl ${LOG_CLASSES} ${className}`,
+        className: `flex w-full flex-col overflow-hidden rounded-2xl ${workspace ? "workspace-log" : LOG_CLASSES} ${className}`,
       })}
     >
       {/* One element child, which is what panel-fold.js fades before it folds
           the shell around it. */}
       <div className="flex min-h-0 flex-1 flex-col">
-        <h2 className="px-4 pt-4 pb-3 font-display text-xs font-semibold tracking-[0.18em] text-gold/80 uppercase">
+        <h2
+          data-table-arrival-content={workspace ? "right" : undefined}
+          className="px-4 pt-4 pb-3 font-display text-xs font-semibold tracking-[0.18em] text-gold/80 uppercase"
+        >
           Activity log
         </h2>
 
         {/* The hairline the header and the changelog drawer carry. */}
-        <div aria-hidden="true" className={FADED_RULE_CLASSES} />
+        <div
+          aria-hidden="true"
+          data-table-arrival-content={workspace ? "right" : undefined}
+          className={FADED_RULE_CLASSES}
+        />
 
         {entries.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink/50 italic">
+          <p
+            data-table-arrival-content={workspace ? "right" : undefined}
+            className="flex flex-1 items-center justify-center px-6 text-center text-sm text-ink/50 italic"
+          >
             Nothing has happened at this table yet.
           </p>
         ) : (
@@ -157,7 +162,7 @@ export default function ActivityLog({
 
 /**
  * Who did it, as a face rather than a word — the name is in the sentence
- * already, and a column of portraits is how a log of ten lines becomes
+ * already. A column of portraits makes the log
  * skimmable.
  *
  * The head of the table wears the party's own gold token, exactly as it does on

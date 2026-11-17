@@ -3,14 +3,13 @@
 import { useState } from "react";
 
 import SpellDetail from "@/app/dashboard/spell-detail";
-import SpellRow from "@/app/dashboard/spell-row";
 import { spellsByShelf } from "@/app/dashboard/spell-presentation";
 
 import { Action, Confirm } from "./pack-controls";
 import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import { teachSpell, unlearnSpell } from "./spell-actions";
 import SpellSearch from "./spell-search";
-import Shelf from "@/app/dashboard/spell-shelf";
+import SpellShelves from "@/app/dashboard/spell-shelves";
 import SpellSlotTracker from "./spell-slot-tracker";
 import {
   PopoverAside,
@@ -139,7 +138,6 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
   }
 
   return (
-    /* A column keeps the slot bar pinned while the shelves scroll. */
     <div data-popover-body className={`flex flex-col ${POPOVER_BODY_CLASSES}`}>
       {/* `min-h-0`, or a flex item will not shrink under its own content and
           the shelves would push the bar off the foot of the panel. */}
@@ -149,20 +147,21 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
           chosen={target}
           onChoose={setTarget}
           label="Who learns it"
-        >
-          <Pill
-            active={target === EVERYONE}
-            onClick={() => setTarget(EVERYONE)}
-            disabled={members.length === 0}
-          >
-            All party
-            {members.length > 0 && (
-              <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
-                {members.length}
-              </span>
-            )}
-          </Pill>
-        </PartyPills>
+          leading={
+            <Pill
+              active={target === EVERYONE}
+              onClick={() => setTarget(EVERYONE)}
+              disabled={members.length === 0}
+            >
+              All party
+              {members.length > 0 && (
+                <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
+                  {members.length}
+                </span>
+              )}
+            </Pill>
+          }
+        />
 
         {members.length === 0 ? (
           <p className="mt-6 text-center text-sm text-ink/50 italic">
@@ -170,7 +169,17 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
           </p>
         ) : (
           <>
-            {/* Search first: teaching is why this drawer is open. */}
+            {caster && (
+              <SpellSlotTracker
+                campaignId={campaignId}
+                characterId={selected.id}
+                slots={caster.slots}
+                classId={caster.classId}
+                level={caster.level}
+                editable
+                className="mt-4"
+              />
+            )}
             <div className="mt-5">
               <SpellSearch
                 campaignId={campaignId}
@@ -190,23 +199,11 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
                     {selected.name} · {book.length} known
                   </p>
 
-                  {shelves.map((shelf) => (
-                    <Shelf
-                      key={shelf.level}
-                      label={shelf.label}
-                      count={shelf.spells.length}
-                    >
-                      {shelf.spells.map((spell) => (
-                        <li key={spell.slug} className="flex">
-                          <SpellRow
-                            spell={spell}
-                            open={open?.slug === spell.slug}
-                            onOpen={() => show(spell)}
-                          />
-                        </li>
-                      ))}
-                    </Shelf>
-                  ))}
+                  <SpellShelves
+                    shelves={shelves}
+                    openSlug={open?.slug}
+                    onOpen={show}
+                  />
                 </>
               ))}
           </>
@@ -219,19 +216,8 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
         )}
       </div>
 
-      {caster && (
-        <SpellSlotTracker
-          campaignId={campaignId}
-          characterId={selected.id}
-          slots={caster.slots}
-          classId={caster.classId}
-          level={caster.level}
-          editable
-        />
-      )}
-
-      {open && (
-        <PopoverAside>
+      <PopoverAside title={open?.name} onClose={() => setReading(null)}>
+        {open && (
           <SpellDetail spell={open}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               {selected && known.has(open.slug) ? (
@@ -279,8 +265,8 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
               </Confirm>
             )}
           </SpellDetail>
-        </PopoverAside>
-      )}
+        )}
+      </PopoverAside>
     </div>
   );
 }

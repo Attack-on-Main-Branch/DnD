@@ -11,6 +11,49 @@ export const MAX_INITIATIVE = 99;
 
 /** Mirrors `campaigns_combat_round_check`. */
 export const MIN_COMBAT_ROUND = 1;
+export const MAX_MOVEMENT_STEP = 1_000_000;
+
+export function readTurnId(value) {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+    ? value
+    : null;
+}
+
+export function movementFeet(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : 0;
+}
+
+export function movementStep(value) {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_MOVEMENT_STEP
+    ? value
+    : null;
+}
+
+export function turnMovement(combat, token) {
+  return combat?.inCombat &&
+    combat.turnId &&
+    token?.movementTurnId === combat.turnId
+    ? movementFeet(token.movementFt)
+    : 0;
+}
+
+export function movementState(speed, moved) {
+  const distance = movementFeet(moved);
+  const allowance = movementFeet(speed);
+  return distance > allowance * 2
+    ? "out_of_range"
+    : distance > allowance
+      ? "dashing"
+      : "walking";
+}
 
 /**
  * A number as the box submits it, or null for a piece that has not rolled.
@@ -41,6 +84,10 @@ export function readCombat(row) {
   return {
     inCombat: Boolean(row?.is_in_combat ?? row?.inCombat),
     activeTokenId: tokenId(row?.active_turn_token_id ?? row?.activeTokenId),
+    turnId: readTurnId(row?.combat_turn_id ?? row?.turnId),
+    nextCharacterId: tokenId(
+      row?.next_turn_character_id ?? row?.nextCharacterId,
+    ),
     round:
       Number.isInteger(round) && round >= MIN_COMBAT_ROUND
         ? round

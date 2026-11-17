@@ -9,9 +9,9 @@ export const SKIN_RARITIES = [
 
 const BANNER_SKINS_BY_RARITY = {
   common: ["classic", "splash", "vignette"],
-  uncommon: ["cyberpunk"],
-  rare: ["shattered-glass", "pixel-night"],
-  epic: ["topography", "hexagon"],
+  uncommon: ["cyberpunk", "carbon-fiber", "stillwater"],
+  rare: ["shattered-glass", "pixel-night", "black-hole"],
+  epic: ["topography", "hexagon", "vortex"],
   legendary: ["spider-lilies", "sakura", "lightning"],
   iconic: ["dragon-lore", "printstream", "wings-of-freedom"],
 };

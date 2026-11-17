@@ -17,16 +17,28 @@
 export const CHANGELOG = [
   {
     version: "2.2.0",
-    date: "2026-11-10",
-    title: "A banner for your legend",
+    date: "2026-11-15",
+    title: "Banners, coin, and your next move",
     changes: [
-      "Added 13 banner skins to the game besides dice skins.",
+      "Added 17 banner skins to the game besides dice skins.",
+      "Added 4 new dice skins.",
       "Dice Pouches are now Pouches. Each opens into one new dice or banner skin. Existing pouches and unlocked dice are kept.",
       "Banners and dice have a Quill icon if their colour can be changed.",
+      "The whole play table got redesigned.",
+      "Inventory shows animated coin piles.",
+      "The players will see a popup when their turn comes up, and can see their movement and end their turn.",
+      "The Dungeon Master can drag items between packs and bags, see held items in the same In hand slot as players, and apply chest and bag access from party portraits.",
+      "The Dungeon Master can stock loot chests with coins.",
+      "The ability scores icons got redesigned.",
       "A compass wheel appears if the top loading bar finishes before a page is ready.",
+      "The activity log keeps the latest 15 entries.",
       "Performance monitoring can measure real page speed and trace slow server requests to guide future improvements.",
     ],
     fixes: [
+      "Banner controls crossfade in place as characters are knocked down, killed, or revived.",
+      "The Dungeon Master can revive a downed character directly from their banner.",
+      "Closing Chests discards unapplied access and ownership changes.",
+      "Opening one player’s health controls won’t expand their banner.",
       "Some tooltip designs were fixed to match the previous design.",
       "Saved dice skins and colours reach open tables and TV displays without a reload, including when a player returns to their seat.",
       "The animated background uses less memory on large displays and avoids redundant drawing. Reduced-motion users no longer load invisible 3D dice worlds.",
@@ -36,6 +48,7 @@ export const CHANGELOG = [
       "Thrown dice and their effects stay above every map token.",
       "Tokens with matching initiative keep their turn order when moved, so nobody is skipped.",
       "Fog, grid and other button labels sit in the center of their controls.",
+      "The activity log will show the pfps correctly.",
     ],
   },
   {
@@ -44,7 +57,6 @@ export const CHANGELOG = [
     title: "A clearer view of the table",
     changes: [
       "Cast to TV opens a read-only display with a larger map, live initiative and activity, and the table’s shared dice and arrows.",
-      "The phone table shows the campaign title and larger, sharper animated dice over a full-height map. Fog of war continues into the frame padding, and zooming in reveals the map there. The rim and backdrop turn red during combat. Sheet, Spells and Pack slide up from the bottom.",
       "Dungeon Masters can download the party's character builds, health, combat stats, equipment, spells and features as JSON from the Party tab, without conditions, inspiration, hit dice, coins or attachment details.",
       "Dungeon Masters can attach an HTML file up to 25 MB to an item. Check item opens it from the inventory in a large animated window with a close button in the corner. HTML renders at 1920×1080 and scales to fit the preview, keeping its desktop layout on smaller screens.",
       "Dungeon Masters can pause the party's dice while keeping their own rolls available.",

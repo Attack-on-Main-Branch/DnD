@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import { setBattleTint } from "@/app/components/paths-background/tint-control";
 
-import { useCombatState } from "./table-state";
+import { useInCombat } from "./table-state";
 
 /**
  * The room going red while the party fights, on every chair — off the same
@@ -12,7 +12,7 @@ import { useCombatState } from "./table-state";
  * Leaving the table takes the red with it.
  */
 export default function CombatBackdrop() {
-  const { inCombat } = useCombatState();
+  const inCombat = useInCombat();
 
   useEffect(() => {
     setBattleTint(inCombat);

@@ -26,7 +26,7 @@ import { useTableDeed } from "./use-table-deed";
  * happened; it goes to `logFailure` and the pending line comes down.
  *
  * The promise NEVER REJECTS, and callers still await it where two quick presses
- * would race: the log keeps ten entries and the purse can write five at once.
+ * would race: the log is bounded and the purse can write five at once.
  */
 export function useActivityLog(campaignId) {
   const store = useTableStore();
@@ -37,7 +37,13 @@ export function useActivityLog(campaignId) {
       /* Added here rather than at a dozen call sites, each of which already
          names the chair that acted. */
       const ticket = preview
-        ? store.noteEntries([{ ...preview, seat: actorCharacterId }])
+        ? store.noteEntries([
+            {
+              ...preview,
+              seat: actorCharacterId ?? null,
+              head: actorCharacterId == null,
+            },
+          ])
         : null;
 
       return recordActivity(campaignId, actorCharacterId, entry).then(

@@ -26,7 +26,7 @@ export default function BannerSkinPicker({ diceColor, ...props }) {
             diceColor={diceColor}
             animated={false}
             sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 400px"
-            className={`transition duration-300 ${locked ? "scale-110 opacity-40 blur-xl brightness-50 grayscale" : "motion-safe:group-hover:scale-105"}`}
+            className={`transition duration-300 ${locked ? "opacity-55 blur-lg brightness-60 grayscale" : "motion-safe:group-hover:scale-105"}`}
           />
         </span>
       )}

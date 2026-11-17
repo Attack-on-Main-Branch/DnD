@@ -166,22 +166,13 @@ export default function SheetFeatures({ characterId, features }) {
         />
       </section>
 
-      <section>
-        <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-          Features and feats
-        </h3>
-
-        <div className="mt-3">
-          <FeatureGrid
-            features={held}
-            onRemove={strike}
-            onEdit={startEditing}
-            editingId={editingId}
-            pending={pending}
-            emptyMessage="Nothing written down yet. Hover a card to read what it does."
-          />
-        </div>
-      </section>
+      <FeatureGrid
+        features={held}
+        onRemove={strike}
+        onEdit={startEditing}
+        editingId={editingId}
+        pending={pending}
+      />
 
       {error && (
         <p role="alert" className="text-xs text-red-300">

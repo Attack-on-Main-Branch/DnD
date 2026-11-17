@@ -10,7 +10,9 @@ import {
   listContainerItems,
   removeContainer,
   revealChest,
+  stockChestCoins,
   stockContainerItem,
+  takeChestCoins,
   takeChestItem,
   transferContainer,
   updateContainer,
@@ -191,6 +193,38 @@ describe("insertContainer", () => {
     assert.equal(data, null);
     assert.equal(error.reason, "not_found");
   });
+
+  it("inserts starting coins with the chest row", async () => {
+    const query = stubQuery({ data: { id: CONTAINER }, error: null });
+    const coins = { cp: 3, sp: 6, ep: 0, gp: 25, pp: 1 };
+    await insertContainer(query, {
+      campaignId: CAMPAIGN,
+      container: { name: "Chest", type: "chest" },
+      coins,
+    });
+
+    assert.deepEqual(query.lastInsert, {
+      campaign_id: CAMPAIGN,
+      name: "Chest",
+      type: "chest",
+      ...coins,
+    });
+  });
+
+  it("keeps starting coins out of a bag", async () => {
+    const query = stubQuery({ data: { id: CONTAINER }, error: null });
+    await insertContainer(query, {
+      campaignId: CAMPAIGN,
+      container: { name: "Bag", type: "bag" },
+      coins: { gp: 25 },
+    });
+
+    assert.deepEqual(query.lastInsert, {
+      campaign_id: CAMPAIGN,
+      name: "Bag",
+      type: "bag",
+    });
+  });
 });
 
 describe("removeContainer", () => {
@@ -365,6 +399,58 @@ describe("takeChestItem", () => {
 
     assert.equal(refused.data, null);
     assert.equal(refused.error.reason, "not_found");
+  });
+});
+
+describe("chest coins", () => {
+  const coins = {
+    campaignId: CAMPAIGN,
+    containerId: CONTAINER,
+    coin: "gp",
+    amount: 20,
+  };
+  const params = {
+    p_campaign_id: CAMPAIGN,
+    p_container_id: CONTAINER,
+    p_coin: "gp",
+    p_amount: 20,
+  };
+
+  it("stocks one denomination in the specified campaign's chest", async () => {
+    const query = stubQuery({ data: 15, error: null });
+    assert.deepEqual(await stockChestCoins(query, coins), {
+      data: { moved: 15 },
+      error: null,
+    });
+    assert.deepEqual(query.lastRpc, { name: "stock_chest_coins", params });
+  });
+
+  it("takes into the specified purse and returns the amount actually moved", async () => {
+    const query = stubQuery({ data: 3, error: null });
+    const result = await takeChestCoins(query, {
+      ...coins,
+      characterId: FRIEREN,
+    });
+    assert.deepEqual(result, { data: { moved: 3 }, error: null });
+    assert.deepEqual(query.lastRpc, {
+      name: "take_chest_coins",
+      params: { ...params, p_character_id: FRIEREN },
+    });
+  });
+
+  it("distinguishes an authorized zero movement from denied chest access", async () => {
+    const claim = { ...coins, characterId: FRIEREN };
+    const empty = await takeChestCoins(
+      stubQuery({ data: 0, error: null }),
+      claim,
+    );
+    const denied = await takeChestCoins(
+      stubQuery({ data: null, error: null }),
+      claim,
+    );
+    assert.deepEqual(empty, { data: { moved: 0 }, error: null });
+    assert.equal(denied.data, null);
+    assert.equal(denied.error.reason, "not_found");
   });
 });
 

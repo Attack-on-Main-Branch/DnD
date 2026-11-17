@@ -2,6 +2,8 @@
 
 import { useId } from "react";
 
+import { diceColorHex } from "./character-presentation";
+
 import styles from "./cyberpunk-banner.module.css";
 
 const MAIN_BAND =
@@ -110,11 +112,14 @@ const CIRCUITS = [
   node: points.at(-1),
 }));
 
-export default function CyberpunkBanner() {
+export default function CyberpunkBanner({ diceColor }) {
   const id = useId();
 
   return (
-    <span className={styles.surface}>
+    <span
+      className={styles.surface}
+      style={{ "--cyberpunk-color": diceColorHex(diceColor) }}
+    >
       <svg
         className={styles.circuitry}
         viewBox="0 0 1200 486"

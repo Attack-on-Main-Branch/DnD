@@ -53,6 +53,7 @@ export default function WorldLore({
 
   return (
     <TablePopover
+      workspaceName="World"
       inline={inline}
       icon={WorldGlobe}
       label={`World lore of ${title}`}

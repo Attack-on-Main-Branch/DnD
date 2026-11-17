@@ -1,4 +1,5 @@
-import { hexToPixel, pixelToHex } from "./hex-math.js";
+import { hexDistance, hexToPixel, pixelToHex } from "./hex-math.js";
+import { FEET_PER_HEX } from "sina/rules/grid";
 
 function usable(point, natural, grid) {
   return (
@@ -43,4 +44,23 @@ export function mapDestination(point, natural, grid) {
     grid.size,
   );
   return withinMap(hexToPixel(cell.q, cell.r, grid.size), natural, cell);
+}
+
+export function mapMovementFeet(from, to, natural, grid) {
+  if (!usable(from, natural, grid) || !usable(to, natural, grid)) return 0;
+  const start = { x: from.x * natural.width, y: from.y * natural.height };
+  const end = { x: to.x * natural.width, y: to.y * natural.height };
+  if (grid.enabled) {
+    return (
+      hexDistance(
+        pixelToHex(start.x, start.y, grid.size),
+        pixelToHex(end.x, end.y, grid.size),
+      ) * FEET_PER_HEX
+    );
+  }
+  return (
+    (Math.hypot(end.x - start.x, end.y - start.y) /
+      (Math.sqrt(3) * grid.size)) *
+    FEET_PER_HEX
+  );
 }

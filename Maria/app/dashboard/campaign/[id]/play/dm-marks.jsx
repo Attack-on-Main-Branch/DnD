@@ -16,6 +16,7 @@ import {
 } from "@/app/components/ui/surface";
 
 import { LOG_CLASSES, logEntrance } from "./entrance";
+import { useTableWorkspace } from "./table-workspace";
 
 /**
  * The head of the table's box, at the top of the log's column: the marks along
@@ -41,14 +42,15 @@ const DmMarksContext = createContext(null);
 
 export function useDmMarks() {
   const marks = useContext(DmMarksContext);
+  const workspace = useTableWorkspace();
 
   // A mark outside the box has nowhere to portal into, and the destructure a
   // caller does next would blame `body` for it. Said here instead.
-  if (!marks) {
+  if (!marks && !workspace) {
     throw new Error("useDmMarks was called outside DmMarks");
   }
 
-  return marks;
+  return workspace ?? marks;
 }
 
 export default function DmMarks({ children }) {

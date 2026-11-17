@@ -38,6 +38,16 @@ test("free drawings do not require grid cells", () => {
   assert.deepEqual(drawing.to, { x: 1, y: 1, q: null, r: null });
 });
 
+test("a shared movement arrow can name a token, but a measured shape cannot", () => {
+  const tokenId = "token-1";
+  assert.equal(readMapDrawing({ from, to, tokenId }).tokenId, tokenId);
+  assert.equal(readMapDrawing({ from, to, tokenId: 42 }).tokenId, undefined);
+  assert.equal(
+    readMapDrawing({ from, to, tokenId, shape: "circle" }).tokenId,
+    undefined,
+  );
+});
+
 test("cell-only endpoints remain usable on ruled maps", () => {
   assert.deepEqual(readMapDrawing({ from: { q: -3, r: 4 }, to }).from, {
     x: null,

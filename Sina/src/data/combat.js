@@ -1,3 +1,6 @@
+import { classifyDatabaseError as classify } from "./database-errors.js";
+import { getCampaignTable } from "./campaigns.js";
+
 /**
  * Beginning a fight, ending one, writing a number down and handing the turn on.
  * Failures come back as a `reason` code, not a sentence.
@@ -12,50 +15,13 @@
  * learns nothing either way.
  */
 
-/** Postgres SQLSTATEs we can say something specific about. */
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** Not SQLSTATEs: PostgREST's own codes for a table or function it has no
-    entry for, so the call never reaches Postgres and the two above never fire. */
-const TABLE_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
-
-function classify(error) {
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
-  }
-
-  // A campaign or a piece that went away mid-request.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE || error.code === TABLE_CACHE_MISS) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed.
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
-}
+const GUIDANCE_COLUMNS = [
+  "combat_turn_id",
+  "next_turn_character_id",
+  "is_in_combat",
+  "active_turn_token_id",
+  "combat_round",
+];
 
 function failure(error) {
   return {
@@ -106,7 +72,56 @@ export async function setTokenInitiative(supabase, { tokenId, initiative }) {
 
 /** Off the bottom is the top again, a round later. */
 export async function advanceCombatTurn(supabase, campaignId) {
+  let result = await supabase.rpc("advance_combat_turn_locked", {
+    p_campaign_id: campaignId,
+  });
+  if (result.error && classify(result.error) === "missing_function") {
+    result = await supabase.rpc("advance_combat_turn", {
+      p_campaign_id: campaignId,
+    });
+  }
+  return answer(result);
+}
+
+export async function getCampaignCombat(supabase, campaignId) {
+  const [table, guidance] = await Promise.all([
+    getCampaignTable(supabase, campaignId),
+    supabase.rpc("campaign_combat_guidance", { target_campaign: campaignId }),
+  ]);
+  if (table.error || !table.data) return table;
+  if (guidance.error) {
+    // Keep the table usable while the additive migration is being deployed.
+    if (
+      ["missing_function", "missing_column"].includes(classify(guidance.error))
+    )
+      return table;
+    return failure(guidance.error);
+  }
+  const current = guidance.data?.[0];
+  return {
+    data: current
+      ? {
+          ...table.data,
+          ...Object.fromEntries(
+            GUIDANCE_COLUMNS.filter((key) => Object.hasOwn(current, key)).map(
+              (key) => [key, current[key]],
+            ),
+          ),
+        }
+      : table.data,
+    error: null,
+  };
+}
+
+export async function finishCharacterTurn(
+  supabase,
+  { campaignId, characterId, turnId },
+) {
   return answer(
-    await supabase.rpc("advance_combat_turn", { p_campaign_id: campaignId }),
+    await supabase.rpc("finish_character_turn", {
+      p_campaign_id: campaignId,
+      p_character_id: characterId,
+      p_turn_id: turnId,
+    }),
   );
 }

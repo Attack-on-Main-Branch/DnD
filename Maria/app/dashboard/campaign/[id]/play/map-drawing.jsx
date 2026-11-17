@@ -1,10 +1,13 @@
 "use client";
 
+import { useId } from "react";
 import { FEET_PER_HEX } from "sina/rules/grid";
 import { DEFAULT_CONE_ANGLE, MAP_DRAWING_SHAPES } from "sina/rules/map-drawing";
 
 import { hexDistance } from "@/lib/hex-math";
 import { conePath, drawingGeometry } from "@/lib/map-drawing";
+
+import styles from "./map-drawing.module.css";
 
 /**
  * The reach of a move, while it is being made: a line from where a token IS to
@@ -48,11 +51,12 @@ export default function MapDrawing({
   to,
   size,
   color,
+  moving = false,
   layerStyle,
   shape = MAP_DRAWING_SHAPES[0],
   angle: coneAngle = DEFAULT_CONE_ANGLE,
 }) {
-  const drawn = reach(width, height, from, to, size, shape);
+  const drawn = reach(width, height, from, to, size, shape, moving);
 
   if (!drawn) {
     return null;
@@ -120,6 +124,8 @@ export default function MapDrawing({
               />
             )}
           </>
+        ) : moving ? (
+          <MovementArrow drawn={drawn} size={size} color={color} />
         ) : (
           <>
             {/* Drawn twice, dark underneath: a bright line over a bright map is one
@@ -172,6 +178,61 @@ export default function MapDrawing({
   );
 }
 
+function MovementArrow({ drawn, size, color }) {
+  const pattern = useId();
+  const { start, length, angle } = drawn;
+  const head = Math.min(size * HEAD_OF_A_CELL, length * 0.55);
+  const halfLine = Math.min(size * LINE_OF_A_CELL * 0.75, head * 0.3);
+  const halfHead = head * 0.45;
+  const shaft = length - head;
+  const step = size * 0.35;
+  const chevron = halfLine * 0.65;
+  const center = step / 2;
+  const outline = `M 0 ${-halfLine} H ${shaft} V ${-halfHead} L ${length} 0 L ${shaft} ${halfHead} V ${halfLine} H 0 Z`;
+
+  return (
+    <g
+      transform={`translate(${start.x} ${start.y}) rotate(${(angle * 180) / Math.PI})`}
+    >
+      <defs>
+        <pattern
+          id={pattern}
+          patternUnits="userSpaceOnUse"
+          width={step}
+          height={halfLine * 2}
+        >
+          <path
+            d={`M ${center - chevron} ${halfLine - chevron} L ${center} ${halfLine} L ${center - chevron} ${halfLine + chevron}`}
+            fill="none"
+            stroke={`color-mix(in srgb, ${color} 48%, var(--color-ink))`}
+            strokeWidth={halfLine * 0.35}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </pattern>
+      </defs>
+      <path
+        d={outline}
+        fill={color}
+        stroke={OUTLINE}
+        strokeWidth={Math.min(size * RIM_OF_A_CELL * 2, halfLine)}
+        strokeLinejoin="round"
+        style={{ paintOrder: "stroke" }}
+      />
+      <svg y={-halfLine} width={shaft} height={halfLine * 2} overflow="hidden">
+        <rect
+          className={styles.chevrons}
+          style={{ "--chevron-step": `${step}px` }}
+          x={-step}
+          width={shaft + step}
+          height={halfLine * 2}
+          fill={`url(#${pattern})`}
+        />
+      </svg>
+    </g>
+  );
+}
+
 /**
  * How far that is, in feet — and OVER the pieces rather than under them.
  *
@@ -189,15 +250,22 @@ export function DrawingDistance({
   size,
   layerStyle,
   shape = MAP_DRAWING_SHAPES[0],
+  movement,
 }) {
-  const drawn = reach(width, height, from, to, size, shape);
+  const drawn = reach(width, height, from, to, size, shape, Boolean(movement));
 
-  // Cells or nothing: a board with no grid has no whole number of them to give.
-  if (!drawn || !Number.isInteger(from.q) || !Number.isInteger(to.q)) {
+  if (
+    !drawn ||
+    (!movement && (!Number.isInteger(from.q) || !Number.isInteger(to.q)))
+  ) {
     return null;
   }
 
   const { start, end } = drawn;
+  const distance = movement
+    ? Math.round(movement.distance * 10) / 10
+    : hexDistance(from, to) * FEET_PER_HEX;
+  const range = movement?.range;
 
   return (
     <div
@@ -206,16 +274,19 @@ export function DrawingDistance({
       style={layerStyle}
     >
       <span
-        className="absolute font-mono text-xs font-semibold tracking-wide whitespace-nowrap text-gold"
+        className="absolute flex -translate-1/2 flex-col items-center gap-0.5 rounded-md border border-gold/40 bg-surface/90 px-1.5 py-0.5 font-mono text-xs leading-tight font-semibold tracking-wide whitespace-nowrap text-gold"
         style={{
           left: `${((start.x + end.x) / 2 / width) * 100}%`,
           top: `${((start.y + end.y) / 2 / height) * 100}%`,
-          transform: "translate(-50%, -50%)",
         }}
       >
-        <span className="rounded-md border border-gold/40 bg-surface/90 px-1.5 py-0.5">
-          {hexDistance(from, to) * FEET_PER_HEX} ft
-        </span>
+        {distance} ft
+        {range === "dashing" && (
+          <span className="text-[0.625rem] text-amber-300">Dashing</span>
+        )}
+        {range === "out_of_range" && (
+          <span className="text-[0.625rem] text-rose-300">Out of Range</span>
+        )}
       </span>
     </div>
   );
@@ -228,11 +299,11 @@ export function DrawingDistance({
  * Null for a move too short to draw — which is also how both layers agree to
  * show nothing rather than one of them drawing alone.
  */
-function reach(width, height, from, to, size, shape) {
+function reach(width, height, from, to, size, shape, moving) {
   const geometry = drawingGeometry(width, height, from, to);
   if (
     !geometry ||
-    (shape === "arrow" && geometry.length < size * HEAD_OF_A_CELL)
+    (!moving && shape === "arrow" && geometry.length < size * HEAD_OF_A_CELL)
   ) {
     return null;
   }

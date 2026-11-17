@@ -310,8 +310,7 @@ export async function toggleCondition(
   }
 
   /* NO ACTIVITY COMES BACK. A condition leaves no line — see 20260915090000 —
-     and a round of combat is a dozen of these presses; a ten-entry log one turn
-     can fill is a log that has stopped being one. */
+     and a round of combat is a dozen of these presses. */
   return {
     kind: "success",
     applied: data.applied,

@@ -10,6 +10,8 @@
  * else's pack, which no policy grants and none should.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
+
 /**
  * `character_id` is here on purpose, unlike `user_id` elsewhere in this layer:
  * the Dungeon Master reads the whole party's packs in one query and has to know
@@ -26,14 +28,6 @@ const CATALOGUE_COLUMNS =
 
 /** Postgres SQLSTATEs we can say something specific about. */
 const UNIQUE_VIOLATION = "23505";
-const CHECK_VIOLATION = "23514";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-/** PostgREST's own code for a function it has no entry for. */
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   // A catalogue entry written twice under one name. The pack's own functions
@@ -54,34 +48,13 @@ function classify(error) {
     return "dm_only";
   }
 
-  // Past validateItem but refused by the bounds CHECK: a disagreement between
-  // Sina/src/rules/inventory.js and the migration.
-  if (error.code === CHECK_VIOLATION) {
-    return "invalid_value";
+  switch (error.code) {
+    case "PGRST205":
+    case "42703":
+      return "unknown";
   }
 
-  // The character went away between the page rendering and the write landing.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
-  }
-
-  if (error.code === UNDEFINED_TABLE) {
-    return "missing_table";
-  }
-
-  // A migration written but never pushed, which is what `npm run db:list` is
-  // for. The tests never reach a database, so nothing else catches it.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row, so it
-  // arrives as an error. A miss, not a failure.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

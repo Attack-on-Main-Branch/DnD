@@ -112,6 +112,7 @@ describe("readContainer", () => {
       id: CHEST_ROW.id,
       name: "Sunken Iron Chest",
       type: "chest",
+      purse: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
       campaignId: CAMPAIGN,
       ownerCharacterId: null,
       isRevealed: true,
@@ -126,6 +127,12 @@ describe("readContainer", () => {
     assert.equal(bag.ownerCharacterId, FRIEREN);
     assert.deepEqual(bag.visibleTo, []);
     assert.equal(bag.isRevealed, false);
+  });
+
+  it("reads all five coin balances only into chests", () => {
+    const coins = { cp: 5, sp: 10, ep: 15, gp: 20, pp: 25 };
+    assert.deepEqual(readContainer({ ...CHEST_ROW, ...coins }).purse, coins);
+    assert.equal(readContainer({ ...BAG_ROW, ...coins }).purse, undefined);
   });
 
   it("answers a row of the older shape with null rather than half a card", () => {

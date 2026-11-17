@@ -36,6 +36,7 @@ import {
   readdir,
   readFile,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -68,9 +69,6 @@ const SOURCE = path.join(
 );
 const STOCK = path.join(SOURCE, "themes", "default");
 
-/** What every theme needs and none of them changes. */
-const SHARED = ["default.json", "normal.png"];
-
 /** The themes a character can pick, which the style picker shows. */
 const CHOOSABLE = new Set(Object.values(DICE_SKIN_THEMES));
 
@@ -99,10 +97,35 @@ function fingerprint(...parts) {
 }
 
 async function isBuilt(systemName, print) {
-  try {
-    const stamp = path.join(OUT, "themes", systemName, STAMP);
+  const folder = path.join(OUT, "themes", systemName);
 
-    return (await readFile(stamp, "utf8")) === print;
+  try {
+    if ((await readFile(path.join(folder, STAMP), "utf8")) !== print) {
+      return false;
+    }
+
+    const { meshFile, material } = JSON.parse(
+      await readFile(path.join(folder, "theme.config.json"), "utf8"),
+    );
+    const files = new Set([
+      meshFile,
+      ...Object.values(material.diffuseTexture),
+      material.bumpTexture,
+      material.metallicTexture,
+    ]);
+
+    for (const texture of [
+      material.clearCoat?.texture,
+      material.emissiveTexture,
+      material.accentTexture,
+    ]) {
+      if (texture) files.add(texture);
+    }
+
+    const assets = await Promise.all(
+      [...files].map((file) => stat(path.join(folder, file))),
+    );
+    return assets.every((asset) => asset.isFile() && asset.size > 0);
   } catch {
     return false;
   }
@@ -119,12 +142,20 @@ async function writeThumbnails(
   surface,
   opacity,
   accent,
+  glass,
 ) {
   if (!CHOOSABLE.has(systemName)) {
     return;
   }
 
-  const { tile, set } = drawThumbnails(scene, colour, surface, opacity, accent);
+  const { tile, set } = drawThumbnails(
+    scene,
+    colour,
+    surface,
+    opacity,
+    accent,
+    glass,
+  );
 
   await Promise.all([
     writeFile(path.join(folder, "tile.png"), tile.picture),
@@ -173,21 +204,16 @@ function themeConfig(systemName, { name }, material = {}) {
   };
 }
 
-async function writeTheme(systemName, theme, ink, print) {
+async function writeTheme(systemName, theme, ink, { meshes, normal }, print) {
   const folder = await emptyFolder(systemName);
-
-  await Promise.all(
-    SHARED.map((file) =>
-      copyFile(path.join(STOCK, file), path.join(folder, file)),
-    ),
-  );
-
   const surface = paintHouseSurface(ink, HOUSE_FINISH);
   const light = paintHouseColour(ink, rgbOf(theme.numerals));
 
   // Both variants exist because dice-box builds a material for each and picks
   // between them by the luminance of the body colour it is given.
   await Promise.all([
+    writeFile(path.join(folder, "default.json"), meshes),
+    writeFile(path.join(folder, "normal.png"), normal),
     writeFile(path.join(folder, "numerals-light.png"), light),
     writeFile(
       path.join(folder, "numerals-dark.png"),
@@ -238,8 +264,14 @@ async function writeSkin(systemName, recipe, maps, meshes, print) {
     // Authored at full strength. Babylon's PBR material multiplies a normal's
     // slope by the level, so a skin asking for more relief sets `bump`.
     bumpLevel: recipe.bump ?? 1,
-    // A glossy layer over the lot, for a skin that has one — resin over foil.
-    ...(recipe.coat && { clearCoat: recipe.coat }),
+    // A gloss coat, optionally masked to the painter's glass panes.
+    ...(recipe.coat && {
+      clearCoat: { ...recipe.coat, ...(maps.coat && { texture: "coat.png" }) },
+    }),
+    ...(maps.emissive && {
+      emissiveTexture: "emissive.png",
+      emissiveIntensity: recipe.glow.intensity,
+    }),
     // And how strongly it reflects the room — polished stone more than most.
     ...(recipe.environment && { environmentIntensity: recipe.environment }),
     // See-through, for glass: read by the vendored dice-box (its README).
@@ -255,6 +287,10 @@ async function writeSkin(systemName, recipe, maps, meshes, print) {
     writeFile(path.join(folder, "skin.png"), maps.colour),
     writeFile(path.join(folder, "normal.png"), maps.normal),
     writeFile(path.join(folder, "surface.png"), maps.surface),
+    ...(maps.coat ? [writeFile(path.join(folder, "coat.png"), maps.coat)] : []),
+    ...(maps.emissive
+      ? [writeFile(path.join(folder, "emissive.png"), maps.emissive)]
+      : []),
     ...(maps.accent
       ? [writeFile(path.join(folder, "accent.png"), maps.accent)]
       : []),
@@ -265,6 +301,13 @@ async function writeSkin(systemName, recipe, maps, meshes, print) {
       maps.surface,
       recipe.opacity,
       maps.accent,
+      {
+        coat: maps.coat,
+        clearCoat: recipe.coat,
+        emissive: maps.emissive,
+        emissiveIntensity: recipe.glow?.intensity,
+        environmentIntensity: recipe.environment,
+      },
     ),
     writeFile(
       path.join(folder, "theme.config.json"),
@@ -374,7 +417,13 @@ await Promise.all([
   ...Object.entries(DICE_THEMES)
     .filter(([systemName]) => stale.has(systemName))
     .map(([systemName, theme]) =>
-      writeTheme(systemName, theme, houseInk, prints[systemName]),
+      writeTheme(
+        systemName,
+        theme,
+        houseInk,
+        { meshes, normal },
+        prints[systemName],
+      ),
     ),
   writeSkins(
     Object.fromEntries(

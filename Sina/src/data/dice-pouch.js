@@ -1,12 +1,7 @@
+import { classifyDatabaseError } from "./database-errors.js";
+
 // Unlocks are read-only; the database draws and records every pouch reward.
 const COLUMNS = "character_id, skin, unlocked_at";
-
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
-const SCHEMA_CACHE_MISS = "PGRST205";
-const FUNCTION_CACHE_MISS = "PGRST202";
 
 function classify(error) {
   // Trigger- and function-raised, so matched on the message: they have no
@@ -20,20 +15,14 @@ function classify(error) {
     return "dm_only";
   }
 
-  if (error.code === UNDEFINED_TABLE || error.code === SCHEMA_CACHE_MISS) {
-    return "missing_table";
+  switch (error.code) {
+    case "23514":
+    case "23503":
+    case "42703":
+      return "unknown";
   }
 
-  // A migration written but never pushed, which `npm run db:list` catches.
-  if (error.code === UNDEFINED_FUNCTION || error.code === FUNCTION_CACHE_MISS) {
-    return "missing_function";
-  }
-
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {

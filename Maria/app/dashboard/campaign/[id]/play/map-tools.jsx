@@ -102,7 +102,7 @@ function GridTools() {
   const settle = () => commitGrid();
 
   return (
-    <div className={`${GROUP_CLASSES} flex-[1.4]`}>
+    <div data-map-settings="grid" className={`${GROUP_CLASSES} flex-[1.4]`}>
       <button
         type="button"
         onClick={() => {
@@ -188,7 +188,7 @@ function FogTools() {
     useTableMaps();
 
   return (
-    <div className={`${GROUP_CLASSES} flex-1`}>
+    <div data-map-settings="fog" className={`${GROUP_CLASSES} flex-1`}>
       <button
         type="button"
         onClick={() => switchFog(!fog.enabled)}

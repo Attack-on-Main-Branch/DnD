@@ -4,12 +4,15 @@ import { listCampaignActivity } from "sina/data/activity";
 import {
   hideChest,
   revealChest,
+  stockChestCoins,
   stockContainerItem,
+  takeChestCoins,
   takeChestItem,
   transferContainer,
 } from "sina/data/containers";
 import { MAX_ACTIVITY_ENTRIES, readActivityLog } from "sina/rules/activity";
 import { MAX_CONTAINER_AUDIENCE } from "sina/rules/containers";
+import { isCoin, parseCoins } from "sina/rules/currency";
 import {
   MAX_ITEM_QUANTITY,
   parseQuantity,
@@ -224,6 +227,59 @@ export async function lootChestItem(
   if (error) {
     return refused("lootChestItem", error, "Could not take that.");
   }
+
+  return { kind: "success", activity: await freshLog(supabase, campaignId) };
+}
+
+export async function depositChestCoins(campaignId, containerId, coin, amount) {
+  const count = parseCoins(amount);
+  if (!containerId || !isCoin(coin) || !count) {
+    return rejected("Choose a coin and an amount to add.");
+  }
+  const { supabase, rejection } = await signedIn("depositChestCoins");
+  if (rejection) return rejection;
+
+  const { data, error } = await stockChestCoins(supabase, {
+    campaignId,
+    containerId,
+    coin,
+    amount: count,
+  });
+  if (error)
+    return refused("depositChestCoins", error, "Could not add those coins.");
+  if (!data.moved)
+    return rejected("The chest cannot hold any more of that coin.");
+
+  return { kind: "success" };
+}
+
+export async function lootChestCoins(
+  campaignId,
+  containerId,
+  characterId,
+  coin,
+  amount,
+) {
+  const count = parseCoins(amount);
+  if (!containerId || !characterId || !isCoin(coin) || !count) {
+    return rejected("Choose a coin and an amount to take.");
+  }
+  const { supabase, rejection } = await signedIn("lootChestCoins");
+  if (rejection) return rejection;
+
+  const { data, error } = await takeChestCoins(supabase, {
+    campaignId,
+    containerId,
+    characterId,
+    coin,
+    amount: count,
+  });
+  if (error)
+    return refused("lootChestCoins", error, "Could not take those coins.");
+  if (!data.moved)
+    return rejected(
+      "No coins moved. The chest may be empty or the purse full.",
+    );
 
   return { kind: "success", activity: await freshLog(supabase, campaignId) };
 }

@@ -16,7 +16,7 @@
  * campaign.js would bring the whole creation sheet's validation with it.
  */
 
-import { parseInitiative } from "./combat.js";
+import { movementFeet, parseInitiative, readTurnId } from "./combat.js";
 import { readConditions } from "./conditions.js";
 import {
   formatBytes,
@@ -232,6 +232,8 @@ export function readPlacedToken(row) {
     // What it rolled, and the tie-break under it. See rules/combat.js.
     initiative: parseInitiative(row?.initiative),
     placedAt: text(row?.placed_at ?? row?.placedAt),
+    movementFt: movementFeet(row?.movement_ft ?? row?.movementFt),
+    movementTurnId: readTurnId(row?.movement_turn_id ?? row?.movementTurnId),
     isHidden: Boolean(row?.is_hidden ?? row?.isHidden),
     isDead: Boolean(row?.is_dead ?? row?.isDead),
     // Through the catalogue, which drops what it does not know and puts the

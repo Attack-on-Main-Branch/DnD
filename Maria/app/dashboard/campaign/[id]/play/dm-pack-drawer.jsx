@@ -16,6 +16,7 @@ import ItemRow from "@/app/dashboard/item-row";
 import { rowItem } from "@/app/dashboard/inventory-presentation";
 
 import DmPurse from "./dm-purse";
+import HandSlot from "./hand-slot";
 import ItemSearch from "./item-search";
 import { Action, QuantityField, StowChoice } from "./pack-controls";
 import PlayerChestDrawer from "./player-chest-drawer";
@@ -29,6 +30,7 @@ import {
 import { useChestItems, useContainers, useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 import { usePackMove } from "./use-pack-move";
+import { usePackDrag } from "./use-pack-drag";
 
 /**
  * The Dungeon Master's side of the pack: what the party is carrying, and what
@@ -82,6 +84,8 @@ export default function DmPackDrawer({
   );
 
   const pack = rows.filter((row) => !row.container_id);
+  const inHand = pack.find((row) => row.in_hand);
+  const { dragProps, dropZone, clearDrag } = usePackDrag(rows);
 
   const bags = useMemo(
     () =>
@@ -93,8 +97,6 @@ export default function DmPackDrawer({
     [containers, selected],
   );
 
-  /* An empty purse for a character `campaign_purses` returned no row for. Null
-     for "all party": there is no one balance to hold up as a placeholder. */
   const purse = selected ? (purses.get(selected.id) ?? null) : null;
 
   const held =
@@ -141,6 +143,8 @@ export default function DmPackDrawer({
   }
 
   function chooseTarget(id) {
+    clearDrag();
+    setOpenBag(null);
     setTarget(id);
     setReading(null);
     setStowing(false);
@@ -150,12 +154,21 @@ export default function DmPackDrawer({
   function stow() {
     if (!held || !selected || stowTo === undefined) return;
 
+    moveStack(held, stowTo);
+  }
+
+  function moveStack(row, to) {
+    if (!selected) return;
+    const quantity =
+      held?.id === row.id && usable
+        ? Math.min(count, row.quantity)
+        : row.quantity;
     void movePack(
       selected.id,
-      open,
-      Math.min(count, held.quantity),
-      bagId,
-      stowTo,
+      rowItem(row),
+      quantity,
+      row.container_id ?? null,
+      to,
     );
     setReading(null);
     setTyped("");
@@ -252,6 +265,12 @@ export default function DmPackDrawer({
     }).then(said);
   }
 
+  const packZone = dropZone(
+    "pack",
+    (row) => Boolean(row.container_id),
+    (row) => moveStack(row, null),
+  );
+
   return (
     <div
       data-popover-body
@@ -262,20 +281,21 @@ export default function DmPackDrawer({
         chosen={target}
         onChoose={chooseTarget}
         label="Who receives it"
-      >
-        <Pill
-          active={target === EVERYONE}
-          onClick={() => chooseTarget(EVERYONE)}
-          disabled={members.length === 0}
-        >
-          All party
-          {members.length > 0 && (
-            <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
-              {members.length}
-            </span>
-          )}
-        </Pill>
-      </PartyPills>
+        leading={
+          <Pill
+            active={target === EVERYONE}
+            onClick={() => chooseTarget(EVERYONE)}
+            disabled={members.length === 0}
+          >
+            All party
+            {members.length > 0 && (
+              <span className="font-mono text-[0.625rem] text-ink/50 tabular-nums">
+                {members.length}
+              </span>
+            )}
+          </Pill>
+        }
+      />
 
       {members.length === 0 ? (
         <p className="mt-6 text-center text-sm text-ink/50 italic">
@@ -300,7 +320,7 @@ export default function DmPackDrawer({
                 character={null}
                 members={members}
                 actorName={actorName}
-                purse={null}
+                purses={purses}
               />
             </section>
           )}
@@ -316,8 +336,15 @@ export default function DmPackDrawer({
                 members={members}
                 actorName={actorName}
                 purse={purse}
+                purses={purses}
               />
             </section>
+          )}
+
+          {selected && (
+            <div className="mt-3 flex">
+              <HandSlot held={inHand} />
+            </div>
           )}
 
           <div className="mt-4">
@@ -335,34 +362,44 @@ export default function DmPackDrawer({
               </p>
             ) : (
               <>
-                <p className="mt-5 font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
-                  {selected.name} · {pack.length} carried
-                </p>
-
-                {pack.length === 0 ? (
-                  <p className="mt-2.5 text-xs text-ink/50 italic">
-                    Nothing loose — it is all in the bags below.
+                <div
+                  {...packZone.props}
+                  className={`mt-4 rounded-xl border p-2 ${packZone.over ? "border-gold/70 bg-gold/10" : packZone.taking ? "border-dashed border-gold/55" : "border-transparent"}`}
+                >
+                  <p className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
+                    {selected.name} · {pack.length} carried
                   </p>
-                ) : (
-                  <ul className="mt-2.5 grid grid-cols-3 gap-2 max-sm:grid-cols-2">
-                    {pack.map((row) => (
-                      <li key={row.id} className="flex">
-                        <ItemRow
-                          item={rowItem(row)}
-                          quantity={row.quantity}
-                          open={held?.id === row.id}
-                          inHand={row.in_hand}
-                          onOpen={() => show(rowItem(row), null)}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
 
+                  {pack.length === 0 ? (
+                    <p className="mt-2.5 text-xs text-ink/50 italic">
+                      Nothing loose — it is all in the bags below.
+                    </p>
+                  ) : (
+                    <ul className="mt-2.5 grid grid-cols-2 gap-2">
+                      {pack.map((row) => (
+                        <li key={row.id} {...dragProps(row)} className="flex">
+                          <ItemRow
+                            item={rowItem(row)}
+                            quantity={row.quantity}
+                            open={held?.id === row.id}
+                            inHand={row.in_hand}
+                            onOpen={() => show(rowItem(row), null)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 {bags.map((bag) => (
                   <BagSection
                     key={bag.id}
                     bag={bag}
+                    dragProps={dragProps}
+                    zone={dropZone(
+                      bag.id,
+                      (row) => row.container_id !== bag.id,
+                      (row) => moveStack(row, bag.id),
+                    )}
                     inside={rows.filter((row) => row.container_id === bag.id)}
                     unfolded={openBag === bag.id}
                     onFold={() =>
@@ -402,8 +439,8 @@ export default function DmPackDrawer({
         </p>
       )}
 
-      {open && members.length > 0 && (
-        <PopoverAside>
+      <PopoverAside title={open?.name} onClose={() => setReading(null)}>
+        {open && members.length > 0 && (
           <ItemDetail item={open} quantity={held?.quantity}>
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
               {/* No ceiling but the rules': a Dungeon Master gives as many as
@@ -471,20 +508,30 @@ export default function DmPackDrawer({
               </StowChoice>
             )}
           </ItemDetail>
-        </PopoverAside>
-      )}
+        )}
+      </PopoverAside>
     </div>
   );
 }
 
 /** One of the character's bags as the player sees it, without the hand-over. */
-function BagSection({ bag, inside, unfolded, onFold, openId, onOpen }) {
+function BagSection({
+  bag,
+  inside,
+  unfolded,
+  onFold,
+  openId,
+  onOpen,
+  dragProps,
+  zone,
+}) {
   return (
     <section
       aria-label={bag.name}
+      {...zone.props}
       className={`mt-3 transition duration-300 ${CONTAINER_CARD_CLASSES} ${
-        unfolded ? NESTED_CARD_SELECTED_CLASSES : ""
-      }`}
+        unfolded || zone.over ? NESTED_CARD_SELECTED_CLASSES : ""
+      } ${zone.over ? "ring-2 ring-gold/60" : ""} ${zone.taking && !zone.over ? "border-dashed border-gold/55" : ""}`}
     >
       <button
         type="button"
@@ -512,9 +559,9 @@ function BagSection({ bag, inside, unfolded, onFold, openId, onOpen }) {
           {inside.length === 0 ? (
             <p className="text-xs text-ink/50 italic">Nothing in it yet.</p>
           ) : (
-            <ul className="grid grid-cols-3 gap-2">
+            <ul className="grid grid-cols-2 gap-2">
               {inside.map((row) => (
-                <li key={row.id} className="flex">
+                <li key={row.id} {...dragProps(row)} className="flex">
                   <ItemRow
                     item={rowItem(row)}
                     quantity={row.quantity}

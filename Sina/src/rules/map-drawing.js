@@ -34,7 +34,16 @@ export function readMapDrawing(value) {
     return null;
   }
 
-  return { shape, angle, from: point(value.from), to: point(value.to) };
+  const tokenId = value.tokenId;
+  return {
+    shape,
+    angle,
+    from: point(value.from),
+    to: point(value.to),
+    ...(shape === "arrow" &&
+      typeof tokenId === "string" &&
+      tokenId.length > 0 && { tokenId }),
+  };
 }
 
 function fraction(value) {

@@ -12,9 +12,6 @@ import { surfaceClasses } from "./surface";
  *
  * The ARIA listbox pattern, with the chosen value in a hidden input so it
  * submits with the surrounding form exactly like a <select> would.
- *
- * The chevron and the tick are exported for multi-select-menu.jsx, which is
- * this control with one rule changed.
  */
 export default function SelectMenu({
   label,
@@ -237,7 +234,7 @@ export default function SelectMenu({
   );
 }
 
-export function ChevronIcon({ open }) {
+function ChevronIcon({ open }) {
   return (
     <svg
       width="16"

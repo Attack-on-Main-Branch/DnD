@@ -309,7 +309,7 @@ export const DICE_SKIN_RARITIES = SKIN_RARITIES;
  * `characters.dice_skin` references.
  */
 const DICE_SKINS_BY_RARITY = {
-  common: ["classic", "crystal", "glass", "fade", "ornate"],
+  common: ["classic", "crystal", "glass", "fade", "ornate", "carbon-fiber"],
   uncommon: [
     "brass-rimmed",
     "brass-inlaid",
@@ -323,9 +323,11 @@ const DICE_SKINS_BY_RARITY = {
     "metal-cornered",
     "galaxy",
     "dragonscale",
+    "stained-glass",
+    "iron-bloom",
   ],
   epic: ["gold-rimmed", "gold-inlaid", "gold-cornered", "wood", "paper"],
-  legendary: ["epoxy", "labradorite", "bloodied"],
+  legendary: ["epoxy", "labradorite", "bloodied", "prismatic"],
   iconic: ["asiimov", "companion", "case-hardened"],
 };
 

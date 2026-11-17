@@ -31,7 +31,7 @@ import {
  * the marks of inspiration standing OUTSIDE its left edge, in the gutter the
  * dice capsule comes out into.
  *
- * A lit rim means somebody is here, with its colour read from their health tier.
+ * The glowing rim shows health while the player is at the table.
  */
 function PartyCard({
   campaignId,
@@ -47,6 +47,7 @@ function PartyCard({
   seatCharacterId,
   actorName,
   phone = false,
+  workspace = false,
 }) {
   const bannerSkin = useBannerSkin(member.id);
   const diceLook = useDiceLook(member.id);
@@ -63,8 +64,9 @@ function PartyCard({
   const myTurn = useIsActiveTurn(member.id);
 
   const rim = here
-    ? `lit-health ${healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))}`
+    ? healthBarClass(dead || dying ? "critical" : (tier ?? "healthy"))
     : "";
+  const Card = workspace ? "article" : "li";
   const inspiration = showsInspiration && (
     <InspirationPips
       inline={phone}
@@ -77,43 +79,43 @@ function PartyCard({
   );
 
   return (
-    <li
-      className={`relative min-w-0 ${phone ? "" : CARD_CLASSES}`}
-      {...(!phone && cardEntrance(index, count))}
+    <Card
+      className={`relative min-w-0 ${workspace ? "workspace-party-card" : phone ? "" : CARD_CLASSES}`}
+      {...(!phone && !workspace && cardEntrance(index, count))}
     >
       <div
+        data-banner-rim={here || undefined}
+        data-banner-content={workspace || undefined}
         className={surfaceClasses({
           className:
             `relative isolate flex flex-col rounded-xl ${bannerClass} ` +
-            // On the card rather than in `.lit-*`, so the rim fades out when
-            // that class is taken away as well as in.
             "transition-[border-color,box-shadow] duration-300 " +
             rim,
         })}
       >
-        <BannerSkinArt skin={bannerSkin} diceColor={diceColor} />
+        <BannerSkinArt
+          skin={bannerSkin}
+          diceColor={diceColor}
+          className={dead ? "grayscale brightness-75" : ""}
+        />
 
         {/* Out of flow, so it answers to the card rather than to a row inside. */}
-        {!phone && <DiceCapsule characterId={member.id} />}
+        {!phone && !workspace && (
+          <DiceCapsule
+            characterId={member.id}
+            className={inspiration ? "mr-6 max-sm:mr-0" : ""}
+          />
+        )}
 
-        {/* Three marks in the gutter beside the card — see inspiration-pips.jsx.
-          A roll's pill comes out into the same strip and passes over them, which
-          is what the layers say. */}
         {!phone && inspiration}
 
         <div
           className={`relative col-start-1 row-start-1 flex min-w-0 flex-col justify-center ${phone ? "p-2" : "p-4"}`}
         >
-          {/* Everything BUT the way back is dimmed for a dead character: the Revive
-          button underneath has to stay legible, and greying out the one control
-          that undoes this would be a card arguing with itself. */}
           <div
-            className={`relative transition-all duration-500 ${
-              dead ? "opacity-40 brightness-75 grayscale" : ""
-            }`}
+            className={`relative transition-[filter] duration-500 ${dead ? "grayscale" : ""}`}
           >
             <BannerIdentity
-              contrast={Boolean(bannerClass)}
               heading={phone}
               name={member.name}
               discriminator={member.discriminator}
@@ -158,14 +160,16 @@ function PartyCard({
             />
           )}
 
-          {/* LAST ON THE CARD, under the bar, because it arrives the way the
-          hit-point stepper does. Public, and outside the dimming wrapper above:
-          a dead character's conditions are still what the table is reading. */}
           <CardConditions characterId={member.id} />
         </div>
       </div>
-      {showsHealth && canEdit && <div ref={setHealthControlsTarget} />}
-    </li>
+      {showsHealth && canEdit && (
+        <div
+          ref={setHealthControlsTarget}
+          data-banner-controls={workspace || undefined}
+        />
+      )}
+    </Card>
   );
 }
 

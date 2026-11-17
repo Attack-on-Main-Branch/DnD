@@ -4,12 +4,17 @@ import { createFogTexture, readFogColor } from "./fog-texture";
 import { FOG_EDGE_SWAY_PIXELS, isFogClearForDm } from "./fog-paint";
 
 export const FOG_TRANSITION_MS = 650;
+const MIN_EDGE_FOG_GAP = 0.08;
 
 export function createFramedFogMask() {
   const canvas = document.createElement("canvas");
   const paint = canvas.getContext("2d");
+  const opening = document.createElement("canvas");
+  let previousWidth;
+  let previousHeight;
+  let previousStrength;
 
-  return (mask, width, height, ratio, enabled) => {
+  return (mask, width, height, ratio, outsideOnly) => {
     if (!width || !height) return null;
     const density = FOG_MASK_WIDTH / Math.max(width, height);
     const columns = Math.max(1, Math.round(width * density));
@@ -18,22 +23,77 @@ export function createFramedFogMask() {
     if (canvas.height !== rows) canvas.height = rows;
     paint.clearRect(0, 0, columns, rows);
 
-    if (ratio) {
+    let edgeStrength = 0;
+    if (ratio && (mask || outsideOnly)) {
       const fitWidth = Math.min(width, height * ratio);
+      const filled = (fitWidth * fitWidth) / (ratio * width * height);
+      edgeStrength = Math.min(
+        1,
+        Math.max(0, (1 - filled) / MIN_EDGE_FOG_GAP - 1),
+      );
       const w = (fitWidth / width) * columns;
       const h = (fitWidth / ratio / height) * rows;
       const x = (columns - w) / 2;
       const y = (rows - h) / 2;
-      if (!enabled) {
-        paint.fillStyle = "white";
-        paint.fillRect(x, y, w, h);
-      } else if (mask) {
+
+      paint.fillStyle = "white";
+      paint.fillRect(0, 0, columns, rows);
+      if (!outsideOnly) {
+        paint.clearRect(x, y, w, h);
         paint.imageSmoothingEnabled = false;
         paint.drawImage(mask, x, y, w, h);
       }
+
+      if (edgeStrength > 0) {
+        if (
+          opening.width !== columns ||
+          opening.height !== rows ||
+          previousWidth !== w ||
+          previousHeight !== h ||
+          previousStrength !== edgeStrength
+        ) {
+          opening.width = columns;
+          opening.height = rows;
+          drawFramedOpening(opening, x, y, w, h, edgeStrength);
+          previousWidth = w;
+          previousHeight = h;
+          previousStrength = edgeStrength;
+        }
+        paint.globalCompositeOperation = "destination-in";
+        paint.drawImage(opening, 0, 0);
+        paint.globalCompositeOperation = "source-over";
+      }
     }
-    return canvas;
+    return { canvas, edgeFog: edgeStrength > 0 };
   };
+}
+
+function drawFramedOpening(canvas, x, y, width, height, strength) {
+  const paint = canvas.getContext("2d");
+  const feather = Math.min(width, height) * 0.018;
+  const inset = feather * 2;
+  const offset = canvas.width + feather * 4;
+  paint.fillStyle = "white";
+  paint.globalAlpha = 1 - strength;
+  paint.fillRect(0, 0, canvas.width, canvas.height);
+  paint.globalCompositeOperation = "lighter";
+  paint.globalAlpha = strength;
+  paint.beginPath();
+  paint.rect(x, y, width, height);
+  paint.clip();
+  // Move the shape off the canvas so only its blurred shadow is painted.
+  paint.shadowColor = "white";
+  paint.shadowBlur = feather * 1.5;
+  paint.shadowOffsetX = offset;
+  paint.beginPath();
+  paint.roundRect(
+    x + inset - offset,
+    y + inset,
+    width - 2 * inset,
+    height - 2 * inset,
+    feather * 2,
+  );
+  paint.fill();
 }
 
 function transitionProgress(start, now) {
@@ -89,6 +149,7 @@ uniform vec3 ground;
 uniform vec3 silver;
 uniform float time;
 uniform bool dm;
+uniform bool feathered;
 uniform bool coverageOnly;
 uniform float progress;
 uniform vec2 texel;
@@ -103,7 +164,8 @@ float fogAt(vec2 point) {
 }
 void main() {
   vec4 painted = texture(mask, uv);
-  float fog = dm ? 1. - step(.5, painted.r) * step(.001, painted.a) : fogAt(uv);
+  float clear = step(.5, painted.r) * step(.001, painted.a);
+  float fog = dm ? 1. - clear * (feathered ? painted.a : 1.) : fogAt(uv);
   vec2 drift = vec2(time * .012, time * .005);
   float bank = texture(clouds, uv * 1.35 + drift).a;
   vec2 curl = vec2(bank - .5, texture(clouds, uv.yx * 1.7 - drift).a - .5);
@@ -207,6 +269,7 @@ function gpuRenderer(canvas, palette, noise, dm) {
   const blend = location("progress");
   const previous = location("previous");
   const coverageOnly = location("coverageOnly");
+  const feather = location("feathered");
   const texel = location("texel");
   const source = gl.getUniformLocation(blur, "source");
   const direction = gl.getUniformLocation(blur, "stepSize");
@@ -217,6 +280,7 @@ function gpuRenderer(canvas, palette, noise, dm) {
   let softHeight = 0;
   let history = 0;
   let started = null;
+  let feathered = false;
 
   function draw(time, now, frame = null) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, frame);
@@ -227,6 +291,7 @@ function gpuRenderer(canvas, palette, noise, dm) {
     gl.uniform1f(blend, progress);
     gl.uniform1i(previous, 4 + history);
     gl.uniform1i(coverageOnly, frame ? 1 : 0);
+    gl.uniform1i(feather, feathered ? 1 : 0);
     gl.uniform2f(texel, 1 / width, 1 / height);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return progress < 1;
@@ -241,6 +306,7 @@ function gpuRenderer(canvas, palette, noise, dm) {
         history = 1 - history;
         started = now;
       } else started = null;
+      feathered = Boolean(change.feathered);
       if (resized) {
         width = canvas.width = mask.width;
         height = canvas.height = mask.height;
@@ -387,13 +453,9 @@ function canvasRenderer(canvas, palette, noise, dm) {
         .getContext("2d")
         .getImageData(dirty.x, dirty.y, dirty.width, dirty.height);
       for (let at = 0; at < pixels.data.length; at += 4) {
-        pixels.data[at + 3] = dm
-          ? isFogClearForDm(pixels.data, at)
-            ? 0
-            : 255
-          : isFogClearForDm(pixels.data, at)
-            ? 255 - pixels.data[at + 3]
-            : 255;
+        const revealed = isFogClearForDm(pixels.data, at);
+        const alpha = dm && !change.feathered ? 255 : pixels.data[at + 3];
+        pixels.data[at + 3] = revealed ? 255 - alpha : 255;
       }
       alpha.putImageData(pixels, dirty.x, dirty.y);
       initialized = true;
@@ -462,6 +524,7 @@ export function createFogRenderer(host, dm) {
   let canvas = document.createElement("canvas");
   let renderer;
   let mask = null;
+  let feathered = false;
   try {
     renderer = gpuRenderer(canvas, palette, noise, dm);
   } catch {
@@ -486,7 +549,7 @@ export function createFogRenderer(host, dm) {
     renderer = canvasRenderer(canvas, palette, noise, dm);
     canvas.dataset.fogRenderer = renderer.kind;
     if (mask) {
-      renderer.update(mask);
+      renderer.update(mask, { feathered });
       renderer.draw(0);
     }
     previous.dispose();
@@ -495,6 +558,7 @@ export function createFogRenderer(host, dm) {
   return {
     update(next, change, now) {
       mask = next;
+      feathered = Boolean(change?.feathered);
       renderer.update(next, change, now);
     },
     draw(time, now) {

@@ -192,6 +192,8 @@ describe("readPlacedToken", () => {
       ringColor: "#3b82f6",
       initiative: null,
       placedAt: null,
+      movementFt: 0,
+      movementTurnId: null,
       isHidden: false,
       isDead: false,
       conditions: [],

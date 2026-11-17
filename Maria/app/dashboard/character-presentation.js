@@ -82,6 +82,11 @@ const SKIN_COPY = {
     label: "Cracked",
     description: "Black, split by glittering cracks in your colour",
   },
+  "iron-bloom": {
+    label: "Iron Bloom",
+    description:
+      "Brushed iron engraved with green stems and petals in your colour",
+  },
   "metal-inlaid": {
     label: "Metal-inlaid",
     description: "Glitter inlaid round worn pewter plates",
@@ -144,6 +149,11 @@ const SKIN_COPY = {
     label: "Ornate",
     description: "Black, with raised scrollwork in your colour",
   },
+  "carbon-fiber": {
+    colorable: false,
+    label: "Carbon Fiber",
+    description: "Glossy charcoal weave with silver numbers",
+  },
   "case-hardened": {
     colorable: false,
     label: "Case Hardened",
@@ -162,6 +172,18 @@ const SKIN_COPY = {
     label: "Labradorite",
     description:
       "Grey stone glowing blue, teal and gold — keeps its own colour",
+  },
+  prismatic: {
+    colorable: false,
+    label: "Prismatic",
+    description:
+      "Rainbow metal, emerald medallions and gold numbers — keeps its own colour",
+  },
+  "stained-glass": {
+    colorable: false,
+    label: "Stained Glass",
+    description:
+      "Glowing coloured glass with bright reflections, dark leading and ivory numbers — keeps its own colour",
   },
 };
 
@@ -202,17 +224,18 @@ export function diceSkinTheme(value) {
 }
 
 /**
- * Where a style's pictures are, each a picture and its tint — drawn at build
- * time by scripts/dice-thumbnails.mjs into the theme's own folder. `tile` is
- * one d20; `set` is every die in DICE_TYPES side by side.
+ * Styles are drawn at build time by scripts/dice-thumbnails.mjs, with a tint
+ * layer for colourable skins. `tile` is one d20; `set` is every die in
+ * DICE_TYPES side by side.
  */
 export function diceSkinPictures(value) {
   const theme = diceSkinTheme(value);
   const folder = `${DICE_ASSET_PATH}themes/${theme}/`;
+  const { colorable } = diceSkinDetails(value);
   const accented = DICE_ACCENT_SKINS.includes(theme);
   const picture = (name) => ({
     src: `${folder}${name}.png`,
-    tint: `${folder}${name}-tint.png`,
+    ...(colorable && { tint: `${folder}${name}-tint.png` }),
     ...(accented && { accent: `${folder}${name}-accent.png` }),
   });
 

@@ -19,7 +19,6 @@ import {
   killCharacter as strikeCharacterDown,
   reviveCharacter,
   rollDeathSave,
-  spendHitDie,
   updateAbilityScore,
   updateArmorClass,
   updateCharacterNote,
@@ -297,57 +296,6 @@ export async function reviveDownedCharacter(campaignId, characterId) {
     activity: await freshLog(supabase, campaignId),
   };
 }
-
-/**
- * One hit die out of the pool, spent on hit points.
- *
- * THE NUMBER IS THE BOARD'S, exactly as a death save's is: the dice cannot be
- * told what to land on, so the face travels here and `spend_hit_die` does the
- * arithmetic against it. The heal it turns into goes through `apply_heal`, so
- * the bar and the log answer as they do for any other one.
- *
- * `null` is a die nobody had to spend — an empty pool, a path that rolls none,
- * or a chair with no business at this card.
- */
-export async function spendHitDieFor(
-  campaignId,
-  characterId,
-  roll = null,
-  seatCharacterId = null,
-) {
-  const supabase = await createClient();
-  const { user, error: authError } = await getCurrentUser(supabase);
-
-  if (!user) {
-    return sessionRejection("spendHitDieFor", authError);
-  }
-
-  const { data, error } = await spendHitDie(supabase, {
-    id: characterId,
-    roll,
-    campaignId,
-    seatCharacterId,
-  });
-
-  if (error) {
-    const copy = HIT_DICE_COPY[error.reason] ?? TABLE_COPY[error.reason];
-
-    logUncovered("spendHitDieFor", error, copy);
-    return rejected(copy ?? "Could not spend that. Try again.");
-  }
-
-  return {
-    kind: "success",
-    ...data,
-    activity: await freshLog(supabase, campaignId),
-  };
-}
-
-/** An empty pool and a chair with no business here read back the same way. */
-const HIT_DICE_COPY = {
-  not_found: "There is no hit die left to spend.",
-  bad_id: "That character is no longer at this table.",
-};
 
 export async function setArmorClass(
   campaignId,
@@ -756,6 +704,8 @@ export async function moveMapPiece(tokenId, point) {
     y: spot.y,
     q: point?.q,
     r: point?.r,
+    distanceFt: point?.distanceFt,
+    turnId: point?.turnId,
   });
 
   if (error) {

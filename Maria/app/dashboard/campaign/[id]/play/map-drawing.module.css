@@ -1,0 +1,11 @@
+@media (prefers-reduced-motion: no-preference) {
+  .chevrons {
+    animation: chevron-travel 400ms linear infinite;
+  }
+}
+
+@keyframes chevron-travel {
+  to {
+    transform: translateX(var(--chevron-step));
+  }
+}

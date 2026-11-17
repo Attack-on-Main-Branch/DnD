@@ -16,6 +16,7 @@ export default function HandSlot({
   dropProps,
   onPress,
 }) {
+  const Slot = onPress ? "button" : "div";
   const lit = arming || over;
 
   const label = held
@@ -25,18 +26,18 @@ export default function HandSlot({
       : "Nothing in hand. Press, then choose an item";
 
   return (
-    <button
-      type="button"
+    <Slot
+      type={onPress ? "button" : undefined}
       onClick={onPress}
-      aria-pressed={arming}
-      aria-label={label}
+      aria-pressed={onPress ? arming : undefined}
+      aria-label={onPress ? label : undefined}
       {...dropProps}
-      className={`flex min-w-44 flex-1 cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition duration-300 ${
+      className={`flex min-w-44 flex-1 items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition duration-300 ${onPress ? "cursor-pointer hover:border-gold/45 hover:text-gold" : ""} ${
         lit
           ? "border-gold/70 bg-gold/10 text-gold shadow-[inset_0_0_20px_-8px_var(--gold-60),0_0_18px_var(--gold-25)]"
           : accepting
             ? "border-dashed border-gold/55 bg-surface/70 text-gold/80"
-            : "border-gold/20 bg-surface/70 text-ink/85 shadow-[inset_0_1px_0_var(--gold-10)] hover:border-gold/45 hover:text-gold"
+            : "border-gold/20 bg-surface/70 text-ink/85 shadow-[inset_0_1px_0_var(--gold-10)]"
       }`}
     >
       <HandMark className="size-5 shrink-0" />
@@ -50,10 +51,11 @@ export default function HandSlot({
           className={`block truncate font-display text-sm leading-5 tracking-wide ${
             held ? "" : "text-ink/45 italic"
           }`}
+          title={held?.name}
         >
           {held ? held.name : arming ? "Choose an item…" : "Empty"}
         </span>
       </span>
-    </button>
+    </Slot>
   );
 }

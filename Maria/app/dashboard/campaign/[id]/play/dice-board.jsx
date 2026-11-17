@@ -33,7 +33,11 @@ const PHONE_DICE_DISPLAY_SCALE = 2;
  * canvas, which the library appends in here and module state holds, painting
  * into a box no longer on the page: the dice rolled where nobody could see them.
  */
-export default function DiceBoard({ phone = false, traySize }) {
+export default function DiceBoard({
+  phone = false,
+  compactRim = phone,
+  traySize,
+}) {
   const { stages, board } = useDiceTable();
   const cast = useBoardCast();
   const phoneLayers = useRef(null);
@@ -122,10 +126,12 @@ export default function DiceBoard({ phone = false, traySize }) {
     >
       <span
         className={`rim-cast pointer-events-none absolute motion-reduce:transition-none ${
-          phone ? "-inset-1.5 rounded-[1.125rem]" : "-inset-6 rounded-[2.25rem]"
+          compactRim
+            ? "-inset-1.5 rounded-[1.125rem]"
+            : "-inset-6 rounded-[2.25rem]"
         } ${board.lit ? "lit-cast" : ""}`}
       />
-      {phone ? (
+      {compactRim || phone ? (
         <div
           ref={phoneLayers}
           className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"

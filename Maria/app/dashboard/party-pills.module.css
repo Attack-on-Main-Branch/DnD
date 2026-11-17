@@ -1,0 +1,50 @@
+.portraits {
+  --gap: 0.5rem;
+  --capsule-width: 8.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gap);
+  width: 100%;
+  max-width: calc(
+    var(--party-columns) * (var(--capsule-width) + var(--gap)) - var(--gap)
+  );
+  margin-inline: auto;
+}
+
+.member {
+  min-width: 0;
+  flex: 0 0
+    clamp(
+      min(100%, 6rem),
+      calc((100% + var(--gap)) / var(--party-columns) - var(--gap)),
+      var(--capsule-width)
+    );
+}
+
+.withLeading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.leading {
+  display: flex;
+  flex: none;
+  white-space: nowrap;
+}
+
+.withLeading .portraits {
+  min-width: 0;
+  margin-inline: 0;
+}
+
+.withLeading .portraits:empty {
+  display: none;
+}
+
+.withLeading .member {
+  display: flex;
+  flex-basis: calc((100% + var(--gap)) / var(--party-columns) - var(--gap));
+}

@@ -1,6 +1,6 @@
 {
   "name": "dnd",
-  "version": "2.2.1",
+  "version": "2.6.0",
   "private": true,
   "workspaces": [
     "Maria",

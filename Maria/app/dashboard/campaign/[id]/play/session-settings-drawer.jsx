@@ -5,13 +5,13 @@ import { hitDiceRegained } from "sina/rules/character-stats";
 import { longRestSlotLevels, shortRestSlotLevels } from "sina/rules/rest";
 
 import HoverNote from "@/app/components/ui/hover-note";
-import MultiSelectMenu from "@/app/components/ui/multi-select-menu";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 import { FADED_RULE_CLASSES } from "@/app/components/ui/surface";
 
 import ConditionsGrid from "./conditions-grid";
 import { givePouches } from "./dice-pouch-actions";
 import { POUCH_ITEM } from "./dice-pouch-presentation";
+import PartyAudience from "./party-audience";
 import { takeRest } from "./session-actions";
 import { useTableStore } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
@@ -21,9 +21,7 @@ import XpBar, { XpStepper } from "./xp-bar";
  * Session management: who the panel is aimed at, the two rests, the
  * experience under them, and the Pouches the party unlocks skins with.
  *
- * ONE MENU AIMS BOTH HALVES, and it is the chest's own `MultiSelectMenu`: rows
- * toggle, the list stays open, and a subset is an ordinary answer — both writers
- * read a list and narrow it themselves. The bar appears for a single character
+ * The chest's party picker also aims rests and awards. The bar appears for a single character
  * only; six at once is more than this panel can show.
  *
  * WHAT A CHARACTER *IS* LIVES ON THE SCORES DRAWER, and what a SESSION does to
@@ -158,16 +156,11 @@ export default function SessionSettingsDrawer({
 
   return (
     <div className="flex flex-col gap-4">
-      <MultiSelectMenu
+      <PartyAudience
         label="Who this is for"
-        options={members.map((member) => ({
-          value: member.id,
-          label: member.name,
-        }))}
+        members={members}
         value={aimed}
         onChange={setChosen}
-        everything="All party"
-        disabled={members.length === 0}
       />
 
       <div aria-hidden="true" className={FADED_RULE_CLASSES} />

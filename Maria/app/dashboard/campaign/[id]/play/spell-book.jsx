@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useMemo, useState } from "react";
 import { formatModifier } from "sina/rules/skills";
 import { remainingSlots } from "sina/rules/spellcasting";
@@ -7,12 +8,25 @@ import { remainingSlots } from "sina/rules/spellcasting";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import SpellSigil from "@/app/components/ui/spell-sigil";
 
-import DmSpellDrawer from "./dm-spell-drawer";
-import PlayerSpellDrawer from "./player-spell-drawer";
 import TablePopover from "./table-popover";
 import { useAllBooks, useAllLevels, useAllSlots } from "./table-state";
 import { useTableDeed } from "./use-table-deed";
 import { useWireMessage } from "./table-wire";
+
+const DmSpellDrawer = dynamic(() => import("./dm-spell-drawer"), {
+  loading: SpellBookLoading,
+});
+const PlayerSpellDrawer = dynamic(() => import("./player-spell-drawer"), {
+  loading: SpellBookLoading,
+});
+
+function SpellBookLoading() {
+  return (
+    <p role="status" className="p-5 text-sm text-ink/60">
+      Loading spells…
+    </p>
+  );
+}
 
 /**
  * The spellbook beside the scores. One control, two drawers — which of them is
@@ -157,6 +171,7 @@ export default function SpellBook({
 
   return (
     <TablePopover
+      workspaceName="Spells"
       inline={inline}
       inlineOpen={inlineOpen}
       icon={SpellSigil}
@@ -186,7 +201,6 @@ export default function SpellBook({
           actorName={seat.title}
           book={mine}
           caster={seated ?? EMPTY_CASTER}
-          compact={inline}
         />
       )}
     </TablePopover>

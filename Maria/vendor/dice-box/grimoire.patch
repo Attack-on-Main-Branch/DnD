@@ -79,7 +79,7 @@ index 8909d2e..3d7335f 100644
  class ThemeLoader {
    loadedThemes = {}
    themeData = {}
-@@ -67,9 +128,125 @@ class ThemeLoader {
+@@ -67,9 +128,134 @@ class ThemeLoader {
  
    }
  
@@ -100,9 +100,18 @@ index 8909d2e..3d7335f 100644
 +    const bump = matParams.bumpTexture ? await this.getTexture('bump', options) : null
 +    const surface = matParams.metallicTexture ? await this.getTexture('metallic', options) : null
 +    const accent = matParams.accent && matParams.accentTexture ? await this.getTexture('accent', options) : null
++    const coatTexture = matParams.clearCoat?.texture ? await this.importTextureAsync(options.basePath + '/' + matParams.clearCoat.texture, theme) : null
++    if (coatTexture) coatTexture.gammaSpace = false
++    const emissiveTexture = matParams.emissiveTexture ? await this.importTextureAsync(options.basePath + '/' + matParams.emissiveTexture, theme) : null
 +
 +    for (const variant of ['light', 'dark']) {
 +      const material = new PBRCustomMaterial(`${theme}_${variant}`, this.scene)
++      if (coatTexture) material.clearCoat.texture = coatTexture
++      if (emissiveTexture) {
++        material.emissiveTexture = emissiveTexture
++        material.emissiveColor.set(1, 1, 1)
++        material.emissiveIntensity = matParams.emissiveIntensity ?? 1
++      }
 +
 +      if (matParams.diffuseTexture && matParams.diffuseTexture[variant]) {
 +        opts.material.diffuseTexture = matParams.diffuseTexture[variant]
@@ -205,7 +214,7 @@ index 8909d2e..3d7335f 100644
      // create the custom color material with white/light numbers
      const diceMatLight = new CustomMaterial(theme+'_light',this.scene)
      // Other fun params for the future
-@@ -140,12 +317,22 @@ class ThemeLoader {
+@@ -140,12 +326,22 @@ class ThemeLoader {
              texture.level = matParams[level]
            }
            break;
@@ -316,7 +325,7 @@ new file mode 100644
 index 0000000..caa1259
 --- /dev/null
 +++ b/src/components/world/environment.js
-@@ -0,0 +1,108 @@
+@@ -0,0 +0,108 @@
 +import { Constants } from '@babylonjs/core/Engines/constants'
 +import { RawCubeTexture } from '@babylonjs/core/Materials/Textures/rawCubeTexture'
 +import { HDRFiltering } from '@babylonjs/core/Materials/Textures/Filtering/hdrFiltering'

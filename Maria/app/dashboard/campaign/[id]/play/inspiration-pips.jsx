@@ -73,6 +73,7 @@ export default function InspirationPips({
     /* Centred on the card's height, beside the whole card rather than the name.
        `z-0` leaves the roll's pill the layer above; the two share this strip. */
     <div
+      data-inspiration-pips
       role="group"
       aria-label={`${name}'s inspiration`}
       className={

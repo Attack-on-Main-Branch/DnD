@@ -10,6 +10,8 @@ import {
 import { toggleCondition } from "@/app/actions/characters";
 import { useLiveRefresh } from "@/app/components/notifications/use-live-refresh";
 import { alignToLattice } from "@/lib/hex-math";
+import { mapMovementFeet } from "@/lib/token-movement.mjs";
+import { turnMovement } from "sina/rules/combat";
 
 import {
   markMapPiece,
@@ -68,6 +70,7 @@ export function useMapTokens({
   isScene = false,
   settled,
   natural,
+  grid,
   faces,
   seat,
   canSweep,
@@ -250,19 +253,34 @@ export function useMapTokens({
    * A hidden piece moves in silence, as its arrow does — see table-map.jsx.
    */
   const move = useCallback(
-    (tokenId, point) => {
-      const standing = placed.get(tokenId);
+    (tokenId, point, { countMovement = true } = {}) => {
+      const state = store.read();
+      const standing = state.tokens.get(tokenId);
 
       if (!standing || !point) {
         return;
       }
 
+      const distanceFt = countMovement
+        ? mapMovementFeet(standing, point, natural, grid)
+        : null;
+      const tracking =
+        countMovement &&
+        state.combat.inCombat &&
+        state.combat.activeTokenId === tokenId &&
+        state.combat.turnId;
       const moved = {
         ...standing,
         x: point.x,
         y: point.y,
         q: point.q ?? null,
         r: point.r ?? null,
+        ...(tracking
+          ? {
+              movementFt: turnMovement(state.combat, standing) + distanceFt,
+              movementTurnId: state.combat.turnId,
+            }
+          : {}),
       };
 
       const silent = moved.isHidden;
@@ -270,12 +288,21 @@ export function useMapTokens({
       return run({
         paint: () => store.setToken(tokenId, moved),
         foretell: () => !silent && send({ kind: "token", token: moved }),
-        work: () => moveMapPiece(tokenId, point),
+        work: () =>
+          moveMapPiece(tokenId, {
+            ...point,
+            distanceFt,
+            turnId: state.combat.turnId,
+          }),
         retell: () => !silent && retellToken(tokenId),
         want: { tokens: true },
+      }).then(async (result) => {
+        if (result && tracking && (await resync({ tokens: true })) && !silent)
+          retellToken(tokenId);
+        return result;
       });
     },
-    [placed, retellToken, run, send, store],
+    [grid, natural, resync, retellToken, run, send, store],
   );
 
   /**
@@ -339,7 +366,7 @@ export function useMapTokens({
         Math.abs(token.y - point.y) < ALIGNED;
 
       if (!already) {
-        move(token.id, point);
+        move(token.id, point, { countMovement: false });
       }
     }
   }, [canSweep, mapId, move, natural, settled, store]);

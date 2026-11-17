@@ -11,8 +11,6 @@ import TravellingPack from "@/app/components/ui/travelling-pack";
 
 import { announcePouch, openPouch } from "./dice-pouch-actions";
 import { POUCH_ITEM } from "./dice-pouch-presentation";
-import DmPackDrawer from "./dm-pack-drawer";
-import PlayerPackDrawer from "./player-pack-drawer";
 import TablePopover from "./table-popover";
 import {
   useAllPacks,
@@ -27,6 +25,20 @@ import { useWireMessage } from "./table-wire";
 const PouchOpening = dynamic(() => import("./dice-pouch-opening"), {
   ssr: false,
 });
+const DmPackDrawer = dynamic(() => import("./dm-pack-drawer"), {
+  loading: InventoryLoading,
+});
+const PlayerPackDrawer = dynamic(() => import("./player-pack-drawer"), {
+  loading: InventoryLoading,
+});
+
+function InventoryLoading() {
+  return (
+    <p role="status" className="p-5 text-sm text-ink/60">
+      Loading inventory…
+    </p>
+  );
+}
 
 /**
  * The pack beside the scroll, and what is in it. One control, two drawers —
@@ -297,6 +309,7 @@ export default function InventoryPack({
   return (
     <>
       <TablePopover
+        workspaceName="Inventory"
         inline={inline}
         inlineOpen={inlineOpen}
         icon={TravellingPack}

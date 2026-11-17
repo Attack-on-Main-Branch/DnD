@@ -8,6 +8,12 @@ import {
 import { skinRarityLook } from "./skin-rarity";
 
 const BANNER_COPY = {
+  vortex: {
+    colorable: true,
+    label: "Vortex",
+    description:
+      "Painted ribbons in your dice colour spiral into a dark portal, drawing glowing sparks into its depths.",
+  },
   hexagon: {
     colorable: true,
     label: "Hexagon",
@@ -24,13 +30,27 @@ const BANNER_COPY = {
     label: "Pixel Night",
     description:
       "A violet pixel-art sky with lavender clouds, a distant moon and stars that brighten and fade at their own pace.",
-    surface: "banner-pixel-night",
+  },
+  "black-hole": {
+    label: "Black Hole",
+    description:
+      "A tilted disk of gold bends around a black hole, its light slowly brightening and fading.",
   },
   cyberpunk: {
+    colorable: true,
     label: "Cyberpunk",
     description:
-      "Angular circuit bands, diagonal cutouts and fine traces in warm gold and ivory over the familiar dark banner.",
-    surface: "banner-cyberpunk",
+      "Angular bands and fine circuit traces in your dice colour over the familiar dark banner.",
+  },
+  "carbon-fiber": {
+    label: "Carbon Fiber",
+    description: "A matte diagonal carbon weave in charcoal and gray.",
+  },
+  stillwater: {
+    label: "Stillwater",
+    description:
+      "A little white creature floats on its back in sunlit turquoise water.",
+    surface: "banner-stillwater",
   },
   vignette: {
     colorable: true,
@@ -53,7 +73,6 @@ const BANNER_COPY = {
     label: "Splash",
     description:
       "A bold splash of your dice colour across the familiar dark banner.",
-    surface: "banner-splash",
   },
   lightning: {
     label: "Lightning",
@@ -64,7 +83,6 @@ const BANNER_COPY = {
     label: "Sakura",
     description:
       "Sunlit cherry blossoms on ivory, with branches swaying in a spring breeze and petals drifting softly past.",
-    surface: "banner-sakura",
   },
   "spider-lilies": {
     label: "Spider Lilies",
@@ -84,7 +102,6 @@ const BANNER_COPY = {
     label: "Printstream",
     description:
       "White lacquer, black printwork and a pearlescent finish in constant motion.",
-    surface: "banner-printstream",
   },
 };
 
@@ -113,6 +130,8 @@ export function bannerSkinDetails(value) {
 
 export function bannerSurfaceClass(value) {
   const { value: skin, surface } = bannerSkinDetails(value);
-  if (skin === DEFAULT_BANNER_SKIN) return "";
-  return surface ? `banner-surface ${surface}` : "banner-surface";
+  if (skin === DEFAULT_BANNER_SKIN) return "banner-text";
+  return surface
+    ? `banner-text banner-surface ${surface}`
+    : "banner-text banner-surface";
 }

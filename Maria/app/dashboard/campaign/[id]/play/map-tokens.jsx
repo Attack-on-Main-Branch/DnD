@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { CONDITIONS } from "sina/rules/conditions";
 
 import MapToken from "./map-token";
@@ -25,7 +26,7 @@ import { useTokenHealth } from "./use-token-health";
  * stroke has to cross the board without the first face it passes over catching
  * the press.
  */
-export default function MapTokens({
+export default memo(function MapTokens({
   tokens,
   scale,
   layerStyle,
@@ -39,11 +40,17 @@ export default function MapTokens({
   drawing = false,
   selectedId,
 }) {
-  const sectors = cell ? tokenSectors(tokens) : new Map();
+  const sectors = useMemo(
+    () => (cell ? tokenSectors(tokens) : null),
+    [cell, tokens],
+  );
   const { health, refresh } = useTokenHealth(
     campaignId,
     canSweep,
-    tokens.map((token) => token.id).join(","),
+    tokens
+      .filter((token) => token.templateId)
+      .map((token) => token.id)
+      .join(","),
   );
   return (
     // Announced by TokenRoll instead: nothing inside a `role="button"` is read
@@ -62,7 +69,7 @@ export default function MapTokens({
               <MapToken
                 key={token.id}
                 token={{ ...token, health: health[token.id] }}
-                sector={sectors.get(token.id)}
+                sector={sectors?.get(token.id)}
                 onHealthChange={refresh}
                 scale={scale}
                 cell={cell}
@@ -78,7 +85,7 @@ export default function MapTokens({
       ))}
     </>
   );
-}
+});
 
 /**
  * What a screen reader is told is on the map. A live region because the board is
@@ -90,7 +97,7 @@ export default function MapTokens({
  * what this sentence already carries. A hidden piece reaches this sentence on
  * the Dungeon Master's screen alone — nobody else is sent the row.
  */
-export function TokenRoll({ tokens }) {
+export const TokenRoll = memo(function TokenRoll({ tokens }) {
   return (
     <p className="sr-only" aria-live="polite">
       {tokens.length === 0
@@ -98,7 +105,7 @@ export function TokenRoll({ tokens }) {
         : `On the map: ${tokens.map(described).join(", ")}.`}
     </p>
   );
-}
+});
 
 function described(token) {
   const said = [];

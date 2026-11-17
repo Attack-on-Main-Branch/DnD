@@ -16,9 +16,7 @@ import { surfaceClasses } from "@/app/components/ui/surface";
  * list of names and the description is one hover away.
  *
  * NOT A `title` ATTRIBUTE. That waits a second, cannot be styled, and draws an
- * OS-grey box over a very dark card — the same argument pack-item-card.jsx
- * makes for its own tooltip, and this is that tooltip with the app's glass on
- * it.
+ * OS-grey box over a very dark card.
  *
  * IT FLIPS RATHER THAN OVERFLOWS. Measured on the way in, once per hover: a
  * card near the foot of a drawer opens upward instead of off the bottom of it.

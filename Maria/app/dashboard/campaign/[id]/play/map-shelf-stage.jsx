@@ -1,11 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import MapMark from "@/app/components/ui/map-mark";
 
-import DmMapDrawer from "./dm-map-drawer";
 import DmTray from "./dm-tray";
 import { useDmMarks } from "./dm-marks";
 import { useTableMaps } from "./table-maps";
+
+const DmMapDrawer = dynamic(() => import("./dm-map-drawer"));
 
 /**
  * The maps, in the head of the table's box — AND THE HEAD OF THE TABLE'S

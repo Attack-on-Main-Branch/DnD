@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from "react";
 
 import { useReducedMotion } from "@/app/components/use-reduced-motion";
 
+import { playReveal } from "./reveal-animation";
 import { SHEET_WIDTH_CLASS, surfaceClasses } from "./surface";
 
 /**
@@ -18,6 +19,10 @@ const SIZES = {
     dialog:
       "max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[min(75rem,calc((100dvh-7rem)*var(--aspect-banner)))]",
     content: "p-3 sm:p-5",
+  },
+  detail: {
+    dialog: "max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] max-w-xl",
+    content: "edit-detail-content relative",
   },
   sheet: {
     dialog: `max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] ${SHEET_WIDTH_CLASS}`,
@@ -64,6 +69,7 @@ export default function EditModal({
   const dialogRef = useRef(null);
   const titleId = useId();
   const sizing = SIZES[size] ?? SIZES.sheet;
+  const detail = size === "detail";
 
   const reduceMotion = useReducedMotion();
 
@@ -83,6 +89,9 @@ export default function EditModal({
         dialog.showModal();
       }
 
+      if (detail && !reduceMotion) {
+        playReveal(dialog, "table-detail-unfold", true)?.catch(() => {});
+      }
       return undefined;
     }
 
@@ -97,13 +106,28 @@ export default function EditModal({
 
     dialog.dataset.closing = "";
 
-    const timer = setTimeout(() => {
+    function finish() {
       dialog.close();
       delete dialog.dataset.closing;
-    }, CLOSE_MS);
+    }
+
+    if (detail) {
+      let active = true;
+      Promise.resolve(playReveal(dialog, "table-detail-unfold", false)).then(
+        () => {
+          if (active) finish();
+        },
+        () => {},
+      );
+      return () => {
+        active = false;
+      };
+    }
+
+    const timer = setTimeout(finish, CLOSE_MS);
 
     return () => clearTimeout(timer);
-  }, [open, reduceMotion]);
+  }, [detail, open, reduceMotion]);
 
   return (
     <dialog
@@ -128,17 +152,22 @@ export default function EditModal({
       // No padding on the <dialog> itself: padding counts as part of the
       // element, so a press on it would read as a backdrop press and dismiss
       // the sheet. The wrapper inside owns the spacing.
-      className={surfaceClasses({
-        variant: "solid",
-        glow: true,
-        className:
-          `edit-dialog scroll-gold m-auto ${sizing.dialog} ` +
-          "overflow-y-auto rounded-2xl p-0 text-ink backdrop:bg-black/50",
-      })}
+      className={
+        detail
+          ? `edit-dialog edit-dialog-detail table-detail-reveal m-auto ${sizing.dialog} overflow-visible rounded-2xl border-0 bg-transparent p-0 text-ink shadow-none backdrop:bg-black/50`
+          : surfaceClasses({
+              variant: "solid",
+              glow: true,
+              className:
+                `edit-dialog scroll-gold m-auto ${sizing.dialog} ` +
+                "overflow-y-auto rounded-2xl p-0 text-ink backdrop:bg-black/50",
+            })
+      }
     >
       {/* One element child, which is what `.edit-dialog > *` animates in. */}
       <div
         className={sizing.content}
+        inert={detail && !open ? true : undefined}
         onClick={(event) => event.stopPropagation()}
       >
         <h2 id={titleId} className="sr-only">

@@ -3,6 +3,7 @@
  * whole row is the Dungeon Master's, so plain table calls under RLS.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { removeObject, uploadObject } from "./storage.js";
 
 const BUCKET = "campaign-maps";
@@ -12,10 +13,6 @@ const COLUMNS = "character_id, image_url, description";
 
 const CHECK_VIOLATION = "23514";
 const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_COLUMN = "42703";
-const INVALID_TEXT_REPRESENTATION = "22P02";
-const TABLE_CACHE_MISS = "PGRST205";
 const ROW_LEVEL_SECURITY = "42501";
 
 function classify(error) {
@@ -32,19 +29,13 @@ function classify(error) {
     return "not_found";
   }
 
-  if (error.code === UNDEFINED_TABLE || error.code === TABLE_CACHE_MISS) {
-    return "missing_table";
+  switch (error.code) {
+    case "42883":
+    case "PGRST202":
+      return "failed";
   }
 
-  if (error.code === UNDEFINED_COLUMN) {
-    return "missing_column";
-  }
-
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "failed";
+  return classifyDatabaseError(error, "failed");
 }
 
 function failure(error) {

@@ -6,6 +6,7 @@ import AbilityPillars from "@/app/components/ui/ability-pillars";
 
 import PartyPills from "@/app/dashboard/party-pills";
 import TablePopover, { POPOVER_BODY_CLASSES } from "./table-popover";
+import { useTableWorkspace } from "./table-workspace";
 
 /**
  * The scores and the skills, above the map beside the pack. The sections arrive
@@ -30,6 +31,7 @@ import TablePopover, { POPOVER_BODY_CLASSES } from "./table-popover";
 export default function AbilitySheet({ label, members, panels }) {
   const [chosen, setChosen] = useState(members[0].id);
   const [page, setPage] = useState(0);
+  const workspace = Boolean(useTableWorkspace());
 
   // The party can change under an open panel; whoever is left comes first.
   const reading = members.find((one) => one.id === chosen) ?? members[0];
@@ -37,12 +39,14 @@ export default function AbilitySheet({ label, members, panels }) {
 
   return (
     <TablePopover
+      workspaceName="Character"
       icon={AbilityPillars}
       label={label}
-      title={`${reading.name}’s scores`}
+      title={`${reading.name}’s ${page === 0 ? "scores" : "vitals"}`}
       meta={<PageSwitch page={page} onTurn={setPage} />}
     >
       <div
+        data-character-sheet
         className={`scroll-gold overflow-x-hidden overflow-y-auto px-5 pt-4 pb-5 ${POPOVER_BODY_CLASSES}`}
       >
         {members.length > 1 && (
@@ -59,11 +63,11 @@ export default function AbilitySheet({ label, members, panels }) {
         {/* One grid cell, two pages stacked in it, so the panel is sized by
             whichever is showing rather than by the taller of the two. */}
         <div className="grid">
-          <Page shown={page === 0} from="left">
+          <Page workspace={workspace} shown={page === 0} from="left">
             {sheet?.scores}
           </Page>
 
-          <Page shown={page === 1} from="right">
+          <Page workspace={workspace} shown={page === 1} from="right">
             {sheet?.vitals}
           </Page>
         </div>
@@ -77,9 +81,11 @@ export default function AbilitySheet({ label, members, panels }) {
  * own curve — the marks above the map morph on it, and a page turning here is
  * the same gesture at a smaller size.
  */
-function Page({ shown, from, children }) {
+function Page({ shown, from, children, workspace }) {
   return (
     <div
+      hidden={workspace && !shown}
+      data-sheet-page={workspace || undefined}
       inert={!shown || undefined}
       aria-hidden={!shown || undefined}
       className={`col-start-1 row-start-1 transition duration-250 ease-(--ease-tray) ${

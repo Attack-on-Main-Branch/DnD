@@ -3,27 +3,25 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import AbilityPillars from "@/app/components/ui/ability-pillars";
-import Button from "@/app/components/ui/button";
+import CloseButton from "@/app/components/ui/close-button";
 import SpellSigil from "@/app/components/ui/spell-sigil";
 import TravellingPack from "@/app/components/ui/travelling-pack";
 import { surfaceClasses } from "@/app/components/ui/surface";
 
-import CombatSync from "./combat-sync";
-import CombatBackdrop from "./combat-backdrop";
+import CombatTracker from "./combat-tracker";
 import DiceBoard from "./dice-board";
+import DiceCapsule from "./dice-capsule";
 import { holdTray } from "./dice-engine";
 import DiceRail from "./dice-rail";
 import InventoryPack from "./inventory-pack";
 import LeaveTable from "./leave-table";
 import NotesScroll from "./notes-scroll";
 import PartyCard from "./party-card";
-import PlayerCombatStage from "./player-combat-stage";
 import SpellBook from "./spell-book";
 import TableMap from "./table-map";
 import TableTitle from "./table-title";
 import { useTableMaps } from "./table-maps";
 import { usePartySync } from "./use-party-sync";
-import { useCombatState } from "./table-state";
 import WorldLore from "./world-lore";
 
 const PANES = [
@@ -51,8 +49,8 @@ export default function AtTablePlayer({
   const closeButton = useRef(null);
   const contents = useRef(null);
   const { activeId, activeUrl } = useTableMaps();
-  const { inCombat } = useCombatState();
   const member = members.find((one) => one.id === seat.characterId);
+  const pane = PANES.find(({ value }) => value === drawer.pane) ?? PANES[0];
 
   usePartySync({ campaignId, members, seatCharacterId: seat.characterId });
 
@@ -95,37 +93,45 @@ export default function AtTablePlayer({
         }
       }}
     >
-      <CombatSync campaignId={campaignId} />
-      <CombatBackdrop />
       <div
         inert={drawer.open || undefined}
         className="isolate flex min-h-0 min-w-0 flex-1 flex-col gap-2 px-2 pt-[max(0.25rem,env(safe-area-inset-top))] pb-1"
       >
-        <header className="grid grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1fr)] items-center gap-1">
+        <header className="grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center gap-1">
           <LeaveTable
-            compact
             href={wayOut}
+            slide="up"
             className="inline-flex min-h-11 items-center justify-self-start text-xs whitespace-nowrap text-ink/65 hover:text-gold"
           />
           <TableTitle compact title={title} />
         </header>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 landscape:grid landscape:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-          <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 landscape:grid landscape:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] landscape:grid-rows-[minmax(0,1fr)_auto]">
+          <div
+            data-table-arrival-content
+            className="flex min-w-0 flex-col gap-1.5 landscape:min-h-0 landscape:overflow-y-auto"
+          >
             {member && (
-              <ul aria-label="Your character">
-                <PartyCard
-                  phone
-                  campaignId={campaignId}
-                  member={member}
-                  here
-                  showsHealth
-                  showsInspiration
-                  showsArmor
-                  canEdit
-                  seatCharacterId={seat.characterId}
-                  actorName={seat.title}
+              <div className="relative">
+                <ul aria-label="Your character">
+                  <PartyCard
+                    phone
+                    campaignId={campaignId}
+                    member={member}
+                    here
+                    showsHealth
+                    showsInspiration
+                    showsArmor
+                    canEdit
+                    seatCharacterId={seat.characterId}
+                    actorName={seat.title}
+                  />
+                </ul>
+                <DiceCapsule
+                  characterId={seat.characterId}
+                  workspace="map"
+                  className="top-auto! bottom-2"
                 />
-              </ul>
+              </div>
             )}
             <section
               aria-label="Dice"
@@ -138,7 +144,8 @@ export default function AtTablePlayer({
           </div>
           <section
             aria-label="Play area"
-            className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] justify-items-center gap-1"
+            data-table-arrival-map
+            className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] justify-items-center gap-1 landscape:col-start-2 landscape:row-span-2"
           >
             {activeUrl ? (
               <TableMap
@@ -163,7 +170,18 @@ export default function AtTablePlayer({
                 </div>
               </div>
             )}
+            <DiceCapsule workspace="map" />
           </section>
+          <div
+            data-table-arrival-content
+            className="flex max-h-[25dvh] min-h-0 shrink-0 flex-col overflow-hidden rounded-lg border border-gold/20 empty:hidden landscape:col-start-1 landscape:row-start-2"
+          >
+            <CombatTracker
+              campaignId={campaignId}
+              faces={faces}
+              seatCharacterId={seat.characterId}
+            />
+          </div>
         </div>
       </div>
 
@@ -177,7 +195,7 @@ export default function AtTablePlayer({
       />
       <section
         id={panelId}
-        aria-label={PANES.find((pane) => pane.value === drawer.pane).label}
+        aria-label={pane.label}
         inert={!drawer.open || undefined}
         aria-hidden={!drawer.open || undefined}
         className={surfaceClasses({
@@ -187,16 +205,13 @@ export default function AtTablePlayer({
       >
         <header className="flex shrink-0 items-center justify-between border-b border-gold/20 px-4 py-2">
           <h2 className="font-display text-lg font-semibold text-gold">
-            {PANES.find((pane) => pane.value === drawer.pane).label}
+            {pane.label}
           </h2>
-          <Button
+          <CloseButton
             ref={closeButton}
-            variant="ghost"
-            aria-label="Close panel"
+            label="Close panel"
             onClick={close}
-          >
-            ✕
-          </Button>
+          />
         </header>
         <div
           ref={contents}
@@ -204,9 +219,6 @@ export default function AtTablePlayer({
         >
           <div hidden={drawer.pane !== "sheet"}>
             <div className="flex flex-col gap-3">
-              {inCombat && (
-                <PlayerCombatStage campaignId={campaignId} faces={faces} />
-              )}
               <Disclosure title="Abilities and skills" open>
                 {panels?.scores ?? (
                   <p className="text-sm text-ink/60">
@@ -256,6 +268,7 @@ export default function AtTablePlayer({
       </section>
       <nav
         aria-label="Player panels"
+        data-table-arrival-content="bottom"
         className={surfaceClasses({
           variant: "solid",
           className:

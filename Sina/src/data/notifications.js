@@ -9,6 +9,7 @@
  * transaction that closes the invitation. See the migration for both.
  */
 
+import { classifyDatabaseError } from "./database-errors.js";
 import { MAX_NOTIFICATIONS } from "../rules/notifications.js";
 
 /** `user_id` is deliberately absent: it must not travel to the client. */
@@ -16,10 +17,6 @@ const COLUMNS = "id, type, title, message, data, status, created_at";
 
 const CHECK_VIOLATION = "23514";
 const UNIQUE_VIOLATION = "23505";
-const FOREIGN_KEY_VIOLATION = "23503";
-const UNDEFINED_TABLE = "42P01";
-const UNDEFINED_FUNCTION = "42883";
-const INVALID_TEXT_REPRESENTATION = "22P02";
 
 /**
  * The tokens the migration's functions raise, mapped to the codes Maria writes
@@ -56,25 +53,14 @@ function classify(error) {
     return "invite_pending";
   }
 
-  // The recipient's account went away between the lookup and the insert.
-  if (error.code === FOREIGN_KEY_VIOLATION) {
-    return "not_found";
+  switch (error.code) {
+    case "PGRST205":
+    case "42703":
+    case "PGRST202":
+      return "unknown";
   }
 
-  if (error.code === UNDEFINED_TABLE) {
-    return "missing_table";
-  }
-
-  if (error.code === UNDEFINED_FUNCTION) {
-    return "missing_function";
-  }
-
-  // A malformed uuid: Postgres refuses the cast before considering a row.
-  if (error.code === INVALID_TEXT_REPRESENTATION) {
-    return "bad_id";
-  }
-
-  return "unknown";
+  return classifyDatabaseError(error);
 }
 
 function failure(error) {
