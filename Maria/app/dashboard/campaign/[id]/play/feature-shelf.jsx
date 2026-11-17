@@ -60,15 +60,9 @@ export default function FeatureShelf({ characterId, name, canEdit }) {
   }
 
   return (
-    <section aria-label={`${name}’s features`}>
-      {/* The sheet's own section title, in the face the other five wear. */}
-      <h3 className="font-display text-sm font-semibold tracking-wide text-ink/85">
-        Features and feats
-      </h3>
-
-      <div className="mt-3" />
-
+    <div>
       <FeatureGrid
+        label={`${name}’s features`}
         features={features}
         onRemove={canEdit ? strike : undefined}
         pending={pending}
@@ -80,6 +74,6 @@ export default function FeatureShelf({ characterId, name, canEdit }) {
           {error}
         </p>
       )}
-    </section>
+    </div>
   );
 }

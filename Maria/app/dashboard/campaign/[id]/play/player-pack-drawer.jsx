@@ -8,16 +8,16 @@ import { parseQuantity } from "sina/rules/inventory";
 import { StepButton } from "@/app/components/ui/quantity-stepper";
 
 import { NESTED_CARD_SELECTED_CLASSES } from "@/app/components/ui/surface";
-import {
-  containerTagClasses,
-  containerTypeLabel,
-  CONTAINER_CARD_CLASSES,
-} from "@/app/dashboard/container-presentation";
+import { CONTAINER_CARD_CLASSES } from "@/app/dashboard/container-presentation";
+import ContainerToggle from "@/app/dashboard/container-toggle";
 import { COIN_PANEL_CLASSES } from "@/app/dashboard/currency-presentation";
+import { EmptyPack } from "@/app/dashboard/empty-catalogue";
 import ItemDetail from "@/app/dashboard/item-detail";
 import ItemRow from "@/app/dashboard/item-row";
-import { rowItem } from "@/app/dashboard/inventory-presentation";
-import { EmptyPack } from "@/app/dashboard/pack-item-card";
+import {
+  itemsByContainer,
+  rowItem,
+} from "@/app/dashboard/inventory-presentation";
 
 import { passContainerTo } from "./chest-actions";
 import { POUCH_ITEM } from "./dice-pouch-presentation";
@@ -134,33 +134,13 @@ export default function PlayerPackDrawer({
 
   const chestTold = useCallback(() => send({ kind: "chest" }), [send]);
 
-  /* The pack itself, then one list per bag, in one pass over the rows. A Dice
-     Pouch stands apart from both: it is opened, not used, dropped or traded. */
-  const carried = useMemo(() => {
-    const loose = [];
-    const inBags = new Map();
-    let pouch = null;
-
-    for (const row of pack) {
-      if (isPouch(row.item_slug)) {
-        pouch = row.container_id ? pouch : row;
-      } else if (row.container_id) {
-        const held = inBags.get(row.container_id);
-
-        if (held) {
-          held.push(row);
-        } else {
-          inBags.set(row.container_id, [row]);
-        }
-      } else {
-        loose.push(row);
-      }
-    }
-
-    return { loose, inBags, pouch };
-  }, [pack]);
-
-  const inHand = carried.loose.find((one) => one.in_hand) ?? null;
+  const carried = useMemo(
+    () => itemsByContainer(pack.filter((row) => !isPouch(row.item_slug))),
+    [pack],
+  );
+  const loose = carried.get(null) ?? [];
+  const pouch = pack.find((row) => !row.container_id && isPouch(row.item_slug));
+  const inHand = loose.find((one) => one.in_hand) ?? null;
 
   /* Held as a slug AND the bag it was read from, so the rope in the pack is
      never spent for the rope in the bag. */
@@ -400,12 +380,12 @@ export default function PlayerPackDrawer({
         />
       </div>
 
-      {carried.pouch && carried.pouch.quantity > 0 && (
-        <PouchShelf quantity={carried.pouch.quantity} onOpen={onOpenPouch} />
+      {pouch && pouch.quantity > 0 && (
+        <PouchShelf quantity={pouch.quantity} onOpen={onOpenPouch} />
       )}
 
-      {carried.loose.length === 0 && bags.length === 0 ? (
-        !carried.pouch && (
+      {loose.length === 0 && bags.length === 0 ? (
+        !pouch && (
           <div className="mt-4">
             <EmptyPack description="What you pick up, are given, or are handed at the table will be here." />
           </div>
@@ -424,19 +404,18 @@ export default function PlayerPackDrawer({
           }`}
         >
           <p className="font-mono text-[0.625rem] tracking-[0.16em] text-ink/45 uppercase">
-            {carried.loose.length} carried
+            {loose.length} carried
           </p>
 
-          {carried.loose.length === 0 ? (
+          {loose.length === 0 ? (
             <p className="mt-2.5 text-xs text-ink/50 italic">
               Nothing loose — it is all in the bags below.
             </p>
           ) : (
             <ul className="mt-2.5 grid grid-cols-2 gap-2">
-              {carried.loose.map((held) => (
+              {loose.map((held) => (
                 <li key={held.id} {...dragProps(held)} className="flex">
                   <ItemRow
-                    roomy
                     item={rowItem(held)}
                     quantity={held.quantity}
                     open={row?.id === held.id}
@@ -453,7 +432,7 @@ export default function PlayerPackDrawer({
       )}
 
       {bags.map((bag) => {
-        const inside = carried.inBags.get(bag.id) ?? [];
+        const inside = carried.get(bag.id) ?? [];
         const unfolded = openBag === bag.id;
         const zone = dropZone(
           bag.id,
@@ -476,28 +455,14 @@ export default function PlayerPackDrawer({
               zone.taking && !zone.over ? "border-dashed border-gold/55" : ""
             }`}
           >
-            <button
-              type="button"
+            <ContainerToggle
+              container={bag}
+              count={inside.length}
+              open={unfolded}
               onClick={() =>
                 setOpenBag((standing) => (standing === bag.id ? null : bag.id))
               }
-              aria-expanded={unfolded}
-              className="flex w-full cursor-pointer items-center justify-between gap-3 text-left max-sm:min-h-11"
-            >
-              <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold tracking-wide text-ink">
-                {bag.name}
-              </span>
-
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="font-mono text-[0.625rem] text-ink/45 tabular-nums">
-                  {inside.length}
-                </span>
-
-                <span className={containerTagClasses(bag.type)}>
-                  {containerTypeLabel(bag.type)}
-                </span>
-              </span>
-            </button>
+            />
 
             {unfolded && (
               <div className="mt-3 border-t border-gold/15 pt-3">
@@ -516,7 +481,6 @@ export default function PlayerPackDrawer({
                     {inside.map((held) => (
                       <li key={held.id} {...dragProps(held)} className="flex">
                         <ItemRow
-                          roomy
                           item={rowItem(held)}
                           quantity={held.quantity}
                           open={row?.id === held.id}

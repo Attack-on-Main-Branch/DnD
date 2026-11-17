@@ -41,6 +41,10 @@ begin
   where campaign_id = v_campaign and action_type = 'armor_class_change'
   order by created_at desc, id desc limit 1;
   assert v_log = '{"delta":3}'::jsonb, 'Increase logs only +3, without the total';
+  assert exists (select 1 from public.campaign_activity_logs
+    where campaign_id = v_campaign and action_type = 'armor_class_change'
+      and payload = v_log and actor_character = v_id and actor_type = 'player'),
+    'The trigger keeps the acting character so their portrait can be shown';
 
   assert public.update_armor_class(v_id, 11, v_campaign, v_id) = 11,
     'Player may lower their own shield';

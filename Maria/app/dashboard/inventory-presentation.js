@@ -7,16 +7,20 @@
  * it never sees. Same rule character-presentation.js is written under.
  */
 
-const RISE_STEP_MS = 45;
+export function itemsByContainer(items) {
+  const grouped = new Map();
 
-/** Capped: a whole party's packs at once would otherwise take a second to land. */
-const RISE_CAP_MS = 360;
+  for (const item of items) {
+    const key = item.container_id ?? null;
+    const held = grouped.get(key);
+    if (held) {
+      held.push(item);
+    } else {
+      grouped.set(key, [item]);
+    }
+  }
 
-export const ITEM_CARD_CLASSES =
-  "motion-safe:animate-[rise_0.32s_var(--ease-tray)_both]";
-
-export function itemEntrance(index) {
-  return { animationDelay: `${Math.min(RISE_CAP_MS, index * RISE_STEP_MS)}ms` };
+  return grouped;
 }
 
 /**
@@ -64,6 +68,15 @@ export function rowItem(row) {
     description: row.description,
     isCustom: row.is_custom,
     facts: row.facts ?? {},
+  };
+}
+
+export function catalogueItem(row) {
+  return {
+    ...rowItem(row),
+    description: String(row.description ?? "").trim(),
+    isCustom: true,
+    facts: catalogueFacts(row),
   };
 }
 

@@ -14,6 +14,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useReducedMotion } from "@/app/components/use-reduced-motion";
+import CloseButton from "@/app/components/ui/close-button";
 import { playReveal } from "@/app/components/ui/reveal-animation";
 
 import { useInCombat } from "./table-state";
@@ -372,17 +373,13 @@ export function WorkspaceTool({
                 {title}
               </h2>
               {meta}
-              <button
-                type="button"
+              <CloseButton
+                label={`Close ${name.toLowerCase()}`}
                 onClick={() => {
                   close();
                   trigger.current?.focus({ preventScroll: true });
                 }}
-                aria-label={`Close ${name.toLowerCase()}`}
-                className="workspace-close"
-              >
-                ✕
-              </button>
+              />
             </div>
             <div className="workspace-panel-body scroll-gold">
               {typeof children === "function" ? children(open) : children}

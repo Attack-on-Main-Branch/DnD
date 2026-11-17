@@ -95,7 +95,6 @@ export default function SpellSearch({ campaignId, openSlug, onOpen }) {
             {shown.spells.map((spell) => (
               <li key={spell.slug} className="flex">
                 <SpellRow
-                  roomy
                   spell={spell}
                   open={openSlug === spell.slug}
                   onOpen={() => onOpen(spell)}

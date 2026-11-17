@@ -2324,7 +2324,7 @@ body {
 @keyframes table-arrival-title {
   from {
     opacity: 0;
-    letter-spacing: 0.55em;
+    letter-spacing: 1.4em;
   }
   15% {
     opacity: 1;

@@ -1,3 +1,4 @@
+import CloseButton from "@/app/components/ui/close-button";
 import {
   FADED_RULE_CLASSES,
   surfaceClasses,
@@ -58,16 +59,7 @@ export default function ItemDetail({
         {stack && (
           <span className={`shrink-0 ${STACK_TAG_CLASSES}`}>{stack}</span>
         )}
-        {onClose && (
-          <button
-            type="button"
-            aria-label="Close details"
-            onClick={onClose}
-            className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink/65 hover:text-gold focus-visible:outline-2 focus-visible:outline-gold"
-          >
-            ✕
-          </button>
-        )}
+        {onClose && <CloseButton label="Close details" onClick={onClose} />}
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

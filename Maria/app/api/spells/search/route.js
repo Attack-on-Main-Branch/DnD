@@ -7,6 +7,7 @@ import {
   MAX_SPELL_LEVEL,
 } from "sina/rules/spells";
 
+import { rowSpell } from "@/app/dashboard/spell-presentation";
 import { memoizeAsync } from "@/lib/async-cache.mjs";
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -480,24 +481,7 @@ async function campaignSpells(supabase, campaignId, query) {
     .filter((spell) => spell.name.toLowerCase().includes(query))
     .slice(0, RESULTS)
     .map((spell) => ({
-      slug: spell.spell_slug,
-      name: spell.name,
-      level: spell.level,
-      school: spell.school,
-      castingTime: spell.casting_time,
-      range: spell.range_text,
-      components: spell.components,
-      material: spell.material,
-      duration: spell.duration,
-      concentration: spell.concentration,
-      ritual: spell.ritual,
-      attackSave: spell.attack_save,
-      damage: spell.damage,
-      description: spell.description,
-      higherLevel: spell.higher_level,
-      classes: spell.classes,
-      damageByLevel: {},
-      healByLevel: {},
+      ...rowSpell(spell),
       isCustom: true,
     }));
 }

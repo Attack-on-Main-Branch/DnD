@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import AbilityPillars from "@/app/components/ui/ability-pillars";
-import Button from "@/app/components/ui/button";
+import CloseButton from "@/app/components/ui/close-button";
 import SpellSigil from "@/app/components/ui/spell-sigil";
 import TravellingPack from "@/app/components/ui/travelling-pack";
 import { surfaceClasses } from "@/app/components/ui/surface";
@@ -207,14 +207,11 @@ export default function AtTablePlayer({
           <h2 className="font-display text-lg font-semibold text-gold">
             {pane.label}
           </h2>
-          <Button
+          <CloseButton
             ref={closeButton}
-            variant="ghost"
-            aria-label="Close panel"
+            label="Close panel"
             onClick={close}
-          >
-            ✕
-          </Button>
+          />
         </header>
         <div
           ref={contents}

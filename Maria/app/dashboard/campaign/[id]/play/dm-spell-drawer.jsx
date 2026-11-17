@@ -3,14 +3,13 @@
 import { useState } from "react";
 
 import SpellDetail from "@/app/dashboard/spell-detail";
-import SpellRow from "@/app/dashboard/spell-row";
 import { spellsByShelf } from "@/app/dashboard/spell-presentation";
 
 import { Action, Confirm } from "./pack-controls";
 import PartyPills, { Pill } from "@/app/dashboard/party-pills";
 import { teachSpell, unlearnSpell } from "./spell-actions";
 import SpellSearch from "./spell-search";
-import Shelf from "@/app/dashboard/spell-shelf";
+import SpellShelves from "@/app/dashboard/spell-shelves";
 import SpellSlotTracker from "./spell-slot-tracker";
 import {
   PopoverAside,
@@ -200,25 +199,11 @@ export default function DmSpellDrawer({ campaignId, members, books, casters }) {
                     {selected.name} · {book.length} known
                   </p>
 
-                  {shelves.map((shelf) => (
-                    <Shelf
-                      compact
-                      key={shelf.level}
-                      label={shelf.label}
-                      count={shelf.spells.length}
-                    >
-                      {shelf.spells.map((spell) => (
-                        <li key={spell.slug} className="flex">
-                          <SpellRow
-                            roomy
-                            spell={spell}
-                            open={open?.slug === spell.slug}
-                            onOpen={() => show(spell)}
-                          />
-                        </li>
-                      ))}
-                    </Shelf>
-                  ))}
+                  <SpellShelves
+                    shelves={shelves}
+                    openSlug={open?.slug}
+                    onOpen={show}
+                  />
                 </>
               ))}
           </>

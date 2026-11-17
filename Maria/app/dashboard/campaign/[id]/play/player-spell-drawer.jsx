@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { CANTRIP_LEVEL, spellFlare } from "sina/rules/spells";
 
-import SpellDetail, { EmptySpellbook } from "@/app/dashboard/spell-detail";
-import SpellRow from "@/app/dashboard/spell-row";
+import { EmptySpellbook } from "@/app/dashboard/empty-catalogue";
+import SpellDetail from "@/app/dashboard/spell-detail";
 import {
   castDamageLine,
   castSaveLine,
@@ -16,7 +16,7 @@ import { moveSpellSlot, teachSpell, unlearnSpell } from "./spell-actions";
 import SpellCastControl from "./spell-cast-control";
 import { useCastFlare } from "./spell-flares";
 import SpellSearch from "./spell-search";
-import Shelf from "@/app/dashboard/spell-shelf";
+import SpellShelves from "@/app/dashboard/spell-shelves";
 import SpellSlotTracker from "./spell-slot-tracker";
 import {
   PopoverAside,
@@ -223,25 +223,11 @@ export default function PlayerSpellDrawer({
               {book.length} known
             </p>
 
-            {shelves.map((shelf) => (
-              <Shelf
-                compact
-                key={shelf.level}
-                label={shelf.label}
-                count={shelf.spells.length}
-              >
-                {shelf.spells.map((spell) => (
-                  <li key={spell.slug} className="flex">
-                    <SpellRow
-                      roomy
-                      spell={spell}
-                      open={open?.slug === spell.slug}
-                      onOpen={() => show(spell)}
-                    />
-                  </li>
-                ))}
-              </Shelf>
-            ))}
+            <SpellShelves
+              shelves={shelves}
+              openSlug={open?.slug}
+              onOpen={show}
+            />
           </>
         )}
 

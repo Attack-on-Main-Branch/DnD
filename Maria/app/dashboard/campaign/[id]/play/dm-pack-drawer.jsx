@@ -379,7 +379,6 @@ export default function DmPackDrawer({
                       {pack.map((row) => (
                         <li key={row.id} {...dragProps(row)} className="flex">
                           <ItemRow
-                            roomy
                             item={rowItem(row)}
                             quantity={row.quantity}
                             open={held?.id === row.id}
@@ -564,7 +563,6 @@ function BagSection({
               {inside.map((row) => (
                 <li key={row.id} {...dragProps(row)} className="flex">
                   <ItemRow
-                    roomy
                     item={rowItem(row)}
                     quantity={row.quantity}
                     open={openId === row.id}

@@ -37,7 +37,13 @@ export function useActivityLog(campaignId) {
       /* Added here rather than at a dozen call sites, each of which already
          names the chair that acted. */
       const ticket = preview
-        ? store.noteEntries([{ ...preview, seat: actorCharacterId }])
+        ? store.noteEntries([
+            {
+              ...preview,
+              seat: actorCharacterId ?? null,
+              head: actorCharacterId == null,
+            },
+          ])
         : null;
 
       return recordActivity(campaignId, actorCharacterId, entry).then(

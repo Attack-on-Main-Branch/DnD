@@ -1,3 +1,4 @@
+import CloseButton from "@/app/components/ui/close-button";
 import {
   FADED_RULE_CLASSES,
   surfaceClasses,
@@ -43,16 +44,7 @@ export default function SpellDetail({ spell, children, onClose = null }) {
         <span className={`shrink-0 ${LEVEL_TAG_CLASSES}`}>
           {levelBadge(spell.level)}
         </span>
-        {onClose && (
-          <button
-            type="button"
-            aria-label="Close details"
-            onClick={onClose}
-            className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink/65 hover:text-gold focus-visible:outline-2 focus-visible:outline-gold"
-          >
-            ✕
-          </button>
-        )}
+        {onClose && <CloseButton label="Close details" onClick={onClose} />}
       </div>
 
       {(spell.school || spell.concentration || spell.ritual) && (
@@ -162,16 +154,5 @@ function Label({ children }) {
     <span className="font-mono text-[0.625rem] tracking-[0.14em] text-gold/70 uppercase">
       {children}
     </span>
-  );
-}
-
-export function EmptySpellbook({ title = "No spells are known", description }) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gold/20 py-10 text-center">
-      <p className="font-display text-base font-medium tracking-wide text-ink/80">
-        {title}
-      </p>
-      <p className="max-w-sm px-4 text-xs text-ink/50">{description}</p>
-    </div>
   );
 }

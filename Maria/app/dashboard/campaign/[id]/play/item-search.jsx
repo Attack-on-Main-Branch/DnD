@@ -100,7 +100,6 @@ export default function ItemSearch({ campaignId, openSlug, onOpen }) {
             {shown.items.map((item) => (
               <li key={item.slug} className="flex">
                 <ItemRow
-                  roomy
                   item={item}
                   open={openSlug === item.slug}
                   onOpen={() => onOpen(item)}

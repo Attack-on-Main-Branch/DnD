@@ -99,7 +99,7 @@ export function slotPipClasses(available, interactive = false) {
 }
 
 /** A database row as the cards and the Server Actions want a spell. */
-function rowSpell(row) {
+export function rowSpell(row) {
   return {
     slug: row.spell_slug,
     name: row.name,

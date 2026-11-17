@@ -736,22 +736,6 @@
   border-bottom: 1px solid var(--gold-20);
 }
 
-.workspace-close {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 0.375rem;
-  color: var(--ink-60);
-  cursor: pointer;
-}
-
-.workspace-close:hover {
-  background: var(--gold-10);
-  color: var(--color-gold);
-}
-
 .workspace-panel-body {
   display: flex;
   min-height: 0;

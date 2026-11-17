@@ -1,7 +1,7 @@
 import { listCampaignItems } from "sina/data/inventory";
 import { MAX_ITEM_DESCRIPTION_LENGTH } from "sina/rules/inventory";
 
-import { catalogueFacts } from "@/app/dashboard/inventory-presentation";
+import { catalogueItem } from "@/app/dashboard/inventory-presentation";
 import { memoizeAsync } from "@/lib/async-cache.mjs";
 import { logFailure } from "@/lib/errors";
 import { createClient, getCurrentUser } from "@/lib/supabase";
@@ -488,12 +488,5 @@ async function campaignItems(supabase, campaignId, query) {
   return data
     .filter((item) => item.name.toLowerCase().includes(query))
     .slice(0, RESULTS)
-    .map((item) => ({
-      slug: item.item_slug,
-      name: item.name,
-      category: item.category,
-      description: String(item.description ?? "").trim(),
-      facts: catalogueFacts(item),
-      isCustom: true,
-    }));
+    .map(catalogueItem);
 }
